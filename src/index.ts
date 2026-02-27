@@ -17,6 +17,12 @@ export type {
   SymbolExtractor,
 } from './indexer/extractors/types.js';
 
+// ── File watcher / poller ─────────────────────────────────────────────────────
+export { FileWatcher } from './indexer/watcher.js';
+export type { WatcherOptions } from './indexer/watcher.js';
+export { FilePoller } from './indexer/poller.js';
+export type { PollerOptions } from './indexer/poller.js';
+
 // ── MCP server ────────────────────────────────────────────────────────────────
 export { createKbMcpServer } from './kb-server/server.js';
 export {
