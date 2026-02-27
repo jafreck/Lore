@@ -7,7 +7,7 @@ export type { WalkerConfig, FileEntry } from './indexer/walker.js';
 export { ImportResolver } from './indexer/resolver.js';
 export { ParserPool } from './indexer/parser.js';
 export { ensurePythonDeps } from './indexer/ensure-python-deps.js';
-export { SentenceTransformersProvider, Qwen3EmbeddingProvider } from './indexer/embedder.js';
+export { SentenceTransformersProvider, Qwen3EmbeddingProvider, DEFAULT_EMBEDDING_MODEL } from './indexer/embedder.js';
 export type { EmbeddingProvider } from './indexer/embedder.js';
 export type {
   ExtractionResult,

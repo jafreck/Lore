@@ -1,0 +1,507 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Kotlin extractor > callRefs 1`] = `[]`;
+
+exports[`Kotlin extractor > imports 1`] = `
+[
+  {
+    "importedNames": [
+      "PI",
+    ],
+    "source": "kotlin.math.PI",
+  },
+  {
+    "importedNames": [
+      "sqrt",
+    ],
+    "source": "kotlin.math.sqrt",
+  },
+]
+`;
+
+exports[`Kotlin extractor > symbols 1`] = `
+[
+  {
+    "endLine": 5,
+    "kind": "function",
+    "name": "greet",
+    "signature": "fun greet(name: String): String",
+    "startLine": 3,
+  },
+  {
+    "endLine": 7,
+    "kind": "function",
+    "name": "add",
+    "signature": "fun add(a: Int, b: Int): Int = a + b",
+    "startLine": 7,
+  },
+  {
+    "endLine": 13,
+    "kind": "class",
+    "name": "Circle",
+    "signature": "class Circle(private val radius: Double)",
+    "startLine": 9,
+  },
+  {
+    "endLine": 10,
+    "kind": "function",
+    "name": "area",
+    "signature": "fun area(): Double = PI * radius * radius",
+    "startLine": 10,
+  },
+  {
+    "endLine": 12,
+    "kind": "function",
+    "name": "perimeter",
+    "signature": "fun perimeter(): Double = 2 * PI * radius",
+    "startLine": 12,
+  },
+  {
+    "endLine": 18,
+    "kind": "class",
+    "name": "Shape",
+    "signature": "interface Shape",
+    "startLine": 15,
+  },
+  {
+    "endLine": 16,
+    "kind": "function",
+    "name": "area",
+    "signature": "fun area(): Double",
+    "startLine": 16,
+  },
+  {
+    "endLine": 17,
+    "kind": "function",
+    "name": "perimeter",
+    "signature": "fun perimeter(): Double",
+    "startLine": 17,
+  },
+  {
+    "endLine": 22,
+    "kind": "class",
+    "name": "MathUtils",
+    "signature": "object MathUtils",
+    "startLine": 20,
+  },
+  {
+    "endLine": 21,
+    "kind": "function",
+    "name": "square",
+    "signature": "fun square(x: Int): Int = x * x",
+    "startLine": 21,
+  },
+]
+`;
+
+exports[`OCaml extractor > callRefs 1`] = `[]`;
+
+exports[`OCaml extractor > imports 1`] = `[]`;
+
+exports[`OCaml extractor > symbols 1`] = `
+[
+  {
+    "endLine": 3,
+    "kind": "val",
+    "name": "pi",
+    "signature": "pi = 3.14159265358979",
+    "startLine": 3,
+  },
+  {
+    "endLine": 6,
+    "kind": "function",
+    "name": "greet",
+    "signature": "greet name =",
+    "startLine": 5,
+  },
+  {
+    "endLine": 8,
+    "kind": "function",
+    "name": "add",
+    "signature": "add a b = a + b",
+    "startLine": 8,
+  },
+  {
+    "endLine": 10,
+    "kind": "function",
+    "name": "square",
+    "signature": "square x = x * x",
+    "startLine": 10,
+  },
+  {
+    "endLine": 14,
+    "kind": "type",
+    "name": "",
+    "signature": "type shape =",
+    "startLine": 12,
+  },
+  {
+    "endLine": 19,
+    "kind": "function",
+    "name": "area",
+    "signature": "area s =",
+    "startLine": 16,
+  },
+  {
+    "endLine": 26,
+    "kind": "module",
+    "name": "",
+    "signature": "module MathUtils = struct",
+    "startLine": 21,
+  },
+  {
+    "endLine": 25,
+    "kind": "function",
+    "name": "clamp",
+    "signature": "clamp value min_val max_val =",
+    "startLine": 22,
+  },
+]
+`;
+
+exports[`Objective-C extractor > callRefs 1`] = `[]`;
+
+exports[`Objective-C extractor > imports 1`] = `
+[
+  {
+    "importedNames": [],
+    "source": "Foundation/Foundation.h",
+  },
+  {
+    "importedNames": [],
+    "source": "Shape.h",
+  },
+]
+`;
+
+exports[`Objective-C extractor > symbols 1`] = `
+[
+  {
+    "endLine": 11,
+    "kind": "class",
+    "name": "Circle",
+    "signature": "@interface Circle : NSObject",
+    "startLine": 3,
+  },
+  {
+    "endLine": 7,
+    "kind": "function",
+    "name": "",
+    "signature": "- (instancetype)initWithRadius:(double)radius;",
+    "startLine": 7,
+  },
+  {
+    "endLine": 8,
+    "kind": "function",
+    "name": "",
+    "signature": "- (double)area;",
+    "startLine": 8,
+  },
+  {
+    "endLine": 9,
+    "kind": "function",
+    "name": "",
+    "signature": "- (double)perimeter;",
+    "startLine": 9,
+  },
+  {
+    "endLine": 31,
+    "kind": "impl",
+    "name": "Circle",
+    "signature": "@implementation Circle
+
+- (instancetype)initWithRadius:(double)radius",
+    "startLine": 13,
+  },
+]
+`;
+
+exports[`Ruby extractor > callRefs 1`] = `[]`;
+
+exports[`Ruby extractor > imports 1`] = `
+[
+  {
+    "importedNames": [],
+    "source": "json",
+  },
+  {
+    "importedNames": [],
+    "source": "shape",
+  },
+]
+`;
+
+exports[`Ruby extractor > symbols 1`] = `
+[
+  {
+    "endLine": 25,
+    "kind": "module",
+    "name": "Geometry",
+    "signature": "module Geometry",
+    "startLine": 3,
+  },
+  {
+    "endLine": 3,
+    "kind": "module",
+    "name": "",
+    "signature": "module",
+    "startLine": 3,
+  },
+  {
+    "endLine": 24,
+    "kind": "class",
+    "name": "Circle",
+    "signature": "class Circle",
+    "startLine": 6,
+  },
+  {
+    "endLine": 6,
+    "kind": "class",
+    "name": "",
+    "signature": "class",
+    "startLine": 6,
+  },
+  {
+    "endLine": 11,
+    "kind": "function",
+    "name": "initialize",
+    "signature": "def initialize(radius)",
+    "startLine": 9,
+  },
+  {
+    "endLine": 15,
+    "kind": "function",
+    "name": "area",
+    "signature": "def area",
+    "startLine": 13,
+  },
+  {
+    "endLine": 19,
+    "kind": "function",
+    "name": "perimeter",
+    "signature": "def perimeter",
+    "startLine": 17,
+  },
+  {
+    "endLine": 23,
+    "kind": "function",
+    "name": "self.unit_circle",
+    "signature": "def self.unit_circle",
+    "startLine": 21,
+  },
+  {
+    "endLine": 29,
+    "kind": "function",
+    "name": "greet",
+    "signature": "def greet(name)
+  "Hello, #",
+    "startLine": 27,
+  },
+  {
+    "endLine": 33,
+    "kind": "function",
+    "name": "add",
+    "signature": "def add(a, b)",
+    "startLine": 31,
+  },
+]
+`;
+
+exports[`Scala extractor > callRefs 1`] = `[]`;
+
+exports[`Scala extractor > imports 1`] = `
+[
+  {
+    "importedNames": [
+      "PI",
+      "sqrt",
+    ],
+    "source": "scala.math.{PI, sqrt}",
+  },
+  {
+    "importedNames": [
+      "ArrayBuffer",
+    ],
+    "source": "scala.collection.mutable.ArrayBuffer",
+  },
+]
+`;
+
+exports[`Scala extractor > symbols 1`] = `
+[
+  {
+    "endLine": 3,
+    "kind": "function",
+    "name": "greet",
+    "signature": "def greet(name: String): String = s"Hello, $name!"",
+    "startLine": 3,
+  },
+  {
+    "endLine": 5,
+    "kind": "function",
+    "name": "add",
+    "signature": "def add(a: Int, b: Int): Int = a + b",
+    "startLine": 5,
+  },
+  {
+    "endLine": 10,
+    "kind": "trait",
+    "name": "Shape",
+    "signature": "trait Shape",
+    "startLine": 7,
+  },
+  {
+    "endLine": 15,
+    "kind": "class",
+    "name": "Circle",
+    "signature": "class Circle(val radius: Double) extends Shape",
+    "startLine": 12,
+  },
+  {
+    "endLine": 13,
+    "kind": "function",
+    "name": "area",
+    "signature": "def area(): Double = PI * radius * radius",
+    "startLine": 13,
+  },
+  {
+    "endLine": 14,
+    "kind": "function",
+    "name": "perimeter",
+    "signature": "def perimeter(): Double = 2 * PI * radius",
+    "startLine": 14,
+  },
+  {
+    "endLine": 24,
+    "kind": "class",
+    "name": "MathUtils",
+    "signature": "object MathUtils",
+    "startLine": 17,
+  },
+  {
+    "endLine": 18,
+    "kind": "function",
+    "name": "square",
+    "signature": "def square(x: Int): Int = x * x",
+    "startLine": 18,
+  },
+  {
+    "endLine": 24,
+    "kind": "function",
+    "name": "clamp",
+    "signature": "def clamp(value: Int, min: Int, max: Int): Int =",
+    "startLine": 20,
+  },
+  {
+    "endLine": 26,
+    "kind": "val",
+    "name": "version",
+    "signature": "val version = "1.0.0"",
+    "startLine": 26,
+  },
+  {
+    "endLine": 27,
+    "kind": "var",
+    "name": "counter",
+    "signature": "var counter = 0",
+    "startLine": 27,
+  },
+]
+`;
+
+exports[`Swift extractor > callRefs 1`] = `[]`;
+
+exports[`Swift extractor > imports 1`] = `
+[
+  {
+    "importedNames": [],
+    "source": "Foundation",
+  },
+  {
+    "importedNames": [],
+    "source": "Darwin",
+  },
+]
+`;
+
+exports[`Swift extractor > symbols 1`] = `
+[
+  {
+    "endLine": 6,
+    "kind": "interface",
+    "name": "Shape",
+    "signature": "protocol Shape",
+    "startLine": 3,
+  },
+  {
+    "endLine": 18,
+    "kind": "class",
+    "name": "Circle",
+    "signature": "struct Circle: Shape",
+    "startLine": 8,
+  },
+  {
+    "endLine": 13,
+    "kind": "function",
+    "name": "area",
+    "signature": "func area() -> Double",
+    "startLine": 11,
+  },
+  {
+    "endLine": 17,
+    "kind": "function",
+    "name": "perimeter",
+    "signature": "func perimeter() -> Double",
+    "startLine": 15,
+  },
+  {
+    "endLine": 36,
+    "kind": "class",
+    "name": "Rectangle",
+    "signature": "class Rectangle: Shape",
+    "startLine": 20,
+  },
+  {
+    "endLine": 31,
+    "kind": "function",
+    "name": "area",
+    "signature": "func area() -> Double",
+    "startLine": 29,
+  },
+  {
+    "endLine": 35,
+    "kind": "function",
+    "name": "perimeter",
+    "signature": "func perimeter() -> Double",
+    "startLine": 33,
+  },
+  {
+    "endLine": 40,
+    "kind": "function",
+    "name": "greet",
+    "signature": "func greet(name: String) -> String",
+    "startLine": 38,
+  },
+  {
+    "endLine": 44,
+    "kind": "function",
+    "name": "add",
+    "signature": "func add(_ a: Int, _ b: Int) -> Int",
+    "startLine": 42,
+  },
+  {
+    "endLine": 50,
+    "kind": "class",
+    "name": "Circle",
+    "signature": "extension Circle",
+    "startLine": 46,
+  },
+  {
+    "endLine": 49,
+    "kind": "function",
+    "name": "describe",
+    "signature": "func describe() -> String",
+    "startLine": 47,
+  },
+]
+`;

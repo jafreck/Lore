@@ -5,6 +5,8 @@
  * Lore CLI — unified entry point for indexing and the MCP server.
  *
  * Usage:
+ *   lore index --root <dir> --db <path> [--embedding-model <id>]
+ *                              Index a codebase into a knowledge-base file.
  *   lore mcp --db <path>                        Start the knowledge-base MCP server (stdio transport).
  *   lore refresh --db <path> --root <dir>       Run an incremental index update and exit.
  *   lore refresh --db <path> --root <dir> --watch  Watch for changes and refresh automatically.
@@ -18,17 +20,20 @@ import * as fs from 'node:fs';
 function usage(): never {
   console.error(
     `Usage:
+  lore index --root <dir> --db <path> [--embedding-model <id>]
+                         Index a codebase into a knowledge-base SQLite file
   lore mcp --db <path>                          Start the KB MCP server (stdio transport)
   lore refresh --db <path> --root <dir>         Run an incremental index update and exit
   lore refresh --db <path> --root <dir> --watch Watch for file changes and refresh automatically
   lore refresh --db <path> --root <dir> --poll  Poll for file changes and refresh automatically
 
 Options:
-  --db <path>      Path to a Lore knowledge-base SQLite file (required)
-  --root <dir>     Root directory to index (required for refresh)
-  --watch          Enable fs-event watch mode (low-latency, may miss events on some platforms)
-  --poll           Enable polling mode (reliable but higher CPU/IO cost)
-  --help, -h       Show this help message`,
+  --root <dir>             Root directory to index (required for index, refresh)
+  --db <path>              Path to a Lore knowledge-base SQLite file (required for index, mcp, refresh)
+  --embedding-model <id>   Embedding model identifier (default: Qwen/Qwen3-Embedding-4B)
+  --watch                  Enable fs-event watch mode (low-latency, may miss events on some platforms)
+  --poll                   Enable polling mode (reliable but higher CPU/IO cost)
+  --help, -h               Show this help message`,
   );
   process.exit(1);
 }
@@ -50,7 +55,24 @@ async function main(): Promise<void> {
 
   const subcommand = args[0];
 
-  if (subcommand === 'mcp') {
+  if (subcommand === 'index') {
+    const rootDir = flag(args, '--root');
+    const dbPath = flag(args, '--db');
+    if (!rootDir) {
+      console.error('Error: --root <dir> is required for the index subcommand.\n');
+      usage();
+    }
+    if (!dbPath) {
+      console.error('Error: --db <path> is required for the index subcommand.\n');
+      usage();
+    }
+    const embeddingModel = flag(args, '--embedding-model');
+
+    const { IndexBuilder } = await import('./indexer/index.js');
+
+    const builder = new IndexBuilder(dbPath, { rootDir }, undefined, embeddingModel);
+    await builder.build();
+  } else if (subcommand === 'mcp') {
     const dbPath = flag(args, '--db');
     if (!dbPath) {
       console.error('Error: --db <path> is required for the mcp subcommand.\n');

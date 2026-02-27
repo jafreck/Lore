@@ -204,6 +204,9 @@ export class SentenceTransformersProvider implements EmbeddingProvider {
 
 // ─── Qwen3 factory ────────────────────────────────────────────────────────────
 
+/** Default embedding model used when no model is explicitly specified. */
+export const DEFAULT_EMBEDDING_MODEL = 'Qwen/Qwen3-Embedding-4B';
+
 /**
  * Creates a `SentenceTransformersProvider` pre-configured for the specified
  * Qwen3-Embedding model size.
