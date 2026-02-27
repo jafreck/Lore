@@ -40,6 +40,28 @@ await runKbIndex({
 });
 ```
 
+## CLI
+
+### `lore index` — build or update the knowledge base
+
+```bash
+npx @jafreck/lore index --root <dir> --db <path> [--embedding-model <id>]
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--root <dir>` | *(required)* | Root directory of the source tree to index |
+| `--db <path>` | *(required)* | Path to the SQLite knowledge-base file (created if absent) |
+| `--embedding-model <id>` | `Qwen/Qwen3-Embedding-4B` | Hugging Face model ID used to generate embeddings for semantic search |
+
+**Example**
+
+```bash
+npx @jafreck/lore index --root ./my-project --db ./kb.db
+# or with a custom embedding model:
+npx @jafreck/lore index --root ./my-project --db ./kb.db --embedding-model sentence-transformers/all-MiniLM-L6-v2
+```
+
 ## MCP Server
 
 Lore ships with a built-in [Model Context Protocol](https://modelcontextprotocol.io)
@@ -52,6 +74,11 @@ Cadre, AAMF, etc.) query a Lore knowledge base.
 # stdio transport (default — works with all MCP clients)
 npx @jafreck/lore mcp --db ./kb.db
 ```
+
+> **Note:** If the embedding model fails to initialise at startup (e.g. the
+> model weights are unavailable), semantic search is silently disabled and the
+> MCP server continues to start normally. Structural (`bm25`) search remains
+> fully functional.
 
 ### MCP client configuration
 
@@ -88,6 +115,48 @@ const db = openReadOnly("/path/to/kb.db");
 const server = createKbMcpServer(db, "/path/to/kb.db");
 // Connect to your preferred transport...
 ```
+
+## Index Refresh
+
+Lore supports three modes for keeping the index up to date after an initial build:
+
+### Manual refresh (recommended for CI/scripted use)
+
+Performs an incremental update over all files in the root directory and exits.
+This is the safest option because it is idempotent and has no long-running process to manage.
+
+```bash
+npx @jafreck/lore refresh --db ./kb.db --root ./src
+```
+
+### Watch mode
+
+Uses native filesystem events (`fs.watch`) to detect file changes and trigger
+incremental updates automatically. Watch mode is **low-latency** — changes are
+picked up within milliseconds — but may **miss events** on network file systems,
+some Linux configurations, or WSL2 environments where kernel inotify limits apply.
+
+```bash
+npx @jafreck/lore refresh --db ./kb.db --root ./src --watch
+```
+
+### Poll mode
+
+Periodically walks the directory tree, compares file modification times against
+a snapshot, and triggers an incremental update for any files that changed.
+Poll mode is **reliable** on all platforms and file systems, but incurs a
+**higher CPU and I/O cost** proportional to the size of the tree and the polling
+interval (default: 5 s).
+
+```bash
+npx @jafreck/lore refresh --db ./kb.db --root ./src --poll
+```
+
+| Mode | Latency | Reliability | Cost |
+|------|---------|-------------|------|
+| Manual | on-demand | highest | none (run once) |
+| `--watch` | low (~ms) | platform-dependent | minimal |
+| `--poll` | ~interval | highest | moderate (CPU/IO) |
 
 ## Build from source
 

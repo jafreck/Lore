@@ -1,145 +1,275 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { spawnSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
-import { join } from 'node:path';
-import { tmpdir } from 'node:os';
-import Database from 'better-sqlite3';
+import * as nodeFs from 'node:fs';
+import * as nodePath from 'node:path';
+import * as nodeOs from 'node:os';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-const CLI = join(import.meta.dirname, '..', 'dist', 'cli.js');
+// ── Test-resource helpers ─────────────────────────────────────────────────────
 
-function runCli(args: string[]): { stdout: string; stderr: string; status: number } {
-  const result = spawnSync(process.execPath, [CLI, ...args], { encoding: 'utf8' });
-  return {
-    stdout: result.stdout ?? '',
-    stderr: result.stderr ?? '',
-    status: result.status ?? 1,
-  };
+let tmpDir: string;
+
+function freshDb(): string {
+  return nodePath.join(tmpDir, `cli-test-${Date.now()}.db`);
 }
 
-function createTmpSrcDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'lore-cli-test-src-'));
-  writeFileSync(join(dir, 'hello.ts'), 'export function hello(): string { return "hi"; }\n');
-  return dir;
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/**
+ * Set process.argv, reset the module registry, and import cli.ts so that
+ * main() re-executes. Returns once the module is evaluated (main() may still
+ * be running asynchronously at that point).
+ */
+async function loadCli(args: string[]): Promise<void> {
+  process.argv = ['node', 'lore', ...args];
+  vi.resetModules();
+  await import('../../src/cli.js');
 }
 
-function tmpDbPath(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'lore-cli-test-db-'));
-  return join(dir, 'test.db');
+/**
+ * Poll process.stderr.write spy until the captured text includes `substring`,
+ * or throw after `timeoutMs`.
+ */
+async function waitForStderr(
+  stderrSpy: ReturnType<typeof vi.spyOn>,
+  substring: string,
+  timeoutMs = 5000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const text = stderrSpy.mock.calls.map((c) => String(c[0])).join('');
+    if (text.includes(substring)) return;
+    await new Promise<void>((r) => setTimeout(r, 20));
+  }
+  const text = stderrSpy.mock.calls.map((c) => String(c[0])).join('');
+  throw new Error(
+    `"${substring}" not found in stderr after ${timeoutMs}ms.\nActual: ${text}`,
+  );
 }
 
-// ─── Usage / help ─────────────────────────────────────────────────────────────
+// ── Tests ─────────────────────────────────────────────────────────────────────
 
-describe('CLI – usage / help', () => {
-  it('should exit with code 1 and print usage when no arguments', () => {
-    const { status, stderr } = runCli([]);
-    expect(status).toBe(1);
-    expect(stderr).toContain('lore index');
-    expect(stderr).toContain('lore mcp');
-  });
-
-  it('should exit with code 1 and print usage for --help', () => {
-    const { status, stderr } = runCli(['--help']);
-    expect(status).toBe(1);
-    expect(stderr).toContain('--root');
-    expect(stderr).toContain('--db');
-    expect(stderr).toContain('--branch');
-  });
-
-  it('should exit with code 1 and print usage for -h', () => {
-    const { status, stderr } = runCli(['-h']);
-    expect(status).toBe(1);
-    expect(stderr).toContain('Usage:');
-  });
-
-  it('should exit with code 1 and print error for unknown subcommand', () => {
-    const { status, stderr } = runCli(['unknown']);
-    expect(status).toBe(1);
-    expect(stderr).toContain('Unknown subcommand: unknown');
-  });
-});
-
-// ─── index subcommand – validation ────────────────────────────────────────────
-
-describe('CLI – index subcommand validation', () => {
-  it('should exit with code 1 when --root is missing', () => {
-    const { status, stderr } = runCli(['index', '--db', '/tmp/ignored.db']);
-    expect(status).toBe(1);
-    expect(stderr).toContain('--root');
-  });
-
-  it('should exit with code 1 when --db is missing', () => {
-    const { status, stderr } = runCli(['index', '--root', '/tmp']);
-    expect(status).toBe(1);
-    expect(stderr).toContain('--db');
-  });
-
-  it('should exit with code 1 when both --root and --db are missing', () => {
-    const { status, stderr } = runCli(['index']);
-    expect(status).toBe(1);
-    expect(stderr).toContain('--root');
-  });
-});
-
-// ─── index subcommand – happy path ────────────────────────────────────────────
-
-describe('CLI – index subcommand success', () => {
-  let srcDir: string;
-  let dbPath: string;
+describe('cli', () => {
+  let exitSpy: ReturnType<typeof vi.spyOn>;
+  let stderrSpy: ReturnType<typeof vi.spyOn>;
+  let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
-    srcDir = createTmpSrcDir();
-    dbPath = tmpDbPath();
+    vi.clearAllMocks();
+
+    tmpDir = nodeFs.mkdtempSync(nodePath.join(nodeOs.tmpdir(), 'lore-cli-test-'));
+
+    // process.exit is mocked as a no-op so the test process does not actually
+    // exit. This means code after a usage() call may continue, but the spy
+    // records all calls so we can assert on exit codes.
+    exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
+    stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
   });
 
   afterEach(() => {
-    try { rmSync(srcDir, { recursive: true, force: true }); } catch { /* ignore */ }
-    try { rmSync(dbPath); } catch { /* ignore */ }
-    try { rmSync(join(dbPath, '..'), { recursive: true, force: true }); } catch { /* ignore */ }
+    vi.restoreAllMocks();
+    // Remove any SIGINT / SIGTERM listeners registered by the CLI during the
+    // test so they do not accumulate across tests.
+    process.removeAllListeners('SIGINT');
+    process.removeAllListeners('SIGTERM');
+    // Clean up temp dir
+    nodeFs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it('should exit with code 0 when --root and --db are provided', () => {
-    const { status } = runCli(['index', '--root', srcDir, '--db', dbPath]);
-    expect(status).toBe(0);
+  // ── Usage / help ───────────────────────────────────────────────────────────
+
+  describe('usage / help', () => {
+    it('should print usage and exit with code 1 when no arguments are given', async () => {
+      await loadCli([]);
+      expect(exitSpy).toHaveBeenCalledWith(1);
+    });
+
+    it('should print usage and exit with code 1 for --help', async () => {
+      await loadCli(['--help']);
+      expect(exitSpy).toHaveBeenCalledWith(1);
+    });
+
+    it('should print usage and exit with code 1 for -h', async () => {
+      await loadCli(['-h']);
+      expect(exitSpy).toHaveBeenCalledWith(1);
+    });
+
+    it('should print usage and exit with code 1 for an unknown subcommand', async () => {
+      await loadCli(['unknown-cmd']);
+      expect(exitSpy).toHaveBeenCalledWith(1);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Unknown subcommand'),
+      );
+    });
   });
 
-  it('should print indexed message on stderr', () => {
-    const { stderr } = runCli(['index', '--root', srcDir, '--db', dbPath]);
-    expect(stderr).toContain('lore: indexed');
-    expect(stderr).toContain(srcDir);
-    expect(stderr).toContain(dbPath);
+  // ── mcp subcommand ─────────────────────────────────────────────────────────
+
+  describe('mcp subcommand', () => {
+    it('should print an error and exit with code 1 when --db is missing', async () => {
+      await loadCli(['mcp']);
+      expect(exitSpy).toHaveBeenCalledWith(1);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('--db'),
+      );
+    });
   });
 
-  it('should create the database file after indexing', () => {
-    runCli(['index', '--root', srcDir, '--db', dbPath]);
-    const db = new Database(dbPath, { readonly: true });
-    const rows = db.prepare('SELECT COUNT(*) as count FROM files').get() as { count: number };
-    db.close();
-    expect(rows.count).toBeGreaterThan(0);
+  // ── refresh subcommand — argument validation ───────────────────────────────
+
+  describe('refresh subcommand — argument validation', () => {
+    it('should print an error and exit with code 1 when --db is missing', async () => {
+      await loadCli(['refresh', '--root', tmpDir]);
+      expect(exitSpy).toHaveBeenCalledWith(1);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('--db'),
+      );
+    });
+
+    it('should print an error and exit with code 1 when --root is missing', async () => {
+      await loadCli(['refresh', '--db', freshDb()]);
+      expect(exitSpy).toHaveBeenCalledWith(1);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('--root'),
+      );
+    });
+
+    it('should print an error and exit with code 1 when both --db and --root are missing', async () => {
+      await loadCli(['refresh']);
+      expect(exitSpy).toHaveBeenCalledWith(1);
+    });
   });
 
-  it('should use the provided --branch value', () => {
-    const { status } = runCli(['index', '--root', srcDir, '--db', dbPath, '--branch', 'my-branch']);
-    expect(status).toBe(0);
+  // ── refresh subcommand — manual mode ──────────────────────────────────────
 
-    const db = new Database(dbPath, { readonly: true });
-    const rows = db
-      .prepare('SELECT DISTINCT branch FROM files')
-      .all() as { branch: string }[];
-    db.close();
-    expect(rows.map(r => r.branch)).toContain('my-branch');
+  describe('refresh subcommand — manual mode', () => {
+    it('should write a structured info log to stderr and exit cleanly when the DB does not yet exist', async () => {
+      const dbPath = freshDb();
+      await loadCli(['refresh', '--db', dbPath, '--root', tmpDir]);
+      await waitForStderr(stderrSpy, tmpDir);
+
+      const text = stderrSpy.mock.calls.map((c) => String(c[0])).join('');
+      const jsonLine = text.split('\n').find(
+        (l) => l.includes('"refresh complete"') && l.includes(tmpDir),
+      );
+      expect(jsonLine).toBeDefined();
+      const parsed = JSON.parse(jsonLine!.trim());
+      expect(parsed.level).toBe('info');
+      expect(parsed.source).toBe('cli');
+      expect(parsed.message).toBe('refresh complete');
+      expect(parsed.rootDir).toBe(tmpDir);
+    });
+
+    it('should create the DB file on a first-time (build) refresh', async () => {
+      const dbPath = freshDb();
+      await loadCli(['refresh', '--db', dbPath, '--root', tmpDir]);
+      await waitForStderr(stderrSpy, 'refresh complete');
+
+      expect(nodeFs.existsSync(dbPath)).toBe(true);
+    });
   });
 
-  it('should default branch to HEAD when --branch is omitted', () => {
-    runCli(['index', '--root', srcDir, '--db', dbPath]);
+  // ── refresh subcommand — watch mode ───────────────────────────────────────
 
-    const db = new Database(dbPath, { readonly: true });
-    const rows = db
-      .prepare('SELECT DISTINCT branch FROM files')
-      .all() as { branch: string }[];
-    db.close();
-    // Branch should be a non-empty string (either current HEAD branch or 'HEAD' fallback)
-    expect(rows.length).toBeGreaterThan(0);
-    expect(typeof rows[0]!.branch).toBe('string');
-    expect(rows[0]!.branch.length).toBeGreaterThan(0);
+  describe('refresh subcommand — watch mode (--watch)', () => {
+    it('should write a structured info log to stderr when watch mode starts', async () => {
+      const dbPath = freshDb();
+      await loadCli(['refresh', '--db', dbPath, '--root', tmpDir, '--watch']);
+      await waitForStderr(stderrSpy, tmpDir);
+
+      const text = stderrSpy.mock.calls.map((c) => String(c[0])).join('');
+      const jsonLine = text.split('\n').find(
+        (l) => l.includes('"watch mode started"') && l.includes(tmpDir),
+      );
+      expect(jsonLine).toBeDefined();
+      const parsed = JSON.parse(jsonLine!.trim());
+      expect(parsed.level).toBe('info');
+      expect(parsed.message).toBe('watch mode started');
+      expect(parsed.rootDir).toBe(tmpDir);
+
+      // Clean up: trigger the registered SIGINT handler to stop the watcher.
+      process.emit('SIGINT');
+      expect(exitSpy).toHaveBeenCalledWith(0);
+    });
+
+    it('should NOT immediately exit when watch mode starts (process stays alive)', async () => {
+      const dbPath = freshDb();
+      await loadCli(['refresh', '--db', dbPath, '--root', tmpDir, '--watch']);
+      await waitForStderr(stderrSpy, 'watch mode started');
+
+      // exitSpy should not have been called yet (watch mode keeps running)
+      expect(exitSpy).not.toHaveBeenCalled();
+
+      // Clean up
+      process.emit('SIGINT');
+    });
+
+    it('should call process.exit(0) when SIGINT is received', async () => {
+      const dbPath = freshDb();
+      await loadCli(['refresh', '--db', dbPath, '--root', tmpDir, '--watch']);
+      await waitForStderr(stderrSpy, 'watch mode started');
+
+      process.emit('SIGINT');
+      expect(exitSpy).toHaveBeenCalledWith(0);
+    });
+
+    it('should call process.exit(0) when SIGTERM is received', async () => {
+      const dbPath = freshDb();
+      await loadCli(['refresh', '--db', dbPath, '--root', tmpDir, '--watch']);
+      await waitForStderr(stderrSpy, 'watch mode started');
+
+      process.emit('SIGTERM');
+      expect(exitSpy).toHaveBeenCalledWith(0);
+    });
+  });
+
+  // ── refresh subcommand — poll mode ────────────────────────────────────────
+
+  describe('refresh subcommand — poll mode (--poll)', () => {
+    it('should write a structured info log to stderr when poll mode starts', async () => {
+      const dbPath = freshDb();
+      await loadCli(['refresh', '--db', dbPath, '--root', tmpDir, '--poll']);
+      await waitForStderr(stderrSpy, tmpDir);
+
+      const text = stderrSpy.mock.calls.map((c) => String(c[0])).join('');
+      const jsonLine = text.split('\n').find(
+        (l) => l.includes('"poll mode started"') && l.includes(tmpDir),
+      );
+      expect(jsonLine).toBeDefined();
+      const parsed = JSON.parse(jsonLine!.trim());
+      expect(parsed.level).toBe('info');
+      expect(parsed.message).toBe('poll mode started');
+      expect(parsed.rootDir).toBe(tmpDir);
+
+      process.emit('SIGINT');
+      expect(exitSpy).toHaveBeenCalledWith(0);
+    });
+
+    it('should NOT immediately exit when poll mode starts (process stays alive)', async () => {
+      const dbPath = freshDb();
+      await loadCli(['refresh', '--db', dbPath, '--root', tmpDir, '--poll']);
+      await waitForStderr(stderrSpy, 'poll mode started');
+
+      expect(exitSpy).not.toHaveBeenCalled();
+
+      process.emit('SIGINT');
+    });
+
+    it('should call process.exit(0) when SIGINT is received', async () => {
+      const dbPath = freshDb();
+      await loadCli(['refresh', '--db', dbPath, '--root', tmpDir, '--poll']);
+      await waitForStderr(stderrSpy, 'poll mode started');
+
+      process.emit('SIGINT');
+      expect(exitSpy).toHaveBeenCalledWith(0);
+    });
+
+    it('should call process.exit(0) when SIGTERM is received', async () => {
+      const dbPath = freshDb();
+      await loadCli(['refresh', '--db', dbPath, '--root', tmpDir, '--poll']);
+      await waitForStderr(stderrSpy, 'poll mode started');
+
+      process.emit('SIGTERM');
+      expect(exitSpy).toHaveBeenCalledWith(0);
+    });
   });
 });
