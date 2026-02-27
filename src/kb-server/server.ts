@@ -13,6 +13,7 @@
  *   kb_snippet   — source-code snippet extraction
  *   kb_metrics   — aggregate code metrics
  *   kb_writeback — LLM summary write-back
+ *   kb_history   — git commit history queries
  *
  * Standalone usage:
  *   node dist/kb-server/server.js --db <path-to-kb.db>
@@ -32,6 +33,7 @@ import * as search from './tools/search.js';
 import * as snippet from './tools/snippet.js';
 import * as metrics from './tools/metrics.js';
 import * as writeback from './tools/writeback.js';
+import * as history from './tools/history.js';
 
 // ─── Server factory ───────────────────────────────────────────────────────────
 
@@ -138,6 +140,22 @@ export function createKbMcpServer(
       content: [
         { type: 'text', text: JSON.stringify(writeback.handler(dbPath, args)) },
       ],
+    }),
+  );
+
+  // ── kb_history ─────────────────────────────────────────────────────────────
+  server.tool(
+    history.toolDef.name,
+    history.toolDef.description,
+    {
+      mode: z
+        .enum(['file', 'commit', 'author', 'recent'])
+        .describe('Query mode: file, commit, author, or recent.'),
+      query: z.string().optional().describe('File path, commit SHA, or author name/email.'),
+      limit: z.number().optional().describe('Max results (default 20, max 200).'),
+    },
+    async (args) => ({
+      content: [{ type: 'text', text: JSON.stringify(history.handler(db, args)) }],
     }),
   );
 

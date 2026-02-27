@@ -112,3 +112,69 @@ export function listFiles(db: Database.Database, limit = 100, branch?: string): 
   }
   return db.prepare('SELECT * FROM files LIMIT ?').all(limit) as FileRow[];
 }
+
+// ─── Commit helpers ───────────────────────────────────────────────────────────
+
+export interface CommitRow {
+  sha: string;
+  author: string;
+  author_email: string;
+  timestamp: number;
+  message: string;
+  parents: string;
+}
+
+export interface CommitFileRow {
+  commit_sha: string;
+  file_path: string;
+  change_type: string;
+  insertions: number | null;
+  deletions: number | null;
+}
+
+/** Fetch a single commit by its SHA (full or prefix match). */
+export function getCommitBySha(db: Database.Database, sha: string): CommitRow | undefined {
+  return db
+    .prepare('SELECT * FROM commits WHERE sha = ? OR sha LIKE ? LIMIT 1')
+    .get(sha, `${sha}%`) as CommitRow | undefined;
+}
+
+/** Return the most recent commits ordered by timestamp DESC, limited to `limit` rows. */
+export function listRecentCommits(db: Database.Database, limit = 50): CommitRow[] {
+  return db
+    .prepare('SELECT * FROM commits ORDER BY timestamp DESC, sha ASC LIMIT ?')
+    .all(limit) as CommitRow[];
+}
+
+/** Return commits that touched the given file path, ordered by timestamp DESC. */
+export function listCommitsByFile(db: Database.Database, filePath: string, limit = 50): CommitRow[] {
+  return db
+    .prepare(
+      `SELECT c.* FROM commits c
+       JOIN commit_files cf ON cf.commit_sha = c.sha
+       WHERE cf.file_path = ?
+       ORDER BY c.timestamp DESC, c.sha ASC
+       LIMIT ?`,
+    )
+    .all(filePath, limit) as CommitRow[];
+}
+
+/** Return commits filtered by author name or email, ordered by timestamp DESC. */
+export function listCommitsByAuthor(db: Database.Database, author: string, limit = 50): CommitRow[] {
+  const pattern = `%${author}%`;
+  return db
+    .prepare(
+      `SELECT * FROM commits
+       WHERE author LIKE ? OR author_email LIKE ?
+       ORDER BY timestamp DESC, sha ASC
+       LIMIT ?`,
+    )
+    .all(pattern, pattern, limit) as CommitRow[];
+}
+
+/** Return all files touched by a given commit SHA. */
+export function listCommitFiles(db: Database.Database, commitSha: string): CommitFileRow[] {
+  return db
+    .prepare('SELECT * FROM commit_files WHERE commit_sha = ?')
+    .all(commitSha) as CommitFileRow[];
+}
