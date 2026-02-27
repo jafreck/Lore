@@ -78,6 +78,67 @@ Add to your MCP config (Claude Desktop, VS Code, etc.):
 | `kb_snippet` | Extract source-code snippets by file and line range |
 | `kb_metrics` | Aggregate codebase metrics (symbol/file/import counts) |
 | `kb_writeback` | Persist LLM-generated symbol summaries back to the KB |
+| `kb_history` | Query git commit history by file, SHA, author, or recency |
+
+## Commit History Indexing
+
+Lore can ingest your repository's git commit history and expose it through the `kb_history` MCP tool.
+
+### Enabling history ingestion
+
+Pass `history: true` (or a config object) to `IndexBuilder`:
+
+```ts
+import { runKbIndex } from "@jafreck/lore";
+
+// Enable with defaults (depth: 100)
+await runKbIndex({
+  rootDir: "/path/to/source",
+  dbPath: "/path/to/kb.db",
+  history: true,
+});
+
+// Or configure a custom depth
+await runKbIndex({
+  rootDir: "/path/to/source",
+  dbPath: "/path/to/kb.db",
+  history: { depth: 200 },
+});
+```
+
+### What is stored
+
+- **`commits` table** — sha, author, author_email, timestamp, message, parents (JSON array of parent SHAs)
+- **`commit_files` table** — commit_sha, file_path, change_type (A/M/D/R), and diff stats (insertions/deletions) when available
+
+### Querying with `kb_history`
+
+The `kb_history` tool supports four query modes:
+
+| Mode | Required `query` | Description |
+|------|-----------------|-------------|
+| `file` | file path | All commits that touched the given file |
+| `commit` | full or partial SHA | Look up a specific commit with its file list |
+| `author` | name or email substring | All commits by the matching author |
+| `recent` | — | Most recent commits |
+
+All modes accept an optional `limit` (default 20, max 200).
+
+**Example invocations:**
+
+```json
+// Most recent commits
+{ "mode": "recent", "limit": 10 }
+
+// Commits that touched a file
+{ "mode": "file", "query": "src/indexer/db.ts" }
+
+// Look up a commit by SHA prefix
+{ "mode": "commit", "query": "a1b2c3d" }
+
+// Commits by an author
+{ "mode": "author", "query": "alice@example.com" }
+```
 
 ### Programmatic usage
 
