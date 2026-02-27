@@ -40,6 +40,28 @@ await runKbIndex({
 });
 ```
 
+## CLI
+
+### `lore index` — build or update the knowledge base
+
+```bash
+npx @jafreck/lore index --root <dir> --db <path> [--embedding-model <id>]
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--root <dir>` | *(required)* | Root directory of the source tree to index |
+| `--db <path>` | *(required)* | Path to the SQLite knowledge-base file (created if absent) |
+| `--embedding-model <id>` | `Qwen/Qwen3-Embedding-4B` | Hugging Face model ID used to generate embeddings for semantic search |
+
+**Example**
+
+```bash
+npx @jafreck/lore index --root ./my-project --db ./kb.db
+# or with a custom embedding model:
+npx @jafreck/lore index --root ./my-project --db ./kb.db --embedding-model sentence-transformers/all-MiniLM-L6-v2
+```
+
 ## MCP Server
 
 Lore ships with a built-in [Model Context Protocol](https://modelcontextprotocol.io)
@@ -52,6 +74,11 @@ Cadre, AAMF, etc.) query a Lore knowledge base.
 # stdio transport (default — works with all MCP clients)
 npx @jafreck/lore mcp --db ./kb.db
 ```
+
+> **Note:** If the embedding model fails to initialise at startup (e.g. the
+> model weights are unavailable), semantic search is silently disabled and the
+> MCP server continues to start normally. Structural (`bm25`) search remains
+> fully functional.
 
 ### MCP client configuration
 
