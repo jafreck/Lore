@@ -25,7 +25,8 @@
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
     "prepublishOnly": "npm run clean && npm run build",
-    "test": "vitest run"
+    "test": "vitest run",
+    "coverage": "vitest run --coverage"
   },
   "repository": {
     "type": "git",
@@ -77,6 +78,7 @@
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22",
+    "@vitest/coverage-v8": "^4.0",
     "typescript": "^5.9",
     "vitest": "^4.0"
   },
