@@ -44,7 +44,7 @@ import { ElmExtractor } from './extractors/elm.js';
 import { ObjcExtractor } from './extractors/objc.js';
 import type { SymbolExtractor } from './extractors/types.js';
 import type { EmbeddingProvider } from './embedder.js';
-import { SentenceTransformersProvider, DEFAULT_EMBEDDING_MODEL } from './embedder.js';
+import { DEFAULT_EMBEDDING_MODEL } from './embedder.js';
 
 // ─── Extractor registry ───────────────────────────────────────────────────────
 
@@ -126,7 +126,7 @@ export class IndexBuilder {
       this.embeddingModel = embedder.modelName;
     } else {
       this.embeddingModel = opts.embeddingModel ?? DEFAULT_EMBEDDING_MODEL;
-      this.embedder = new SentenceTransformersProvider(this.embeddingModel);
+      this.embedder = null;
     }
 
     this.history = opts.history ?? false;
