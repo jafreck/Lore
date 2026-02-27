@@ -46,7 +46,7 @@ export interface FileEntry {
 
 // ─── Extension → Language mapping ────────────────────────────────────────────
 
-const EXT_TO_LANG: Record<string, string> = {
+export const EXT_TO_LANG: Record<string, string> = {
   '.c':    'c',
   '.h':    'c',
   '.rs':   'rust',

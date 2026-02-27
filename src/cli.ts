@@ -25,6 +25,9 @@ Options:
   --root <dir>             Root directory to index (required for index)
   --db <path>              Path to a Lore knowledge-base SQLite file (required)
   --embedding-model <id>   Embedding model identifier (default: Qwen/Qwen3-Embedding-4B)
+  --include <glob>         Glob pattern for files to include (repeatable)
+  --exclude <glob>         Glob pattern for paths to exclude (repeatable)
+  --language <lang>        Language name to filter by, e.g. typescript (repeatable)
   --help, -h               Show this help message`,
   );
   process.exit(1);
@@ -34,6 +37,15 @@ function flag(args: string[], name: string): string | undefined {
   const idx = args.indexOf(name);
   if (idx === -1) return undefined;
   return args[idx + 1];
+}
+
+/** Returns all values provided for a repeatable flag (e.g. --include a --include b → ['a', 'b']). */
+function flags(args: string[], name: string): string[] {
+  const results: string[] = [];
+  for (let i = 0; i < args.length - 1; i++) {
+    if (args[i] === name) results.push(args[i + 1] as string);
+  }
+  return results;
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
@@ -59,10 +71,65 @@ async function main(): Promise<void> {
       usage();
     }
     const embeddingModel = flag(args, '--embedding-model');
+    const includeGlobs = flags(args, '--include');
+    const excludeGlobs = flags(args, '--exclude');
+    const languageNames = flags(args, '--language');
+
+    // Static reverse map: language name → extensions (mirrors EXT_TO_LANG in walker.ts)
+    const LANG_TO_EXTS: Record<string, string[]> = {
+      c: ['.c', '.h'],
+      rust: ['.rs'],
+      python: ['.py'],
+      cpp: ['.cpp', '.cc', '.cxx', '.hpp', '.hxx'],
+      typescript: ['.ts', '.tsx'],
+      javascript: ['.js', '.jsx', '.mjs', '.cjs'],
+      go: ['.go'],
+      java: ['.java'],
+      csharp: ['.cs'],
+      ruby: ['.rb'],
+      php: ['.php'],
+      swift: ['.swift'],
+      kotlin: ['.kt', '.kts'],
+      scala: ['.scala', '.sc'],
+      lua: ['.lua'],
+      bash: ['.sh', '.bash', '.zsh'],
+      elixir: ['.ex', '.exs'],
+      zig: ['.zig'],
+      dart: ['.dart'],
+      ocaml: ['.ml', '.mli'],
+      haskell: ['.hs'],
+      julia: ['.jl'],
+      elm: ['.elm'],
+      objc: ['.m', '.mm'],
+    };
+
+    // Resolve --language names to extensions
+    let extensions: string[] | undefined;
+    if (languageNames.length > 0) {
+      extensions = [];
+      for (const lang of languageNames) {
+        const exts = LANG_TO_EXTS[lang];
+        if (!exts) {
+          console.error(`Error: unknown language "${lang}". Known languages: ${Object.keys(LANG_TO_EXTS).sort().join(', ')}\n`);
+          process.exit(1);
+        }
+        extensions.push(...exts);
+      }
+    }
 
     const { IndexBuilder } = await import('./indexer/index.js');
 
-    const builder = new IndexBuilder(dbPath, { rootDir }, undefined, embeddingModel);
+    const builder = new IndexBuilder(
+      dbPath,
+      {
+        rootDir,
+        ...(includeGlobs.length > 0 && { includeGlobs }),
+        ...(excludeGlobs.length > 0 && { excludeGlobs }),
+        ...(extensions && { extensions }),
+      },
+      undefined,
+      embeddingModel,
+    );
     await builder.build();
   } else if (subcommand === 'mcp') {
     const dbPath = flag(args, '--db');

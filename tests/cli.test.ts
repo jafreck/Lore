@@ -94,4 +94,28 @@ describe('cli — usage text content', () => {
     const { stderr } = runCli([]);
     expect(stderr).not.toContain('Future');
   });
+
+  it('should list --include flag in usage', () => {
+    const { stderr } = runCli([]);
+    expect(stderr).toContain('--include');
+  });
+
+  it('should list --exclude flag in usage', () => {
+    const { stderr } = runCli([]);
+    expect(stderr).toContain('--exclude');
+  });
+
+  it('should list --language flag in usage', () => {
+    const { stderr } = runCli([]);
+    expect(stderr).toContain('--language');
+  });
+});
+
+describe('cli — --language flag validation', () => {
+  it('should exit non-zero and print error for unknown language name', () => {
+    const { stderr, status } = runCli(['index', '--root', '/tmp', '--db', '/tmp/test.db', '--language', 'cobol']);
+    expect(status).not.toBe(0);
+    expect(stderr).toContain('unknown language');
+    expect(stderr).toContain('cobol');
+  });
 });
