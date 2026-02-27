@@ -89,21 +89,17 @@ Lore can ingest your repository's git commit history and expose it through the `
 Pass `history: true` (or a config object) to `IndexBuilder`:
 
 ```ts
-import { runKbIndex } from "@jafreck/lore";
+import { IndexBuilder } from "@jafreck/lore";
 
-// Enable with defaults (depth: 100)
-await runKbIndex({
-  rootDir: "/path/to/source",
-  dbPath: "/path/to/kb.db",
+// Enable with defaults (depth: 500)
+await new IndexBuilder("/path/to/kb.db", { rootDir: "/path/to/source" }, undefined, {
   history: true,
-});
+}).build();
 
 // Or configure a custom depth
-await runKbIndex({
-  rootDir: "/path/to/source",
-  dbPath: "/path/to/kb.db",
+await new IndexBuilder("/path/to/kb.db", { rootDir: "/path/to/source" }, undefined, {
   history: { depth: 200 },
-});
+}).build();
 ```
 
 ### What is stored
