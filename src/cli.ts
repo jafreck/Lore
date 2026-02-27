@@ -5,25 +5,35 @@
  * Lore CLI — unified entry point for indexing and the MCP server.
  *
  * Usage:
- *   lore mcp --db <path>           Start the knowledge-base MCP server (stdio transport).
- *   lore mcp --db <path> --sse     Start the MCP server with SSE/HTTP transport.
- *
- * Future:
- *   lore index --root <dir> --db <path>   Index a codebase (not yet wired here).
+ *   lore index --root <dir> --db <path> [--embedding-model <id>]
+ *                              Index a codebase into a knowledge-base file.
+ *   lore mcp --db <path>                        Start the knowledge-base MCP server (stdio transport).
+ *   lore refresh --db <path> --root <dir>       Run an incremental index update and exit.
+ *   lore refresh --db <path> --root <dir> --watch  Watch for changes and refresh automatically.
+ *   lore refresh --db <path> --root <dir> --poll   Poll for changes and refresh automatically.
  */
 
-import { fileURLToPath } from 'node:url';
+import * as fs from 'node:fs';
 
 // ─── Argument helpers ─────────────────────────────────────────────────────────
 
 function usage(): never {
   console.error(
     `Usage:
-  lore mcp --db <path>           Start the KB MCP server (stdio transport)
+  lore index --root <dir> --db <path> [--embedding-model <id>]
+                         Index a codebase into a knowledge-base SQLite file
+  lore mcp --db <path>                          Start the KB MCP server (stdio transport)
+  lore refresh --db <path> --root <dir>         Run an incremental index update and exit
+  lore refresh --db <path> --root <dir> --watch Watch for file changes and refresh automatically
+  lore refresh --db <path> --root <dir> --poll  Poll for file changes and refresh automatically
 
 Options:
-  --db <path>      Path to a Lore knowledge-base SQLite file (required)
-  --help, -h       Show this help message`,
+  --root <dir>             Root directory to index (required for index, refresh)
+  --db <path>              Path to a Lore knowledge-base SQLite file (required for index, mcp, refresh)
+  --embedding-model <id>   Embedding model identifier (default: Qwen/Qwen3-Embedding-4B)
+  --watch                  Enable fs-event watch mode (low-latency, may miss events on some platforms)
+  --poll                   Enable polling mode (reliable but higher CPU/IO cost)
+  --help, -h               Show this help message`,
   );
   process.exit(1);
 }
@@ -45,7 +55,24 @@ async function main(): Promise<void> {
 
   const subcommand = args[0];
 
-  if (subcommand === 'mcp') {
+  if (subcommand === 'index') {
+    const rootDir = flag(args, '--root');
+    const dbPath = flag(args, '--db');
+    if (!rootDir) {
+      console.error('Error: --root <dir> is required for the index subcommand.\n');
+      usage();
+    }
+    if (!dbPath) {
+      console.error('Error: --db <path> is required for the index subcommand.\n');
+      usage();
+    }
+    const embeddingModel = flag(args, '--embedding-model');
+
+    const { IndexBuilder } = await import('./indexer/index.js');
+
+    const builder = new IndexBuilder(dbPath, { rootDir }, undefined, embeddingModel);
+    await builder.build();
+  } else if (subcommand === 'mcp') {
     const dbPath = flag(args, '--db');
     if (!dbPath) {
       console.error('Error: --db <path> is required for the mcp subcommand.\n');
@@ -92,6 +119,59 @@ async function main(): Promise<void> {
 
     // Signal readiness on stderr so parent processes can detect it.
     process.stderr.write('READY\n');
+  } else if (subcommand === 'refresh') {
+    const dbPath = flag(args, '--db');
+    const rootDir = flag(args, '--root');
+
+    if (!dbPath || !rootDir) {
+      console.error('Error: --db <path> and --root <dir> are required for the refresh subcommand.\n');
+      usage();
+    }
+
+    const watchMode = args.includes('--watch');
+    const pollMode = args.includes('--poll');
+
+    const walkerConfig = { rootDir };
+
+    if (watchMode) {
+      const { FileWatcher } = await import('./indexer/watcher.js');
+      const watcher = new FileWatcher(dbPath, walkerConfig);
+      watcher.start();
+      process.stderr.write(
+        JSON.stringify({ level: 'info', source: 'cli', message: 'watch mode started', rootDir }) + '\n',
+      );
+      // Keep the process alive until interrupted
+      process.on('SIGINT', () => { watcher.stop(); process.exit(0); });
+      process.on('SIGTERM', () => { watcher.stop(); process.exit(0); });
+    } else if (pollMode) {
+      const { FilePoller } = await import('./indexer/poller.js');
+      const poller = new FilePoller(dbPath, walkerConfig);
+      poller.start();
+      process.stderr.write(
+        JSON.stringify({ level: 'info', source: 'cli', message: 'poll mode started', rootDir }) + '\n',
+      );
+      // Keep the process alive until interrupted
+      process.on('SIGINT', () => { poller.stop(); process.exit(0); });
+      process.on('SIGTERM', () => { poller.stop(); process.exit(0); });
+    } else {
+      // Manual refresh: full build if DB doesn't exist yet, otherwise incremental update
+      const { IndexBuilder } = await import('./indexer/index.js');
+      const builder = new IndexBuilder(dbPath, walkerConfig);
+
+      const dbExists = fs.existsSync(dbPath);
+      if (dbExists) {
+        const { walkFiles } = await import('./indexer/walker.js');
+        const files = await walkFiles(walkerConfig);
+        const changedPaths = files.map(f => f.path);
+        await builder.update(changedPaths);
+      } else {
+        await builder.build();
+      }
+
+      process.stderr.write(
+        JSON.stringify({ level: 'info', source: 'cli', message: 'refresh complete', rootDir }) + '\n',
+      );
+    }
   } else {
     console.error(`Unknown subcommand: ${subcommand}\n`);
     usage();

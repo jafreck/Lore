@@ -21,11 +21,13 @@ const DDL = `
 -- Indexed source files.
 CREATE TABLE IF NOT EXISTS files (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  path        TEXT    NOT NULL UNIQUE,
+  path        TEXT    NOT NULL,
+  branch      TEXT    NOT NULL DEFAULT '',
   language    TEXT    NOT NULL,
   size_bytes  INTEGER NOT NULL DEFAULT 0,
   last_hash   TEXT,
-  indexed_at  INTEGER NOT NULL DEFAULT (unixepoch())
+  indexed_at  INTEGER NOT NULL DEFAULT (unixepoch()),
+  UNIQUE(path, branch)
 );
 
 -- Named symbols extracted from source files.

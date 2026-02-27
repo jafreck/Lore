@@ -29,6 +29,7 @@ export interface MetricsResult {
   symbol_count: number;
   file_count: number;
   import_edge_count: number;
+  per_branch: Array<{ branch: string; file_count: number; symbol_count: number }>;
 }
 
 /** Collect aggregate counts from the knowledge-base tables. */
@@ -45,9 +46,22 @@ export function handler(db: Database.Database, _args: MetricsArgs): MetricsResul
     db.prepare('SELECT COUNT(*) AS c FROM file_imports').get() as { c: number }
   ).c;
 
+  const perBranch = db
+    .prepare(
+      `SELECT f.branch,
+              COUNT(DISTINCT f.id) AS file_count,
+              COUNT(DISTINCT s.id) AS symbol_count
+         FROM files f
+         LEFT JOIN symbols s ON s.file_id = f.id
+        GROUP BY f.branch
+        ORDER BY f.branch`,
+    )
+    .all() as Array<{ branch: string; file_count: number; symbol_count: number }>;
+
   return {
     symbol_count: symbolCount,
     file_count: fileCount,
     import_edge_count: importEdgeCount,
+    per_branch: perBranch,
   };
 }

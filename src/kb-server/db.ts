@@ -52,14 +52,28 @@ export function getSymbolById(db: Database.Database, id: number): SymbolRow | un
 }
 
 /** Fetch all symbols whose name matches the given string (case-insensitive). */
-export function getSymbolsByName(db: Database.Database, name: string): SymbolRow[] {
+export function getSymbolsByName(db: Database.Database, name: string, branch?: string): SymbolRow[] {
+  if (branch !== undefined) {
+    return db
+      .prepare(
+        'SELECT s.* FROM symbols s JOIN files f ON s.file_id = f.id WHERE s.name = ? COLLATE NOCASE AND f.branch = ?'
+      )
+      .all(name, branch) as SymbolRow[];
+  }
   return db
     .prepare('SELECT * FROM symbols WHERE name = ? COLLATE NOCASE')
     .all(name) as SymbolRow[];
 }
 
 /** Return all symbols, optionally limited to `limit` rows. */
-export function listSymbols(db: Database.Database, limit = 100): SymbolRow[] {
+export function listSymbols(db: Database.Database, limit = 100, branch?: string): SymbolRow[] {
+  if (branch !== undefined) {
+    return db
+      .prepare(
+        'SELECT s.* FROM symbols s JOIN files f ON s.file_id = f.id WHERE f.branch = ? LIMIT ?'
+      )
+      .all(branch, limit) as SymbolRow[];
+  }
   return db.prepare('SELECT * FROM symbols LIMIT ?').all(limit) as SymbolRow[];
 }
 
@@ -68,6 +82,7 @@ export function listSymbols(db: Database.Database, limit = 100): SymbolRow[] {
 export interface FileRow {
   id: number;
   path: string;
+  branch: string;
   language: string;
   size_bytes: number;
   last_hash: string | null;
@@ -75,17 +90,26 @@ export interface FileRow {
 }
 
 /** Fetch a single file row by primary key. */
-export function getFileById(db: Database.Database, id: number): FileRow | undefined {
+export function getFileById(db: Database.Database, id: number, branch?: string): FileRow | undefined {
+  if (branch !== undefined) {
+    return db.prepare('SELECT * FROM files WHERE id = ? AND branch = ?').get(id, branch) as FileRow | undefined;
+  }
   return db.prepare('SELECT * FROM files WHERE id = ?').get(id) as FileRow | undefined;
 }
 
 /** Fetch a single file row by its path. */
-export function getFileByPath(db: Database.Database, path: string): FileRow | undefined {
+export function getFileByPath(db: Database.Database, path: string, branch?: string): FileRow | undefined {
+  if (branch !== undefined) {
+    return db.prepare('SELECT * FROM files WHERE path = ? AND branch = ?').get(path, branch) as FileRow | undefined;
+  }
   return db.prepare('SELECT * FROM files WHERE path = ?').get(path) as FileRow | undefined;
 }
 
 /** Return all indexed files, optionally limited to `limit` rows. */
-export function listFiles(db: Database.Database, limit = 100): FileRow[] {
+export function listFiles(db: Database.Database, limit = 100, branch?: string): FileRow[] {
+  if (branch !== undefined) {
+    return db.prepare('SELECT * FROM files WHERE branch = ? LIMIT ?').all(branch, limit) as FileRow[];
+  }
   return db.prepare('SELECT * FROM files LIMIT ?').all(limit) as FileRow[];
 }
 

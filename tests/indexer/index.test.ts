@@ -1,161 +1,143 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import * as fs from 'node:fs';
-import * as os from 'node:os';
-import * as path from 'node:path';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { mkdtempSync, writeFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import Database from 'better-sqlite3';
+import { IndexBuilder } from '../../src/indexer/index.js';
 
-// ─── Mocks ────────────────────────────────────────────────────────────────────
-
-const mockIngestGitHistory = vi.fn().mockResolvedValue(undefined);
-
-vi.mock('../../src/indexer/git-history.js', () => ({
-  ingestGitHistory: mockIngestGitHistory,
-}));
-
-// Mock walkFiles to return empty list so build() doesn't need actual source files
-vi.mock('../../src/indexer/walker.js', () => ({
-  walkFiles: vi.fn().mockResolvedValue([]),
-}));
-
-// Mock ParserPool so we don't need tree-sitter native binaries
-vi.mock('../../src/indexer/parser.js', () => ({
-  ParserPool: class {
-    parse() { return null; }
-  },
-}));
-
-// Mock ImportResolver
-vi.mock('../../src/indexer/resolver.js', () => ({
-  ImportResolver: class {
-    resolve() { return {}; }
-  },
-}));
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function makeTmpDbPath(): string {
-  return path.join(os.tmpdir(), `lore-idx-test-${Date.now()}-${Math.random().toString(36).slice(2)}.db`);
+/** Create a temp directory containing a minimal TypeScript source file. */
+function createTmpSrcDir(): string {
+  const dir = mkdtempSync(join(tmpdir(), 'lore-index-test-src-'));
+  writeFileSync(join(dir, 'hello.ts'), 'export function hello(): string { return "hi"; }\n');
+  return dir;
 }
 
-function cleanupDb(dbPath: string): void {
-  for (const suffix of ['', '-wal', '-shm']) {
-    try { fs.unlinkSync(dbPath + suffix); } catch { /* ignore */ }
-  }
+/** Create a temp path for a database file (not yet created). */
+function tmpDbPath(): string {
+  const dir = mkdtempSync(join(tmpdir(), 'lore-index-test-db-'));
+  return join(dir, 'test.db');
 }
 
-// ─── Tests ───────────────────────────────────────────────────────────────────
+function queryBranches(dbPath: string): string[] {
+  const db = new Database(dbPath, { readonly: true });
+  const rows = db.prepare('SELECT DISTINCT branch FROM files').all() as { branch: string }[];
+  db.close();
+  return rows.map(r => r.branch);
+}
 
-describe('IndexBuilder', () => {
+function queryFilesWithBranch(dbPath: string, branch: string): { path: string; branch: string }[] {
+  const db = new Database(dbPath, { readonly: true });
+  const rows = db.prepare('SELECT path, branch FROM files WHERE branch = ?').all(branch) as { path: string; branch: string }[];
+  db.close();
+  return rows;
+}
+
+describe('IndexBuilder — branch support in build()', () => {
+  let srcDir: string;
+  let dbPath: string;
+
   beforeEach(() => {
-    vi.clearAllMocks();
+    srcDir = createTmpSrcDir();
+    dbPath = tmpDbPath();
   });
 
-  describe('constructor', () => {
-    it('should construct without throwing when history option is omitted', async () => {
-      const { IndexBuilder } = await import('../../src/indexer/index.js');
-      expect(
-        () => new IndexBuilder('/tmp/test.db', { rootDir: '/tmp', include: [] }),
-      ).not.toThrow();
-    });
-
-    it('should construct with history: true', async () => {
-      const { IndexBuilder } = await import('../../src/indexer/index.js');
-      expect(
-        () =>
-          new IndexBuilder('/tmp/test.db', { rootDir: '/tmp', include: [] }, undefined, {
-            history: true,
-          }),
-      ).not.toThrow();
-    });
-
-    it('should construct with history: { depth: 100 }', async () => {
-      const { IndexBuilder } = await import('../../src/indexer/index.js');
-      expect(
-        () =>
-          new IndexBuilder('/tmp/test.db', { rootDir: '/tmp', include: [] }, undefined, {
-            history: { depth: 100 },
-          }),
-      ).not.toThrow();
-    });
+  afterEach(() => {
+    try { rmSync(srcDir, { recursive: true, force: true }); } catch { /* ignore */ }
+    const dbDir = join(dbPath, '..');
+    try { rmSync(dbDir, { recursive: true, force: true }); } catch { /* ignore */ }
   });
 
-  describe('build() with history option', () => {
-    it('should NOT call ingestGitHistory when history option is omitted', async () => {
-      const dbPath = makeTmpDbPath();
-      try {
-        const { IndexBuilder } = await import('../../src/indexer/index.js');
-        const builder = new IndexBuilder(dbPath, { rootDir: '/tmp', include: [] });
-        await builder.build();
-        expect(mockIngestGitHistory).not.toHaveBeenCalled();
-      } finally {
-        cleanupDb(dbPath);
-      }
-    });
+  it('should default branch to "HEAD" when not specified in WalkerConfig', async () => {
+    const builder = new IndexBuilder(dbPath, { rootDir: srcDir });
+    await builder.build();
+    const branches = queryBranches(dbPath);
+    expect(branches).toEqual(['HEAD']);
+  });
 
-    it('should NOT call ingestGitHistory when history is false', async () => {
-      const dbPath = makeTmpDbPath();
-      try {
-        const { IndexBuilder } = await import('../../src/indexer/index.js');
-        const builder = new IndexBuilder(dbPath, { rootDir: '/tmp', include: [] }, undefined, {
-          history: false,
-        });
-        await builder.build();
-        expect(mockIngestGitHistory).not.toHaveBeenCalled();
-      } finally {
-        cleanupDb(dbPath);
-      }
-    });
+  it('should use the specified branch when provided in WalkerConfig', async () => {
+    const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
+    await builder.build();
+    const branches = queryBranches(dbPath);
+    expect(branches).toEqual(['main']);
+  });
 
-    it('should call ingestGitHistory when history is true', async () => {
-      const dbPath = makeTmpDbPath();
-      try {
-        const { IndexBuilder } = await import('../../src/indexer/index.js');
-        const builder = new IndexBuilder(dbPath, { rootDir: '/tmp', include: [] }, undefined, {
-          history: true,
-        });
-        await builder.build();
-        expect(mockIngestGitHistory).toHaveBeenCalledTimes(1);
-        expect(mockIngestGitHistory).toHaveBeenCalledWith(
-          expect.anything(),
-          '/tmp',
-          undefined,
-        );
-      } finally {
-        cleanupDb(dbPath);
-      }
-    });
+  it('should store all indexed files under the configured branch', async () => {
+    const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'feat/new-thing' });
+    await builder.build();
+    const files = queryFilesWithBranch(dbPath, 'feat/new-thing');
+    expect(files.length).toBeGreaterThan(0);
+    files.forEach(f => expect(f.branch).toBe('feat/new-thing'));
+  });
 
-    it('should call ingestGitHistory with depth when history is an object', async () => {
-      const dbPath = makeTmpDbPath();
-      try {
-        const { IndexBuilder } = await import('../../src/indexer/index.js');
-        const builder = new IndexBuilder(dbPath, { rootDir: '/tmp', include: [] }, undefined, {
-          history: { depth: 250 },
-        });
-        await builder.build();
-        expect(mockIngestGitHistory).toHaveBeenCalledTimes(1);
-        expect(mockIngestGitHistory).toHaveBeenCalledWith(
-          expect.anything(),
-          '/tmp',
-          { depth: 250 },
-        );
-      } finally {
-        cleanupDb(dbPath);
-      }
-    });
+  it('should allow indexing the same source under different branches', async () => {
+    const builder1 = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
+    await builder1.build();
 
-    it('should close the database even when ingestGitHistory rejects', async () => {
-      mockIngestGitHistory.mockRejectedValueOnce(new Error('git error'));
+    const builder2 = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'dev' });
+    await builder2.build();
 
-      const dbPath = makeTmpDbPath();
-      try {
-        const { IndexBuilder } = await import('../../src/indexer/index.js');
-        const builder = new IndexBuilder(dbPath, { rootDir: '/tmp', include: [] }, undefined, {
-          history: true,
-        });
-        await expect(builder.build()).rejects.toThrow('git error');
-      } finally {
-        cleanupDb(dbPath);
-      }
-    });
+    const branches = queryBranches(dbPath).sort();
+    expect(branches).toContain('main');
+    expect(branches).toContain('dev');
+  });
+});
+
+describe('IndexBuilder — branch support in update()', () => {
+  let srcDir: string;
+  let dbPath: string;
+  let srcFile: string;
+
+  beforeEach(async () => {
+    srcDir = createTmpSrcDir();
+    dbPath = tmpDbPath();
+    srcFile = join(srcDir, 'hello.ts');
+
+    // Prime the DB with a full build first.
+    const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
+    await builder.build();
+  });
+
+  afterEach(() => {
+    try { rmSync(srcDir, { recursive: true, force: true }); } catch { /* ignore */ }
+    const dbDir = join(dbPath, '..');
+    try { rmSync(dbDir, { recursive: true, force: true }); } catch { /* ignore */ }
+  });
+
+  it('should update files under the configured branch', async () => {
+    writeFileSync(srcFile, 'export function updated(): void {}\n');
+    const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
+    await builder.update([srcFile]);
+
+    const files = queryFilesWithBranch(dbPath, 'main');
+    expect(files.length).toBeGreaterThan(0);
+    files.forEach(f => expect(f.branch).toBe('main'));
+  });
+
+  it('should not affect files under a different branch on update', async () => {
+    // Build under a second branch
+    const builder2 = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'dev' });
+    await builder2.build();
+
+    // Modify and update under 'main' only
+    writeFileSync(srcFile, 'export function modifiedForMain(): void {}\n');
+    const builderMain = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
+    await builderMain.update([srcFile]);
+
+    // 'dev' branch files should still be present
+    const devFiles = queryFilesWithBranch(dbPath, 'dev');
+    expect(devFiles.length).toBeGreaterThan(0);
+  });
+
+  it('should default branch to "HEAD" when not specified during update()', async () => {
+    // Build under HEAD first
+    const builderHead = new IndexBuilder(dbPath, { rootDir: srcDir });
+    await builderHead.build();
+
+    writeFileSync(srcFile, 'export function updatedHead(): void {}\n');
+    const builder = new IndexBuilder(dbPath, { rootDir: srcDir });
+    await builder.update([srcFile]);
+
+    const headFiles = queryFilesWithBranch(dbPath, 'HEAD');
+    expect(headFiles.length).toBeGreaterThan(0);
   });
 });

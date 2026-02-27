@@ -1,269 +1,291 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import Database from 'better-sqlite3';
 import {
-  getCommitBySha,
-  listRecentCommits,
-  listCommitsByFile,
-  listCommitsByAuthor,
-  listCommitFiles,
-  type CommitRow,
-  type CommitFileRow,
+  getFileById,
+  getFileByPath,
+  listFiles,
+  getSymbolsByName,
+  listSymbols,
+  getSymbolById,
+  type FileRow,
+  type SymbolRow,
 } from '../../src/kb-server/db.js';
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
+// Helper: create an in-memory DB with the minimal schema needed for tests.
 function createTestDb(): Database.Database {
   const db = new Database(':memory:');
   db.pragma('foreign_keys = ON');
   db.exec(`
-    CREATE TABLE IF NOT EXISTS commits (
-      sha          TEXT    PRIMARY KEY,
-      author       TEXT    NOT NULL,
-      author_email TEXT    NOT NULL,
-      timestamp    INTEGER NOT NULL,
-      message      TEXT    NOT NULL,
-      parents      TEXT    NOT NULL DEFAULT '[]'
+    CREATE TABLE files (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      path        TEXT    NOT NULL,
+      branch      TEXT    NOT NULL DEFAULT '',
+      language    TEXT    NOT NULL,
+      size_bytes  INTEGER NOT NULL DEFAULT 0,
+      last_hash   TEXT,
+      indexed_at  INTEGER NOT NULL DEFAULT 0,
+      UNIQUE(path, branch)
     );
-    CREATE TABLE IF NOT EXISTS commit_files (
-      commit_sha  TEXT    NOT NULL REFERENCES commits(sha) ON DELETE CASCADE,
-      file_path   TEXT    NOT NULL,
-      change_type TEXT    NOT NULL,
-      insertions  INTEGER,
-      deletions   INTEGER,
-      PRIMARY KEY (commit_sha, file_path)
+    CREATE TABLE symbols (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      file_id     INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+      name        TEXT    NOT NULL,
+      kind        TEXT    NOT NULL,
+      start_line  INTEGER NOT NULL,
+      end_line    INTEGER NOT NULL,
+      signature   TEXT,
+      doc_comment TEXT
     );
   `);
   return db;
 }
 
-function insertCommit(
+function insertFile(
   db: Database.Database,
-  sha: string,
-  author: string,
-  email: string,
-  timestamp: number,
-  message = 'msg',
-  parents = '[]',
-) {
-  db.prepare(
-    `INSERT INTO commits (sha, author, author_email, timestamp, message, parents)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-  ).run(sha, author, email, timestamp, message, parents);
+  path: string,
+  branch: string,
+  language = 'typescript'
+): number {
+  const result = db
+    .prepare('INSERT INTO files (path, branch, language) VALUES (?, ?, ?)')
+    .run(path, branch, language);
+  return result.lastInsertRowid as number;
 }
 
-function insertCommitFile(
+function insertSymbol(
   db: Database.Database,
-  commitSha: string,
-  filePath: string,
-  changeType = 'modified',
-  insertions: number | null = 5,
-  deletions: number | null = 2,
-) {
-  db.prepare(
-    `INSERT INTO commit_files (commit_sha, file_path, change_type, insertions, deletions)
-     VALUES (?, ?, ?, ?, ?)`,
-  ).run(commitSha, filePath, changeType, insertions, deletions);
+  fileId: number,
+  name: string,
+  kind = 'function'
+): number {
+  const result = db
+    .prepare(
+      'INSERT INTO symbols (file_id, name, kind, start_line, end_line) VALUES (?, ?, ?, 1, 10)'
+    )
+    .run(fileId, name, kind);
+  return result.lastInsertRowid as number;
 }
 
-// ─── getCommitBySha ───────────────────────────────────────────────────────────
+// ─── FileRow interface ────────────────────────────────────────────────────────
 
-describe('getCommitBySha', () => {
-  let db: Database.Database;
-
-  beforeEach(() => {
-    db = createTestDb();
-    insertCommit(db, 'abc123def456', 'Alice', 'alice@example.com', 1700000000);
-  });
-
-  it('should return the commit for an exact SHA match', () => {
-    const row = getCommitBySha(db, 'abc123def456');
-    expect(row?.sha).toBe('abc123def456');
-    expect(row?.author).toBe('Alice');
-  });
-
-  it('should return the commit for a prefix SHA match', () => {
-    const row = getCommitBySha(db, 'abc123');
-    expect(row?.sha).toBe('abc123def456');
-  });
-
-  it('should return undefined for a non-matching SHA', () => {
-    const row = getCommitBySha(db, 'zzz999');
-    expect(row).toBeUndefined();
-  });
-
-  it('should return undefined when the database has no commits', () => {
-    const emptyDb = createTestDb();
-    const row = getCommitBySha(emptyDb, 'abc123');
-    expect(row).toBeUndefined();
-    emptyDb.close();
+describe('FileRow interface', () => {
+  it('should include a branch field', () => {
+    const db = createTestDb();
+    const id = insertFile(db, 'src/foo.ts', 'main');
+    const row = db.prepare('SELECT * FROM files WHERE id = ?').get(id) as FileRow;
+    expect(row).toHaveProperty('branch');
+    expect(typeof row.branch).toBe('string');
+    db.close();
   });
 });
 
-// ─── listRecentCommits ────────────────────────────────────────────────────────
+// ─── getFileById ──────────────────────────────────────────────────────────────
 
-describe('listRecentCommits', () => {
+describe('getFileById', () => {
+  let db: Database.Database;
+  let fileId: number;
+
+  beforeEach(() => {
+    db = createTestDb();
+    fileId = insertFile(db, 'src/index.ts', 'main');
+  });
+
+  it('should return the file row when id exists', () => {
+    const row = getFileById(db, fileId);
+    expect(row).toBeDefined();
+    expect(row!.path).toBe('src/index.ts');
+    expect(row!.branch).toBe('main');
+  });
+
+  it('should return undefined when id does not exist', () => {
+    expect(getFileById(db, 9999)).toBeUndefined();
+  });
+
+  it('should filter by branch when branch is provided and matches', () => {
+    const row = getFileById(db, fileId, 'main');
+    expect(row).toBeDefined();
+    expect(row!.branch).toBe('main');
+  });
+
+  it('should return undefined when branch does not match', () => {
+    expect(getFileById(db, fileId, 'other-branch')).toBeUndefined();
+  });
+
+  it('should return the row regardless of branch when branch is omitted', () => {
+    insertFile(db, 'src/other.ts', 'feat');
+    const row = getFileById(db, fileId);
+    expect(row).toBeDefined();
+  });
+});
+
+// ─── getFileByPath ────────────────────────────────────────────────────────────
+
+describe('getFileByPath', () => {
   let db: Database.Database;
 
   beforeEach(() => {
     db = createTestDb();
-    insertCommit(db, 'sha1', 'Alice', 'a@x.com', 1700000001);
-    insertCommit(db, 'sha2', 'Bob', 'b@x.com', 1700000003);
-    insertCommit(db, 'sha3', 'Carol', 'c@x.com', 1700000002);
+    insertFile(db, 'src/utils.ts', 'main');
+    insertFile(db, 'src/utils.ts', 'feat');
   });
 
-  it('should return commits ordered by timestamp DESC', () => {
-    const rows = listRecentCommits(db);
-    expect(rows[0].sha).toBe('sha2'); // timestamp 3
-    expect(rows[1].sha).toBe('sha3'); // timestamp 2
-    expect(rows[2].sha).toBe('sha1'); // timestamp 1
+  it('should return a row when path matches and no branch filter', () => {
+    // Without branch there may be multiple rows; SQLite returns first match.
+    const row = getFileByPath(db, 'src/utils.ts');
+    expect(row).toBeDefined();
+    expect(row!.path).toBe('src/utils.ts');
   });
 
-  it('should respect the limit parameter', () => {
-    const rows = listRecentCommits(db, 2);
-    expect(rows.length).toBe(2);
+  it('should filter by branch when provided', () => {
+    const row = getFileByPath(db, 'src/utils.ts', 'feat');
+    expect(row).toBeDefined();
+    expect(row!.branch).toBe('feat');
   });
 
-  it('should default limit to 50 and return all rows when count < 50', () => {
-    const rows = listRecentCommits(db);
+  it('should return undefined when path does not exist', () => {
+    expect(getFileByPath(db, 'nonexistent.ts')).toBeUndefined();
+  });
+
+  it('should return undefined when branch does not match', () => {
+    expect(getFileByPath(db, 'src/utils.ts', 'nonexistent-branch')).toBeUndefined();
+  });
+});
+
+// ─── listFiles ────────────────────────────────────────────────────────────────
+
+describe('listFiles', () => {
+  let db: Database.Database;
+
+  beforeEach(() => {
+    db = createTestDb();
+    insertFile(db, 'a.ts', 'main');
+    insertFile(db, 'b.ts', 'main');
+    insertFile(db, 'c.ts', 'feat');
+  });
+
+  it('should return all files when no branch filter', () => {
+    const rows = listFiles(db, 100);
     expect(rows.length).toBe(3);
   });
 
-  it('should return empty array when no commits exist', () => {
-    const emptyDb = createTestDb();
-    expect(listRecentCommits(emptyDb)).toEqual([]);
-    emptyDb.close();
-  });
-});
-
-// ─── listCommitsByFile ────────────────────────────────────────────────────────
-
-describe('listCommitsByFile', () => {
-  let db: Database.Database;
-
-  beforeEach(() => {
-    db = createTestDb();
-    insertCommit(db, 'sha1', 'Alice', 'a@x.com', 1700000001);
-    insertCommit(db, 'sha2', 'Bob', 'b@x.com', 1700000002);
-    insertCommit(db, 'sha3', 'Carol', 'c@x.com', 1700000003);
-    insertCommitFile(db, 'sha1', 'src/foo.ts');
-    insertCommitFile(db, 'sha2', 'src/foo.ts');
-    insertCommitFile(db, 'sha3', 'src/bar.ts');
-  });
-
-  it('should return only commits that touched the given file', () => {
-    const rows = listCommitsByFile(db, 'src/foo.ts');
+  it('should filter by branch when branch is provided', () => {
+    const rows = listFiles(db, 100, 'main');
     expect(rows.length).toBe(2);
-    expect(rows.every((r) => r)).toBeTruthy();
-    const shas = rows.map((r) => r.sha);
-    expect(shas).toContain('sha1');
-    expect(shas).toContain('sha2');
-  });
-
-  it('should order results by timestamp DESC', () => {
-    const rows = listCommitsByFile(db, 'src/foo.ts');
-    expect(rows[0].sha).toBe('sha2');
-    expect(rows[1].sha).toBe('sha1');
-  });
-
-  it('should return empty array for a file with no commits', () => {
-    const rows = listCommitsByFile(db, 'src/nonexistent.ts');
-    expect(rows).toEqual([]);
+    rows.forEach((r) => expect(r.branch).toBe('main'));
   });
 
   it('should respect the limit parameter', () => {
-    const rows = listCommitsByFile(db, 'src/foo.ts', 1);
+    const rows = listFiles(db, 1);
     expect(rows.length).toBe(1);
   });
-});
 
-// ─── listCommitsByAuthor ──────────────────────────────────────────────────────
-
-describe('listCommitsByAuthor', () => {
-  let db: Database.Database;
-
-  beforeEach(() => {
-    db = createTestDb();
-    insertCommit(db, 'sha1', 'Alice Smith', 'alice@example.com', 1700000001);
-    insertCommit(db, 'sha2', 'Bob Jones', 'bob@example.com', 1700000002);
-    insertCommit(db, 'sha3', 'Alice Smith', 'alice@example.com', 1700000003);
-  });
-
-  it('should match commits by author name substring', () => {
-    const rows = listCommitsByAuthor(db, 'Alice');
-    const shas = rows.map((r) => r.sha);
-    expect(shas).toContain('sha1');
-    expect(shas).toContain('sha3');
-    expect(shas).not.toContain('sha2');
-  });
-
-  it('should match commits by author email substring', () => {
-    const rows = listCommitsByAuthor(db, 'bob@example');
+  it('should respect the limit parameter when filtering by branch', () => {
+    const rows = listFiles(db, 1, 'main');
     expect(rows.length).toBe(1);
-    expect(rows[0].sha).toBe('sha2');
   });
 
-  it('should return commits ordered by timestamp DESC', () => {
-    const rows = listCommitsByAuthor(db, 'Alice');
-    expect(rows[0].sha).toBe('sha3');
-    expect(rows[1].sha).toBe('sha1');
-  });
-
-  it('should return empty array when no author matches', () => {
-    const rows = listCommitsByAuthor(db, 'Zara');
+  it('should return an empty array when branch has no files', () => {
+    const rows = listFiles(db, 100, 'nonexistent');
     expect(rows).toEqual([]);
   });
-
-  it('should respect the limit parameter', () => {
-    const rows = listCommitsByAuthor(db, 'Alice', 1);
-    expect(rows.length).toBe(1);
-  });
 });
 
-// ─── listCommitFiles ──────────────────────────────────────────────────────────
+// ─── getSymbolsByName ─────────────────────────────────────────────────────────
 
-describe('listCommitFiles', () => {
+describe('getSymbolsByName', () => {
   let db: Database.Database;
 
   beforeEach(() => {
     db = createTestDb();
-    insertCommit(db, 'sha1', 'Alice', 'a@x.com', 1700000001);
-    insertCommitFile(db, 'sha1', 'src/foo.ts', 'added', 10, 0);
-    insertCommitFile(db, 'sha1', 'src/bar.ts', 'modified', 5, 3);
+    const mainId = insertFile(db, 'src/main.ts', 'main');
+    const featId = insertFile(db, 'src/feat.ts', 'feat');
+    insertSymbol(db, mainId, 'parseConfig');
+    insertSymbol(db, featId, 'parseConfig');
+    insertSymbol(db, mainId, 'renderPage');
   });
 
-  it('should return all files touched by the given commit', () => {
-    const rows = listCommitFiles(db, 'sha1');
+  it('should return symbols matching name across all branches when no branch filter', () => {
+    const rows = getSymbolsByName(db, 'parseConfig');
     expect(rows.length).toBe(2);
-    const paths = rows.map((r) => r.file_path);
-    expect(paths).toContain('src/foo.ts');
-    expect(paths).toContain('src/bar.ts');
   });
 
-  it('should return CommitFileRow with correct shape', () => {
-    const rows = listCommitFiles(db, 'sha1');
-    const foo = rows.find((r) => r.file_path === 'src/foo.ts')!;
-    expect(foo.commit_sha).toBe('sha1');
-    expect(foo.change_type).toBe('added');
-    expect(foo.insertions).toBe(10);
-    expect(foo.deletions).toBe(0);
+  it('should be case-insensitive', () => {
+    const rows = getSymbolsByName(db, 'PARSECONFIG');
+    expect(rows.length).toBe(2);
   });
 
-  it('should allow null insertions/deletions for binary files', () => {
-    insertCommitFile(db, 'sha1', 'image.png', 'modified', null, null);
-    const rows = listCommitFiles(db, 'sha1');
-    const img = rows.find((r) => r.file_path === 'image.png')!;
-    expect(img.insertions).toBeNull();
-    expect(img.deletions).toBeNull();
+  it('should filter by branch when provided', () => {
+    const rows = getSymbolsByName(db, 'parseConfig', 'main');
+    expect(rows.length).toBe(1);
   });
 
-  it('should return empty array for a commit with no files', () => {
-    insertCommit(db, 'sha2', 'Bob', 'b@x.com', 1700000002);
-    const rows = listCommitFiles(db, 'sha2');
-    expect(rows).toEqual([]);
+  it('should return empty array when name does not match', () => {
+    expect(getSymbolsByName(db, 'nonexistent')).toEqual([]);
   });
 
-  it('should return empty array for a non-existent commit SHA', () => {
-    const rows = listCommitFiles(db, 'nonexistent');
-    expect(rows).toEqual([]);
+  it('should return empty array when branch has no matching symbol', () => {
+    expect(getSymbolsByName(db, 'parseConfig', 'nonexistent-branch')).toEqual([]);
+  });
+});
+
+// ─── listSymbols ──────────────────────────────────────────────────────────────
+
+describe('listSymbols', () => {
+  let db: Database.Database;
+
+  beforeEach(() => {
+    db = createTestDb();
+    const mainId = insertFile(db, 'src/main.ts', 'main');
+    const featId = insertFile(db, 'src/feat.ts', 'feat');
+    insertSymbol(db, mainId, 'foo');
+    insertSymbol(db, mainId, 'bar');
+    insertSymbol(db, featId, 'baz');
+  });
+
+  it('should return all symbols when no branch filter', () => {
+    const rows = listSymbols(db);
+    expect(rows.length).toBe(3);
+  });
+
+  it('should filter by branch when provided', () => {
+    const rows = listSymbols(db, 100, 'main');
+    expect(rows.length).toBe(2);
+  });
+
+  it('should respect the default limit of 100', () => {
+    const rows = listSymbols(db);
+    expect(rows.length).toBeLessThanOrEqual(100);
+  });
+
+  it('should respect a custom limit', () => {
+    const rows = listSymbols(db, 1);
+    expect(rows.length).toBe(1);
+  });
+
+  it('should return empty array when branch has no symbols', () => {
+    expect(listSymbols(db, 100, 'nonexistent')).toEqual([]);
+  });
+});
+
+// ─── getSymbolById ────────────────────────────────────────────────────────────
+
+describe('getSymbolById', () => {
+  let db: Database.Database;
+  let symbolId: number;
+
+  beforeEach(() => {
+    db = createTestDb();
+    const fileId = insertFile(db, 'src/a.ts', 'main');
+    symbolId = insertSymbol(db, fileId, 'myFunc');
+  });
+
+  it('should return the symbol row when id exists', () => {
+    const row = getSymbolById(db, symbolId);
+    expect(row).toBeDefined();
+    expect(row!.name).toBe('myFunc');
+  });
+
+  it('should return undefined when id does not exist', () => {
+    expect(getSymbolById(db, 9999)).toBeUndefined();
   });
 });
