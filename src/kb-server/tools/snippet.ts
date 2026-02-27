@@ -43,6 +43,7 @@ export interface SnippetArgs {
   path: string;
   start_line?: number;
   end_line?: number;
+  branch?: string;
 }
 
 export interface SnippetResult {
@@ -54,8 +55,8 @@ export interface SnippetResult {
 
 /** Read source lines from the filesystem for the given indexed file path. */
 export function handler(db: Database.Database, args: SnippetArgs): SnippetResult {
-  // Confirm the path is known to the index.
-  const fileRow = getFileByPath(db, args.path);
+  // Confirm the path is known to the index; use branch to disambiguate if provided.
+  const fileRow = getFileByPath(db, args.path, args.branch);
   if (!fileRow) {
     throw new Error(`File not found in index: ${args.path}`);
   }

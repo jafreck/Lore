@@ -42,6 +42,7 @@ export interface WritebackArgs {
   symbol_id: number;
   summary: string;
   model: string;
+  branch?: string;
 }
 
 export interface WritebackResult {
@@ -62,6 +63,23 @@ export function handler(dbPath: string, args: WritebackArgs): WritebackResult {
   const db = new Database(dbPath);
   try {
     db.pragma('foreign_keys = ON');
+
+    // When branch is supplied, verify the symbol belongs to that branch.
+    if (args.branch !== undefined) {
+      const row = db
+        .prepare(
+          `SELECT s.id FROM symbols s
+             JOIN files f ON f.id = s.file_id
+            WHERE s.id = ? AND f.branch = ?`,
+        )
+        .get(args.symbol_id, args.branch);
+      if (!row) {
+        throw new Error(
+          `Symbol ${args.symbol_id} not found in branch '${args.branch}'`,
+        );
+      }
+    }
+
     db
       .prepare(
         `INSERT OR REPLACE INTO symbol_summaries (symbol_id, summary, model, created_at)
