@@ -43,6 +43,7 @@ import { ElmExtractor } from './extractors/elm.js';
 import { ObjcExtractor } from './extractors/objc.js';
 import type { SymbolExtractor } from './extractors/types.js';
 import type { EmbeddingProvider } from './embedder.js';
+import { SentenceTransformersProvider, DEFAULT_EMBEDDING_MODEL } from './embedder.js';
 
 // ─── Extractor registry ───────────────────────────────────────────────────────
 
@@ -100,13 +101,20 @@ export class IndexBuilder {
   private readonly pool: ParserPool;
   private readonly resolver: ImportResolver;
   private readonly embedder: EmbeddingProvider | null;
+  private readonly embeddingModel: string;
 
-  constructor(dbPath: string, walkerConfig: WalkerConfig, embedder?: EmbeddingProvider) {
+  constructor(dbPath: string, walkerConfig: WalkerConfig, embedder?: EmbeddingProvider, embeddingModel?: string) {
     this.dbPath = dbPath;
     this.walkerConfig = walkerConfig;
     this.pool = new ParserPool();
     this.resolver = new ImportResolver();
-    this.embedder = embedder ?? null;
+    if (embedder) {
+      this.embedder = embedder;
+      this.embeddingModel = embedder.modelName;
+    } else {
+      this.embeddingModel = embeddingModel ?? DEFAULT_EMBEDDING_MODEL;
+      this.embedder = new SentenceTransformersProvider(this.embeddingModel);
+    }
   }
 
   // ─── Public API ──────────────────────────────────────────────────────────
