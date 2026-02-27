@@ -29,6 +29,44 @@ npm install @jafreck/lore
 
 ## Quick start
 
+### 1 — Index your codebase
+
+```bash
+# Index a TypeScript project (skipping tests and generated files)
+npx @jafreck/lore index \
+  --root ./my-project \
+  --db ./my-project-kb.db \
+  --language typescript \
+  --exclude "**/node_modules/**" \
+  --exclude "**/*.test.ts" \
+  --exclude "**/dist/**"
+```
+
+### 2 — Query via MCP
+
+Start the MCP server and point any MCP-compatible client at it:
+
+```bash
+npx @jafreck/lore mcp --db ./my-project-kb.db
+```
+
+Then configure your client (e.g. Claude Desktop):
+
+```json
+{
+  "mcpServers": {
+    "lore": {
+      "command": "npx",
+      "args": ["@jafreck/lore", "mcp", "--db", "/absolute/path/to/my-project-kb.db"]
+    }
+  }
+}
+```
+
+Your AI assistant can now call `kb_search`, `kb_lookup`, `kb_graph`, and more against your live knowledge base.
+
+### Programmatic API
+
 ```ts
 import { runKbIndex } from "@jafreck/lore";
 
@@ -53,13 +91,20 @@ npx @jafreck/lore index --root <dir> --db <path> [--embedding-model <id>]
 | `--root <dir>` | *(required)* | Root directory of the source tree to index |
 | `--db <path>` | *(required)* | Path to the SQLite knowledge-base file (created if absent) |
 | `--embedding-model <id>` | `Qwen/Qwen3-Embedding-4B` | Hugging Face model ID used to generate embeddings for semantic search |
+| `--include <glob>` | *(none)* | Glob pattern of files to include (repeatable; e.g. `src/**/*.ts`) |
+| `--exclude <glob>` | *(none)* | Glob pattern of files to exclude (repeatable; e.g. `**/node_modules/**`) |
+| `--language <lang>` | *(none)* | Restrict indexing to a language (repeatable; e.g. `typescript`, `rust`) |
 
 **Example**
 
 ```bash
 npx @jafreck/lore index --root ./my-project --db ./kb.db
-# or with a custom embedding model:
+# with a custom embedding model:
 npx @jafreck/lore index --root ./my-project --db ./kb.db --embedding-model sentence-transformers/all-MiniLM-L6-v2
+# index only TypeScript and Python source files, skipping tests:
+npx @jafreck/lore index --root ./my-project --db ./kb.db \
+  --language typescript --language python \
+  --include "src/**" --exclude "**/*.test.ts"
 ```
 
 ## MCP Server
