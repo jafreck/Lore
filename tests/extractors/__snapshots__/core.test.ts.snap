@@ -1,0 +1,462 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Go extractor > callRefs 1`] = `[]`;
+
+exports[`Go extractor > imports 1`] = `
+[
+  {
+    "importedNames": [],
+    "source": "fmt",
+  },
+  {
+    "importedNames": [],
+    "source": "math",
+  },
+]
+`;
+
+exports[`Go extractor > symbols 1`] = `
+[
+  {
+    "endLine": 10,
+    "kind": "interface",
+    "name": "Shape",
+    "signature": "Shape interface",
+    "startLine": 7,
+  },
+  {
+    "endLine": 14,
+    "kind": "struct",
+    "name": "Circle",
+    "signature": "Circle struct",
+    "startLine": 12,
+  },
+  {
+    "endLine": 18,
+    "kind": "method",
+    "name": "Circle.Area",
+    "signature": "func (c Circle) Area() float64",
+    "startLine": 16,
+  },
+  {
+    "endLine": 22,
+    "kind": "method",
+    "name": "Circle.Perimeter",
+    "signature": "func (c Circle) Perimeter() float64",
+    "startLine": 20,
+  },
+  {
+    "endLine": 26,
+    "kind": "function",
+    "name": "Greet",
+    "signature": "func Greet(name string) string",
+    "startLine": 24,
+  },
+  {
+    "endLine": 30,
+    "kind": "function",
+    "name": "Add",
+    "signature": "func Add(a, b int) int",
+    "startLine": 28,
+  },
+]
+`;
+
+exports[`Java extractor > callRefs 1`] = `[]`;
+
+exports[`Java extractor > imports 1`] = `
+[
+  {
+    "importedNames": [
+      "List",
+    ],
+    "source": "java.util.List",
+  },
+  {
+    "importedNames": [
+      "ArrayList",
+    ],
+    "source": "java.util.ArrayList",
+  },
+  {
+    "importedNames": [
+      "IOException",
+    ],
+    "source": "java.io.IOException",
+  },
+]
+`;
+
+exports[`Java extractor > symbols 1`] = `
+[
+  {
+    "endLine": 18,
+    "kind": "class",
+    "name": "Sample",
+    "signature": "public class Sample",
+    "startLine": 4,
+  },
+  {
+    "endLine": 13,
+    "kind": "function",
+    "name": "greet",
+    "signature": "public String greet()",
+    "startLine": 11,
+  },
+  {
+    "endLine": 17,
+    "kind": "function",
+    "name": "add",
+    "signature": "public static int add(int a, int b)",
+    "startLine": 15,
+  },
+  {
+    "endLine": 23,
+    "kind": "interface",
+    "name": "Shape",
+    "signature": "interface Shape",
+    "startLine": 20,
+  },
+  {
+    "endLine": 21,
+    "kind": "function",
+    "name": "area",
+    "signature": "double area();",
+    "startLine": 21,
+  },
+  {
+    "endLine": 22,
+    "kind": "function",
+    "name": "perimeter",
+    "signature": "double perimeter();",
+    "startLine": 22,
+  },
+  {
+    "endLine": 39,
+    "kind": "class",
+    "name": "Circle",
+    "signature": "class Circle implements Shape",
+    "startLine": 25,
+  },
+  {
+    "endLine": 34,
+    "kind": "function",
+    "name": "area",
+    "signature": "public double area()",
+    "startLine": 32,
+  },
+  {
+    "endLine": 38,
+    "kind": "function",
+    "name": "perimeter",
+    "signature": "public double perimeter()",
+    "startLine": 36,
+  },
+]
+`;
+
+exports[`JavaScript extractor > callRefs 1`] = `[]`;
+
+exports[`JavaScript extractor > imports 1`] = `
+[
+  {
+    "importedNames": [],
+    "source": "fs",
+  },
+  {
+    "importedNames": [],
+    "source": "path",
+  },
+]
+`;
+
+exports[`JavaScript extractor > symbols 1`] = `
+[
+  {
+    "endLine": 5,
+    "kind": "function",
+    "name": "greet",
+    "signature": "function greet(name)",
+    "startLine": 3,
+  },
+  {
+    "endLine": 9,
+    "kind": "function",
+    "name": "add",
+    "signature": "function add(a, b)",
+    "startLine": 7,
+  },
+  {
+    "endLine": 19,
+    "kind": "class",
+    "name": "Animal",
+    "signature": "class Animal",
+    "startLine": 11,
+  },
+  {
+    "endLine": 21,
+    "kind": "function",
+    "name": "multiply",
+    "signature": "const multiply = (a, b) => a * b;",
+    "startLine": 21,
+  },
+  {
+    "endLine": 23,
+    "kind": "function",
+    "name": "formatPath",
+    "signature": "const formatPath = (p) => path.normalize(p);",
+    "startLine": 23,
+  },
+]
+`;
+
+exports[`Python extractor > callRefs 1`] = `[]`;
+
+exports[`Python extractor > imports 1`] = `
+[
+  {
+    "importedNames": [],
+    "source": "os",
+  },
+  {
+    "importedNames": [],
+    "source": "sys",
+  },
+  {
+    "importedNames": [
+      "Path",
+    ],
+    "source": "pathlib",
+  },
+  {
+    "importedNames": [
+      "List",
+      "Optional",
+    ],
+    "source": "typing",
+  },
+]
+`;
+
+exports[`Python extractor > symbols 1`] = `
+[
+  {
+    "endLine": 6,
+    "kind": "function",
+    "name": "greet",
+    "signature": "def greet(name: str) -> str:
+    return f"Hello,",
+    "startLine": 5,
+  },
+  {
+    "endLine": 9,
+    "kind": "function",
+    "name": "add",
+    "signature": "def add(a: int, b: int) -> int:",
+    "startLine": 8,
+  },
+  {
+    "endLine": 12,
+    "kind": "function",
+    "name": "fetch_data",
+    "signature": "async def fetch_data(url: str) -> bytes:",
+    "startLine": 11,
+  },
+  {
+    "endLine": 19,
+    "kind": "class",
+    "name": "Animal",
+    "signature": "class Animal:
+    def __init__(self, name: str) -> None:
+        self.name = name
+
+    def speak(self) -> str:
+        return f"",
+    "startLine": 14,
+  },
+  {
+    "endLine": 16,
+    "kind": "function",
+    "name": "__init__",
+    "signature": "def __init__(self, name: str) -> None:",
+    "startLine": 15,
+  },
+  {
+    "endLine": 19,
+    "kind": "function",
+    "name": "speak",
+    "signature": "def speak(self) -> str:
+        return f"",
+    "startLine": 18,
+  },
+  {
+    "endLine": 23,
+    "kind": "class",
+    "name": "Dog",
+    "signature": "class Dog(Animal):
+    def speak(self) -> str:
+        return f"",
+    "startLine": 21,
+  },
+  {
+    "endLine": 23,
+    "kind": "function",
+    "name": "speak",
+    "signature": "def speak(self) -> str:
+        return f"",
+    "startLine": 22,
+  },
+]
+`;
+
+exports[`Rust extractor > callRefs 1`] = `[]`;
+
+exports[`Rust extractor > imports 1`] = `
+[
+  {
+    "importedNames": [
+      "std",
+      "fmt",
+    ],
+    "source": "std::fmt",
+  },
+  {
+    "importedNames": [
+      "std",
+      "collections",
+      "HashMap",
+    ],
+    "source": "std::collections::HashMap",
+  },
+]
+`;
+
+exports[`Rust extractor > symbols 1`] = `
+[
+  {
+    "endLine": 5,
+    "kind": "struct",
+    "name": "Circle",
+    "signature": "pub struct Circle",
+    "startLine": 3,
+  },
+  {
+    "endLine": 10,
+    "kind": "struct",
+    "name": "Rectangle",
+    "signature": "pub struct Rectangle",
+    "startLine": 7,
+  },
+  {
+    "endLine": 15,
+    "kind": "trait",
+    "name": "Shape",
+    "signature": "pub trait Shape",
+    "startLine": 12,
+  },
+  {
+    "endLine": 25,
+    "kind": "impl",
+    "name": "Shape for Circle",
+    "signature": "impl Shape for Circle",
+    "startLine": 17,
+  },
+  {
+    "endLine": 20,
+    "kind": "function",
+    "name": "area",
+    "signature": "fn area(&self) -> f64",
+    "startLine": 18,
+  },
+  {
+    "endLine": 24,
+    "kind": "function",
+    "name": "perimeter",
+    "signature": "fn perimeter(&self) -> f64",
+    "startLine": 22,
+  },
+  {
+    "endLine": 29,
+    "kind": "function",
+    "name": "greet",
+    "signature": "pub fn greet(name: &str) -> String",
+    "startLine": 27,
+  },
+  {
+    "endLine": 33,
+    "kind": "function",
+    "name": "add",
+    "signature": "pub fn add(a: i32, b: i32) -> i32",
+    "startLine": 31,
+  },
+]
+`;
+
+exports[`TypeScript extractor > callRefs 1`] = `[]`;
+
+exports[`TypeScript extractor > imports 1`] = `
+[
+  {
+    "importedNames": [],
+    "source": "fs",
+  },
+  {
+    "importedNames": [],
+    "source": "path",
+  },
+]
+`;
+
+exports[`TypeScript extractor > symbols 1`] = `
+[
+  {
+    "endLine": 6,
+    "kind": "interface",
+    "name": "Shape",
+    "signature": "interface Shape",
+    "startLine": 3,
+  },
+  {
+    "endLine": 11,
+    "kind": "type",
+    "name": "Point",
+    "signature": "type Point =",
+    "startLine": 8,
+  },
+  {
+    "endLine": 15,
+    "kind": "function",
+    "name": "greet",
+    "signature": "function greet(name: string): string",
+    "startLine": 13,
+  },
+  {
+    "endLine": 19,
+    "kind": "function",
+    "name": "add",
+    "signature": "function add(a: number, b: number): number",
+    "startLine": 17,
+  },
+  {
+    "endLine": 31,
+    "kind": "class",
+    "name": "Circle",
+    "signature": "class Circle implements Shape",
+    "startLine": 21,
+  },
+  {
+    "endLine": 33,
+    "kind": "function",
+    "name": "multiply",
+    "signature": "const multiply = (a: number, b: number): number => a * b;",
+    "startLine": 33,
+  },
+  {
+    "endLine": 35,
+    "kind": "function",
+    "name": "formatPath",
+    "signature": "const formatPath = (p: string): string => path.normalize(p);",
+    "startLine": 35,
+  },
+]
+`;
