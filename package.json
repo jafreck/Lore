@@ -46,6 +46,7 @@
     "@modelcontextprotocol/sdk": "^1.27.1",
     "better-sqlite3": "^12.6.2",
     "fast-glob": "^3.3.3",
+    "simple-git": "^3.32.3",
     "sqlite-vec": "^0.1.6",
     "tree-sitter": "0.21.1",
     "tree-sitter-bash": "^0.25.1",
