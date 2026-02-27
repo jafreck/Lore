@@ -98,6 +98,36 @@ npm install
 npm run build
 ```
 
+## Contributing
+
+### Setup
+
+```bash
+git clone https://github.com/jafreck/Lore.git
+cd Lore
+npm install
+```
+
+### Build
+
+```bash
+npm run build
+```
+
+### Tests
+
+```bash
+npm test
+```
+
+### Coverage
+
+```bash
+npm run coverage
+```
+
+CI enforces a minimum of **95% code coverage**. Pull requests that drop coverage below this threshold will fail the CI check.
+
 ## License
 
 [MIT](LICENSE)
