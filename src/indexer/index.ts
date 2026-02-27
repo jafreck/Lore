@@ -14,6 +14,7 @@ import { openDb, setKbMeta, createVec0Tables } from './db.js';
 import type { Database } from './db.js';
 import { walkFiles } from './walker.js';
 import type { WalkerConfig } from './walker.js';
+import { ingestGitHistory } from './git-history.js';
 import { ParserPool } from './parser.js';
 import { ImportResolver } from './resolver.js';
 import type { ExtractionResult, RawCallRef, RawImport, RawSymbol } from './extractors/types.js';
@@ -100,13 +101,20 @@ export class IndexBuilder {
   private readonly pool: ParserPool;
   private readonly resolver: ImportResolver;
   private readonly embedder: EmbeddingProvider | null;
+  private readonly history: boolean | { depth?: number };
 
-  constructor(dbPath: string, walkerConfig: WalkerConfig, embedder?: EmbeddingProvider) {
+  constructor(
+    dbPath: string,
+    walkerConfig: WalkerConfig,
+    embedder?: EmbeddingProvider,
+    options?: { history?: boolean | { depth?: number } },
+  ) {
     this.dbPath = dbPath;
     this.walkerConfig = walkerConfig;
     this.pool = new ParserPool();
     this.resolver = new ImportResolver();
     this.embedder = embedder ?? null;
+    this.history = options?.history ?? false;
   }
 
   // ─── Public API ──────────────────────────────────────────────────────────
@@ -126,6 +134,11 @@ export class IndexBuilder {
       this.resolveImports(db);
       if (this.embedder) {
         await this.embedStructural(db);
+      }
+      if (this.history) {
+        const historyOptions =
+          typeof this.history === 'object' ? this.history : undefined;
+        await ingestGitHistory(db, this.walkerConfig.rootDir, historyOptions);
       }
     } finally {
       db.close();
