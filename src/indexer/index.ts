@@ -118,12 +118,13 @@ export class IndexBuilder {
    */
   async build(): Promise<void> {
     const db = openDb(this.dbPath);
+    const branch = this.walkerConfig.branch ?? 'HEAD';
     try {
       const files = await walkFiles(this.walkerConfig);
       for (const file of files) {
-        this.processFile(db, file.path, file.language);
+        this.processFile(db, file.path, file.language, branch);
       }
-      this.resolveImports(db);
+      this.resolveImports(db, branch);
       if (this.embedder) {
         await this.embedStructural(db);
       }
@@ -140,6 +141,7 @@ export class IndexBuilder {
    */
   async update(changedFiles: string[]): Promise<void> {
     const db = openDb(this.dbPath);
+    const branch = this.walkerConfig.branch ?? 'HEAD';
     try {
       // Determine languages for changed files using the walker config
       const allFiles = await walkFiles(this.walkerConfig);
@@ -148,7 +150,7 @@ export class IndexBuilder {
       for (const filePath of changedFiles) {
         // If the file no longer exists, remove it from the DB
         if (!fs.existsSync(filePath)) {
-          const row = db.prepare('SELECT id FROM files WHERE path = ?').get(filePath) as
+          const row = db.prepare('SELECT id FROM files WHERE path = ? AND branch = ?').get(filePath, branch) as
             | { id: number }
             | undefined;
           if (row) {
@@ -163,7 +165,7 @@ export class IndexBuilder {
         if (!language) continue;
 
         // Null out resolved_id references pointing to this file before deletion
-        const existingRow = db.prepare('SELECT id FROM files WHERE path = ?').get(filePath) as
+        const existingRow = db.prepare('SELECT id FROM files WHERE path = ? AND branch = ?').get(filePath, branch) as
           | { id: number }
           | undefined;
         if (existingRow) {
@@ -171,12 +173,12 @@ export class IndexBuilder {
         }
 
         // Delete existing rows for this file (cascade handles symbols/imports)
-        db.prepare('DELETE FROM files WHERE path = ?').run(filePath);
+        db.prepare('DELETE FROM files WHERE path = ? AND branch = ?').run(filePath, branch);
 
-        this.processFile(db, filePath, language);
+        this.processFile(db, filePath, language, branch);
       }
 
-      this.resolveImports(db);
+      this.resolveImports(db, branch);
     } finally {
       db.close();
     }
@@ -213,7 +215,7 @@ export class IndexBuilder {
   // ─── Private helpers ──────────────────────────────────────────────────────
 
   /** Parse one file, extract symbols/imports/callRefs, and insert into the DB. */
-  private processFile(db: Database.Database, filePath: string, language: string): void {
+  private processFile(db: Database.Database, filePath: string, language: string, branch: string): void {
     let source: string;
     try {
       source = fs.readFileSync(filePath, 'utf8');
@@ -224,7 +226,7 @@ export class IndexBuilder {
     const hash = crypto.createHash('sha256').update(source).digest('hex');
 
     // Check if the file is already up-to-date
-    const existing = db.prepare('SELECT id, last_hash FROM files WHERE path = ?').get(filePath) as
+    const existing = db.prepare('SELECT id, last_hash FROM files WHERE path = ? AND branch = ?').get(filePath, branch) as
       | FileRow
       | undefined;
     if (existing?.last_hash === hash) return;
@@ -249,10 +251,10 @@ export class IndexBuilder {
     } else {
       const info = db
         .prepare(
-          `INSERT INTO files (path, language, size_bytes, last_hash)
-           VALUES (?, ?, ?, ?)`,
+          `INSERT INTO files (path, branch, language, size_bytes, last_hash)
+           VALUES (?, ?, ?, ?, ?)`,
         )
-        .run(filePath, language, sizeBytes, hash) as { lastInsertRowid: number | bigint };
+        .run(filePath, branch, language, sizeBytes, hash) as { lastInsertRowid: number | bigint };
       fileId = Number(info.lastInsertRowid);
     }
 
@@ -318,7 +320,7 @@ export class IndexBuilder {
    * `file_imports.resolved_id` column.  Also populates `external_deps` for
    * any import that resolves to an external package.
    */
-  private resolveImports(db: Database.Database): void {
+  private resolveImports(db: Database.Database, branch: string): void {
     const rootDir = this.walkerConfig.rootDir;
 
     // Fetch all unresolved imports with their file's path, language, and file_id
@@ -327,9 +329,9 @@ export class IndexBuilder {
         `SELECT fi.id, fi.file_id, fi.raw_import, f.path, f.language
          FROM file_imports fi
          JOIN files f ON f.id = fi.file_id
-         WHERE fi.resolved_id IS NULL`,
+         WHERE fi.resolved_id IS NULL AND f.branch = ?`,
       )
-      .all() as Array<{ id: number; file_id: number; raw_import: string; path: string; language: string }>;
+      .all(branch) as Array<{ id: number; file_id: number; raw_import: string; path: string; language: string }>;
 
     const updateResolved = db.prepare(
       'UPDATE file_imports SET resolved_id = ? WHERE id = ?',
@@ -348,8 +350,8 @@ export class IndexBuilder {
 
       if (resolved.resolvedPath) {
         const targetFile = db
-          .prepare('SELECT id FROM files WHERE path = ?')
-          .get(resolved.resolvedPath) as { id: number } | undefined;
+          .prepare('SELECT id FROM files WHERE path = ? AND branch = ?')
+          .get(resolved.resolvedPath, branch) as { id: number } | undefined;
         if (targetFile) {
           updateResolved.run(targetFile.id, row.id);
         }
