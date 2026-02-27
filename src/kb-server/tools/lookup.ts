@@ -38,6 +38,7 @@ export const toolDef = {
 export interface LookupArgs {
   kind: 'symbol' | 'file';
   query: string;
+  branch?: string;
 }
 
 export interface LookupResult {
@@ -48,14 +49,14 @@ export interface LookupResult {
 export function handler(db: Database.Database, args: LookupArgs): LookupResult {
   if (args.kind === 'symbol') {
     const rows = args.query.trim()
-      ? getSymbolsByName(db, args.query)
-      : listSymbols(db, 20);
+      ? getSymbolsByName(db, args.query, args.branch)
+      : listSymbols(db, 20, args.branch);
     return { results: rows };
   } else {
     if (args.query.trim()) {
-      const row = getFileByPath(db, args.query);
+      const row = getFileByPath(db, args.query, args.branch);
       return { results: row ? [row] : [] };
     }
-    return { results: listFiles(db, 20) };
+    return { results: listFiles(db, 20, args.branch) };
   }
 }

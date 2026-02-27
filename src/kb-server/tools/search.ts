@@ -51,6 +51,7 @@ export interface SearchArgs {
   query: string;
   mode?: 'structural' | 'semantic' | 'fused';
   limit?: number;
+  branch?: string;
 }
 
 export interface SearchResult {
@@ -62,6 +63,7 @@ export interface SearchResult {
     start_line: number;
     end_line: number;
     score: number;
+    branch: string;
   }>;
   mode_used: string;
 }
@@ -84,37 +86,37 @@ function structuralSearch(
   db: Database.Database,
   query: string,
   limit: number,
+  branch?: string,
 ): SearchResult['results'] {
   const safeQuery = sanitizeFts5Query(query);
+  const branchClause = branch !== undefined ? ' AND f.branch = ?' : '';
   try {
-    const rows = db
-      .prepare(
-        `SELECT s.id AS symbol_id, s.name, s.kind, f.path AS file_path,
+    const sql = `SELECT s.id AS symbol_id, s.name, s.kind, f.path AS file_path,
                 s.start_line, s.end_line,
-                bm25(symbols_fts) AS score
+                bm25(symbols_fts) AS score,
+                f.branch AS branch
            FROM symbols_fts
            JOIN symbols s ON s.rowid = symbols_fts.rowid
            JOIN files   f ON f.id   = s.file_id
-          WHERE symbols_fts MATCH ?
+          WHERE symbols_fts MATCH ?${branchClause}
           ORDER BY score
-          LIMIT ?`,
-      )
-      .all(safeQuery, limit) as SearchResult['results'];
+          LIMIT ?`;
+    const params = branch !== undefined ? [safeQuery, branch, limit] : [safeQuery, limit];
+    const rows = db.prepare(sql).all(...params) as SearchResult['results'];
     return rows;
   } catch {
     // FTS5 parse error — fall back to LIKE-based search.
     const likeQuery = `%${query}%`;
-    return db
-      .prepare(
-        `SELECT s.id AS symbol_id, s.name, s.kind, f.path AS file_path,
+    const sql = `SELECT s.id AS symbol_id, s.name, s.kind, f.path AS file_path,
                 s.start_line, s.end_line,
-                0.0 AS score
+                0.0 AS score,
+                f.branch AS branch
            FROM symbols s
            JOIN files f ON f.id = s.file_id
-          WHERE s.name LIKE ?
-          LIMIT ?`,
-      )
-      .all(likeQuery, limit) as SearchResult['results'];
+          WHERE s.name LIKE ?${branchClause}
+          LIMIT ?`;
+    const params = branch !== undefined ? [likeQuery, branch, limit] : [likeQuery, limit];
+    return db.prepare(sql).all(...params) as SearchResult['results'];
   }
 }
 
@@ -127,24 +129,27 @@ async function semanticSearch(
   query: string,
   limit: number,
   embedder: EmbeddingProvider,
+  branch?: string,
 ): Promise<SearchResult['results'] | null> {
   try {
     const [queryVec] = await embedder.embed([query]);
     if (!queryVec) return null;
 
-    const rows = db
-      .prepare(
-        `SELECT s.id AS symbol_id, s.name, s.kind, f.path AS file_path,
+    const branchClause = branch !== undefined ? ' AND f.branch = ?' : '';
+    const sql = `SELECT s.id AS symbol_id, s.name, s.kind, f.path AS file_path,
                 s.start_line, s.end_line,
-                distance AS score
+                distance AS score,
+                f.branch AS branch
            FROM symbol_embeddings
            JOIN symbols s ON s.rowid = symbol_embeddings.rowid
            JOIN files   f ON f.id   = s.file_id
-          WHERE embedding MATCH ?
+          WHERE embedding MATCH ?${branchClause}
           ORDER BY distance
-          LIMIT ?`,
-      )
-      .all(JSON.stringify(queryVec), limit) as SearchResult['results'];
+          LIMIT ?`;
+    const params = branch !== undefined
+      ? [JSON.stringify(queryVec), branch, limit]
+      : [JSON.stringify(queryVec), limit];
+    const rows = db.prepare(sql).all(...params) as SearchResult['results'];
 
     return rows.length > 0 ? rows : null;
   } catch {
@@ -196,7 +201,7 @@ export async function handler(
   const limit = args.limit ?? 20;
   const mode = args.mode ?? 'structural';
 
-  const structural = structuralSearch(db, args.query, limit);
+  const structural = structuralSearch(db, args.query, limit, args.branch);
 
   if (mode === 'structural') {
     return { results: structural, mode_used: 'structural' };
@@ -207,7 +212,7 @@ export async function handler(
     return { results: structural, mode_used: 'structural (no query-time embedder)' };
   }
 
-  const semantic = await semanticSearch(db, args.query, limit, embedder);
+  const semantic = await semanticSearch(db, args.query, limit, embedder, args.branch);
 
   if (mode === 'semantic') {
     if (semantic) {
