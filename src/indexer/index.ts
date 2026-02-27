@@ -133,6 +133,7 @@ export class IndexBuilder {
       }
       this.resolveImports(db);
       if (this.embedder) {
+        await this.embedder.init();
         await this.embedStructural(db);
       }
     } finally {
