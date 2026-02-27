@@ -59,6 +59,7 @@ export function createKbMcpServer(
     {
       kind: z.enum(['symbol', 'file']).describe('Whether to look up a symbol or a file.'),
       query: z.string().describe('Symbol name or file path to look up.'),
+      branch: z.string().optional().describe('Optional branch to filter results.'),
     },
     async (args) => ({
       content: [{ type: 'text', text: JSON.stringify(lookup.handler(db, args)) }],
@@ -73,6 +74,7 @@ export function createKbMcpServer(
       kind: z.enum(['call', 'import']).describe('"call" or "import" graph edges.'),
       source_id: z.number().optional().describe('Filter edges by source node id.'),
       limit: z.number().optional().describe('Max edges to return (default 200).'),
+      branch: z.string().optional().describe('Optional branch to filter edges.'),
     },
     async (args) => ({
       content: [{ type: 'text', text: JSON.stringify(graph.handler(db, args)) }],
@@ -90,6 +92,7 @@ export function createKbMcpServer(
         .optional()
         .describe('Search mode (default: structural).'),
       limit: z.number().optional().describe('Max results (default 20).'),
+      branch: z.string().optional().describe('Optional branch to filter results.'),
     },
     async (args) => ({
       content: [{ type: 'text', text: JSON.stringify(await search.handler(db, args, embedder)) }],
@@ -104,6 +107,7 @@ export function createKbMcpServer(
       path: z.string().describe('Absolute file path as stored in the index.'),
       start_line: z.number().optional().describe('First line (1-based, inclusive).'),
       end_line: z.number().optional().describe('Last line (1-based, inclusive).'),
+      branch: z.string().optional().describe('Optional branch to disambiguate the file path.'),
     },
     async (args) => ({
       content: [{ type: 'text', text: JSON.stringify(snippet.handler(db, args)) }],
@@ -128,6 +132,7 @@ export function createKbMcpServer(
       symbol_id: z.number().describe('Symbol id to attach the summary to.'),
       summary: z.string().describe('Natural-language summary text.'),
       model: z.string().describe('Model identifier that generated the summary.'),
+      branch: z.string().optional().describe('Optional branch to validate the symbol belongs to.'),
     },
     async (args) => ({
       content: [
