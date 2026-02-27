@@ -5,27 +5,40 @@
  * Lore CLI — unified entry point for indexing and the MCP server.
  *
  * Usage:
+ *   lore index --root <dir> --db <path> [--branch <name>]
+ *                              Index a codebase into a Lore knowledge-base SQLite file.
  *   lore mcp --db <path>           Start the knowledge-base MCP server (stdio transport).
  *   lore mcp --db <path> --sse     Start the MCP server with SSE/HTTP transport.
- *
- * Future:
- *   lore index --root <dir> --db <path>   Index a codebase (not yet wired here).
  */
 
 import { fileURLToPath } from 'node:url';
+import { execSync } from 'node:child_process';
 
 // ─── Argument helpers ─────────────────────────────────────────────────────────
 
 function usage(): never {
   console.error(
     `Usage:
-  lore mcp --db <path>           Start the KB MCP server (stdio transport)
+  lore index --root <dir> --db <path> [--branch <name>]
+                             Index a codebase into the knowledge-base
+  lore mcp --db <path>      Start the KB MCP server (stdio transport)
 
 Options:
+  --root <dir>     Root directory to index (required for index)
   --db <path>      Path to a Lore knowledge-base SQLite file (required)
+  --branch <name>  Git branch name to tag indexed rows (default: current HEAD)
   --help, -h       Show this help message`,
   );
   process.exit(1);
+}
+
+/** Resolve the current git HEAD branch name, falling back to 'HEAD'. */
+function currentBranch(): string {
+  try {
+    return execSync('git rev-parse --abbrev-ref HEAD', { encoding: 'utf8' }).trim();
+  } catch {
+    return 'HEAD';
+  }
 }
 
 function flag(args: string[], name: string): string | undefined {
@@ -45,7 +58,26 @@ async function main(): Promise<void> {
 
   const subcommand = args[0];
 
-  if (subcommand === 'mcp') {
+  if (subcommand === 'index') {
+    const rootDir = flag(args, '--root');
+    const dbPath = flag(args, '--db');
+
+    if (!rootDir) {
+      console.error('Error: --root <dir> is required for the index subcommand.\n');
+      usage();
+    }
+    if (!dbPath) {
+      console.error('Error: --db <path> is required for the index subcommand.\n');
+      usage();
+    }
+
+    const branch = flag(args, '--branch') ?? currentBranch();
+
+    const { IndexBuilder } = await import('./indexer/index.js');
+    const builder = new IndexBuilder(dbPath, { rootDir, branch });
+    await builder.build();
+    console.error(`lore: indexed ${rootDir} → ${dbPath} (branch: ${branch})`);
+  } else if (subcommand === 'mcp') {
     const dbPath = flag(args, '--db');
     if (!dbPath) {
       console.error('Error: --db <path> is required for the mcp subcommand.\n');
