@@ -21,11 +21,13 @@ const DDL = `
 -- Indexed source files.
 CREATE TABLE IF NOT EXISTS files (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  path        TEXT    NOT NULL UNIQUE,
+  path        TEXT    NOT NULL,
+  branch      TEXT    NOT NULL DEFAULT '',
   language    TEXT    NOT NULL,
   size_bytes  INTEGER NOT NULL DEFAULT 0,
   last_hash   TEXT,
-  indexed_at  INTEGER NOT NULL DEFAULT (unixepoch())
+  indexed_at  INTEGER NOT NULL DEFAULT (unixepoch()),
+  UNIQUE(path, branch)
 );
 
 -- Named symbols extracted from source files.
@@ -98,6 +100,26 @@ CREATE TABLE IF NOT EXISTS kb_meta (
 -- Full-text search index over symbol names, signatures, and kinds (BM25 via FTS5).
 CREATE VIRTUAL TABLE IF NOT EXISTS symbols_fts USING fts5(
   name, signature, kind
+);
+
+-- Git commit metadata.
+CREATE TABLE IF NOT EXISTS commits (
+  sha         TEXT    PRIMARY KEY,
+  author      TEXT    NOT NULL,
+  author_email TEXT   NOT NULL,
+  timestamp   INTEGER NOT NULL,
+  message     TEXT    NOT NULL,
+  parents     TEXT    NOT NULL DEFAULT '[]'
+);
+
+-- Files touched by each commit (with diff stats).
+CREATE TABLE IF NOT EXISTS commit_files (
+  commit_sha  TEXT    NOT NULL REFERENCES commits(sha) ON DELETE CASCADE,
+  file_path   TEXT    NOT NULL,
+  change_type TEXT    NOT NULL,
+  insertions  INTEGER,
+  deletions   INTEGER,
+  PRIMARY KEY (commit_sha, file_path)
 );
 `;
 

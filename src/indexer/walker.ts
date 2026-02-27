@@ -33,6 +33,12 @@ export interface WalkerConfig {
    * When omitted, all extensions that map to a known language are accepted.
    */
   extensions?: string[];
+
+  /**
+   * Git branch name to associate with indexed files.
+   * Defaults to `'HEAD'` when omitted.
+   */
+  branch?: string;
 }
 
 /** A single file discovered by `walkFiles`. */

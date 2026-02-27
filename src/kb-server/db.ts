@@ -52,14 +52,28 @@ export function getSymbolById(db: Database.Database, id: number): SymbolRow | un
 }
 
 /** Fetch all symbols whose name matches the given string (case-insensitive). */
-export function getSymbolsByName(db: Database.Database, name: string): SymbolRow[] {
+export function getSymbolsByName(db: Database.Database, name: string, branch?: string): SymbolRow[] {
+  if (branch !== undefined) {
+    return db
+      .prepare(
+        'SELECT s.* FROM symbols s JOIN files f ON s.file_id = f.id WHERE s.name = ? COLLATE NOCASE AND f.branch = ?'
+      )
+      .all(name, branch) as SymbolRow[];
+  }
   return db
     .prepare('SELECT * FROM symbols WHERE name = ? COLLATE NOCASE')
     .all(name) as SymbolRow[];
 }
 
 /** Return all symbols, optionally limited to `limit` rows. */
-export function listSymbols(db: Database.Database, limit = 100): SymbolRow[] {
+export function listSymbols(db: Database.Database, limit = 100, branch?: string): SymbolRow[] {
+  if (branch !== undefined) {
+    return db
+      .prepare(
+        'SELECT s.* FROM symbols s JOIN files f ON s.file_id = f.id WHERE f.branch = ? LIMIT ?'
+      )
+      .all(branch, limit) as SymbolRow[];
+  }
   return db.prepare('SELECT * FROM symbols LIMIT ?').all(limit) as SymbolRow[];
 }
 
@@ -68,6 +82,7 @@ export function listSymbols(db: Database.Database, limit = 100): SymbolRow[] {
 export interface FileRow {
   id: number;
   path: string;
+  branch: string;
   language: string;
   size_bytes: number;
   last_hash: string | null;
@@ -75,16 +90,91 @@ export interface FileRow {
 }
 
 /** Fetch a single file row by primary key. */
-export function getFileById(db: Database.Database, id: number): FileRow | undefined {
+export function getFileById(db: Database.Database, id: number, branch?: string): FileRow | undefined {
+  if (branch !== undefined) {
+    return db.prepare('SELECT * FROM files WHERE id = ? AND branch = ?').get(id, branch) as FileRow | undefined;
+  }
   return db.prepare('SELECT * FROM files WHERE id = ?').get(id) as FileRow | undefined;
 }
 
 /** Fetch a single file row by its path. */
-export function getFileByPath(db: Database.Database, path: string): FileRow | undefined {
+export function getFileByPath(db: Database.Database, path: string, branch?: string): FileRow | undefined {
+  if (branch !== undefined) {
+    return db.prepare('SELECT * FROM files WHERE path = ? AND branch = ?').get(path, branch) as FileRow | undefined;
+  }
   return db.prepare('SELECT * FROM files WHERE path = ?').get(path) as FileRow | undefined;
 }
 
 /** Return all indexed files, optionally limited to `limit` rows. */
-export function listFiles(db: Database.Database, limit = 100): FileRow[] {
+export function listFiles(db: Database.Database, limit = 100, branch?: string): FileRow[] {
+  if (branch !== undefined) {
+    return db.prepare('SELECT * FROM files WHERE branch = ? LIMIT ?').all(branch, limit) as FileRow[];
+  }
   return db.prepare('SELECT * FROM files LIMIT ?').all(limit) as FileRow[];
+}
+
+// ─── Commit helpers ───────────────────────────────────────────────────────────
+
+export interface CommitRow {
+  sha: string;
+  author: string;
+  author_email: string;
+  timestamp: number;
+  message: string;
+  parents: string;
+}
+
+export interface CommitFileRow {
+  commit_sha: string;
+  file_path: string;
+  change_type: string;
+  insertions: number | null;
+  deletions: number | null;
+}
+
+/** Fetch a single commit by its SHA (full or prefix match). */
+export function getCommitBySha(db: Database.Database, sha: string): CommitRow | undefined {
+  return db
+    .prepare('SELECT * FROM commits WHERE sha = ? OR sha LIKE ? LIMIT 1')
+    .get(sha, `${sha}%`) as CommitRow | undefined;
+}
+
+/** Return the most recent commits ordered by timestamp DESC, limited to `limit` rows. */
+export function listRecentCommits(db: Database.Database, limit = 50): CommitRow[] {
+  return db
+    .prepare('SELECT * FROM commits ORDER BY timestamp DESC, sha ASC LIMIT ?')
+    .all(limit) as CommitRow[];
+}
+
+/** Return commits that touched the given file path, ordered by timestamp DESC. */
+export function listCommitsByFile(db: Database.Database, filePath: string, limit = 50): CommitRow[] {
+  return db
+    .prepare(
+      `SELECT c.* FROM commits c
+       JOIN commit_files cf ON cf.commit_sha = c.sha
+       WHERE cf.file_path = ?
+       ORDER BY c.timestamp DESC, c.sha ASC
+       LIMIT ?`,
+    )
+    .all(filePath, limit) as CommitRow[];
+}
+
+/** Return commits filtered by author name or email, ordered by timestamp DESC. */
+export function listCommitsByAuthor(db: Database.Database, author: string, limit = 50): CommitRow[] {
+  const pattern = `%${author}%`;
+  return db
+    .prepare(
+      `SELECT * FROM commits
+       WHERE author LIKE ? OR author_email LIKE ?
+       ORDER BY timestamp DESC, sha ASC
+       LIMIT ?`,
+    )
+    .all(pattern, pattern, limit) as CommitRow[];
+}
+
+/** Return all files touched by a given commit SHA. */
+export function listCommitFiles(db: Database.Database, commitSha: string): CommitFileRow[] {
+  return db
+    .prepare('SELECT * FROM commit_files WHERE commit_sha = ?')
+    .all(commitSha) as CommitFileRow[];
 }
