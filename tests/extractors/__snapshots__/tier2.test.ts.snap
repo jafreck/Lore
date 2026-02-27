@@ -1,0 +1,343 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`C extractor > callRefs 1`] = `[]`;
+
+exports[`C extractor > imports 1`] = `
+[
+  {
+    "importedNames": [],
+    "source": "stdio.h",
+  },
+  {
+    "importedNames": [],
+    "source": "stdlib.h",
+  },
+]
+`;
+
+exports[`C extractor > symbols 1`] = `
+[
+  {
+    "endLine": 6,
+    "kind": "struct",
+    "name": "Point",
+    "signature": "struct Point",
+    "startLine": 3,
+  },
+  {
+    "endLine": 8,
+    "kind": "struct",
+    "name": "Point",
+    "signature": "struct Point",
+    "startLine": 8,
+  },
+  {
+    "endLine": 12,
+    "kind": "function",
+    "name": "add",
+    "signature": "int add(int a, int b)",
+    "startLine": 10,
+  },
+  {
+    "endLine": 16,
+    "kind": "function",
+    "name": "print_point",
+    "signature": "void print_point(Point p)",
+    "startLine": 14,
+  },
+]
+`;
+
+exports[`C# extractor > callRefs 1`] = `[]`;
+
+exports[`C# extractor > imports 1`] = `
+[
+  {
+    "importedNames": [
+      "System",
+    ],
+    "source": "System",
+  },
+  {
+    "importedNames": [
+      "Generic",
+    ],
+    "source": "System.Collections.Generic",
+  },
+]
+`;
+
+exports[`C# extractor > symbols 1`] = `
+[
+  {
+    "endLine": 18,
+    "kind": "class",
+    "name": "Greeter",
+    "signature": "public class Greeter",
+    "startLine": 5,
+  },
+  {
+    "endLine": 17,
+    "kind": "function",
+    "name": "Greet",
+    "signature": "public string Greet()",
+    "startLine": 14,
+  },
+  {
+    "endLine": 23,
+    "kind": "interface",
+    "name": "ICalculator",
+    "signature": "public interface ICalculator",
+    "startLine": 20,
+  },
+  {
+    "endLine": 22,
+    "kind": "function",
+    "name": "Add",
+    "signature": "int Add(int a, int b);",
+    "startLine": 22,
+  },
+]
+`;
+
+exports[`C++ extractor > callRefs 1`] = `[]`;
+
+exports[`C++ extractor > imports 1`] = `
+[
+  {
+    "importedNames": [],
+    "source": "iostream",
+  },
+  {
+    "importedNames": [],
+    "source": "string",
+  },
+]
+`;
+
+exports[`C++ extractor > symbols 1`] = `
+[
+  {
+    "endLine": 13,
+    "kind": "class",
+    "name": "Greeter",
+    "signature": "class Greeter",
+    "startLine": 3,
+  },
+  {
+    "endLine": 5,
+    "kind": "function",
+    "name": "Greeter",
+    "signature": "explicit Greeter(std::string name) : name_(std::move(name))",
+    "startLine": 5,
+  },
+  {
+    "endLine": 9,
+    "kind": "function",
+    "name": "",
+    "signature": "std::string greet() const",
+    "startLine": 7,
+  },
+  {
+    "endLine": 17,
+    "kind": "function",
+    "name": "add",
+    "signature": "int add(int a, int b)",
+    "startLine": 15,
+  },
+]
+`;
+
+exports[`Elixir extractor > callRefs 1`] = `[]`;
+
+exports[`Elixir extractor > imports 1`] = `
+[
+  {
+    "importedNames": [
+      "alias",
+    ],
+    "source": "",
+  },
+  {
+    "importedNames": [
+      "import",
+    ],
+    "source": "",
+  },
+]
+`;
+
+exports[`Elixir extractor > symbols 1`] = `
+[
+  {
+    "endLine": 13,
+    "kind": "module",
+    "name": "",
+    "signature": "defmodule Sample do
+  alias Sample.Utils
+  import Enum, only: [map: 2]
+
+  def greet(name) do
+    "Hello, #",
+    "startLine": 0,
+  },
+  {
+    "endLine": 6,
+    "kind": "function",
+    "name": "",
+    "signature": "def greet(name) do
+    "Hello, #",
+    "startLine": 4,
+  },
+  {
+    "endLine": 10,
+    "kind": "function",
+    "name": "",
+    "signature": "defp format(value) do",
+    "startLine": 8,
+  },
+  {
+    "endLine": 12,
+    "kind": "function",
+    "name": "",
+    "signature": "def add(a, b), do: a + b",
+    "startLine": 12,
+  },
+]
+`;
+
+exports[`Haskell extractor > callRefs 1`] = `[]`;
+
+exports[`Haskell extractor > imports 1`] = `
+[
+  {
+    "importedNames": [],
+    "source": "Data.List",
+  },
+  {
+    "importedNames": [],
+    "source": "",
+  },
+  {
+    "importedNames": [],
+    "source": "Data.Map",
+  },
+  {
+    "importedNames": [],
+    "source": "",
+  },
+]
+`;
+
+exports[`Haskell extractor > symbols 1`] = `
+[
+  {
+    "endLine": 5,
+    "kind": "type",
+    "name": "Shape",
+    "signature": "data Shape = Circle Double | Rectangle Double Double",
+    "startLine": 5,
+  },
+  {
+    "endLine": 9,
+    "kind": "signature",
+    "name": "greet",
+    "signature": "greet :: Name -> String",
+    "startLine": 9,
+  },
+  {
+    "endLine": 9,
+    "kind": "function",
+    "name": "Name",
+    "signature": "Name -> String",
+    "startLine": 9,
+  },
+  {
+    "endLine": 10,
+    "kind": "function",
+    "name": "greet",
+    "signature": "greet name = "Hello, " ++ name ++ "!"",
+    "startLine": 10,
+  },
+  {
+    "endLine": 12,
+    "kind": "signature",
+    "name": "add",
+    "signature": "add :: Int -> Int -> Int",
+    "startLine": 12,
+  },
+  {
+    "endLine": 12,
+    "kind": "function",
+    "name": "Int",
+    "signature": "Int -> Int -> Int",
+    "startLine": 12,
+  },
+  {
+    "endLine": 12,
+    "kind": "function",
+    "name": "Int",
+    "signature": "Int -> Int",
+    "startLine": 12,
+  },
+  {
+    "endLine": 13,
+    "kind": "function",
+    "name": "add",
+    "signature": "add a b = a + b",
+    "startLine": 13,
+  },
+]
+`;
+
+exports[`Julia extractor > callRefs 1`] = `[]`;
+
+exports[`Julia extractor > imports 1`] = `
+[
+  {
+    "importedNames": [
+      "LinearAlgebra",
+    ],
+    "source": "LinearAlgebra",
+  },
+  {
+    "importedNames": [
+      "show",
+    ],
+    "source": "Base",
+  },
+]
+`;
+
+exports[`Julia extractor > symbols 1`] = `
+[
+  {
+    "endLine": 18,
+    "kind": "module",
+    "name": "Sample",
+    "signature": "module Sample",
+    "startLine": 0,
+  },
+  {
+    "endLine": 8,
+    "kind": "struct",
+    "name": "",
+    "signature": "struct Point",
+    "startLine": 5,
+  },
+  {
+    "endLine": 12,
+    "kind": "function",
+    "name": "",
+    "signature": "function greet(name::String)::String",
+    "startLine": 10,
+  },
+  {
+    "endLine": 16,
+    "kind": "function",
+    "name": "",
+    "signature": "function add(a::Int, b::Int)::Int",
+    "startLine": 14,
+  },
+]
+`;

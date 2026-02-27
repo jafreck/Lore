@@ -1,0 +1,189 @@
+import { describe, test, expect } from 'vitest';
+import path from 'node:path';
+import { parseAndExtract } from '../helpers/extractorHelper.js';
+import { CExtractor } from '../../src/indexer/extractors/c.js';
+import { CppExtractor } from '../../src/indexer/extractors/cpp.js';
+import { CSharpExtractor } from '../../src/indexer/extractors/csharp.js';
+import { DartExtractor } from '../../src/indexer/extractors/dart.js';
+import { ElixirExtractor } from '../../src/indexer/extractors/elixir.js';
+import { ElmExtractor } from '../../src/indexer/extractors/elm.js';
+import { HaskellExtractor } from '../../src/indexer/extractors/haskell.js';
+import { JuliaExtractor } from '../../src/indexer/extractors/julia.js';
+
+const fixtureDir = path.join(import.meta.dirname, '../fixtures');
+
+const cResult = parseAndExtract(
+  'c',
+  path.join(fixtureDir, 'c/sample.c'),
+  new CExtractor(),
+);
+
+const cppResult = parseAndExtract(
+  'cpp',
+  path.join(fixtureDir, 'cpp/sample.cpp'),
+  new CppExtractor(),
+);
+
+const csharpResult = parseAndExtract(
+  'csharp',
+  path.join(fixtureDir, 'csharp/sample.cs'),
+  new CSharpExtractor(),
+);
+
+const dartResult = parseAndExtract(
+  'dart',
+  path.join(fixtureDir, 'dart/sample.dart'),
+  new DartExtractor(),
+);
+
+const elixirResult = parseAndExtract(
+  'elixir',
+  path.join(fixtureDir, 'elixir/sample.ex'),
+  new ElixirExtractor(),
+);
+
+const elmResult = parseAndExtract(
+  'elm',
+  path.join(fixtureDir, 'elm/sample.elm'),
+  new ElmExtractor(),
+);
+
+const haskellResult = parseAndExtract(
+  'haskell',
+  path.join(fixtureDir, 'haskell/sample.hs'),
+  new HaskellExtractor(),
+);
+
+const juliaResult = parseAndExtract(
+  'julia',
+  path.join(fixtureDir, 'julia/sample.jl'),
+  new JuliaExtractor(),
+);
+
+// ─── C ────────────────────────────────────────────────────────────────────────
+
+describe('C extractor', () => {
+  test.skipIf(!cResult)('symbols', () => {
+    expect(cResult!.symbols).toMatchSnapshot();
+  });
+
+  test.skipIf(!cResult)('imports', () => {
+    expect(cResult!.imports).toMatchSnapshot();
+  });
+
+  test.skipIf(!cResult)('callRefs', () => {
+    expect(cResult!.callRefs).toMatchSnapshot();
+  });
+});
+
+// ─── C++ ──────────────────────────────────────────────────────────────────────
+
+describe('C++ extractor', () => {
+  test.skipIf(!cppResult)('symbols', () => {
+    expect(cppResult!.symbols).toMatchSnapshot();
+  });
+
+  test.skipIf(!cppResult)('imports', () => {
+    expect(cppResult!.imports).toMatchSnapshot();
+  });
+
+  test.skipIf(!cppResult)('callRefs', () => {
+    expect(cppResult!.callRefs).toMatchSnapshot();
+  });
+});
+
+// ─── C# ───────────────────────────────────────────────────────────────────────
+
+describe('C# extractor', () => {
+  test.skipIf(!csharpResult)('symbols', () => {
+    expect(csharpResult!.symbols).toMatchSnapshot();
+  });
+
+  test.skipIf(!csharpResult)('imports', () => {
+    expect(csharpResult!.imports).toMatchSnapshot();
+  });
+
+  test.skipIf(!csharpResult)('callRefs', () => {
+    expect(csharpResult!.callRefs).toMatchSnapshot();
+  });
+});
+
+// ─── Dart ─────────────────────────────────────────────────────────────────────
+
+describe('Dart extractor', () => {
+  test.skipIf(!dartResult)('symbols', () => {
+    expect(dartResult!.symbols).toMatchSnapshot();
+  });
+
+  test.skipIf(!dartResult)('imports', () => {
+    expect(dartResult!.imports).toMatchSnapshot();
+  });
+
+  test.skipIf(!dartResult)('callRefs', () => {
+    expect(dartResult!.callRefs).toMatchSnapshot();
+  });
+});
+
+// ─── Elixir ───────────────────────────────────────────────────────────────────
+
+describe('Elixir extractor', () => {
+  test.skipIf(!elixirResult)('symbols', () => {
+    expect(elixirResult!.symbols).toMatchSnapshot();
+  });
+
+  test.skipIf(!elixirResult)('imports', () => {
+    expect(elixirResult!.imports).toMatchSnapshot();
+  });
+
+  test.skipIf(!elixirResult)('callRefs', () => {
+    expect(elixirResult!.callRefs).toMatchSnapshot();
+  });
+});
+
+// ─── Elm ──────────────────────────────────────────────────────────────────────
+
+describe('Elm extractor', () => {
+  test.skipIf(!elmResult)('symbols', () => {
+    expect(elmResult!.symbols).toMatchSnapshot();
+  });
+
+  test.skipIf(!elmResult)('imports', () => {
+    expect(elmResult!.imports).toMatchSnapshot();
+  });
+
+  test.skipIf(!elmResult)('callRefs', () => {
+    expect(elmResult!.callRefs).toMatchSnapshot();
+  });
+});
+
+// ─── Haskell ──────────────────────────────────────────────────────────────────
+
+describe('Haskell extractor', () => {
+  test.skipIf(!haskellResult)('symbols', () => {
+    expect(haskellResult!.symbols).toMatchSnapshot();
+  });
+
+  test.skipIf(!haskellResult)('imports', () => {
+    expect(haskellResult!.imports).toMatchSnapshot();
+  });
+
+  test.skipIf(!haskellResult)('callRefs', () => {
+    expect(haskellResult!.callRefs).toMatchSnapshot();
+  });
+});
+
+// ─── Julia ────────────────────────────────────────────────────────────────────
+
+describe('Julia extractor', () => {
+  test.skipIf(!juliaResult)('symbols', () => {
+    expect(juliaResult!.symbols).toMatchSnapshot();
+  });
+
+  test.skipIf(!juliaResult)('imports', () => {
+    expect(juliaResult!.imports).toMatchSnapshot();
+  });
+
+  test.skipIf(!juliaResult)('callRefs', () => {
+    expect(juliaResult!.callRefs).toMatchSnapshot();
+  });
+});
