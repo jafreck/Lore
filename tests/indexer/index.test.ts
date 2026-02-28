@@ -155,6 +155,30 @@ describe('IndexBuilder — branch support in build()', () => {
     });
   });
 
+  it('should persist target_symbol_id when relationship target is indexed', async () => {
+    writeFileSync(
+      join(srcDir, 'inheritance.ts'),
+      'export class Base {}\nexport class Child extends Base {}\n',
+    );
+    const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
+    await builder.build();
+
+    const db = new Database(dbPath, { readonly: true });
+    const relationship = db.prepare(`
+      SELECT rel.target_symbol_id AS target_symbol_id,
+             rel.target_symbol_name AS target_symbol_name
+        FROM symbol_relationships rel
+        JOIN symbols s_src ON s_src.id = rel.source_symbol_id
+       WHERE s_src.name = 'Child'
+         AND rel.relationship_type = 'extends'
+    `).get() as { target_symbol_id: number | null; target_symbol_name: string } | undefined;
+    db.close();
+
+    expect(relationship).toBeDefined();
+    expect(relationship?.target_symbol_name).toBe('Base');
+    expect(relationship?.target_symbol_id).not.toBeNull();
+  });
+
   it('should persist relationships even when target symbol is not indexed', async () => {
     writeFileSync(
       join(srcDir, 'external-inheritance.ts'),
