@@ -1,5 +1,10 @@
 # Lore
 
+[![CI](https://github.com/jafreck/Lore/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/jafreck/Lore/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Node.js](https://img.shields.io/badge/node-%3E%3D22.0.0-brightgreen)](https://nodejs.org)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9+-blue)](https://www.typescriptlang.org)
+
 **The teammate that has seen it all** Lore is your agent's institutional knowledge over the codebase — it knows what was built, why it changed, and how it all connects. Lore indexes your code and git history into a structured knowledge base that agents query through MCP. It maps symbols, imports, call relationships, and git history — with optional embeddings for semantic search — so agents can reason about your codebase
 without re-reading it from scratch.
 
@@ -20,6 +25,7 @@ flowchart LR
     subgraph Codebase
         SRC[Source Files]
         GIT[Git Repo]
+        COV[Coverage Reports]
     end
 
     subgraph Lore Indexer
@@ -30,6 +36,7 @@ flowchart LR
         CALLGRAPH[Call-Graph Builder]
         EMBED[Embedder]
         GITHIST[Git History Ingest<br/>commits · diffs · refs]
+        COVINGEST[Coverage Ingest<br/>lcov · cobertura]
     end
 
     DB[(SQL DB)]
@@ -65,6 +72,7 @@ flowchart LR
     EXTRACT & RESOLVE & CALLGRAPH --> DB
     EMBED -.->|optional| DB
     GIT --> GITHIST --> DB
+    COV --> COVINGEST --> DB
 
     DB --- LOOKUP & SEARCH & GRAPH & SNIPPET & BLAME & HISTORY & METRICS & WRITEBACK
 

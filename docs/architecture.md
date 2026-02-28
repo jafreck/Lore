@@ -9,6 +9,7 @@ flowchart LR
     subgraph Codebase
         SRC[Source Files]
         GIT[Git Repo]
+        COVREP[Coverage Reports]
     end
 
     subgraph Lore Indexer
@@ -45,8 +46,19 @@ flowchart LR
         WRITEBACK[kb_writeback]
     end
 
-    subgraph Consumers
-        AGENT[Agent]
+    subgraph LLM_AGENTS[Agents]
+        CLAUDE[Claude]
+        COPILOT[GitHub Copilot]
+        CUSTOM_AGENT[Custom Agents]
+        CLAUDE ~~~ COPILOT ~~~ CUSTOM_AGENT
+    end
+
+    subgraph ENTRY[User Entrypoints]
+        VSCODE[VS Code]
+        CURSOR[Cursor]
+        CHAT[Chat UI]
+        ORCH[Agent Frameworks]
+        VSCODE ~~~ CURSOR ~~~ CHAT ~~~ ORCH
     end
 
     SRC --> WALK --> PARSE --> EXTRACT
@@ -54,12 +66,15 @@ flowchart LR
     EXTRACT --> CALLGRAPH --> REFS
     EXTRACT --> FILES & SYM
     COVER --> COV
+    COVREP --> COVER
     EMBED -.->|optional| VEC
     GIT --> GITHIST --> HIST
 
     FILES & SYM & IMP & REFS & COV & VEC & HIST & META --- LOOKUP & SEARCH & GRAPH & SNIPPET & BLAME & HISTORY & METRICS & KB_COVERAGE & WRITEBACK
 
-    LOOKUP & SEARCH & GRAPH & SNIPPET & BLAME & HISTORY & METRICS & KB_COVERAGE & WRITEBACK <-->|stdio / HTTP| AGENT
+    LOOKUP & SEARCH & GRAPH & SNIPPET & BLAME & HISTORY & METRICS & KB_COVERAGE & WRITEBACK <--> LLM_AGENTS
+
+    LLM_AGENTS <--- ENTRY
 ```
 
 ## Indexer stages
