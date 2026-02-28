@@ -34,29 +34,22 @@ describe('createKbMcpServer', () => {
     expect(graphSchema.kind.safeParse('invalid-kind').success).toBe(false);
   });
 
-  it('should register kb_metrics schema with complexity mode fields', () => {
+  it('should register kb_annotations with kind, optional path, and optional limit args', () => {
     const db = new Database(':memory:');
 
     createKbMcpServer(db, '/tmp/test.db');
 
-    const metricsToolCall = mockTool.mock.calls.find((call) => call[0] === 'kb_metrics');
-    expect(metricsToolCall).toBeDefined();
+    const annotationsToolCall = mockTool.mock.calls.find((call) => call[0] === 'kb_annotations');
+    expect(annotationsToolCall).toBeDefined();
 
-    const metricsSchema = metricsToolCall?.[2] as {
-      mode: { safeParse: (v: unknown) => { success: boolean } };
+    const annotationsSchema = annotationsToolCall?.[2] as {
+      kind: { safeParse: (v: unknown) => { success: boolean } };
+      path: { safeParse: (v: unknown) => { success: boolean } };
       limit: { safeParse: (v: unknown) => { success: boolean } };
-      min_cyclomatic: { safeParse: (v: unknown) => { success: boolean } };
     };
-    expect(metricsSchema.mode.safeParse('aggregate').success).toBe(true);
-    expect(metricsSchema.mode.safeParse('complexity').success).toBe(true);
-    expect(metricsSchema.mode.safeParse('invalid').success).toBe(false);
-    expect(metricsSchema.limit.safeParse(10).success).toBe(true);
-    expect(metricsSchema.limit.safeParse(0).success).toBe(false);
-    expect(metricsSchema.limit.safeParse(-1).success).toBe(false);
-    expect(metricsSchema.limit.safeParse(1.5).success).toBe(false);
-    expect(metricsSchema.min_cyclomatic.safeParse(3).success).toBe(true);
-    expect(metricsSchema.min_cyclomatic.safeParse(0).success).toBe(true);
-    expect(metricsSchema.min_cyclomatic.safeParse(-1).success).toBe(false);
-    expect(metricsSchema.min_cyclomatic.safeParse(2.2).success).toBe(false);
+    expect(annotationsSchema.kind.safeParse('TODO').success).toBe(true);
+    expect(annotationsSchema.kind.safeParse('invalid-kind').success).toBe(false);
+    expect(annotationsSchema.path.safeParse(undefined).success).toBe(true);
+    expect(annotationsSchema.limit.safeParse(undefined).success).toBe(true);
   });
 });

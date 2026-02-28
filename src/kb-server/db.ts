@@ -52,43 +52,63 @@ export interface SymbolRow {
   max_nesting: number | null;
 }
 
+function hasSymbolMetricsTable(db: Database.Database): boolean {
+  const row = db
+    .prepare("SELECT 1 AS ok FROM sqlite_master WHERE type = 'table' AND name = 'symbol_metrics' LIMIT 1")
+    .get() as { ok: number } | undefined;
+  return row?.ok === 1;
+}
+
 /** Fetch a single symbol by primary key.  Returns `undefined` if not found. */
 export function getSymbolById(db: Database.Database, id: number): SymbolRow | undefined {
-  return db
-    .prepare(
-      'SELECT s.*, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting FROM symbols s LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id WHERE s.id = ?',
-    )
-    .get(id) as SymbolRow | undefined;
+  if (hasSymbolMetricsTable(db)) {
+    return db
+      .prepare(
+        'SELECT s.*, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting FROM symbols s LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id WHERE s.id = ?'
+      )
+      .get(id) as SymbolRow | undefined;
+  }
+  return db.prepare('SELECT * FROM symbols WHERE id = ?').get(id) as SymbolRow | undefined;
 }
 
 /** Fetch all symbols whose name matches the given string (case-insensitive). */
 export function getSymbolsByName(db: Database.Database, name: string, branch?: string): SymbolRow[] {
+  const includeMetrics = hasSymbolMetricsTable(db);
   if (branch !== undefined) {
     return db
       .prepare(
-        'SELECT s.*, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting FROM symbols s JOIN files f ON s.file_id = f.id LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id WHERE s.name = ? COLLATE NOCASE AND f.branch = ?'
+        includeMetrics
+          ? 'SELECT s.*, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting FROM symbols s JOIN files f ON s.file_id = f.id LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id WHERE s.name = ? COLLATE NOCASE AND f.branch = ?'
+          : 'SELECT s.* FROM symbols s JOIN files f ON s.file_id = f.id WHERE s.name = ? COLLATE NOCASE AND f.branch = ?'
       )
       .all(name, branch) as SymbolRow[];
   }
   return db
     .prepare(
-      'SELECT s.*, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting FROM symbols s LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id WHERE s.name = ? COLLATE NOCASE',
+      includeMetrics
+        ? 'SELECT s.*, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting FROM symbols s LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id WHERE s.name = ? COLLATE NOCASE'
+        : 'SELECT * FROM symbols WHERE name = ? COLLATE NOCASE'
     )
     .all(name) as SymbolRow[];
 }
 
 /** Return all symbols, optionally limited to `limit` rows. */
 export function listSymbols(db: Database.Database, limit = 100, branch?: string): SymbolRow[] {
+  const includeMetrics = hasSymbolMetricsTable(db);
   if (branch !== undefined) {
     return db
       .prepare(
-        'SELECT s.*, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting FROM symbols s JOIN files f ON s.file_id = f.id LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id WHERE f.branch = ? LIMIT ?'
+        includeMetrics
+          ? 'SELECT s.*, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting FROM symbols s JOIN files f ON s.file_id = f.id LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id WHERE f.branch = ? LIMIT ?'
+          : 'SELECT s.* FROM symbols s JOIN files f ON s.file_id = f.id WHERE f.branch = ? LIMIT ?'
       )
       .all(branch, limit) as SymbolRow[];
   }
   return db
     .prepare(
-      'SELECT s.*, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting FROM symbols s LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id LIMIT ?',
+      includeMetrics
+        ? 'SELECT s.*, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting FROM symbols s LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id LIMIT ?'
+        : 'SELECT * FROM symbols LIMIT ?'
     )
     .all(limit) as SymbolRow[];
 }
@@ -129,119 +149,59 @@ export function listFiles(db: Database.Database, limit = 100, branch?: string): 
   return db.prepare('SELECT * FROM files LIMIT ?').all(limit) as FileRow[];
 }
 
-// ─── Config helpers ───────────────────────────────────────────────────────────
+// ─── Annotation helpers ───────────────────────────────────────────────────────
 
-export interface ConfigEntryRefRow {
-  path: string;
-  branch: string;
-  line: number;
-}
-
-export interface ConfigEntryRow {
-  id: number;
-  file_id: number;
-  key: string;
-  value: string | null;
-  default_value: string | null;
-  inferred_type: string | null;
-  required: number;
-  description: string | null;
-  kind: string;
+export interface AnnotationRow {
   file_path: string;
-  file_branch: string;
-  references: ConfigEntryRefRow[];
+  line: number;
+  kind: string;
+  text: string;
+  symbol_name: string | null;
+  symbol_kind: string | null;
 }
 
-export interface ListConfigEntriesArgs {
-  key?: string;
-  filePath?: string;
-  kind?: string;
-}
-
-/**
- * Return config entries joined with their config-file metadata and usage references.
- * Results are ordered deterministically by key and file path.
- */
-export function listConfigEntries(
+/** Return annotations filtered by kind, with optional path filter and row limit. */
+export function listAnnotations(
   db: Database.Database,
-  args: ListConfigEntriesArgs = {},
-): ConfigEntryRow[] {
-  const where: string[] = [];
-  const params: Array<string | number> = [];
-
-  if (args.key !== undefined) {
-    where.push('ce.key = ?');
-    params.push(args.key);
-  }
-  if (args.filePath !== undefined) {
-    where.push('f.path = ?');
-    params.push(args.filePath);
-  }
-  if (args.kind !== undefined) {
-    where.push('ce.kind = ?');
-    params.push(args.kind);
-  }
-
-  const whereSql = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
-
-  try {
-    const entries = db
+  kind: string,
+  path?: string,
+  limit = 20,
+): AnnotationRow[] {
+  if (path !== undefined) {
+    return db
       .prepare(
-        `SELECT
-           ce.id,
-           ce.file_id,
-           ce.key,
-           ce.value,
-           ce.default_value,
-           ce.inferred_type,
-           ce.required,
-           ce.description,
-           ce.kind,
-           f.path AS file_path,
-           f.branch AS file_branch
-         FROM config_entries ce
-         JOIN files f ON f.id = ce.file_id
-         ${whereSql}
-         ORDER BY ce.key COLLATE NOCASE ASC, f.path ASC, ce.id ASC`,
+        `SELECT f.path AS file_path,
+                a.line,
+                a.kind,
+                a.text,
+                s.name AS symbol_name,
+                s.kind AS symbol_kind
+           FROM annotations a
+           JOIN files f ON f.id = a.file_id
+      LEFT JOIN symbols s ON s.id = a.symbol_id
+          WHERE a.kind = ? AND f.path = ?
+          ORDER BY a.line ASC, a.id ASC
+          LIMIT ?`,
       )
-      .all(...params) as Array<Omit<ConfigEntryRow, 'references'>>;
-
-    if (entries.length === 0) return [];
-
-    const placeholders = entries.map(() => '?').join(', ');
-    const refs = db
-      .prepare(
-        `SELECT
-           cer.config_entry_id,
-           cer.line,
-           f.path,
-           f.branch
-         FROM config_entry_refs cer
-         JOIN files f ON f.id = cer.file_id
-         WHERE cer.config_entry_id IN (${placeholders})
-         ORDER BY cer.config_entry_id ASC, f.path ASC, cer.line ASC`,
-      )
-      .all(...entries.map((entry) => entry.id)) as Array<{
-      config_entry_id: number;
-      path: string;
-      branch: string;
-      line: number;
-    }>;
-
-    const refsByEntryId = new Map<number, ConfigEntryRefRow[]>();
-    for (const ref of refs) {
-      const current = refsByEntryId.get(ref.config_entry_id) ?? [];
-      current.push({ path: ref.path, branch: ref.branch, line: ref.line });
-      refsByEntryId.set(ref.config_entry_id, current);
-    }
-
-    return entries.map((entry) => ({
-      ...entry,
-      references: refsByEntryId.get(entry.id) ?? [],
-    }));
-  } catch {
-    return [];
+      .all(kind, path, limit) as AnnotationRow[];
   }
+
+  return db
+    .prepare(
+      `SELECT f.path AS file_path,
+              a.line,
+              a.kind,
+              a.text,
+              s.name AS symbol_name,
+              s.kind AS symbol_kind
+         FROM annotations a
+         JOIN files f ON f.id = a.file_id
+    LEFT JOIN symbols s ON s.id = a.symbol_id
+        WHERE a.kind = ?
+        ORDER BY f.path ASC, a.line ASC, a.id ASC
+        LIMIT ?`,
+    )
+    .all(kind, limit) as AnnotationRow[];
 }
 
 // ─── Commit helpers ───────────────────────────────────────────────────────────
