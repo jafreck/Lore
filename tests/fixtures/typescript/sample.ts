@@ -19,7 +19,9 @@ export function add(a: number, b: number): number {
   return a + b;
 }
 
-export class Circle implements Shape {
+export class BaseShape {}
+
+export class Circle extends BaseShape implements Shape {
   constructor(private radius: number) {}
 
   area(): number {
