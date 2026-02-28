@@ -46,37 +46,71 @@ export interface SymbolRow {
   end_line: number;
   signature: string | null;
   doc_comment: string | null;
+  line_count: number | null;
+  param_count: number | null;
+  cyclomatic: number | null;
+  max_nesting: number | null;
+}
+
+function hasSymbolMetricsTable(db: Database.Database): boolean {
+  const row = db
+    .prepare("SELECT 1 AS ok FROM sqlite_master WHERE type = 'table' AND name = 'symbol_metrics' LIMIT 1")
+    .get() as { ok: number } | undefined;
+  return row?.ok === 1;
 }
 
 /** Fetch a single symbol by primary key.  Returns `undefined` if not found. */
 export function getSymbolById(db: Database.Database, id: number): SymbolRow | undefined {
+  if (hasSymbolMetricsTable(db)) {
+    return db
+      .prepare(
+        'SELECT s.*, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting FROM symbols s LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id WHERE s.id = ?'
+      )
+      .get(id) as SymbolRow | undefined;
+  }
   return db.prepare('SELECT * FROM symbols WHERE id = ?').get(id) as SymbolRow | undefined;
 }
 
 /** Fetch all symbols whose name matches the given string (case-insensitive). */
 export function getSymbolsByName(db: Database.Database, name: string, branch?: string): SymbolRow[] {
+  const includeMetrics = hasSymbolMetricsTable(db);
   if (branch !== undefined) {
     return db
       .prepare(
-        'SELECT s.* FROM symbols s JOIN files f ON s.file_id = f.id WHERE s.name = ? COLLATE NOCASE AND f.branch = ?'
+        includeMetrics
+          ? 'SELECT s.*, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting FROM symbols s JOIN files f ON s.file_id = f.id LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id WHERE s.name = ? COLLATE NOCASE AND f.branch = ?'
+          : 'SELECT s.* FROM symbols s JOIN files f ON s.file_id = f.id WHERE s.name = ? COLLATE NOCASE AND f.branch = ?'
       )
       .all(name, branch) as SymbolRow[];
   }
   return db
-    .prepare('SELECT * FROM symbols WHERE name = ? COLLATE NOCASE')
+    .prepare(
+      includeMetrics
+        ? 'SELECT s.*, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting FROM symbols s LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id WHERE s.name = ? COLLATE NOCASE'
+        : 'SELECT * FROM symbols WHERE name = ? COLLATE NOCASE'
+    )
     .all(name) as SymbolRow[];
 }
 
 /** Return all symbols, optionally limited to `limit` rows. */
 export function listSymbols(db: Database.Database, limit = 100, branch?: string): SymbolRow[] {
+  const includeMetrics = hasSymbolMetricsTable(db);
   if (branch !== undefined) {
     return db
       .prepare(
-        'SELECT s.* FROM symbols s JOIN files f ON s.file_id = f.id WHERE f.branch = ? LIMIT ?'
+        includeMetrics
+          ? 'SELECT s.*, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting FROM symbols s JOIN files f ON s.file_id = f.id LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id WHERE f.branch = ? LIMIT ?'
+          : 'SELECT s.* FROM symbols s JOIN files f ON s.file_id = f.id WHERE f.branch = ? LIMIT ?'
       )
       .all(branch, limit) as SymbolRow[];
   }
-  return db.prepare('SELECT * FROM symbols LIMIT ?').all(limit) as SymbolRow[];
+  return db
+    .prepare(
+      includeMetrics
+        ? 'SELECT s.*, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting FROM symbols s LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id LIMIT ?'
+        : 'SELECT * FROM symbols LIMIT ?'
+    )
+    .all(limit) as SymbolRow[];
 }
 
 // ─── File helpers ─────────────────────────────────────────────────────────────
@@ -113,6 +147,61 @@ export function listFiles(db: Database.Database, limit = 100, branch?: string): 
     return db.prepare('SELECT * FROM files WHERE branch = ? LIMIT ?').all(branch, limit) as FileRow[];
   }
   return db.prepare('SELECT * FROM files LIMIT ?').all(limit) as FileRow[];
+}
+
+// ─── Annotation helpers ───────────────────────────────────────────────────────
+
+export interface AnnotationRow {
+  file_path: string;
+  line: number;
+  kind: string;
+  text: string;
+  symbol_name: string | null;
+  symbol_kind: string | null;
+}
+
+/** Return annotations filtered by kind, with optional path filter and row limit. */
+export function listAnnotations(
+  db: Database.Database,
+  kind: string,
+  path?: string,
+  limit = 20,
+): AnnotationRow[] {
+  if (path !== undefined) {
+    return db
+      .prepare(
+        `SELECT f.path AS file_path,
+                a.line,
+                a.kind,
+                a.text,
+                s.name AS symbol_name,
+                s.kind AS symbol_kind
+           FROM annotations a
+           JOIN files f ON f.id = a.file_id
+      LEFT JOIN symbols s ON s.id = a.symbol_id
+          WHERE a.kind = ? AND f.path = ?
+          ORDER BY a.line ASC, a.id ASC
+          LIMIT ?`,
+      )
+      .all(kind, path, limit) as AnnotationRow[];
+  }
+
+  return db
+    .prepare(
+      `SELECT f.path AS file_path,
+              a.line,
+              a.kind,
+              a.text,
+              s.name AS symbol_name,
+              s.kind AS symbol_kind
+         FROM annotations a
+         JOIN files f ON f.id = a.file_id
+    LEFT JOIN symbols s ON s.id = a.symbol_id
+        WHERE a.kind = ?
+        ORDER BY f.path ASC, a.line ASC, a.id ASC
+        LIMIT ?`,
+    )
+    .all(kind, limit) as AnnotationRow[];
 }
 
 // ─── Route helpers ────────────────────────────────────────────────────────────

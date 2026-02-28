@@ -23,6 +23,8 @@ export interface RawSymbol {
   signature: string;
   /** Documentation comment immediately preceding the symbol, if extracted by the language extractor. */
   docComment?: string;
+  /** Original AST node for the symbol declaration/expression, when available. */
+  astNode?: Parser.SyntaxNode;
 }
 
 /** An import or include directive extracted from a source file. */
@@ -42,6 +44,14 @@ export interface RawCallRef {
   /** Raw callee expression text as it appears in source. */
   calleeRaw: string;
   /** 0-indexed line of the call expression. */
+  line: number;
+}
+
+/** An environment-variable reference found in a source file. */
+export interface RawEnvRef {
+  /** Environment-variable key (e.g. `DATABASE_URL`). */
+  key: string;
+  /** 0-indexed line of the reference. */
   line: number;
 }
 
@@ -78,6 +88,7 @@ export interface ExtractionResult {
   symbols: RawSymbol[];
   imports: RawImport[];
   callRefs: RawCallRef[];
+  envRefs: RawEnvRef[];
   relationships: RawRelationship[];
   routes: RawRoute[];
 }
@@ -95,6 +106,13 @@ export interface SymbolExtractor {
    * @param filePath  Absolute path to the file (for context / error messages).
    */
   extract(tree: Parser.Tree, source: string, filePath: string): ExtractionResult;
+}
+
+export interface ComplexityNodeTypes {
+  parameterListTypes: readonly string[];
+  parameterTypes: readonly string[];
+  decisionTypes: readonly string[];
+  nestingTypes: readonly string[];
 }
 
 // ─── Shared utilities ─────────────────────────────────────────────────────────
@@ -137,5 +155,5 @@ export function nodeSignature(node: Parser.SyntaxNode): string {
 
 /** Returns an empty `ExtractionResult`. */
 export function emptyResult(): ExtractionResult {
-  return { symbols: [], imports: [], callRefs: [], relationships: [], routes: [] };
+  return { symbols: [], imports: [], callRefs: [], envRefs: [], relationships: [], routes: [] };
 }
