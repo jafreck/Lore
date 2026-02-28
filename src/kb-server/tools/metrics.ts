@@ -5,6 +5,7 @@
  */
 
 import type { Database } from '../db.js';
+import { getCoverageStaleness, getLatestCoverageTotals } from '../db.js';
 
 // ─── Tool definition ──────────────────────────────────────────────────────────
 
@@ -45,6 +46,14 @@ export interface AggregateMetricsResult {
   symbol_count: number;
   file_count: number;
   import_edge_count: number;
+  coverage_available: boolean;
+  coverage_commit: string | null;
+  current_commit: string | null;
+  commits_behind: number;
+  stale: boolean;
+  global_lines_found: number | null;
+  global_lines_hit: number | null;
+  global_coverage_percent: number | null;
   per_branch: Array<{ branch: string; file_count: number; symbol_count: number }>;
 }
 
@@ -116,10 +125,21 @@ export function handler(db: Database.Database, args: MetricsArgs): MetricsResult
     )
     .all() as Array<{ branch: string; file_count: number; symbol_count: number }>;
 
+  const coverageTotals = getLatestCoverageTotals(db);
+  const staleness = getCoverageStaleness(db);
+
   return {
     symbol_count: symbolCount,
     file_count: fileCount,
     import_edge_count: importEdgeCount,
+    coverage_available: coverageTotals !== undefined,
+    coverage_commit: staleness.coverage_commit,
+    current_commit: staleness.current_commit,
+    commits_behind: staleness.commits_behind,
+    stale: staleness.stale,
+    global_lines_found: coverageTotals?.lines_found ?? null,
+    global_lines_hit: coverageTotals?.lines_hit ?? null,
+    global_coverage_percent: coverageTotals?.coverage_percent ?? null,
     per_branch: perBranch,
   };
 }

@@ -157,7 +157,6 @@ CREATE TABLE IF NOT EXISTS commit_files (
   PRIMARY KEY (commit_sha, file_path)
 );
 
--- Named refs that currently point at commits (e.g. branches/tags).
 CREATE TABLE IF NOT EXISTS commit_refs (
   commit_sha  TEXT    NOT NULL REFERENCES commits(sha) ON DELETE CASCADE,
   ref_name    TEXT    NOT NULL,
@@ -165,7 +164,35 @@ CREATE TABLE IF NOT EXISTS commit_refs (
   PRIMARY KEY (commit_sha, ref_name)
 );
 
--- Extracted framework API routes/endpoints.
+-- Coverage ingestion runs.
+CREATE TABLE IF NOT EXISTS coverage_runs (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  commit_sha    TEXT    NOT NULL,
+  source_path   TEXT    NOT NULL,
+  format        TEXT    NOT NULL,
+  ingested_at   INTEGER NOT NULL DEFAULT (unixepoch()),
+  source_mtime  INTEGER
+);
+
+-- Per-file coverage aggregates for each ingestion run.
+CREATE TABLE IF NOT EXISTS coverage_files (
+  run_id        INTEGER NOT NULL REFERENCES coverage_runs(id) ON DELETE CASCADE,
+  file_path     TEXT    NOT NULL,
+  lines_found   INTEGER NOT NULL DEFAULT 0,
+  lines_hit     INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (run_id, file_path)
+);
+
+-- Per-line hit counts for each file in an ingestion run.
+CREATE TABLE IF NOT EXISTS coverage_lines (
+  run_id        INTEGER NOT NULL REFERENCES coverage_runs(id) ON DELETE CASCADE,
+  file_path     TEXT    NOT NULL,
+  line_number   INTEGER NOT NULL,
+  hit_count     INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (run_id, file_path, line_number),
+  FOREIGN KEY (run_id, file_path) REFERENCES coverage_files(run_id, file_path) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS api_routes (
   id           INTEGER PRIMARY KEY AUTOINCREMENT,
   file_id      INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
@@ -183,6 +210,9 @@ CREATE INDEX IF NOT EXISTS idx_api_routes_method ON api_routes(method);
 CREATE INDEX IF NOT EXISTS idx_api_routes_path ON api_routes(path);
 CREATE INDEX IF NOT EXISTS idx_annotations_kind ON annotations(kind);
 CREATE INDEX IF NOT EXISTS idx_annotations_file_id ON annotations(file_id);
+CREATE INDEX IF NOT EXISTS idx_coverage_runs_ingested_at ON coverage_runs(ingested_at);
+CREATE INDEX IF NOT EXISTS idx_coverage_files_path ON coverage_files(file_path);
+CREATE INDEX IF NOT EXISTS idx_coverage_lines_path_line ON coverage_lines(file_path, line_number);
 `;
 
 // ─── Public API ───────────────────────────────────────────────────────────────
@@ -210,6 +240,8 @@ export function openDb(path: string): Database.Database {
 
 export const KB_META_INDEX_CHECKPOINT = 'index_checkpoint';
 export const KB_META_LAST_HEAD_SHA = 'last_known_head_sha';
+export const KB_META_COVERAGE_LAST_SOURCE_PATH = 'coverage_last_source_path';
+export const KB_META_COVERAGE_LAST_SOURCE_MTIME = 'coverage_last_source_mtime';
 
 /** Write (or overwrite) a key-value pair in `kb_meta`. */
 export function setKbMeta(db: Database.Database, key: string, value: string): void {

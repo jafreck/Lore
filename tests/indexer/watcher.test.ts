@@ -190,6 +190,23 @@ describe('FileWatcher', () => {
       expect(paths).toContain(`${walkerConfig.rootDir}/b.ts`);
     });
 
+    it('should include coverage report paths in update payloads', async () => {
+      const watcher = new FileWatcher('/db.sqlite', walkerConfig, { debounceMs: 100 });
+      watcher.start();
+
+      const watchCb = vi.mocked(fs.watch).mock.calls[0]?.[2] as (
+        event: string,
+        filename: string,
+      ) => void;
+      watchCb('change', 'coverage/lcov.info');
+
+      await vi.advanceTimersByTimeAsync(100);
+
+      expect(mockUpdate).toHaveBeenCalledOnce();
+      const paths = mockUpdate.mock.calls[0]?.[0] as string[];
+      expect(paths).toContain(`${walkerConfig.rootDir}/coverage/lcov.info`);
+    });
+
     it('should pass the history option to IndexBuilder when flushing updates', async () => {
       const history = { depth: 2, all: true };
       const watcher = new FileWatcher('/db.sqlite', walkerConfig, { debounceMs: 100, history });

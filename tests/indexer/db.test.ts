@@ -7,6 +7,8 @@ import {
   createVec0Tables,
   KB_META_INDEX_CHECKPOINT,
   KB_META_LAST_HEAD_SHA,
+  KB_META_COVERAGE_LAST_SOURCE_PATH,
+  KB_META_COVERAGE_LAST_SOURCE_MTIME,
 } from '../../src/indexer/db.js';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -63,7 +65,7 @@ describe('openDb', () => {
     ).not.toThrow();
   });
 
-  it('should create the symbols, annotations, kb_meta, and other required tables', () => {
+  it('should create the symbols, kb_meta, and other required tables', () => {
     db = openDb(dbPath);
     const tables = (
       db
@@ -72,89 +74,61 @@ describe('openDb', () => {
     ).map((r) => r.name);
     expect(tables).toContain('files');
     expect(tables).toContain('symbols');
-    expect(tables).toContain('annotations');
     expect(tables).toContain('kb_meta');
     expect(tables).toContain('commit_refs');
-    expect(tables).toContain('api_routes');
+    expect(tables).toContain('coverage_runs');
+    expect(tables).toContain('coverage_files');
+    expect(tables).toContain('coverage_lines');
   });
 
-  it('should create api_routes with expected uniqueness constraint', () => {
+  it('should enforce foreign keys from coverage tables to coverage runs', () => {
     db = openDb(dbPath);
-    const file = db
-      .prepare("INSERT INTO files (path, branch, language) VALUES ('a.ts', 'main', 'typescript')")
-      .run();
+    const coverageFilesFks = db.pragma('foreign_key_list(coverage_files)') as Array<{
+      from: string;
+      table: string;
+    }>;
+    const coverageLinesFks = db.pragma('foreign_key_list(coverage_lines)') as Array<{
+      from: string;
+      table: string;
+    }>;
 
-    db.prepare(
-      "INSERT INTO api_routes (file_id, method, path, handler_name, framework, line) VALUES (?, 'GET', '/health', 'health', 'express', 1)"
-    ).run(file.lastInsertRowid);
+    expect(
+      coverageFilesFks.some((fk) => fk.from === 'run_id' && fk.table === 'coverage_runs'),
+    ).toBe(true);
+    expect(
+      coverageLinesFks.some((fk) => fk.from === 'run_id' && fk.table === 'coverage_runs'),
+    ).toBe(true);
+  });
+
+  it('should reject coverage rows when the referenced run does not exist', () => {
+    db = openDb(dbPath);
 
     expect(() =>
-      db
-        .prepare(
-          "INSERT INTO api_routes (file_id, method, path, handler_name, framework, line) VALUES (?, 'GET', '/health', 'health2', 'express', 2)"
-        )
-        .run(file.lastInsertRowid)
+      db.prepare(
+        "INSERT INTO coverage_files (run_id, file_path, lines_found, lines_hit) VALUES (999, 'src/a.ts', 1, 1)",
+      ).run(),
+    ).toThrow();
+
+    expect(() =>
+      db.prepare(
+        "INSERT INTO coverage_lines (run_id, file_path, line_number, hit_count) VALUES (999, 'src/a.ts', 1, 1)",
+      ).run(),
     ).toThrow();
   });
 
-  it('should create api_routes with expected columns', () => {
+  it('should reject coverage line rows when the matching coverage file row is missing', () => {
     db = openDb(dbPath);
-    const columns = (
-      db.prepare("PRAGMA table_info('api_routes')").all() as { name: string }[]
-    ).map((column) => column.name);
-    expect(columns).toEqual(
-      expect.arrayContaining([
-        'file_id',
-        'method',
-        'path',
-        'handler_id',
-        'handler_name',
-        'framework',
-        'line',
-        'middleware',
-      ])
-    );
-  });
+    const run = db
+      .prepare(
+        "INSERT INTO coverage_runs (commit_sha, source_path, format) VALUES ('abc123', 'coverage/lcov.info', 'lcov')",
+      )
+      .run();
 
-  it('should create api_routes indexes for method and path filtering', () => {
-    db = openDb(dbPath);
-    const indexes = (
-      db
-        .prepare(
-          "SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'api_routes' ORDER BY name"
-        )
-        .all() as { name: string }[]
-    ).map((row) => row.name);
-    expect(indexes).toContain('idx_api_routes_method');
-    expect(indexes).toContain('idx_api_routes_path');
-  });
-
-  it('should create annotations table with required and nullable metadata columns', () => {
-    db = openDb(dbPath);
-    const columns = db.prepare("PRAGMA table_info('annotations')").all() as {
-      name: string;
-      notnull: number;
-    }[];
-    const byName = new Map(columns.map((column) => [column.name, column]));
-
-    expect(byName.get('file_id')?.notnull).toBe(1);
-    expect(byName.get('kind')?.notnull).toBe(1);
-    expect(byName.get('line')?.notnull).toBe(1);
-    expect(byName.get('text')?.notnull).toBe(1);
-    expect(byName.get('symbol_id')?.notnull).toBe(0);
-    expect(byName.get('author')?.notnull).toBe(0);
-    expect(byName.get('created_at')?.notnull).toBe(0);
-  });
-
-  it('should create annotation indexes for kind and file lookups', () => {
-    db = openDb(dbPath);
-    const indexes = (
-      db
-        .prepare("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='annotations'")
-        .all() as { name: string }[]
-    ).map((r) => r.name);
-    expect(indexes).toContain('idx_annotations_kind');
-    expect(indexes).toContain('idx_annotations_file_id');
+    expect(() =>
+      db.prepare(
+        "INSERT INTO coverage_lines (run_id, file_path, line_number, hit_count) VALUES (?, 'src/a.ts', 10, 3)",
+      ).run(run.lastInsertRowid),
+    ).toThrow();
   });
 
   it('should be idempotent — calling openDb twice on the same path is safe', () => {
@@ -201,6 +175,8 @@ describe('setKbMeta / getKbMeta', () => {
   it('should export expected kb_meta key constants', () => {
     expect(KB_META_INDEX_CHECKPOINT).toBe('index_checkpoint');
     expect(KB_META_LAST_HEAD_SHA).toBe('last_known_head_sha');
+    expect(KB_META_COVERAGE_LAST_SOURCE_PATH).toBe('coverage_last_source_path');
+    expect(KB_META_COVERAGE_LAST_SOURCE_MTIME).toBe('coverage_last_source_mtime');
   });
 });
 

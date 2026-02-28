@@ -12,6 +12,8 @@
  *   lore refresh --db <path> --root <dir> --watch  Watch for changes and refresh automatically.
  *   lore refresh --db <path> --root <dir> --poll   Poll for changes and refresh automatically.
  *   lore hooks --root <dir> --db <path>         Install git hooks for automatic Lore refresh.
+ *   lore ingest-coverage --db <path> --root <dir> --file <path> --format <lcov|cobertura>
+ *                         Ingest a coverage report file into the knowledge base.
  */
 
 import * as fs from 'node:fs';
@@ -29,6 +31,8 @@ function usage(): never {
   lore refresh --db <path> --root <dir> --poll  Poll for file changes and refresh automatically
   lore hooks --db <path> --root <dir> [--history] [--history-depth <n>] [--history-all]
                          Install git hooks for automatic refresh on commit/merge/checkout
+  lore ingest-coverage --db <path> --root <dir> --file <path> --format <lcov|cobertura> [--commit <sha>]
+                         Ingest an explicit coverage report file into the knowledge base
 
 Options:
   --root <dir>             Root directory to index (required for index, refresh)
@@ -42,6 +46,9 @@ Options:
   --language <lang>        Language name to filter by, e.g. typescript (repeatable)
   --watch                  Enable fs-event watch mode (low-latency, may miss events on some platforms)
   --poll                   Enable polling mode (reliable but higher CPU/IO cost)
+  --file <path>            Coverage report path (required for ingest-coverage)
+  --format <name>          Coverage format: lcov or cobertura (required for ingest-coverage)
+  --commit <sha>           Commit SHA to associate with coverage ingestion (default: HEAD)
   --help, -h               Show this help message`,
   );
   process.exit(1);
@@ -351,6 +358,28 @@ async function main(): Promise<void> {
         hooks: result.installed,
       }) + '\n',
     );
+  } else if (subcommand === 'ingest-coverage') {
+    const dbPath = flag(args, '--db');
+    const rootDir = flag(args, '--root');
+    const reportPath = flag(args, '--file');
+    const format = flag(args, '--format');
+    const commitSha = flag(args, '--commit');
+
+    if (!dbPath || !rootDir || !reportPath || !format) {
+      console.error('Error: --db <path>, --root <dir>, --file <path>, and --format <lcov|cobertura> are required for the ingest-coverage subcommand.\n');
+      usage();
+      return;
+    }
+
+    if (format !== 'lcov' && format !== 'cobertura') {
+      console.error(`Error: unsupported coverage format "${format}". Use "lcov" or "cobertura".\n`);
+      usage();
+      return;
+    }
+
+    const { IndexBuilder } = await import('./indexer/index.js');
+    const builder = new IndexBuilder(dbPath, { rootDir });
+    await builder.ingestCoverage(reportPath, format, commitSha);
   } else {
     console.error(`Unknown subcommand: ${subcommand}\n`);
     usage();
