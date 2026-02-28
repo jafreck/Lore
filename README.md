@@ -1,6 +1,6 @@
 # Lore
 
-**The teammate who's read every commit.** Lore is your codebase's institutional memory — it knows what was built, why it changed, and how it all connects.
+**The teammate who knows every commit.** Lore is your codebase's institutional memory — it knows what was built, why it changed, and how it all connects.
 
 Language-aware codebase indexer — it maps symbols, imports, call relationships,
 code summaries, and git history, with optional embeddings for semantic search.
