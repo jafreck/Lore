@@ -3,8 +3,12 @@ import { mkdtempSync, writeFileSync, mkdirSync, rmSync, existsSync } from 'node:
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { execFileSync } from 'node:child_process';
+import { createRequire } from 'node:module';
 import Database from 'better-sqlite3';
 import { IndexBuilder } from '../../src/indexer/index.js';
+import type { EmbeddingProvider } from '../../src/indexer/embedder.js';
+
+const esmRequire = createRequire(import.meta.url);
 
 /** Create a temp directory containing a minimal TypeScript source file. */
 function createTmpSrcDir(): string {
@@ -45,6 +49,21 @@ function queryFilesWithBranch(dbPath: string, branch: string): { path: string; b
   const rows = db.prepare('SELECT path, branch FROM files WHERE branch = ?').all(branch) as { path: string; branch: string }[];
   db.close();
   return rows;
+}
+
+function queryStructuralEmbeddingCount(dbPath: string): number {
+  const db = new Database(dbPath, { readonly: true });
+  (esmRequire('sqlite-vec') as { load(database: Database.Database): void }).load(db);
+  const hasTable = db
+    .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'symbol_embeddings'")
+    .get() as { name: string } | undefined;
+  if (!hasTable) {
+    db.close();
+    return 0;
+  }
+  const row = db.prepare('SELECT COUNT(*) AS count FROM symbol_embeddings').get() as { count: number };
+  db.close();
+  return row.count;
 }
 
 function queryCommitCount(dbPath: string): number {
@@ -237,6 +256,38 @@ describe('IndexBuilder — branch support in update()', () => {
     await builder.update([srcFile]);
 
     expect(queryCommitCount(dbPath)).toBe(1);
+  });
+
+  it('should not persist structural embeddings during update() when embedder is not configured', async () => {
+    writeFileSync(srcFile, 'export function updatedWithoutEmbeddings(name: string): string { return name; }\n');
+
+    const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
+    await builder.update([srcFile]);
+
+    expect(queryStructuralEmbeddingCount(dbPath)).toBe(0);
+  });
+
+  it('should persist structural embeddings during update() when embedder is configured', async () => {
+    writeFileSync(srcFile, 'export function updatedWithEmbeddings(name: string): string { return name; }\n');
+
+    let initCalled = false;
+    const embedder: EmbeddingProvider = {
+      modelName: 'test-embedder',
+      dims: 3,
+      async init(): Promise<void> {
+        initCalled = true;
+      },
+      async embed(texts: string[]): Promise<number[][]> {
+        return texts.map((_, i) => [i + 1, i + 2, i + 3]);
+      },
+      async dispose(): Promise<void> {},
+    };
+
+    const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' }, embedder);
+    await builder.update([srcFile]);
+
+    expect(initCalled).toBe(true);
+    expect(queryStructuralEmbeddingCount(dbPath)).toBeGreaterThan(0);
   });
 
   it('should remove branch-scoped file rows and related symbols_fts entries when a tracked file is deleted', async () => {

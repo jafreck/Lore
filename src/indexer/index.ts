@@ -233,6 +233,10 @@ export class IndexBuilder {
           typeof this.history === 'object' ? this.history : undefined;
         await ingestGitHistory(db, this.walkerConfig.rootDir, historyOptions);
       }
+      if (this.embedder) {
+        await this.embedder.init();
+        await this.embedStructural(db);
+      }
       buildCallGraph(db);
       this.saveLastKnownHead(db);
     } finally {
