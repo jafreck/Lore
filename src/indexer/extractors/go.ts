@@ -9,6 +9,7 @@ import type Parser from 'tree-sitter';
 import {
   type ExtractionResult,
   type RawImport,
+  type RawRoute,
   type RawSymbol,
   type SymbolExtractor,
   emptyResult,
@@ -37,6 +38,11 @@ export class GoExtractor implements SymbolExtractor {
         case 'import_declaration':
           result.imports.push(...extractImportDecl(node));
           break;
+        case 'call_expression': {
+          const route = maybeExtractGinRoute(node);
+          if (route) result.routes.push(route);
+          break;
+        }
       }
     }
 
@@ -132,4 +138,42 @@ function extractImportSpec(spec: Parser.SyntaxNode): RawImport {
   const aliasNode = spec.childForFieldName('name');
   const importedNames = aliasNode ? [aliasNode.text] : [];
   return { source, importedNames };
+}
+
+const GO_GIN_METHODS: Record<string, string> = {
+  GET: 'GET',
+  POST: 'POST',
+  PUT: 'PUT',
+  DELETE: 'DELETE',
+  PATCH: 'PATCH',
+  OPTIONS: 'OPTIONS',
+  HEAD: 'HEAD',
+  Any: 'ALL',
+};
+
+function maybeExtractGinRoute(node: Parser.SyntaxNode): RawRoute | null {
+  const fnNode = node.childForFieldName('function');
+  if (!fnNode || fnNode.type !== 'selector_expression') return null;
+  const methodNode = fnNode.childForFieldName('field');
+  const method = methodNode ? GO_GIN_METHODS[methodNode.text] : undefined;
+  if (!method) return null;
+
+  const argsNode = node.childForFieldName('arguments');
+  const pathNode = argsNode?.namedChildren[0];
+  const handlerNode = argsNode?.namedChildren[1];
+  if (!pathNode || !handlerNode) return null;
+  if (
+    pathNode.type !== 'interpreted_string_literal' &&
+    pathNode.type !== 'raw_string_literal'
+  ) {
+    return null;
+  }
+
+  return {
+    method,
+    path: pathNode.text.replace(/^`|`$|^"|"$/g, ''),
+    handler: handlerNode.text,
+    framework: 'gin',
+    line: node.startPosition.row,
+  };
 }

@@ -15,6 +15,7 @@
  *   kb_metrics   — aggregate code metrics
  *   kb_writeback — LLM summary write-back
  *   kb_history   — git commit history queries
+ *   kb_routes    — indexed API route queries
  *
  * Standalone usage:
  *   node dist/kb-server/server.js --db <path-to-kb.db>
@@ -36,7 +37,7 @@ import * as blame from './tools/blame.js';
 import * as metrics from './tools/metrics.js';
 import * as writeback from './tools/writeback.js';
 import * as history from './tools/history.js';
-import * as annotations from './tools/annotations.js';
+import * as routes from './tools/routes.js';
 
 // ─── Server factory ───────────────────────────────────────────────────────────
 
@@ -181,19 +182,17 @@ export function createKbMcpServer(
     }),
   );
 
-  // ── kb_annotations ──────────────────────────────────────────────────────────
+  // ── kb_routes ──────────────────────────────────────────────────────────────
   server.tool(
-    annotations.toolDef.name,
-    annotations.toolDef.description,
+    routes.toolDef.name,
+    routes.toolDef.description,
     {
-      kind: z
-        .enum(['TODO', 'FIXME', 'HACK', 'XXX', 'NOTE', 'BUG', 'OPTIMIZE'])
-        .describe('Annotation kind/tag to filter by.'),
-      path: z.string().optional().describe('Optional exact file path filter.'),
-      limit: z.number().optional().describe('Max results (default 20).'),
+      method: z.string().optional().describe('Optional HTTP method filter (for example GET, POST).'),
+      path_prefix: z.string().optional().describe('Optional route path prefix filter.'),
+      framework: z.string().optional().describe('Optional framework filter (for example express, fastapi, gin).'),
     },
     async (args) => ({
-      content: [{ type: 'text', text: JSON.stringify(annotations.handler(db, args)) }],
+      content: [{ type: 'text', text: JSON.stringify(routes.handler(db, args)) }],
     }),
   );
 
