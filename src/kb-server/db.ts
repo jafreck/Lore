@@ -46,11 +46,19 @@ export interface SymbolRow {
   end_line: number;
   signature: string | null;
   doc_comment: string | null;
+  line_count: number | null;
+  param_count: number | null;
+  cyclomatic: number | null;
+  max_nesting: number | null;
 }
 
 /** Fetch a single symbol by primary key.  Returns `undefined` if not found. */
 export function getSymbolById(db: Database.Database, id: number): SymbolRow | undefined {
-  return db.prepare('SELECT * FROM symbols WHERE id = ?').get(id) as SymbolRow | undefined;
+  return db
+    .prepare(
+      'SELECT s.*, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting FROM symbols s LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id WHERE s.id = ?'
+    )
+    .get(id) as SymbolRow | undefined;
 }
 
 /** Fetch all symbols whose name matches the given string (case-insensitive). */
@@ -58,12 +66,14 @@ export function getSymbolsByName(db: Database.Database, name: string, branch?: s
   if (branch !== undefined) {
     return db
       .prepare(
-        'SELECT s.* FROM symbols s JOIN files f ON s.file_id = f.id WHERE s.name = ? COLLATE NOCASE AND f.branch = ?'
+        'SELECT s.*, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting FROM symbols s JOIN files f ON s.file_id = f.id LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id WHERE s.name = ? COLLATE NOCASE AND f.branch = ?'
       )
       .all(name, branch) as SymbolRow[];
   }
   return db
-    .prepare('SELECT * FROM symbols WHERE name = ? COLLATE NOCASE')
+    .prepare(
+      'SELECT s.*, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting FROM symbols s LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id WHERE s.name = ? COLLATE NOCASE'
+    )
     .all(name) as SymbolRow[];
 }
 
@@ -72,11 +82,15 @@ export function listSymbols(db: Database.Database, limit = 100, branch?: string)
   if (branch !== undefined) {
     return db
       .prepare(
-        'SELECT s.* FROM symbols s JOIN files f ON s.file_id = f.id WHERE f.branch = ? LIMIT ?'
+        'SELECT s.*, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting FROM symbols s JOIN files f ON s.file_id = f.id LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id WHERE f.branch = ? LIMIT ?'
       )
       .all(branch, limit) as SymbolRow[];
   }
-  return db.prepare('SELECT * FROM symbols LIMIT ?').all(limit) as SymbolRow[];
+  return db
+    .prepare(
+      'SELECT s.*, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting FROM symbols s LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id LIMIT ?'
+    )
+    .all(limit) as SymbolRow[];
 }
 
 // ─── File helpers ─────────────────────────────────────────────────────────────
