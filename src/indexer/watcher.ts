@@ -46,6 +46,7 @@ export class FileWatcher {
   private watcher: fs.FSWatcher | null = null;
   private pendingPaths: Set<string> = new Set();
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
+  private flushRunning = false;
 
   constructor(dbPath: string, walkerConfig: WalkerConfig, options: WatcherOptions = {}) {
     this.dbPath = dbPath;
@@ -100,33 +101,39 @@ export class FileWatcher {
 
   private async flush(): Promise<void> {
     this.debounceTimer = null;
-    const paths = [...this.pendingPaths];
-    this.pendingPaths.clear();
-
-    if (paths.length === 0) return;
-
-    const builder = new IndexBuilder(this.dbPath, this.walkerConfig, undefined, {
-      history: this.history,
-    });
-    let errorCount = 0;
-
+    if (this.flushRunning) return;
+    this.flushRunning = true;
     try {
-      await builder.update(paths);
-    } catch (err) {
-      errorCount++;
-      process.stderr.write(
-        JSON.stringify({ level: 'error', source: 'FileWatcher', message: String(err) }) + '\n',
-      );
-    }
+      const paths = [...this.pendingPaths];
+      this.pendingPaths.clear();
 
-    process.stderr.write(
-      JSON.stringify({
-        level: 'info',
-        source: 'FileWatcher',
-        message: 'refresh cycle complete',
-        files: paths.length,
-        errors: errorCount,
-      }) + '\n',
-    );
+      if (paths.length === 0) return;
+
+      const builder = new IndexBuilder(this.dbPath, this.walkerConfig, undefined, {
+        history: this.history,
+      });
+      let errorCount = 0;
+
+      try {
+        await builder.update(paths);
+      } catch (err) {
+        errorCount++;
+        process.stderr.write(
+          JSON.stringify({ level: 'error', source: 'FileWatcher', message: String(err) }) + '\n',
+        );
+      }
+
+      process.stderr.write(
+        JSON.stringify({
+          level: 'info',
+          source: 'FileWatcher',
+          message: 'refresh cycle complete',
+          files: paths.length,
+          errors: errorCount,
+        }) + '\n',
+      );
+    } finally {
+      this.flushRunning = false;
+    }
   }
 }
