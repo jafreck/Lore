@@ -75,7 +75,9 @@ export function createKbMcpServer(
     graph.toolDef.name,
     graph.toolDef.description,
     {
-      kind: z.enum(['call', 'import']).describe('"call" or "import" graph edges.'),
+      kind: z
+        .enum(['call', 'import', 'module', 'inheritance'])
+        .describe('"call", "import", "module", or "inheritance" graph edges.'),
       source_id: z.number().optional().describe('Filter edges by source node id.'),
       limit: z.number().optional().describe('Max edges to return (default 200).'),
       branch: z.string().optional().describe('Optional branch to filter edges.'),

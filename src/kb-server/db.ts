@@ -6,6 +6,9 @@
  */
 
 import Database from 'better-sqlite3';
+import { createRequire } from 'node:module';
+
+const esmRequire = createRequire(import.meta.url);
 
 // Re-export the Database type so callers don't need to import better-sqlite3 directly.
 export type { Database };
@@ -23,8 +26,7 @@ export function openReadOnly(path: string): Database.Database {
   // Load sqlite-vec extension so vec0 virtual tables (symbol_embeddings) can
   // be queried for semantic / fused search.
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const sqliteVec = require('sqlite-vec');
+    const sqliteVec = esmRequire('sqlite-vec') as { load(db: Database.Database): void };
     sqliteVec.load(db);
   } catch {
     // sqlite-vec not available — vec0 tables won't be queryable.
@@ -138,6 +140,25 @@ export interface CommitRefRow {
   ref_type: string;
 }
 
+function expandRenamePathVariants(path: string): string[] {
+  if (!path.includes('=>')) {
+    return [path];
+  }
+
+  const braceMatch = path.match(/^(.*)\{([^{}]+)\s=>\s([^{}]+)\}(.*)$/);
+  if (braceMatch) {
+    const [, prefix, oldSegment, newSegment, suffix] = braceMatch;
+    return [`${prefix}${oldSegment}${suffix}`, `${prefix}${newSegment}${suffix}`];
+  }
+
+  const split = path.split(/\s=>\s/, 2);
+  if (split.length === 2 && split[0] && split[1]) {
+    return [split[0].trim(), split[1].trim()];
+  }
+
+  return [path];
+}
+
 /** Fetch a single commit by its SHA (full or prefix match). */
 export function getCommitBySha(db: Database.Database, sha: string): CommitRow | undefined {
   return db
@@ -154,15 +175,35 @@ export function listRecentCommits(db: Database.Database, limit = 50): CommitRow[
 
 /** Return commits that touched the given file path, ordered by timestamp DESC. */
 export function listCommitsByFile(db: Database.Database, filePath: string, limit = 50): CommitRow[] {
+  const touchedRows = db
+    .prepare(
+      `SELECT DISTINCT commit_sha, file_path
+       FROM commit_files
+       WHERE file_path = ? OR file_path LIKE '%=>%'`,
+    )
+    .all(filePath) as Array<{ commit_sha: string; file_path: string }>;
+
+  const matchingShas = Array.from(
+    new Set(
+      touchedRows
+        .filter((row) => expandRenamePathVariants(row.file_path).includes(filePath))
+        .map((row) => row.commit_sha),
+    ),
+  );
+
+  if (matchingShas.length === 0) {
+    return [];
+  }
+
+  const placeholders = matchingShas.map(() => '?').join(', ');
   return db
     .prepare(
       `SELECT c.* FROM commits c
-       JOIN commit_files cf ON cf.commit_sha = c.sha
-       WHERE cf.file_path = ?
+       WHERE c.sha IN (${placeholders})
        ORDER BY c.timestamp DESC, c.sha ASC
        LIMIT ?`,
     )
-    .all(filePath, limit) as CommitRow[];
+    .all(...matchingShas, limit) as CommitRow[];
 }
 
 /** Return commits filtered by author name or email, ordered by timestamp DESC. */
@@ -201,9 +242,19 @@ export function listCommitsByRef(db: Database.Database, refQuery: string, limit 
   const exact = refQuery;
   const wildcard = `%${refQuery}%`;
   try {
+    if (!refQuery) {
+      return db
+        .prepare(
+          `SELECT DISTINCT c.* FROM commits c
+           JOIN commit_refs cr ON cr.commit_sha = c.sha
+           ORDER BY c.timestamp DESC, c.sha ASC
+           LIMIT ?`,
+        )
+        .all(limit) as CommitRow[];
+    }
     return db
       .prepare(
-        `SELECT c.* FROM commits c
+        `SELECT DISTINCT c.* FROM commits c
          JOIN commit_refs cr ON cr.commit_sha = c.sha
          WHERE cr.ref_name = ? OR cr.ref_name LIKE ?
          ORDER BY c.timestamp DESC, c.sha ASC

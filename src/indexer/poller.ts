@@ -47,6 +47,7 @@ export class FilePoller {
   /** Maps absolute path → last seen mtime (ms since epoch). */
   private snapshot: Map<string, number> = new Map();
   private timer: ReturnType<typeof setInterval> | null = null;
+  private pollRunning = false;
 
   constructor(dbPath: string, walkerConfig: WalkerConfig, options: PollerOptions = {}) {
     this.dbPath = dbPath;
@@ -73,67 +74,73 @@ export class FilePoller {
   // ─── Private helpers ──────────────────────────────────────────────────────
 
   private async poll(): Promise<void> {
-    let errorCount = 0;
-    const changed: string[] = [];
-
-    let entries: { path: string }[];
+    if (this.pollRunning) return;
+    this.pollRunning = true;
     try {
-      entries = await walkFiles(this.walkerConfig);
-    } catch (err) {
-      process.stderr.write(
-        JSON.stringify({ level: 'error', source: 'FilePoller', message: String(err) }) + '\n',
-      );
-      return;
-    }
+      let errorCount = 0;
+      const changed: string[] = [];
 
-    const currentPaths = new Set<string>();
-
-    for (const entry of entries) {
-      currentPaths.add(entry.path);
-      let mtime: number;
+      let entries: { path: string }[];
       try {
-        mtime = fs.statSync(entry.path).mtimeMs;
-      } catch {
-        continue; // file vanished between walk and stat
-      }
-
-      const prev = this.snapshot.get(entry.path);
-      if (prev === undefined || prev !== mtime) {
-        changed.push(entry.path);
-        this.snapshot.set(entry.path, mtime);
-      }
-    }
-
-    // Detect deletions: paths in snapshot that are no longer on disk
-    for (const [p] of this.snapshot) {
-      if (!currentPaths.has(p)) {
-        changed.push(p);
-        this.snapshot.delete(p);
-      }
-    }
-
-    if (changed.length > 0) {
-      const builder = new IndexBuilder(this.dbPath, this.walkerConfig, undefined, {
-        history: this.history,
-      });
-      try {
-        await builder.update(changed);
+        entries = await walkFiles(this.walkerConfig);
       } catch (err) {
-        errorCount++;
         process.stderr.write(
           JSON.stringify({ level: 'error', source: 'FilePoller', message: String(err) }) + '\n',
         );
+        return;
       }
-    }
 
-    process.stderr.write(
-      JSON.stringify({
-        level: 'info',
-        source: 'FilePoller',
-        message: 'poll cycle complete',
-        changed: changed.length,
-        errors: errorCount,
-      }) + '\n',
-    );
+      const currentPaths = new Set<string>();
+
+      for (const entry of entries) {
+        currentPaths.add(entry.path);
+        let mtime: number;
+        try {
+          mtime = fs.statSync(entry.path).mtimeMs;
+        } catch {
+          continue; // file vanished between walk and stat
+        }
+
+        const prev = this.snapshot.get(entry.path);
+        if (prev === undefined || prev !== mtime) {
+          changed.push(entry.path);
+          this.snapshot.set(entry.path, mtime);
+        }
+      }
+
+      // Detect deletions: paths in snapshot that are no longer on disk
+      for (const [p] of this.snapshot) {
+        if (!currentPaths.has(p)) {
+          changed.push(p);
+          this.snapshot.delete(p);
+        }
+      }
+
+      if (changed.length > 0) {
+        const builder = new IndexBuilder(this.dbPath, this.walkerConfig, undefined, {
+          history: this.history,
+        });
+        try {
+          await builder.update(changed);
+        } catch (err) {
+          errorCount++;
+          process.stderr.write(
+            JSON.stringify({ level: 'error', source: 'FilePoller', message: String(err) }) + '\n',
+          );
+        }
+      }
+
+      process.stderr.write(
+        JSON.stringify({
+          level: 'info',
+          source: 'FilePoller',
+          message: 'poll cycle complete',
+          changed: changed.length,
+          errors: errorCount,
+        }) + '\n',
+      );
+    } finally {
+      this.pollRunning = false;
+    }
   }
 }
