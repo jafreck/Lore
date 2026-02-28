@@ -19,6 +19,7 @@ import type { WalkerConfig } from './walker.js';
 import { ingestGitHistory } from './git-history.js';
 import { ParserPool } from './parser.js';
 import { ImportResolver } from './resolver.js';
+import { buildCallGraph } from './call-graph.js';
 import type { ExtractionResult, RawCallRef, RawImport, RawSymbol } from './extractors/types.js';
 import { CExtractor } from './extractors/c.js';
 import { RustExtractor } from './extractors/rust.js';
@@ -163,6 +164,7 @@ export class IndexBuilder {
       }
       this.saveBuildCheckpoint(db, branch, files.length, files.length);
       this.resolveImports(db, branch);
+      buildCallGraph(db);
       this.saveLastKnownHead(db);
       if (this.embedder) {
         await this.embedder.init();
@@ -221,6 +223,7 @@ export class IndexBuilder {
       }
 
       this.resolveImports(db, branch);
+      buildCallGraph(db);
       this.saveLastKnownHead(db);
     } finally {
       db.close();
