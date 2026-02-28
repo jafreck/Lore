@@ -22,3 +22,12 @@ export class Animal {
 export const multiply = (a, b) => a * b;
 
 export const formatPath = (p) => path.normalize(p);
+
+const app = { get() {}, post() {} };
+const koaRouter = { get() {} };
+const hono = { get() {} };
+
+app.get('/health', greet);
+app.post('/add', add);
+koaRouter.get('/koa', formatPath, multiply);
+hono.get('/hono', multiply);

@@ -11,29 +11,87 @@ import type { Database } from '../db.js';
 export const toolDef = {
   name: 'kb_metrics',
   description:
-    'Return high-level code metrics from the knowledge-base index: ' +
-    'total symbol count, total file count, and total import-edge count.',
+    'Return aggregate KB metrics or top symbols by stored complexity.',
   inputSchema: {
     type: 'object',
-    properties: {},
+    properties: {
+      mode: {
+        type: 'string',
+        enum: ['aggregate', 'complexity'],
+        description: 'Metrics mode: aggregate counts (default) or complexity-ranked symbols.',
+      },
+      limit: {
+        type: 'number',
+        description: 'Max symbols returned for complexity mode (default 20, max 200).',
+      },
+      min_cyclomatic: {
+        type: 'number',
+        description: 'Minimum cyclomatic score filter for complexity mode (default 0).',
+      },
+    },
     required: [],
   },
 } as const;
 
 // ─── Handler ──────────────────────────────────────────────────────────────────
 
-// No meaningful args for this tool.
-export type MetricsArgs = Record<string, never>;
+export interface MetricsArgs {
+  mode?: 'aggregate' | 'complexity';
+  limit?: number;
+  min_cyclomatic?: number;
+}
 
-export interface MetricsResult {
+export interface AggregateMetricsResult {
   symbol_count: number;
   file_count: number;
   import_edge_count: number;
   per_branch: Array<{ branch: string; file_count: number; symbol_count: number }>;
 }
 
+export interface ComplexitySymbolRow {
+  id: number;
+  file_id: number;
+  name: string;
+  kind: string;
+  start_line: number;
+  end_line: number;
+  signature: string | null;
+  doc_comment: string | null;
+  line_count: number;
+  param_count: number;
+  cyclomatic: number;
+  max_nesting: number;
+}
+
+export interface ComplexityMetricsResult {
+  symbols: ComplexitySymbolRow[];
+}
+
+export type MetricsResult = AggregateMetricsResult | ComplexityMetricsResult;
+
 /** Collect aggregate counts from the knowledge-base tables. */
-export function handler(db: Database.Database, _args: MetricsArgs): MetricsResult {
+export function handler(db: Database.Database, args: MetricsArgs): MetricsResult {
+  if (args.mode === 'complexity') {
+    const minCyclomatic = Math.max(0, args.min_cyclomatic ?? 0);
+    const limit = Math.min(Math.max(1, args.limit ?? 20), 200);
+    const symbols = db
+      .prepare(
+        `SELECT s.*,
+                sm.line_count,
+                sm.param_count,
+                sm.cyclomatic,
+                sm.max_nesting
+           FROM symbol_metrics sm
+           JOIN symbols s ON s.id = sm.symbol_id
+          WHERE sm.cyclomatic >= ?
+          ORDER BY sm.cyclomatic DESC, s.id ASC
+          LIMIT ?`,
+      )
+      .all(minCyclomatic, limit) as ComplexitySymbolRow[];
+
+    return { symbols };
+  }
+
   const symbolCount = (
     db.prepare('SELECT COUNT(*) AS c FROM symbols').get() as { c: number }
   ).c;

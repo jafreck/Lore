@@ -11,10 +11,10 @@ import {
   getFileById,
   getFileByPath,
   listFiles,
-  listConfigEntries,
   getSymbolsByName,
   listSymbols,
   getSymbolById,
+  listApiRoutes,
   getCommitBySha,
   listRecentCommits,
   listCommitsByFile,
@@ -58,23 +58,16 @@ function createTestDb(): Database.Database {
       signature   TEXT,
       doc_comment TEXT
     );
-    CREATE TABLE config_entries (
-      id            INTEGER PRIMARY KEY AUTOINCREMENT,
-      file_id       INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
-      key           TEXT    NOT NULL,
-      value         TEXT,
-      default_value TEXT,
-      inferred_type TEXT,
-      required      INTEGER NOT NULL DEFAULT 0,
-      description   TEXT,
-      kind          TEXT    NOT NULL,
-      UNIQUE(file_id, key)
-    );
-    CREATE TABLE config_entry_refs (
-      id              INTEGER PRIMARY KEY AUTOINCREMENT,
-      config_entry_id INTEGER NOT NULL REFERENCES config_entries(id) ON DELETE CASCADE,
-      file_id         INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
-      line            INTEGER NOT NULL
+    CREATE TABLE api_routes (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      file_id      INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+      method       TEXT    NOT NULL,
+      path         TEXT    NOT NULL,
+      handler_id   INTEGER,
+      handler_name TEXT    NOT NULL,
+      framework    TEXT    NOT NULL,
+      line         INTEGER NOT NULL,
+      middleware   TEXT
     );
   `);
   return db;
@@ -138,37 +131,6 @@ function insertSymbol(
     )
     .run(fileId, name, kind);
   return result.lastInsertRowid as number;
-}
-
-function insertConfigEntry(
-  db: Database.Database,
-  fileId: number,
-  key: string,
-  kind: string,
-  value: string | null,
-  defaultValue: string | null,
-  inferredType: string,
-  required: number,
-  description: string | null,
-): number {
-  const result = db
-    .prepare(
-      `INSERT INTO config_entries (file_id, key, value, default_value, inferred_type, required, description, kind)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    )
-    .run(fileId, key, value, defaultValue, inferredType, required, description, kind);
-  return result.lastInsertRowid as number;
-}
-
-function insertConfigRef(
-  db: Database.Database,
-  configEntryId: number,
-  fileId: number,
-  line: number,
-): void {
-  db.prepare(
-    'INSERT INTO config_entry_refs (config_entry_id, file_id, line) VALUES (?, ?, ?)',
-  ).run(configEntryId, fileId, line);
 }
 
 // ─── openReadOnly ──────────────────────────────────────────────────────────────
@@ -402,144 +364,6 @@ describe('listSymbols', () => {
   });
 });
 
-// ─── listConfigEntries ────────────────────────────────────────────────────────
-
-describe('listConfigEntries', () => {
-  let db: Database.Database;
-
-  beforeEach(() => {
-    db = createTestDb();
-    const envFileId = insertFile(db, 'config/.env', 'main', 'config');
-    const appConfigFileId = insertFile(db, 'config/app.config.json', 'main', 'config');
-    const appTsId = insertFile(db, 'src/app.ts', 'main');
-    const workerTsId = insertFile(db, 'src/worker.ts', 'main');
-
-    const apiKeyEntryId = insertConfigEntry(
-      db,
-      envFileId,
-      'API_KEY',
-      'env',
-      'abc123',
-      null,
-      'string',
-      1,
-      'API credential',
-    );
-    insertConfigEntry(
-      db,
-      envFileId,
-      'LOG_LEVEL',
-      'env',
-      null,
-      'info',
-      'string',
-      0,
-      null,
-    );
-    const flagEntryId = insertConfigEntry(
-      db,
-      appConfigFileId,
-      'features.chat.enabled',
-      'json',
-      'true',
-      null,
-      'boolean',
-      0,
-      'chat feature flag',
-    );
-
-    insertConfigRef(db, apiKeyEntryId, appTsId, 12);
-    insertConfigRef(db, apiKeyEntryId, workerTsId, 7);
-    insertConfigRef(db, flagEntryId, appTsId, 44);
-  });
-
-  it('should return config entries with joined file metadata and references', () => {
-    const rows = listConfigEntries(db);
-    expect(rows.length).toBe(3);
-
-    const apiKeyRow = rows.find((row) => row.key === 'API_KEY');
-    const featureFlagRow = rows.find((row) => row.key === 'features.chat.enabled');
-
-    expect(apiKeyRow).toBeDefined();
-    expect(apiKeyRow?.file_path).toBe('config/.env');
-    expect(apiKeyRow?.references).toEqual([
-      { path: 'src/app.ts', branch: 'main', line: 12 },
-      { path: 'src/worker.ts', branch: 'main', line: 7 },
-    ]);
-    expect(featureFlagRow).toBeDefined();
-    expect(featureFlagRow?.references).toEqual([
-      { path: 'src/app.ts', branch: 'main', line: 44 },
-    ]);
-  });
-
-  it('should filter by key', () => {
-    const rows = listConfigEntries(db, { key: 'API_KEY' });
-    expect(rows.length).toBe(1);
-    expect(rows[0]?.kind).toBe('env');
-  });
-
-  it('should filter by file path', () => {
-    const rows = listConfigEntries(db, { filePath: 'config/app.config.json' });
-    expect(rows.length).toBe(1);
-    expect(rows[0]?.key).toBe('features.chat.enabled');
-  });
-
-  it('should filter by kind', () => {
-    const rows = listConfigEntries(db, { kind: 'env' });
-    expect(rows.length).toBe(2);
-    expect(rows.every((row) => row.kind === 'env')).toBe(true);
-  });
-
-  it('should apply key, file path, and kind filters together', () => {
-    const rows = listConfigEntries(db, {
-      key: 'API_KEY',
-      filePath: 'config/.env',
-      kind: 'env',
-    });
-    expect(rows.length).toBe(1);
-    expect(rows[0]?.key).toBe('API_KEY');
-  });
-
-  it('should return an empty list when filters do not match any entry', () => {
-    expect(listConfigEntries(db, { key: 'MISSING_KEY' })).toEqual([]);
-    expect(listConfigEntries(db, { filePath: 'config/missing.json' })).toEqual([]);
-  });
-
-  it('should include an empty references array when an entry has no usages', () => {
-    const rows = listConfigEntries(db, { key: 'LOG_LEVEL' });
-    expect(rows.length).toBe(1);
-    expect(rows[0]?.references).toEqual([]);
-  });
-
-  it('should return an empty list when config tables are not fully available', () => {
-    const noRefsDb = new Database(':memory:');
-    noRefsDb.exec(`
-      CREATE TABLE files (id INTEGER PRIMARY KEY, path TEXT NOT NULL, branch TEXT NOT NULL, language TEXT NOT NULL);
-      CREATE TABLE config_entries (
-        id INTEGER PRIMARY KEY,
-        file_id INTEGER NOT NULL,
-        key TEXT NOT NULL,
-        value TEXT,
-        default_value TEXT,
-        inferred_type TEXT,
-        required INTEGER NOT NULL,
-        description TEXT,
-        kind TEXT NOT NULL
-      );
-    `);
-    noRefsDb.prepare(
-      `INSERT INTO files (id, path, branch, language) VALUES (1, 'config/.env', 'main', 'config')`,
-    ).run();
-    noRefsDb.prepare(
-      `INSERT INTO config_entries (id, file_id, key, value, default_value, inferred_type, required, description, kind)
-       VALUES (1, 1, 'API_KEY', 'abc123', NULL, 'string', 1, NULL, 'env')`,
-    ).run();
-
-    expect(listConfigEntries(noRefsDb)).toEqual([]);
-    noRefsDb.close();
-  });
-});
-
 // ─── getSymbolById ────────────────────────────────────────────────────────────
 
 describe('getSymbolById', () => {
@@ -560,6 +384,69 @@ describe('getSymbolById', () => {
 
   it('should return undefined when id does not exist', () => {
     expect(getSymbolById(db, 9999)).toBeUndefined();
+  });
+});
+
+describe('listApiRoutes', () => {
+  let db: Database.Database;
+  let apiFileId: number;
+  let usersFileId: number;
+
+  beforeEach(() => {
+    db = createTestDb();
+    apiFileId = insertFile(db, 'src/api.ts', 'main');
+    usersFileId = insertFile(db, 'src/users.py', 'main', 'python');
+
+    db.prepare(
+      `INSERT INTO api_routes (file_id, method, path, handler_name, framework, line)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    ).run(apiFileId, 'GET', '/api/health', 'healthHandler', 'express', 12);
+    db.prepare(
+      `INSERT INTO api_routes (file_id, method, path, handler_name, framework, line)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    ).run(apiFileId, 'POST', '/api/users', 'createUser', 'express', 20);
+    db.prepare(
+      `INSERT INTO api_routes (file_id, method, path, handler_name, framework, line)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    ).run(usersFileId, 'GET', '/v1/users', 'list_users', 'fastapi', 8);
+  });
+
+  it('should return all routes when no filters are provided', () => {
+    const rows = listApiRoutes(db);
+    expect(rows.length).toBe(3);
+    expect(rows[0]).toEqual({
+      method: 'GET',
+      path: '/api/health',
+      handler: 'healthHandler',
+      file: 'src/api.ts',
+      line: 12,
+      framework: 'express',
+    });
+  });
+
+  it('should filter by method case-insensitively', () => {
+    const rows = listApiRoutes(db, { method: 'post' });
+    expect(rows.length).toBe(1);
+    expect(rows[0].method).toBe('POST');
+    expect(rows[0].path).toBe('/api/users');
+  });
+
+  it('should filter by path prefix', () => {
+    const rows = listApiRoutes(db, { pathPrefix: '/api' });
+    expect(rows.length).toBe(2);
+    expect(rows.every((row) => row.path.startsWith('/api'))).toBe(true);
+  });
+
+  it('should filter by framework case-insensitively', () => {
+    const rows = listApiRoutes(db, { framework: 'FASTAPI' });
+    expect(rows.length).toBe(1);
+    expect(rows[0].framework).toBe('fastapi');
+    expect(rows[0].handler).toBe('list_users');
+  });
+
+  it('should combine filters and return an empty list when none match', () => {
+    expect(listApiRoutes(db, { method: 'GET', pathPrefix: '/api', framework: 'express' }).length).toBe(1);
+    expect(listApiRoutes(db, { method: 'DELETE', pathPrefix: '/api' })).toEqual([]);
   });
 });
 

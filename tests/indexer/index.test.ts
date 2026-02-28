@@ -86,6 +86,23 @@ function querySymbolNamesForFile(dbPath: string, filePath: string, branch: strin
   return rows.map((r) => r.name);
 }
 
+function queryRoutesForFile(
+  dbPath: string,
+  filePath: string,
+  branch: string,
+): Array<{ method: string; path: string; handler_id: number | null; handler_name: string }> {
+  const db = new Database(dbPath, { readonly: true });
+  const rows = db.prepare(
+    `SELECT ar.method, ar.path, ar.handler_id, ar.handler_name
+     FROM api_routes ar
+     JOIN files f ON f.id = ar.file_id
+     WHERE f.path = ? AND f.branch = ?
+     ORDER BY ar.method, ar.path`,
+  ).all(filePath, branch) as Array<{ method: string; path: string; handler_id: number | null; handler_name: string }>;
+  db.close();
+  return rows;
+}
+
 describe('IndexBuilder — branch support in build()', () => {
   let srcDir: string;
   let dbPath: string;
@@ -162,6 +179,27 @@ describe('IndexBuilder — branch support in build()', () => {
     expect(checkpoint.branch).toBe(branch);
     expect(checkpoint.nextFileIndex).toBe(checkpoint.totalFiles);
     expect(headRow?.value).toBe(runGit(srcDir, ['rev-parse', 'HEAD']));
+  });
+
+  it('should replace stale api_routes rows when build() reprocesses an existing file', async () => {
+    const routeFile = join(srcDir, 'routes.js');
+    writeFileSync(routeFile, 'function health() { return "ok"; }\napp.get("/health", health);\n');
+
+    const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
+    await builder.build();
+    expect(queryRoutesForFile(dbPath, routeFile, 'main').map((row) => row.path)).toEqual(['/health']);
+
+    writeFileSync(routeFile, 'function health() { return "ok"; }\napp.get("/status", health);\n');
+    const db = new Database(dbPath);
+    db.prepare(
+      "INSERT OR REPLACE INTO kb_meta (key, value) VALUES ('index_checkpoint', ?)",
+    ).run(
+      JSON.stringify({ branch: 'main', rootDir: srcDir, totalFiles: 2, nextFileIndex: 0, updatedAt: Math.floor(Date.now() / 1000) }),
+    );
+    db.close();
+
+    await builder.build();
+    expect(queryRoutesForFile(dbPath, routeFile, 'main').map((row) => row.path)).toEqual(['/status']);
   });
 });
 
@@ -366,6 +404,52 @@ describe('IndexBuilder — branch support in update()', () => {
 
     const files = queryFilesWithBranch(dbPath, gitBranch);
     expect(files.length).toBeGreaterThan(0);
+  });
+
+  it('should persist extracted routes with handler linkage and handler name fallback during update()', async () => {
+    const routeFile = join(srcDir, 'routes.js');
+    writeFileSync(
+      routeFile,
+      'function health() { return "ok"; }\napp.get("/health", health);\napp.get("/fallback", makeHandler());\n',
+    );
+
+    const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
+    await builder.update([routeFile]);
+
+    const routes = queryRoutesForFile(dbPath, routeFile, 'main');
+    expect(routes).toHaveLength(2);
+    expect(routes).toContainEqual({ method: 'GET', path: '/health', handler_id: expect.any(Number), handler_name: 'health' });
+    expect(routes).toContainEqual({ method: 'GET', path: '/fallback', handler_id: null, handler_name: 'makeHandler()' });
+  });
+
+  it('should replace stale api_routes rows when a file route declaration changes', async () => {
+    const routeFile = join(srcDir, 'routes.js');
+    writeFileSync(routeFile, 'function health() { return "ok"; }\napp.get("/health", health);\n');
+
+    const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
+    await builder.update([routeFile]);
+    expect(queryRoutesForFile(dbPath, routeFile, 'main').map((row) => row.path)).toEqual(['/health']);
+
+    writeFileSync(routeFile, 'function health() { return "ok"; }\napp.get("/status", health);\n');
+    await builder.update([routeFile]);
+
+    const paths = queryRoutesForFile(dbPath, routeFile, 'main').map((row) => row.path);
+    expect(paths).toEqual(['/status']);
+  });
+
+  it('should remove api_routes rows when a tracked file is deleted', async () => {
+    const routeFile = join(srcDir, 'routes.js');
+    writeFileSync(routeFile, 'function health() { return "ok"; }\napp.get("/health", health);\n');
+
+    const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
+    await builder.update([routeFile]);
+    expect(queryRoutesForFile(dbPath, routeFile, 'main')).toHaveLength(1);
+    expect(existsSync(routeFile)).toBe(true);
+
+    rmSync(routeFile, { force: true });
+    await builder.update([routeFile]);
+
+    expect(queryRoutesForFile(dbPath, routeFile, 'main')).toEqual([]);
   });
 });
 

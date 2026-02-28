@@ -237,6 +237,7 @@ gracefully degrades to structural search.
 | `kb_metrics` | Return aggregate index metrics and per-branch breakdown |
 | `kb_writeback` | Persist symbol summaries into `symbol_summaries` |
 | `kb_history` | Query history by file, commit, author, ref, or recency |
+| `kb_routes` | Query indexed API routes with optional `method`, `path_prefix`, and `framework` filters |
 
 ### MCP config example
 
