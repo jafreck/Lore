@@ -294,9 +294,22 @@ async function main(): Promise<void> {
 
       const dbExists = fs.existsSync(dbPath);
       if (dbExists) {
-        const { walkFiles } = await import('./indexer/walker.js');
+        const [{ openDb }, { walkFiles }] = await Promise.all([
+          import('./indexer/db.js'),
+          import('./indexer/walker.js'),
+        ]);
         const files = await walkFiles(walkerConfig);
-        const changedPaths = files.map(f => f.path);
+        const db = openDb(dbPath);
+        const branch = 'HEAD';
+        let indexedPaths: string[];
+        try {
+          indexedPaths = (
+            db.prepare('SELECT path FROM files WHERE branch = ?').all(branch) as Array<{ path: string }>
+          ).map((row) => row.path);
+        } finally {
+          db.close();
+        }
+        const changedPaths = [...new Set([...files.map(f => f.path), ...indexedPaths])];
         await builder.update(changedPaths);
       } else {
         await builder.build();
