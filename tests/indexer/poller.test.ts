@@ -270,6 +270,23 @@ describe('FilePoller', () => {
       expect(mockUpdate).not.toHaveBeenCalled();
     });
 
+    it('should continue polling after a walkFiles failure on a prior cycle', async () => {
+      const file = '/tmp/testroot/recovered.ts';
+      vi.mocked(walkFiles)
+        .mockRejectedValueOnce(new Error('walk failed'))
+        .mockResolvedValueOnce([makeEntry(file)]);
+      vi.mocked(fs.statSync).mockReturnValue({ mtimeMs: 1000 } as Stats);
+
+      const poller = new FilePoller('/db.sqlite', walkerConfig, { intervalMs: 100 });
+      poller.start();
+      await vi.advanceTimersByTimeAsync(200);
+      poller.stop();
+
+      expect(mockUpdate).toHaveBeenCalledTimes(1);
+      const paths = mockUpdate.mock.calls[0]?.[0] as string[];
+      expect(paths).toContain(file);
+    });
+
     it('should log an error when IndexBuilder.update throws', async () => {
       const file = '/tmp/testroot/a.ts';
       vi.mocked(walkFiles).mockResolvedValue([makeEntry(file)]);

@@ -305,6 +305,25 @@ describe('FileWatcher', () => {
       expect(errorLine.source).toBe('FileWatcher');
     });
 
+    it('should process a later flush after an earlier update error', async () => {
+      mockUpdate.mockRejectedValueOnce(new Error('index failure'));
+
+      const watcher = new FileWatcher('/db.sqlite', walkerConfig, { debounceMs: 50 });
+      watcher.start();
+
+      const watchCb = vi.mocked(fs.watch).mock.calls[0]?.[2] as (
+        event: string,
+        filename: string,
+      ) => void;
+      watchCb('change', 'y.ts');
+      await vi.advanceTimersByTimeAsync(50);
+
+      watchCb('change', 'z.ts');
+      await vi.advanceTimersByTimeAsync(50);
+
+      expect(mockUpdate).toHaveBeenCalledTimes(2);
+    });
+
     it('should write an error log to stderr when the FSWatcher emits an error', () => {
       const watcher = new FileWatcher('/db.sqlite', walkerConfig);
       watcher.start();
