@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { openDb } from '../../src/indexer/db.js';
+import { openDb, setKbMeta } from '../../src/indexer/db.js';
 
 // ─── Mock simple-git ──────────────────────────────────────────────────────────
 
@@ -255,6 +255,88 @@ describe('ingestGitHistory', () => {
     expect(mockRaw).toHaveBeenCalledWith(
       expect.arrayContaining(['--max-count=100']),
     );
+  });
+
+  it('should persist the latest ingested commit SHA as a watermark', async () => {
+    mockRaw
+      .mockResolvedValueOnce(
+        buildLogOutput([
+          {
+            sha: 'new999',
+            author: 'Nia',
+            authorEmail: 'nia@example.com',
+            timestamp: 1700000100,
+            parents: '',
+            message: 'Latest commit',
+            files: [],
+          },
+          {
+            sha: 'old998',
+            author: 'Nia',
+            authorEmail: 'nia@example.com',
+            timestamp: 1700000099,
+            parents: '',
+            message: 'Older commit',
+            files: [],
+          },
+        ]),
+      )
+      .mockResolvedValueOnce('');
+
+    const db = openDb(dbPath);
+    const { ingestGitHistory } = await import('../../src/indexer/git-history.js');
+    await ingestGitHistory(db, '/fake/repo');
+
+    const watermarkRow = db.prepare('SELECT value FROM kb_meta WHERE key = ?').get('git_history_last_ingested_sha') as
+      | { value: string }
+      | undefined;
+    db.close();
+
+    expect(watermarkRow?.value).toBe('new999');
+  });
+
+  it('should scope git log to newer commits when a valid watermark exists', async () => {
+    mockRaw.mockImplementation(async (args: string[]) => {
+      if (args[0] === 'cat-file') return '';
+      if (args[0] === 'log') return '';
+      if (args[0] === 'show-ref') return '';
+      return '';
+    });
+
+    const db = openDb(dbPath);
+    setKbMeta(db, 'git_history_last_ingested_sha', 'wm123');
+    const { ingestGitHistory } = await import('../../src/indexer/git-history.js');
+    await ingestGitHistory(db, '/fake/repo');
+    db.close();
+
+    expect(mockRaw).toHaveBeenCalledWith(['cat-file', '-e', 'wm123^{commit}']);
+
+    const logCall = mockRaw.mock.calls.find(([args]) => Array.isArray(args) && args[0] === 'log')?.[0] as
+      | string[]
+      | undefined;
+    expect(logCall).toBeDefined();
+    expect(logCall).toContain('wm123..');
+  });
+
+  it('should fall back to full-history log args when stored watermark is stale', async () => {
+    mockRaw.mockImplementation(async (args: string[]) => {
+      if (args[0] === 'cat-file') throw new Error('bad revision');
+      if (args[0] === 'log') return '';
+      if (args[0] === 'show-ref') return '';
+      return '';
+    });
+
+    const db = openDb(dbPath);
+    setKbMeta(db, 'git_history_last_ingested_sha', 'stale999');
+    const { ingestGitHistory } = await import('../../src/indexer/git-history.js');
+    await expect(ingestGitHistory(db, '/fake/repo')).resolves.not.toThrow();
+    db.close();
+
+    const logCall = mockRaw.mock.calls.find(([args]) => Array.isArray(args) && args[0] === 'log')?.[0] as
+      | string[]
+      | undefined;
+    expect(logCall).toBeDefined();
+    expect(logCall).not.toContain('stale999..');
   });
 
   it('should skip --all when options.all is false', async () => {
