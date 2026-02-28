@@ -214,6 +214,26 @@ If you want Lore to stay updated without explicit requests:
 2. Optionally run `lore refresh --watch` in a background session for near-real-time updates during active editing
 3. Use `--poll` on filesystems where watch events are unreliable
 
+## Benchmarking index performance (500+ file repos)
+
+Use this procedure when you need measurable before/after evidence for indexing changes:
+
+1. Pick a repository with at least 500 source files and note the exact commit SHA you will test.
+2. Capture a baseline timing from the same machine and environment:
+
+```bash
+time npx @jafreck/lore index --root /path/to/repo --db ./kb-baseline.db
+```
+
+3. Apply your change, rebuild Lore, then capture a post-change timing against the same repository commit:
+
+```bash
+npm run build
+time npx @jafreck/lore index --root /path/to/repo --db ./kb-after.db
+```
+
+4. Record both timings (baseline and post-change) in the related GitHub issue or PR under an "Acceptance Evidence" section, including repo name, commit SHA, and command used.
+
 ## Build from source
 
 ```bash

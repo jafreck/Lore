@@ -156,12 +156,14 @@ export class IndexBuilder {
     try {
       const files = await walkFiles(this.walkerConfig);
       const resumeAt = this.loadBuildCheckpoint(db, branch, files.length);
-      for (let i = resumeAt; i < files.length; i++) {
-        const file = files[i];
-        if (!file) continue;
-        this.processFile(db, file.path, file.language, branch);
-        this.saveBuildCheckpoint(db, branch, i + 1, files.length);
-      }
+      db.transaction(() => {
+        for (let i = resumeAt; i < files.length; i++) {
+          const file = files[i];
+          if (!file) continue;
+          this.processFile(db, file.path, file.language, branch);
+          this.saveBuildCheckpoint(db, branch, i + 1, files.length);
+        }
+      })();
       this.saveBuildCheckpoint(db, branch, files.length, files.length);
       this.resolveImports(db, branch);
       buildCallGraph(db);
@@ -190,37 +192,40 @@ export class IndexBuilder {
     const db = openDb(this.dbPath);
     const branch = this.resolveBranch();
     try {
-      for (const filePath of changedFiles) {
-        // If the file no longer exists, remove it from the DB
-        if (!fs.existsSync(filePath)) {
-          const row = db.prepare('SELECT id FROM files WHERE path = ? AND branch = ?').get(filePath, branch) as
+      db.transaction(() => {
+        for (const filePath of changedFiles) {
+          // If the file no longer exists, remove it from the DB
+          if (!fs.existsSync(filePath)) {
+            const row = db.prepare('SELECT id FROM files WHERE path = ? AND branch = ?').get(filePath, branch) as
+              | { id: number }
+              | undefined;
+            if (row) {
+              // Null out any resolved_id references pointing to this file
+              db.prepare('UPDATE file_imports SET resolved_id = NULL WHERE resolved_id = ?').run(row.id);
+              db.prepare('DELETE FROM symbols_fts WHERE rowid IN (SELECT id FROM symbols WHERE file_id = ?)').run(row.id);
+              db.prepare('DELETE FROM files WHERE id = ?').run(row.id);
+            }
+            continue;
+          }
+
+          const language = detectLanguageForPath(filePath, this.walkerConfig);
+          if (!language) continue;
+
+          // Null out resolved_id references pointing to this file before deletion
+          const existingRow = db.prepare('SELECT id FROM files WHERE path = ? AND branch = ?').get(filePath, branch) as
             | { id: number }
             | undefined;
-          if (row) {
-            // Null out any resolved_id references pointing to this file
-            db.prepare('UPDATE file_imports SET resolved_id = NULL WHERE resolved_id = ?').run(row.id);
-            db.prepare('DELETE FROM symbols_fts WHERE rowid IN (SELECT id FROM symbols WHERE file_id = ?)').run(row.id);
-            db.prepare('DELETE FROM files WHERE path = ? AND branch = ?').run(filePath, branch);
+          if (existingRow) {
+            db.prepare('UPDATE file_imports SET resolved_id = NULL WHERE resolved_id = ?').run(existingRow.id);
+            db.prepare('DELETE FROM symbols_fts WHERE rowid IN (SELECT id FROM symbols WHERE file_id = ?)').run(existingRow.id);
           }
-          continue;
+
+          // Delete existing rows for this file (cascade handles symbols/imports)
+          db.prepare('DELETE FROM files WHERE path = ? AND branch = ?').run(filePath, branch);
+
+          this.processFile(db, filePath, language, branch);
         }
-
-        const language = detectLanguageForPath(filePath, this.walkerConfig);
-        if (!language) continue;
-
-        // Null out resolved_id references pointing to this file before deletion
-        const existingRow = db.prepare('SELECT id FROM files WHERE path = ? AND branch = ?').get(filePath, branch) as
-          | { id: number }
-          | undefined;
-        if (existingRow) {
-          db.prepare('UPDATE file_imports SET resolved_id = NULL WHERE resolved_id = ?').run(existingRow.id);
-        }
-
-        // Delete existing rows for this file (cascade handles symbols/imports)
-        db.prepare('DELETE FROM files WHERE path = ? AND branch = ?').run(filePath, branch);
-
-        this.processFile(db, filePath, language, branch);
-      }
+      })();
 
       this.resolveImports(db, branch);
       buildCallGraph(db);
