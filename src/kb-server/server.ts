@@ -36,6 +36,7 @@ import * as blame from './tools/blame.js';
 import * as metrics from './tools/metrics.js';
 import * as writeback from './tools/writeback.js';
 import * as history from './tools/history.js';
+import * as annotations from './tools/annotations.js';
 
 // ─── Server factory ───────────────────────────────────────────────────────────
 
@@ -177,6 +178,22 @@ export function createKbMcpServer(
     },
     async (args) => ({
       content: [{ type: 'text', text: JSON.stringify(history.handler(db, args)) }],
+    }),
+  );
+
+  // ── kb_annotations ──────────────────────────────────────────────────────────
+  server.tool(
+    annotations.toolDef.name,
+    annotations.toolDef.description,
+    {
+      kind: z
+        .enum(['TODO', 'FIXME', 'HACK', 'XXX', 'NOTE', 'BUG', 'OPTIMIZE'])
+        .describe('Annotation kind/tag to filter by.'),
+      path: z.string().optional().describe('Optional exact file path filter.'),
+      limit: z.number().optional().describe('Max results (default 20).'),
+    },
+    async (args) => ({
+      content: [{ type: 'text', text: JSON.stringify(annotations.handler(db, args)) }],
     }),
   );
 

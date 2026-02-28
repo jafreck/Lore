@@ -33,4 +33,23 @@ describe('createKbMcpServer', () => {
     expect(graphSchema.kind.safeParse('inheritance').success).toBe(true);
     expect(graphSchema.kind.safeParse('invalid-kind').success).toBe(false);
   });
+
+  it('should register kb_annotations with kind, optional path, and optional limit args', () => {
+    const db = new Database(':memory:');
+
+    createKbMcpServer(db, '/tmp/test.db');
+
+    const annotationsToolCall = mockTool.mock.calls.find((call) => call[0] === 'kb_annotations');
+    expect(annotationsToolCall).toBeDefined();
+
+    const annotationsSchema = annotationsToolCall?.[2] as {
+      kind: { safeParse: (v: unknown) => { success: boolean } };
+      path: { safeParse: (v: unknown) => { success: boolean } };
+      limit: { safeParse: (v: unknown) => { success: boolean } };
+    };
+    expect(annotationsSchema.kind.safeParse('TODO').success).toBe(true);
+    expect(annotationsSchema.kind.safeParse('invalid-kind').success).toBe(false);
+    expect(annotationsSchema.path.safeParse(undefined).success).toBe(true);
+    expect(annotationsSchema.limit.safeParse(undefined).success).toBe(true);
+  });
 });

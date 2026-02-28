@@ -21,8 +21,10 @@ import {
   listCommitFiles,
   listCommitRefs,
   listCommitsByRef,
+  listAnnotations,
   type FileRow,
   type SymbolRow,
+  type AnnotationRow,
 } from '../../src/kb-server/db.js';
 
 // Helper: create an in-memory DB with the minimal schema needed for tests.
@@ -49,6 +51,16 @@ function createTestDb(): Database.Database {
       end_line    INTEGER NOT NULL,
       signature   TEXT,
       doc_comment TEXT
+    );
+    CREATE TABLE annotations (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      file_id     INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+      kind        TEXT    NOT NULL,
+      line        INTEGER NOT NULL,
+      text        TEXT    NOT NULL,
+      symbol_id   INTEGER REFERENCES symbols(id) ON DELETE SET NULL,
+      author      TEXT,
+      created_at  INTEGER
     );
   `);
   return db;
@@ -342,6 +354,57 @@ describe('listSymbols', () => {
 
   it('should return empty array when branch has no symbols', () => {
     expect(listSymbols(db, 100, 'nonexistent')).toEqual([]);
+  });
+});
+
+describe('listAnnotations', () => {
+  let db: Database.Database;
+  let fileId: number;
+  let symbolId: number;
+
+  beforeEach(() => {
+    db = createTestDb();
+    fileId = insertFile(db, 'src/main.ts', 'main');
+    symbolId = insertSymbol(db, fileId, 'parseConfig');
+    const otherFileId = insertFile(db, 'src/other.ts', 'main');
+    db.prepare(
+      'INSERT INTO annotations (file_id, kind, line, text, symbol_id) VALUES (?, ?, ?, ?, ?)',
+    ).run(fileId, 'TODO', 4, 'TODO: parse env vars', symbolId);
+    db.prepare(
+      'INSERT INTO annotations (file_id, kind, line, text, symbol_id) VALUES (?, ?, ?, ?, ?)',
+    ).run(otherFileId, 'TODO', 2, 'TODO: add tests', null);
+    db.prepare(
+      'INSERT INTO annotations (file_id, kind, line, text, symbol_id) VALUES (?, ?, ?, ?, ?)',
+    ).run(fileId, 'FIXME', 9, 'FIXME: edge case', null);
+  });
+
+  it('should filter by kind and include file and symbol context fields', () => {
+    const rows = listAnnotations(db, 'TODO', undefined, 10);
+    expect(rows.length).toBe(2);
+    const first = rows[0] as AnnotationRow;
+    expect(first).toHaveProperty('file_path');
+    expect(first).toHaveProperty('line');
+    expect(first).toHaveProperty('kind');
+    expect(first).toHaveProperty('text');
+    expect(first).toHaveProperty('symbol_name');
+    expect(first).toHaveProperty('symbol_kind');
+    expect(rows.some((row) => row.symbol_name === 'parseConfig')).toBe(true);
+  });
+
+  it('should filter by path when provided', () => {
+    const rows = listAnnotations(db, 'TODO', 'src/main.ts', 10);
+    expect(rows.length).toBe(1);
+    expect(rows[0].file_path).toBe('src/main.ts');
+    expect(rows[0].symbol_name).toBe('parseConfig');
+  });
+
+  it('should respect the limit parameter', () => {
+    const rows = listAnnotations(db, 'TODO', undefined, 1);
+    expect(rows.length).toBe(1);
+  });
+
+  it('should return empty array when no rows match filters', () => {
+    expect(listAnnotations(db, 'BUG', 'src/main.ts', 10)).toEqual([]);
   });
 });
 
