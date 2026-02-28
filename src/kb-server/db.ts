@@ -6,6 +6,9 @@
  */
 
 import Database from 'better-sqlite3';
+import { createRequire } from 'node:module';
+
+const esmRequire = createRequire(import.meta.url);
 
 // Re-export the Database type so callers don't need to import better-sqlite3 directly.
 export type { Database };
@@ -23,8 +26,7 @@ export function openReadOnly(path: string): Database.Database {
   // Load sqlite-vec extension so vec0 virtual tables (symbol_embeddings) can
   // be queried for semantic / fused search.
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const sqliteVec = require('sqlite-vec');
+    const sqliteVec = esmRequire('sqlite-vec') as { load(db: Database.Database): void };
     sqliteVec.load(db);
   } catch {
     // sqlite-vec not available — vec0 tables won't be queryable.
