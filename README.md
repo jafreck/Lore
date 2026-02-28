@@ -58,6 +58,28 @@ const builder = new IndexBuilder(
 await builder.build();
 ```
 
+### Programmatic configuration examples
+
+```ts
+import { IndexBuilder } from '@jafreck/lore';
+
+// Index with embedding model + history options
+await new IndexBuilder(
+  './kb.db',
+  {
+    rootDir: './my-project',
+    includeGlobs: ['src/**'],
+    excludeGlobs: ['**/*.gen.ts'],
+    extensions: ['.ts', '.tsx'],
+  },
+  undefined,
+  {
+    embeddingModel: 'Qwen/Qwen3-Embedding-4B',
+    history: { all: true, depth: 2000 },
+  },
+).build();
+```
+
 ## CLI reference
 
 ### lore index
@@ -199,7 +221,15 @@ npm run build
 
 ## Contributing
 
+Environment expectations:
+
+- Node.js `>=22.0.0`
+- Native build toolchain for `tree-sitter` and `better-sqlite3`
+
+Common local workflow:
+
 ```bash
+npm run build
 npm test
 npm run coverage
 ```
