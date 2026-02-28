@@ -137,6 +137,40 @@ describe('FileWatcher', () => {
   });
 
   describe('file event debouncing and batching', () => {
+    it('should not run overlapping flush cycles while update is in flight', async () => {
+      let resolveUpdate!: () => void;
+      const updateGate = new Promise<void>((resolve) => {
+        resolveUpdate = resolve;
+      });
+      let inFlight = 0;
+      let maxInFlight = 0;
+      mockUpdate.mockImplementation(async () => {
+        inFlight++;
+        maxInFlight = Math.max(maxInFlight, inFlight);
+        await updateGate;
+        inFlight--;
+      });
+
+      const watcher = new FileWatcher('/db.sqlite', walkerConfig, { debounceMs: 50 });
+      watcher.start();
+      const watchCb = vi.mocked(fs.watch).mock.calls[0]?.[2] as (
+        event: string,
+        filename: string,
+      ) => void;
+
+      watchCb('change', 'a.ts');
+      await vi.advanceTimersByTimeAsync(50);
+      watchCb('change', 'b.ts');
+      await vi.advanceTimersByTimeAsync(50);
+
+      expect(mockUpdate).toHaveBeenCalledTimes(1);
+      expect(maxInFlight).toBe(1);
+
+      resolveUpdate();
+      await vi.advanceTimersByTimeAsync(0);
+      watcher.stop();
+    });
+
     it('should call IndexBuilder.update after the debounce window with affected paths', async () => {
       const watcher = new FileWatcher('/db.sqlite', walkerConfig, { debounceMs: 100 });
       watcher.start();
@@ -154,6 +188,22 @@ describe('FileWatcher', () => {
       const paths = mockUpdate.mock.calls[0]?.[0] as string[];
       expect(paths).toContain(`${walkerConfig.rootDir}/a.ts`);
       expect(paths).toContain(`${walkerConfig.rootDir}/b.ts`);
+    });
+
+    it('should pass the history option to IndexBuilder when flushing updates', async () => {
+      const history = { depth: 2, all: true };
+      const watcher = new FileWatcher('/db.sqlite', walkerConfig, { debounceMs: 100, history });
+      watcher.start();
+
+      const watchCb = vi.mocked(fs.watch).mock.calls[0]?.[2] as (
+        event: string,
+        filename: string,
+      ) => void;
+      watchCb('change', 'a.ts');
+
+      await vi.advanceTimersByTimeAsync(100);
+
+      expect(IndexBuilder).toHaveBeenCalledWith('/db.sqlite', walkerConfig, undefined, { history });
     });
 
     it('should deduplicate repeated events for the same file', async () => {
@@ -255,6 +305,59 @@ describe('FileWatcher', () => {
       expect(errorLine.source).toBe('FileWatcher');
     });
 
+    it('should process a later flush after an earlier update error', async () => {
+      mockUpdate.mockRejectedValueOnce(new Error('index failure'));
+
+      const watcher = new FileWatcher('/db.sqlite', walkerConfig, { debounceMs: 50 });
+      watcher.start();
+
+      const watchCb = vi.mocked(fs.watch).mock.calls[0]?.[2] as (
+        event: string,
+        filename: string,
+      ) => void;
+      watchCb('change', 'y.ts');
+      await vi.advanceTimersByTimeAsync(50);
+
+      watchCb('change', 'z.ts');
+      await vi.advanceTimersByTimeAsync(50);
+
+      expect(mockUpdate).toHaveBeenCalledTimes(2);
+    });
+
+    it('should process pending paths after an overlapping flush was skipped', async () => {
+      let resolveUpdate!: () => void;
+      const updateGate = new Promise<void>((resolve) => {
+        resolveUpdate = resolve;
+      });
+      mockUpdate.mockImplementationOnce(async () => {
+        await updateGate;
+      });
+
+      const watcher = new FileWatcher('/db.sqlite', walkerConfig, { debounceMs: 50 });
+      watcher.start();
+
+      const watchCb = vi.mocked(fs.watch).mock.calls[0]?.[2] as (
+        event: string,
+        filename: string,
+      ) => void;
+
+      watchCb('change', 'a.ts');
+      await vi.advanceTimersByTimeAsync(50);
+      watchCb('change', 'b.ts');
+      await vi.advanceTimersByTimeAsync(50);
+      expect(mockUpdate).toHaveBeenCalledTimes(1);
+
+      resolveUpdate();
+      await vi.advanceTimersByTimeAsync(0);
+      watchCb('change', 'c.ts');
+      await vi.advanceTimersByTimeAsync(50);
+
+      expect(mockUpdate).toHaveBeenCalledTimes(2);
+      const secondCallPaths = mockUpdate.mock.calls[1]?.[0] as string[];
+      expect(secondCallPaths).toContain(`${walkerConfig.rootDir}/b.ts`);
+      expect(secondCallPaths).toContain(`${walkerConfig.rootDir}/c.ts`);
+    });
+
     it('should write an error log to stderr when the FSWatcher emits an error', () => {
       const watcher = new FileWatcher('/db.sqlite', walkerConfig);
       watcher.start();
@@ -270,4 +373,3 @@ describe('FileWatcher', () => {
     });
   });
 });
-

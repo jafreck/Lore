@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { openDb } from '../../src/indexer/db.js';
+import { openDb, setKbMeta } from '../../src/indexer/db.js';
 
 // ─── Mock simple-git ──────────────────────────────────────────────────────────
 
@@ -257,6 +257,88 @@ describe('ingestGitHistory', () => {
     );
   });
 
+  it('should persist the latest ingested commit SHA as a watermark', async () => {
+    mockRaw
+      .mockResolvedValueOnce(
+        buildLogOutput([
+          {
+            sha: 'new999',
+            author: 'Nia',
+            authorEmail: 'nia@example.com',
+            timestamp: 1700000100,
+            parents: '',
+            message: 'Latest commit',
+            files: [],
+          },
+          {
+            sha: 'old998',
+            author: 'Nia',
+            authorEmail: 'nia@example.com',
+            timestamp: 1700000099,
+            parents: '',
+            message: 'Older commit',
+            files: [],
+          },
+        ]),
+      )
+      .mockResolvedValueOnce('');
+
+    const db = openDb(dbPath);
+    const { ingestGitHistory } = await import('../../src/indexer/git-history.js');
+    await ingestGitHistory(db, '/fake/repo');
+
+    const watermarkRow = db.prepare('SELECT value FROM kb_meta WHERE key = ?').get('git_history_last_ingested_sha') as
+      | { value: string }
+      | undefined;
+    db.close();
+
+    expect(watermarkRow?.value).toBe('new999');
+  });
+
+  it('should scope git log to newer commits when a valid watermark exists', async () => {
+    mockRaw.mockImplementation(async (args: string[]) => {
+      if (args[0] === 'cat-file') return '';
+      if (args[0] === 'log') return '';
+      if (args[0] === 'show-ref') return '';
+      return '';
+    });
+
+    const db = openDb(dbPath);
+    setKbMeta(db, 'git_history_last_ingested_sha', 'wm123');
+    const { ingestGitHistory } = await import('../../src/indexer/git-history.js');
+    await ingestGitHistory(db, '/fake/repo');
+    db.close();
+
+    expect(mockRaw).toHaveBeenCalledWith(['cat-file', '-e', 'wm123^{commit}']);
+
+    const logCall = mockRaw.mock.calls.find(([args]) => Array.isArray(args) && args[0] === 'log')?.[0] as
+      | string[]
+      | undefined;
+    expect(logCall).toBeDefined();
+    expect(logCall).toContain('wm123..');
+  });
+
+  it('should fall back to full-history log args when stored watermark is stale', async () => {
+    mockRaw.mockImplementation(async (args: string[]) => {
+      if (args[0] === 'cat-file') throw new Error('bad revision');
+      if (args[0] === 'log') return '';
+      if (args[0] === 'show-ref') return '';
+      return '';
+    });
+
+    const db = openDb(dbPath);
+    setKbMeta(db, 'git_history_last_ingested_sha', 'stale999');
+    const { ingestGitHistory } = await import('../../src/indexer/git-history.js');
+    await expect(ingestGitHistory(db, '/fake/repo')).resolves.not.toThrow();
+    db.close();
+
+    const logCall = mockRaw.mock.calls.find(([args]) => Array.isArray(args) && args[0] === 'log')?.[0] as
+      | string[]
+      | undefined;
+    expect(logCall).toBeDefined();
+    expect(logCall).not.toContain('stale999..');
+  });
+
   it('should skip --all when options.all is false', async () => {
     mockRaw.mockResolvedValue('');
 
@@ -307,6 +389,86 @@ describe('ingestGitHistory', () => {
     expect(refs).toEqual([
       { commit_sha: 'ref111', ref_name: 'refs/heads/main', ref_type: 'branch' },
       { commit_sha: 'ref111', ref_name: 'refs/tags/v1.0.0', ref_type: 'tag' },
+    ]);
+  });
+
+  it('should replace stale commit_refs mappings on subsequent ingestion runs', async () => {
+    mockRaw
+      .mockResolvedValueOnce(
+        buildLogOutput([
+          {
+            sha: 'old111',
+            author: 'Ivy',
+            authorEmail: 'ivy@example.com',
+            timestamp: 1700000011,
+            parents: '',
+            message: 'Old ref target',
+            files: [],
+          },
+        ]),
+      )
+      .mockResolvedValueOnce('old111 refs/heads/main')
+      .mockResolvedValueOnce('')
+      .mockResolvedValueOnce(
+        buildLogOutput([
+          {
+            sha: 'new222',
+            author: 'Ivy',
+            authorEmail: 'ivy@example.com',
+            timestamp: 1700000012,
+            parents: 'old111',
+            message: 'New ref target',
+            files: [],
+          },
+        ]),
+      )
+      .mockResolvedValueOnce('new222 refs/heads/main');
+
+    const db = openDb(dbPath);
+    const { ingestGitHistory } = await import('../../src/indexer/git-history.js');
+    await ingestGitHistory(db, '/fake/repo');
+    await ingestGitHistory(db, '/fake/repo');
+
+    const refs = db
+      .prepare('SELECT commit_sha, ref_name, ref_type FROM commit_refs ORDER BY commit_sha ASC')
+      .all() as Array<{ commit_sha: string; ref_name: string; ref_type: string }>;
+    db.close();
+
+    expect(refs).toEqual([
+      { commit_sha: 'new222', ref_name: 'refs/heads/main', ref_type: 'branch' },
+    ]);
+  });
+
+  it('should parse refs separated by non-space whitespace', async () => {
+    mockRaw
+      .mockResolvedValueOnce(
+        buildLogOutput([
+          {
+            sha: 'tab333',
+            author: 'Ivy',
+            authorEmail: 'ivy@example.com',
+            timestamp: 1700000013,
+            parents: '',
+            message: 'Whitespace ref parsing',
+            files: [],
+          },
+        ]),
+      )
+      .mockResolvedValueOnce('tab333\trefs/heads/main');
+
+    const db = openDb(dbPath);
+    const { ingestGitHistory } = await import('../../src/indexer/git-history.js');
+    await ingestGitHistory(db, '/fake/repo');
+
+    const refs = db.prepare('SELECT commit_sha, ref_name, ref_type FROM commit_refs').all() as Array<{
+      commit_sha: string;
+      ref_name: string;
+      ref_type: string;
+    }>;
+    db.close();
+
+    expect(refs).toEqual([
+      { commit_sha: 'tab333', ref_name: 'refs/heads/main', ref_type: 'branch' },
     ]);
   });
 
