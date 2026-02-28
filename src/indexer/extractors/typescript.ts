@@ -8,6 +8,7 @@
 
 import type Parser from 'tree-sitter';
 import {
+  type ComplexityNodeTypes,
   type ExtractionResult,
   type RawImport,
   type RawRelationship,
@@ -17,6 +18,33 @@ import {
   nodeSignature,
   walk,
 } from './types.js';
+
+export const TYPESCRIPT_COMPLEXITY_NODE_TYPES: ComplexityNodeTypes = {
+  parameterListTypes: ['formal_parameters'],
+  parameterTypes: ['required_parameter', 'optional_parameter', 'rest_parameter'],
+  decisionTypes: [
+    'if_statement',
+    'for_statement',
+    'for_in_statement',
+    'for_of_statement',
+    'while_statement',
+    'do_statement',
+    'catch_clause',
+    'switch_case',
+    'conditional_expression',
+  ],
+  nestingTypes: [
+    'if_statement',
+    'for_statement',
+    'for_in_statement',
+    'for_of_statement',
+    'while_statement',
+    'do_statement',
+    'switch_statement',
+    'catch_clause',
+    'conditional_expression',
+  ],
+};
 
 // ─── TypeScriptExtractor ──────────────────────────────────────────────────────
 
@@ -85,6 +113,7 @@ function extractNamedDecl(node: Parser.SyntaxNode, kind: string): RawSymbol {
     startLine: node.startPosition.row,
     endLine: node.endPosition.row,
     signature: nodeSignature(node),
+    astNode: node,
   };
 }
 
@@ -108,6 +137,7 @@ function maybeExtractArrowOrFunctionExpr(
         startLine: node.startPosition.row,
         endLine: node.endPosition.row,
         signature: nodeSignature(node),
+        astNode: valueNode,
       };
     }
   }

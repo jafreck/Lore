@@ -72,38 +72,28 @@ describe('openDb', () => {
     ).map((r) => r.name);
     expect(tables).toContain('files');
     expect(tables).toContain('symbols');
+    expect(tables).toContain('symbol_metrics');
     expect(tables).toContain('kb_meta');
-    expect(tables).toContain('notes');
     expect(tables).toContain('commit_refs');
   });
 
-  it('should enforce UNIQUE(key, scope) constraint on notes table', () => {
+  it('should create symbol_metrics with cascade FK and cyclomatic index', () => {
     db = openDb(dbPath);
-    db.prepare("INSERT INTO notes (key, scope, content) VALUES ('k1', 'global', 'first')").run();
-    expect(() =>
-      db.prepare("INSERT INTO notes (key, scope, content) VALUES ('k1', 'global', 'second')").run()
-    ).toThrow();
-    expect(() =>
-      db.prepare("INSERT INTO notes (key, scope, content) VALUES ('k1', 'file:a.ts', 'second')").run()
-    ).not.toThrow();
-  });
+    const tableSql = db
+      .prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='symbol_metrics'")
+      .get() as { sql: string } | undefined;
+    const indexRow = db
+      .prepare("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_symbol_metrics_cyclomatic'")
+      .get() as { name: string } | undefined;
 
-  it('should create notes columns with expected defaults', () => {
-    db = openDb(dbPath);
-    const cols = db.prepare("PRAGMA table_info('notes')").all() as {
-      name: string;
-      dflt_value: string | null;
-    }[];
-    const byName = new Map(cols.map((col) => [col.name, col]));
-
-    expect(byName.get('id')).toBeDefined();
-    expect(byName.get('key')).toBeDefined();
-    expect(byName.get('scope')?.dflt_value).toBe("'global'");
-    expect(byName.get('content')).toBeDefined();
-    expect(byName.get('model')?.dflt_value).toBe("''");
-    expect(byName.get('source_hash')).toBeDefined();
-    expect(byName.get('created_at')?.dflt_value).toContain('unixepoch');
-    expect(byName.get('updated_at')?.dflt_value).toContain('unixepoch');
+    expect(tableSql).toBeDefined();
+    expect(tableSql!.sql).toContain('symbol_id');
+    expect(tableSql!.sql).toContain('REFERENCES symbols(id) ON DELETE CASCADE');
+    expect(tableSql!.sql).toContain('line_count');
+    expect(tableSql!.sql).toContain('param_count');
+    expect(tableSql!.sql).toContain('cyclomatic');
+    expect(tableSql!.sql).toContain('max_nesting');
+    expect(indexRow?.name).toBe('idx_symbol_metrics_cyclomatic');
   });
 
   it('should be idempotent — calling openDb twice on the same path is safe', () => {

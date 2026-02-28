@@ -51,7 +51,8 @@ const javaResult = parseAndExtract(
 
 describe('TypeScript extractor', () => {
   test.skipIf(!tsResult)('symbols', () => {
-    expect(tsResult!.symbols).toMatchSnapshot();
+    const symbols = tsResult!.symbols.map(({ astNode: _astNode, ...symbol }) => symbol);
+    expect(symbols).toMatchSnapshot();
   });
 
   test.skipIf(!tsResult)('imports', () => {

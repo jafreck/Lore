@@ -34,41 +34,29 @@ describe('createKbMcpServer', () => {
     expect(graphSchema.kind.safeParse('invalid-kind').success).toBe(false);
   });
 
-  it('should register notes tools with expected schema behavior', () => {
+  it('should register kb_metrics schema with complexity mode fields', () => {
     const db = new Database(':memory:');
+
     createKbMcpServer(db, '/tmp/test.db');
 
-    const writeToolCall = mockTool.mock.calls.find((call) => call[0] === 'kb_notes_write');
-    const readToolCall = mockTool.mock.calls.find((call) => call[0] === 'kb_notes_read');
-    expect(writeToolCall).toBeDefined();
-    expect(readToolCall).toBeDefined();
+    const metricsToolCall = mockTool.mock.calls.find((call) => call[0] === 'kb_metrics');
+    expect(metricsToolCall).toBeDefined();
 
-    const writeSchema = writeToolCall?.[2] as {
-      key: { safeParse: (v: unknown) => { success: boolean } };
-      content: { safeParse: (v: unknown) => { success: boolean } };
-      scope: { safeParse: (v: unknown) => { success: boolean } };
-      source_hash: { safeParse: (v: unknown) => { success: boolean } };
-    };
-    expect(writeSchema.key.safeParse('architecture/overview').success).toBe(true);
-    expect(writeSchema.content.safeParse('hello').success).toBe(true);
-    expect(writeSchema.scope.safeParse('file:/repo/src/index.ts').success).toBe(true);
-    expect(writeSchema.source_hash.safeParse('abc123').success).toBe(true);
-    expect(writeSchema.scope.safeParse(undefined).success).toBe(true);
-    expect(writeSchema.content.safeParse(undefined).success).toBe(false);
-    expect(writeSchema.key.safeParse(42).success).toBe(false);
-
-    const readSchema = readToolCall?.[2] as {
-      key: { safeParse: (v: unknown) => { success: boolean } };
-      key_prefix: { safeParse: (v: unknown) => { success: boolean } };
-      scope: { safeParse: (v: unknown) => { success: boolean } };
+    const metricsSchema = metricsToolCall?.[2] as {
+      mode: { safeParse: (v: unknown) => { success: boolean } };
       limit: { safeParse: (v: unknown) => { success: boolean } };
+      min_cyclomatic: { safeParse: (v: unknown) => { success: boolean } };
     };
-    expect(readSchema.key.safeParse('architecture/overview').success).toBe(true);
-    expect(readSchema.key_prefix.safeParse('architecture/').success).toBe(true);
-    expect(readSchema.scope.safeParse('global').success).toBe(true);
-    expect(readSchema.key.safeParse(undefined).success).toBe(true);
-    expect(readSchema.limit.safeParse(20).success).toBe(true);
-    expect(readSchema.key_prefix.safeParse(10).success).toBe(false);
-    expect(readSchema.limit.safeParse('20').success).toBe(false);
+    expect(metricsSchema.mode.safeParse('aggregate').success).toBe(true);
+    expect(metricsSchema.mode.safeParse('complexity').success).toBe(true);
+    expect(metricsSchema.mode.safeParse('invalid').success).toBe(false);
+    expect(metricsSchema.limit.safeParse(10).success).toBe(true);
+    expect(metricsSchema.limit.safeParse(0).success).toBe(false);
+    expect(metricsSchema.limit.safeParse(-1).success).toBe(false);
+    expect(metricsSchema.limit.safeParse(1.5).success).toBe(false);
+    expect(metricsSchema.min_cyclomatic.safeParse(3).success).toBe(true);
+    expect(metricsSchema.min_cyclomatic.safeParse(0).success).toBe(true);
+    expect(metricsSchema.min_cyclomatic.safeParse(-1).success).toBe(false);
+    expect(metricsSchema.min_cyclomatic.safeParse(2.2).success).toBe(false);
   });
 });

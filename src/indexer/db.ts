@@ -91,6 +91,16 @@ CREATE TABLE IF NOT EXISTS symbol_summaries (
   created_at INTEGER NOT NULL DEFAULT (unixepoch())
 );
 
+-- Per-symbol complexity metrics.
+CREATE TABLE IF NOT EXISTS symbol_metrics (
+  symbol_id   INTEGER PRIMARY KEY REFERENCES symbols(id) ON DELETE CASCADE,
+  line_count  INTEGER NOT NULL,
+  param_count INTEGER NOT NULL,
+  cyclomatic  INTEGER NOT NULL,
+  max_nesting INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_symbol_metrics_cyclomatic ON symbol_metrics(cyclomatic);
+
 -- Key-value store for knowledge-base metadata (schema version, embedding model, etc.).
 CREATE TABLE IF NOT EXISTS kb_meta (
   key   TEXT PRIMARY KEY,
