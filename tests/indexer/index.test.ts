@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, writeFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { execSync } from 'node:child_process';
 import Database from 'better-sqlite3';
 import { IndexBuilder } from '../../src/indexer/index.js';
 
@@ -30,6 +31,13 @@ function queryFilesWithBranch(dbPath: string, branch: string): { path: string; b
   const rows = db.prepare('SELECT path, branch FROM files WHERE branch = ?').all(branch) as { path: string; branch: string }[];
   db.close();
   return rows;
+}
+
+function queryCommitCount(dbPath: string): number {
+  const db = new Database(dbPath, { readonly: true });
+  const row = db.prepare('SELECT COUNT(*) as count FROM commits').get() as { count: number };
+  db.close();
+  return row.count;
 }
 
 describe('IndexBuilder — branch support in build()', () => {
@@ -139,5 +147,39 @@ describe('IndexBuilder — branch support in update()', () => {
 
     const headFiles = queryFilesWithBranch(dbPath, 'HEAD');
     expect(headFiles.length).toBeGreaterThan(0);
+  });
+
+  it('should ingest git history during update() when history is enabled', async () => {
+    execSync('git init', { cwd: srcDir, stdio: 'ignore' });
+    execSync('git config user.name "Test User"', { cwd: srcDir, stdio: 'ignore' });
+    execSync('git config user.email "test@example.com"', { cwd: srcDir, stdio: 'ignore' });
+    execSync('git add hello.ts', { cwd: srcDir, stdio: 'ignore' });
+    execSync('git commit -m "initial commit"', { cwd: srcDir, stdio: 'ignore' });
+
+    writeFileSync(srcFile, 'export function updatedWithHistory(): void {}\n');
+
+    const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' }, undefined, { history: true });
+    await builder.update([srcFile]);
+
+    expect(queryCommitCount(dbPath)).toBeGreaterThan(0);
+  });
+
+  it('should respect history options during update() when history is configured as an object', async () => {
+    execSync('git init', { cwd: srcDir, stdio: 'ignore' });
+    execSync('git config user.name "Test User"', { cwd: srcDir, stdio: 'ignore' });
+    execSync('git config user.email "test@example.com"', { cwd: srcDir, stdio: 'ignore' });
+    execSync('git add hello.ts', { cwd: srcDir, stdio: 'ignore' });
+    execSync('git commit -m "initial commit"', { cwd: srcDir, stdio: 'ignore' });
+
+    writeFileSync(srcFile, 'export function secondCommit(): void {}\n');
+    execSync('git add hello.ts', { cwd: srcDir, stdio: 'ignore' });
+    execSync('git commit -m "second commit"', { cwd: srcDir, stdio: 'ignore' });
+
+    const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' }, undefined, {
+      history: { depth: 1, all: false },
+    });
+    await builder.update([srcFile]);
+
+    expect(queryCommitCount(dbPath)).toBe(1);
   });
 });
