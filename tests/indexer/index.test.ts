@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mkdtempSync, writeFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -30,6 +30,19 @@ function queryFilesWithBranch(dbPath: string, branch: string): { path: string; b
   const rows = db.prepare('SELECT path, branch FROM files WHERE branch = ?').all(branch) as { path: string; branch: string }[];
   db.close();
   return rows;
+}
+
+function querySymbolNamesForFile(dbPath: string, filePath: string, branch: string): string[] {
+  const db = new Database(dbPath, { readonly: true });
+  const rows = db.prepare(
+    `SELECT s.name
+     FROM symbols s
+     JOIN files f ON f.id = s.file_id
+     WHERE f.path = ? AND f.branch = ?
+     ORDER BY s.name`,
+  ).all(filePath, branch) as { name: string }[];
+  db.close();
+  return rows.map((r) => r.name);
 }
 
 describe('IndexBuilder — branch support in build()', () => {
@@ -139,5 +152,75 @@ describe('IndexBuilder — branch support in update()', () => {
 
     const headFiles = queryFilesWithBranch(dbPath, 'HEAD');
     expect(headFiles.length).toBeGreaterThan(0);
+  });
+});
+
+describe('IndexBuilder — transactional file loops', () => {
+  let srcDir: string;
+  let dbPath: string;
+
+  beforeEach(() => {
+    srcDir = mkdtempSync(join(tmpdir(), 'lore-index-test-src-'));
+    dbPath = tmpDbPath();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    try { rmSync(srcDir, { recursive: true, force: true }); } catch { /* ignore */ }
+    const dbDir = join(dbPath, '..');
+    try { rmSync(dbDir, { recursive: true, force: true }); } catch { /* ignore */ }
+  });
+
+  it('should roll back build() file writes when one file processing step fails', async () => {
+    const firstFile = join(srcDir, 'one.ts');
+    const secondFile = join(srcDir, 'two.ts');
+    writeFileSync(firstFile, 'export function one(): string { return "one"; }\n');
+    writeFileSync(secondFile, 'export function two(): string { return "two"; }\n');
+
+    const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
+    const privateBuilder = builder as unknown as {
+      processFile: (db: unknown, filePath: string, language: string, branch: string) => void;
+    };
+    const originalProcessFile = privateBuilder.processFile.bind(builder) as typeof privateBuilder.processFile;
+    let calls = 0;
+    vi.spyOn(privateBuilder, 'processFile').mockImplementation((db, filePath, language, branch) => {
+      calls += 1;
+      if (calls === 2) throw new Error('forced build failure');
+      originalProcessFile(db, filePath, language, branch);
+    });
+
+    await expect(builder.build()).rejects.toThrow('forced build failure');
+    expect(queryFilesWithBranch(dbPath, 'main')).toEqual([]);
+  });
+
+  it('should roll back update() file writes when one changed file fails to process', async () => {
+    const firstFile = join(srcDir, 'one.ts');
+    const secondFile = join(srcDir, 'two.ts');
+    writeFileSync(firstFile, 'export function one(): string { return "one"; }\n');
+    writeFileSync(secondFile, 'export function two(): string { return "two"; }\n');
+
+    const seedBuilder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
+    await seedBuilder.build();
+    expect(querySymbolNamesForFile(dbPath, firstFile, 'main')).toContain('one');
+
+    writeFileSync(firstFile, 'export function oneUpdated(): string { return "one"; }\n');
+    writeFileSync(secondFile, 'export function twoUpdated(): string { return "two"; }\n');
+
+    const updateBuilder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
+    const privateBuilder = updateBuilder as unknown as {
+      processFile: (db: unknown, filePath: string, language: string, branch: string) => void;
+    };
+    const originalProcessFile = privateBuilder.processFile.bind(updateBuilder) as typeof privateBuilder.processFile;
+    let calls = 0;
+    vi.spyOn(privateBuilder, 'processFile').mockImplementation((db, filePath, language, branch) => {
+      calls += 1;
+      if (calls === 2) throw new Error('forced update failure');
+      originalProcessFile(db, filePath, language, branch);
+    });
+
+    await expect(updateBuilder.update([firstFile, secondFile])).rejects.toThrow('forced update failure');
+    const symbolNames = querySymbolNamesForFile(dbPath, firstFile, 'main');
+    expect(symbolNames).toContain('one');
+    expect(symbolNames).not.toContain('oneUpdated');
   });
 });
