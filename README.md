@@ -237,6 +237,10 @@ gracefully degrades to structural search.
 | `kb_metrics` | Return aggregate index metrics and per-branch breakdown |
 | `kb_writeback` | Persist symbol summaries into `symbol_summaries` |
 | `kb_history` | Query history by file, commit, author, ref, or recency |
+| `kb_notes_write` | Upsert LLM notes by `key` + `scope` (`scope` defaults to `global`) |
+| `kb_notes_read` | Read notes by `key`/`key_prefix`/`scope` with freshness metadata |
+
+Use `kb_notes_write` to persist reusable memory (for example architecture or file-specific notes), and `kb_notes_read` to fetch that memory later with stale indicators (`source_hash`/index recency) so callers can decide when to refresh.
 
 ### MCP config example
 
