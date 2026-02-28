@@ -47,6 +47,14 @@ export interface RawCallRef {
   line: number;
 }
 
+/** An environment-variable reference found in a source file. */
+export interface RawEnvRef {
+  /** Environment-variable key (e.g. `DATABASE_URL`). */
+  key: string;
+  /** 0-indexed line of the reference. */
+  line: number;
+}
+
 /** A semantic relationship between two symbols found in a source file. */
 export interface RawRelationship {
   /** Relationship category (e.g. `extends`, `implements`). */
@@ -64,6 +72,7 @@ export interface ExtractionResult {
   symbols: RawSymbol[];
   imports: RawImport[];
   callRefs: RawCallRef[];
+  envRefs: RawEnvRef[];
   relationships: RawRelationship[];
 }
 
@@ -129,5 +138,5 @@ export function nodeSignature(node: Parser.SyntaxNode): string {
 
 /** Returns an empty `ExtractionResult`. */
 export function emptyResult(): ExtractionResult {
-  return { symbols: [], imports: [], callRefs: [], relationships: [] };
+  return { symbols: [], imports: [], callRefs: [], envRefs: [], relationships: [] };
 }
