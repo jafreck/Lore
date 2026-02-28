@@ -281,3 +281,49 @@ describe('IndexBuilder — transactional file loops', () => {
     expect(symbolNames).not.toContain('oneUpdated');
   });
 });
+
+describe('IndexBuilder — call graph resolution during indexing', () => {
+  let srcDir: string;
+  let dbPath: string;
+  let srcFile: string;
+
+  beforeEach(() => {
+    srcDir = createTmpSrcDir();
+    dbPath = tmpDbPath();
+    srcFile = join(srcDir, 'hello.ts');
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+    vi.resetModules();
+    try { rmSync(srcDir, { recursive: true, force: true }); } catch { /* ignore */ }
+    const dbDir = join(dbPath, '..');
+    try { rmSync(dbDir, { recursive: true, force: true }); } catch { /* ignore */ }
+  });
+
+  it('should invoke buildCallGraph during build()', async () => {
+    vi.resetModules();
+    const buildCallGraph = vi.fn();
+    vi.doMock('../../src/indexer/call-graph.js', () => ({ buildCallGraph }));
+    const { IndexBuilder: MockedIndexBuilder } = await import('../../src/indexer/index.js');
+
+    const builder = new MockedIndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
+    await builder.build();
+
+    expect(buildCallGraph).toHaveBeenCalledTimes(1);
+  });
+
+  it('should invoke buildCallGraph during update()', async () => {
+    vi.resetModules();
+    const buildCallGraph = vi.fn();
+    vi.doMock('../../src/indexer/call-graph.js', () => ({ buildCallGraph }));
+    const { IndexBuilder: MockedIndexBuilder } = await import('../../src/indexer/index.js');
+    const builder = new MockedIndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
+    await builder.build();
+
+    writeFileSync(srcFile, 'export function updated(): string { return "ok"; }\n');
+    await builder.update([srcFile]);
+
+    expect(buildCallGraph).toHaveBeenCalledTimes(2);
+  });
+});
