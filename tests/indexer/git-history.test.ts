@@ -392,6 +392,86 @@ describe('ingestGitHistory', () => {
     ]);
   });
 
+  it('should replace stale commit_refs mappings on subsequent ingestion runs', async () => {
+    mockRaw
+      .mockResolvedValueOnce(
+        buildLogOutput([
+          {
+            sha: 'old111',
+            author: 'Ivy',
+            authorEmail: 'ivy@example.com',
+            timestamp: 1700000011,
+            parents: '',
+            message: 'Old ref target',
+            files: [],
+          },
+        ]),
+      )
+      .mockResolvedValueOnce('old111 refs/heads/main')
+      .mockResolvedValueOnce('')
+      .mockResolvedValueOnce(
+        buildLogOutput([
+          {
+            sha: 'new222',
+            author: 'Ivy',
+            authorEmail: 'ivy@example.com',
+            timestamp: 1700000012,
+            parents: 'old111',
+            message: 'New ref target',
+            files: [],
+          },
+        ]),
+      )
+      .mockResolvedValueOnce('new222 refs/heads/main');
+
+    const db = openDb(dbPath);
+    const { ingestGitHistory } = await import('../../src/indexer/git-history.js');
+    await ingestGitHistory(db, '/fake/repo');
+    await ingestGitHistory(db, '/fake/repo');
+
+    const refs = db
+      .prepare('SELECT commit_sha, ref_name, ref_type FROM commit_refs ORDER BY commit_sha ASC')
+      .all() as Array<{ commit_sha: string; ref_name: string; ref_type: string }>;
+    db.close();
+
+    expect(refs).toEqual([
+      { commit_sha: 'new222', ref_name: 'refs/heads/main', ref_type: 'branch' },
+    ]);
+  });
+
+  it('should parse refs separated by non-space whitespace', async () => {
+    mockRaw
+      .mockResolvedValueOnce(
+        buildLogOutput([
+          {
+            sha: 'tab333',
+            author: 'Ivy',
+            authorEmail: 'ivy@example.com',
+            timestamp: 1700000013,
+            parents: '',
+            message: 'Whitespace ref parsing',
+            files: [],
+          },
+        ]),
+      )
+      .mockResolvedValueOnce('tab333\trefs/heads/main');
+
+    const db = openDb(dbPath);
+    const { ingestGitHistory } = await import('../../src/indexer/git-history.js');
+    await ingestGitHistory(db, '/fake/repo');
+
+    const refs = db.prepare('SELECT commit_sha, ref_name, ref_type FROM commit_refs').all() as Array<{
+      commit_sha: string;
+      ref_name: string;
+      ref_type: string;
+    }>;
+    db.close();
+
+    expect(refs).toEqual([
+      { commit_sha: 'tab333', ref_name: 'refs/heads/main', ref_type: 'branch' },
+    ]);
+  });
+
   it('should detect deleted files (only deletions, no insertions)', async () => {
     mockRaw.mockResolvedValue(
       buildLogOutput([

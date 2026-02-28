@@ -92,6 +92,7 @@ export async function ingestGitHistory(
      SELECT ?, ?, ?
      WHERE EXISTS (SELECT 1 FROM commits WHERE sha = ?)`,
   );
+  const deleteCommitRefs = db.prepare('DELETE FROM commit_refs');
 
   // Parse the raw git log output into commit blocks.
   // Each block starts with "COMMIT_SEP" followed by commit metadata lines,
@@ -155,10 +156,14 @@ export async function ingestGitHistory(
       .map((line) => line.trim())
       .filter((line) => line.length > 0);
 
-    for (const line of refLines) {
-      const [sha, refName] = line.split(' ');
-      if (!sha || !refName) continue;
+    const refs = refLines
+      .map((line) => line.split(/\s+/, 2))
+      .filter((parts): parts is [string, string] => Boolean(parts[0]) && Boolean(parts[1]))
+      .map(([sha, refName]) => ({ sha, refName }));
 
+    deleteCommitRefs.run();
+
+    for (const { sha, refName } of refs) {
       let refType = 'other';
       if (refName.startsWith('refs/heads/')) {
         refType = 'branch';

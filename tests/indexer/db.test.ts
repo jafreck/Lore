@@ -1,6 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import Database from 'better-sqlite3';
-import { openDb, setKbMeta, getKbMeta } from '../../src/indexer/db.js';
+import {
+  openDb,
+  setKbMeta,
+  getKbMeta,
+  createVec0Tables,
+  KB_META_INDEX_CHECKPOINT,
+  KB_META_LAST_HEAD_SHA,
+} from '../../src/indexer/db.js';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { unlinkSync, existsSync } from 'node:fs';
@@ -108,5 +115,43 @@ describe('setKbMeta / getKbMeta', () => {
     setKbMeta(db, 'model', 'v1');
     setKbMeta(db, 'model', 'v2');
     expect(getKbMeta(db, 'model')).toBe('v2');
+  });
+
+  it('should export expected kb_meta key constants', () => {
+    expect(KB_META_INDEX_CHECKPOINT).toBe('index_checkpoint');
+    expect(KB_META_LAST_HEAD_SHA).toBe('last_known_head_sha');
+  });
+});
+
+describe('createVec0Tables', () => {
+  let dbPath: string;
+  let db: Database.Database;
+
+  beforeEach(() => {
+    dbPath = join(tmpdir(), `lore-test-${Date.now()}-${Math.random()}.db`);
+    db = openDb(dbPath);
+  });
+
+  afterEach(() => {
+    db?.close();
+    if (existsSync(dbPath)) unlinkSync(dbPath);
+    const walPath = dbPath + '-wal';
+    const shmPath = dbPath + '-shm';
+    if (existsSync(walPath)) unlinkSync(walPath);
+    if (existsSync(shmPath)) unlinkSync(shmPath);
+  });
+
+  it('should create vec0 embedding tables and persist embedding_dims', () => {
+    createVec0Tables(db, 4);
+
+    const tables = (
+      db
+        .prepare("SELECT name FROM sqlite_master WHERE type IN ('table', 'virtual table')")
+        .all() as { name: string }[]
+    ).map((r) => r.name);
+
+    expect(tables).toContain('symbol_embeddings');
+    expect(tables).toContain('symbol_semantic_embeddings');
+    expect(getKbMeta(db, 'embedding_dims')).toBe('4');
   });
 });
