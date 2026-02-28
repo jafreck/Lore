@@ -59,6 +59,15 @@ CREATE TABLE IF NOT EXISTS symbol_refs (
   call_line   INTEGER NOT NULL
 );
 
+-- Semantic symbol relationships (e.g. inheritance edges).
+CREATE TABLE IF NOT EXISTS symbol_relationships (
+  id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+  source_symbol_id    INTEGER NOT NULL REFERENCES symbols(id) ON DELETE CASCADE,
+  target_symbol_id    INTEGER REFERENCES symbols(id) ON DELETE SET NULL,
+  target_symbol_name  TEXT    NOT NULL,
+  relationship_type   TEXT    NOT NULL
+);
+
 -- External (third-party / stdlib) dependencies inferred from imports.
 CREATE TABLE IF NOT EXISTS external_deps (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,

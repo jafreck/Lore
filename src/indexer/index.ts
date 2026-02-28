@@ -19,7 +19,7 @@ import type { WalkerConfig } from './walker.js';
 import { ingestGitHistory } from './git-history.js';
 import { ParserPool } from './parser.js';
 import { ImportResolver } from './resolver.js';
-import type { ExtractionResult, RawCallRef, RawImport, RawSymbol } from './extractors/types.js';
+import type { ExtractionResult, RawCallRef, RawImport, RawRelationship, RawSymbol } from './extractors/types.js';
 import { CExtractor } from './extractors/c.js';
 import { RustExtractor } from './extractors/rust.js';
 import { PythonExtractor } from './extractors/python.js';
@@ -355,6 +355,35 @@ export class IndexBuilder {
         insertCallRef.run(callerId, ref.calleeRaw, ref.line);
       }
     }
+
+    // Insert semantic symbol relationships (e.g. class extends).
+    const insertRelationship = db.prepare(
+      `INSERT INTO symbol_relationships (
+         source_symbol_id,
+         target_symbol_id,
+         target_symbol_name,
+         relationship_type
+       ) VALUES (?, ?, ?, ?)`,
+    );
+    for (const relationship of result.relationships) {
+      this.insertRelationshipRow(insertRelationship, symbolIdMap, relationship);
+    }
+  }
+
+  private insertRelationshipRow(
+    insertRelationship: Database.Statement,
+    symbolIdMap: Map<string, number>,
+    relationship: RawRelationship,
+  ): void {
+    const sourceSymbolId = symbolIdMap.get(relationship.fromSymbol);
+    if (sourceSymbolId === undefined) return;
+    const targetSymbolId = symbolIdMap.get(relationship.toSymbol) ?? null;
+    insertRelationship.run(
+      sourceSymbolId,
+      targetSymbolId,
+      relationship.toSymbol,
+      relationship.kind,
+    );
   }
 
   /**
