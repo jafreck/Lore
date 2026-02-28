@@ -73,7 +73,37 @@ describe('openDb', () => {
     expect(tables).toContain('files');
     expect(tables).toContain('symbols');
     expect(tables).toContain('kb_meta');
+    expect(tables).toContain('notes');
     expect(tables).toContain('commit_refs');
+  });
+
+  it('should enforce UNIQUE(key, scope) constraint on notes table', () => {
+    db = openDb(dbPath);
+    db.prepare("INSERT INTO notes (key, scope, content) VALUES ('k1', 'global', 'first')").run();
+    expect(() =>
+      db.prepare("INSERT INTO notes (key, scope, content) VALUES ('k1', 'global', 'second')").run()
+    ).toThrow();
+    expect(() =>
+      db.prepare("INSERT INTO notes (key, scope, content) VALUES ('k1', 'file:a.ts', 'second')").run()
+    ).not.toThrow();
+  });
+
+  it('should create notes columns with expected defaults', () => {
+    db = openDb(dbPath);
+    const cols = db.prepare("PRAGMA table_info('notes')").all() as {
+      name: string;
+      dflt_value: string | null;
+    }[];
+    const byName = new Map(cols.map((col) => [col.name, col]));
+
+    expect(byName.get('id')).toBeDefined();
+    expect(byName.get('key')).toBeDefined();
+    expect(byName.get('scope')?.dflt_value).toBe("'global'");
+    expect(byName.get('content')).toBeDefined();
+    expect(byName.get('model')?.dflt_value).toBe("''");
+    expect(byName.get('source_hash')).toBeDefined();
+    expect(byName.get('created_at')?.dflt_value).toContain('unixepoch');
+    expect(byName.get('updated_at')?.dflt_value).toContain('unixepoch');
   });
 
   it('should be idempotent — calling openDb twice on the same path is safe', () => {

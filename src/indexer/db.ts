@@ -97,6 +97,19 @@ CREATE TABLE IF NOT EXISTS kb_meta (
   value TEXT NOT NULL
 );
 
+-- User and system notes scoped by key/scope pair.
+CREATE TABLE IF NOT EXISTS notes (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  key         TEXT    NOT NULL,
+  scope       TEXT    NOT NULL DEFAULT 'global',
+  content     TEXT    NOT NULL,
+  model       TEXT    NOT NULL DEFAULT '',
+  source_hash TEXT,
+  created_at  INTEGER NOT NULL DEFAULT (unixepoch()),
+  updated_at  INTEGER NOT NULL DEFAULT (unixepoch()),
+  UNIQUE(key, scope)
+);
+
 -- Full-text search index over symbol names, signatures, and kinds (BM25 via FTS5).
 CREATE VIRTUAL TABLE IF NOT EXISTS symbols_fts USING fts5(
   name, signature, kind
