@@ -21,6 +21,13 @@ import {
   listCommitFiles,
   listCommitRefs,
   listCommitsByRef,
+  listCommitCadence,
+  listCommitSizes,
+  listCommitChurnByFile,
+  listCommitAuthorStats,
+  listCommitMessagePrefixes,
+  listCommitSchedule,
+  listCommitBranchActivity,
   type FileRow,
   type SymbolRow,
 } from '../../src/kb-server/db.js';
@@ -398,11 +405,11 @@ describe('commit helpers', () => {
     db.prepare(
       `INSERT INTO commits (sha, author, author_email, timestamp, message, parents)
        VALUES (?, ?, ?, ?, ?, '[]')`,
-    ).run('bbb222', 'Bob', 'bob@example.com', 1700000003, 'second');
+    ).run('bbb222', 'Bob', 'bob@example.com', 1700172800, 'second');
     db.prepare(
       `INSERT INTO commits (sha, author, author_email, timestamp, message, parents)
        VALUES (?, ?, ?, ?, ?, '[]')`,
-    ).run('ccc333', 'Alice', 'alice@example.com', 1700000002, 'third');
+    ).run('ccc333', 'Alice', 'alice@example.com', 1700086400, 'third');
 
     db.prepare(
       `INSERT INTO commit_files (commit_sha, file_path, change_type, insertions, deletions)
@@ -497,6 +504,91 @@ describe('commit helpers', () => {
 
     expect(listCommitRefs(noRefsDb, 'sha1')).toEqual([]);
     expect(listCommitsByRef(noRefsDb, 'main', 10)).toEqual([]);
+    noRefsDb.close();
+  });
+
+  it('should apply author filters to commit-stat helpers', () => {
+    const rows = listCommitAuthorStats(db, { author: 'alice' });
+    expect(rows.length).toBe(1);
+    expect(rows[0].author).toBe('Alice');
+    expect(rows[0].commit_count).toBe(2);
+  });
+
+  it('should apply since/until date filters to commit-stat helpers', () => {
+    const since = '2023-11-15';
+    const until = '2023-11-15';
+    const rows = listCommitSizes(db, { since, until });
+    expect(rows.map((row) => row.sha)).toEqual(['ccc333']);
+  });
+
+  it('should use default top-N limit and allow explicit override', () => {
+    for (let index = 0; index < 30; index += 1) {
+      const sha = `bulk-${index.toString().padStart(2, '0')}`;
+      db.prepare(
+        `INSERT INTO commits (sha, author, author_email, timestamp, message, parents)
+         VALUES (?, ?, ?, ?, ?, '[]')`,
+      ).run(sha, 'Bulk', 'bulk@example.com', 1700259200 + index, `bulk ${index}`);
+      db.prepare(
+        `INSERT INTO commit_files (commit_sha, file_path, change_type, insertions, deletions)
+         VALUES (?, ?, ?, 1, 1)`,
+      ).run(sha, `src/bulk-${index}.ts`, 'modified');
+    }
+
+    const defaultRows = listCommitChurnByFile(db);
+    const customRows = listCommitChurnByFile(db, { limit: 5 });
+    expect(defaultRows.length).toBe(20);
+    expect(customRows.length).toBe(5);
+  });
+
+  it('should aggregate cadence by granularity with shared filters', () => {
+    const allDays = listCommitCadence(db, 'day');
+    const filteredDays = listCommitCadence(db, 'day', { author: 'Bob' });
+    expect(allDays.reduce((acc, row) => acc + row.commits, 0)).toBe(3);
+    expect(filteredDays.reduce((acc, row) => acc + row.commits, 0)).toBe(1);
+  });
+
+  it('should aggregate normalized commit message prefixes with limits', () => {
+    db.prepare(
+      `INSERT INTO commits (sha, author, author_email, timestamp, message, parents)
+       VALUES (?, ?, ?, ?, ?, '[]')`,
+    ).run('ddd444', 'Alice', 'alice@example.com', 1700260000, 'feat: add endpoint');
+    db.prepare(
+      `INSERT INTO commits (sha, author, author_email, timestamp, message, parents)
+       VALUES (?, ?, ?, ?, ?, '[]')`,
+    ).run('eee555', 'Bob', 'bob@example.com', 1700261000, 'fix: patch bug');
+
+    const rows = listCommitMessagePrefixes(db, { limit: 2 });
+    expect(rows).toEqual([
+      { prefix: '(other)', count: 3 },
+      { prefix: 'feat:', count: 1 },
+    ]);
+  });
+
+  it('should aggregate commit schedule by UTC day and hour', () => {
+    const first = new Date(1700000001 * 1000);
+    const rows = listCommitSchedule(db, { author: 'Alice' });
+    expect(rows).toContainEqual({
+      day_of_week: first.getUTCDay(),
+      hour_of_day: first.getUTCHours(),
+      commits: 1,
+    });
+    expect(rows.reduce((acc, row) => acc + row.commits, 0)).toBe(2);
+  });
+
+  it('should aggregate branch activity and return empty rows when refs are unavailable', () => {
+    const rows = listCommitBranchActivity(db);
+    expect(rows).toEqual([
+      { ref_name: 'refs/heads/main', ref_type: 'branch', commits: 1 },
+      { ref_name: 'refs/remotes/origin/main', ref_type: 'branch', commits: 1 },
+      { ref_name: 'refs/tags/v1.0.0', ref_type: 'tag', commits: 1 },
+    ]);
+
+    const noRefsDb = createCommitDb(false);
+    noRefsDb.prepare(
+      `INSERT INTO commits (sha, author, author_email, timestamp, message, parents)
+       VALUES (?, ?, ?, ?, ?, '[]')`,
+    ).run('sha2', 'User', 'user@example.com', 1, 'msg');
+    expect(listCommitBranchActivity(noRefsDb)).toEqual([]);
     noRefsDb.close();
   });
 });
