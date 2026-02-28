@@ -236,6 +236,71 @@ describe('IndexBuilder — branch support in update()', () => {
     expect(queryStructuralEmbeddingCount(dbPath)).toBeGreaterThan(0);
   });
 
+  it('should remove branch-scoped file rows and related symbols_fts entries when a tracked file is deleted', async () => {
+    const importingFile = join(srcDir, 'consumer.ts');
+    writeFileSync(importingFile, 'import { hello } from "./hello";\nexport const value = hello();\n');
+    const builderMainForImport = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
+    await builderMainForImport.update([importingFile]);
+
+    const builderDev = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'dev' });
+    await builderDev.build();
+
+    const beforeDb = new Database(dbPath, { readonly: true });
+    const mainFileRow = beforeDb
+      .prepare('SELECT id FROM files WHERE path = ? AND branch = ?')
+      .get(srcFile, 'main') as { id: number } | undefined;
+    expect(mainFileRow).toBeDefined();
+
+    const mainSymbolIds = beforeDb
+      .prepare(
+        'SELECT s.id FROM symbols s JOIN files f ON f.id = s.file_id WHERE f.path = ? AND f.branch = ?',
+      )
+      .all(srcFile, 'main') as Array<{ id: number }>;
+    const resolvedImportRows = beforeDb
+      .prepare(
+        `SELECT fi.id
+         FROM file_imports fi
+         JOIN files f ON f.id = fi.file_id
+         WHERE fi.resolved_id = ? AND f.branch = ?`,
+      )
+      .all(mainFileRow!.id, 'main') as Array<{ id: number }>;
+    beforeDb.close();
+    expect(mainSymbolIds.length).toBeGreaterThan(0);
+    expect(resolvedImportRows.length).toBeGreaterThan(0);
+
+    rmSync(srcFile, { force: true });
+    const builderMain = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
+    await builderMain.update([srcFile]);
+
+    const afterDb = new Database(dbPath, { readonly: true });
+    const deletedMainFile = afterDb
+      .prepare('SELECT id FROM files WHERE path = ? AND branch = ?')
+      .get(srcFile, 'main') as { id: number } | undefined;
+    const devFile = afterDb
+      .prepare('SELECT id FROM files WHERE path = ? AND branch = ?')
+      .get(srcFile, 'dev') as { id: number } | undefined;
+    const staleFtsCountRow = afterDb
+      .prepare(
+        `SELECT COUNT(*) AS count
+         FROM symbols_fts
+         WHERE rowid IN (${mainSymbolIds.map(() => '?').join(',')})`,
+      )
+      .get(...mainSymbolIds.map(row => row.id)) as { count: number };
+    const clearedResolvedCount = afterDb
+      .prepare(
+        `SELECT COUNT(*) AS count
+         FROM file_imports
+         WHERE id IN (${resolvedImportRows.map(() => '?').join(',')}) AND resolved_id IS NULL`,
+      )
+      .get(...resolvedImportRows.map(row => row.id)) as { count: number };
+    afterDb.close();
+
+    expect(deletedMainFile).toBeUndefined();
+    expect(devFile).toBeDefined();
+    expect(staleFtsCountRow.count).toBe(0);
+    expect(clearedResolvedCount.count).toBe(resolvedImportRows.length);
+  });
+
   it('should detect and use the current git branch during update when branch is omitted', async () => {
     const gitBranch = createGitRepoWithCommit(srcDir, 'feature/update-auto');
     const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: gitBranch });
