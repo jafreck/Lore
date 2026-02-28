@@ -47,6 +47,13 @@ function queryFilesWithBranch(dbPath: string, branch: string): { path: string; b
   return rows;
 }
 
+function queryCommitCount(dbPath: string): number {
+  const db = new Database(dbPath, { readonly: true });
+  const row = db.prepare('SELECT COUNT(*) as count FROM commits').get() as { count: number };
+  db.close();
+  return row.count;
+}
+
 function querySymbolNamesForFile(dbPath: string, filePath: string, branch: string): string[] {
   const db = new Database(dbPath, { readonly: true });
   const rows = db.prepare(
@@ -196,6 +203,40 @@ describe('IndexBuilder — branch support in update()', () => {
 
     const headFiles = queryFilesWithBranch(dbPath, 'HEAD');
     expect(headFiles.length).toBeGreaterThan(0);
+  });
+
+  it('should ingest git history during update() when history is enabled', async () => {
+    runGit(srcDir, ['init']);
+    runGit(srcDir, ['config', 'user.name', 'Test User']);
+    runGit(srcDir, ['config', 'user.email', 'test@example.com']);
+    runGit(srcDir, ['add', 'hello.ts']);
+    runGit(srcDir, ['commit', '-m', 'initial commit']);
+
+    writeFileSync(srcFile, 'export function updatedWithHistory(): void {}\n');
+
+    const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' }, undefined, { history: true });
+    await builder.update([srcFile]);
+
+    expect(queryCommitCount(dbPath)).toBeGreaterThan(0);
+  });
+
+  it('should respect history options during update() when history is configured as an object', async () => {
+    runGit(srcDir, ['init']);
+    runGit(srcDir, ['config', 'user.name', 'Test User']);
+    runGit(srcDir, ['config', 'user.email', 'test@example.com']);
+    runGit(srcDir, ['add', 'hello.ts']);
+    runGit(srcDir, ['commit', '-m', 'initial commit']);
+
+    writeFileSync(srcFile, 'export function secondCommit(): void {}\n');
+    runGit(srcDir, ['add', 'hello.ts']);
+    runGit(srcDir, ['commit', '-m', 'second commit']);
+
+    const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' }, undefined, {
+      history: { depth: 1, all: false },
+    });
+    await builder.update([srcFile]);
+
+    expect(queryCommitCount(dbPath)).toBe(1);
   });
 
   it('should remove branch-scoped file rows and related symbols_fts entries when a tracked file is deleted', async () => {

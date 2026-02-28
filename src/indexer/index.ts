@@ -228,6 +228,11 @@ export class IndexBuilder {
       })();
 
       this.resolveImports(db, branch);
+      if (this.history) {
+        const historyOptions =
+          typeof this.history === 'object' ? this.history : undefined;
+        await ingestGitHistory(db, this.walkerConfig.rootDir, historyOptions);
+      }
       buildCallGraph(db);
       this.saveLastKnownHead(db);
     } finally {
