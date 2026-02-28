@@ -204,6 +204,57 @@ export function listAnnotations(
     .all(kind, limit) as AnnotationRow[];
 }
 
+// ─── Route helpers ────────────────────────────────────────────────────────────
+
+export interface ApiRouteRow {
+  method: string;
+  path: string;
+  handler: string;
+  file: string;
+  line: number;
+  framework: string;
+}
+
+export interface ListApiRoutesArgs {
+  method?: string;
+  pathPrefix?: string;
+  framework?: string;
+}
+
+export function listApiRoutes(db: Database.Database, args: ListApiRoutesArgs = {}): ApiRouteRow[] {
+  const clauses: string[] = [];
+  const params: Array<string | number> = [];
+
+  if (args.method !== undefined) {
+    clauses.push('ar.method = ? COLLATE NOCASE');
+    params.push(args.method);
+  }
+  if (args.pathPrefix !== undefined) {
+    clauses.push('ar.path LIKE ?');
+    params.push(`${args.pathPrefix}%`);
+  }
+  if (args.framework !== undefined) {
+    clauses.push('ar.framework = ? COLLATE NOCASE');
+    params.push(args.framework);
+  }
+
+  const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+  return db
+    .prepare(
+      `SELECT ar.method,
+              ar.path,
+              ar.handler_name AS handler,
+              f.path AS file,
+              ar.line,
+              ar.framework
+         FROM api_routes ar
+         JOIN files f ON f.id = ar.file_id
+         ${where}
+         ORDER BY ar.method, ar.path, f.path`,
+    )
+    .all(...params) as ApiRouteRow[];
+}
+
 // ─── Commit helpers ───────────────────────────────────────────────────────────
 
 export interface CommitRow {

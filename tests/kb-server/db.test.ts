@@ -14,6 +14,7 @@ import {
   getSymbolsByName,
   listSymbols,
   getSymbolById,
+  listApiRoutes,
   getCommitBySha,
   listRecentCommits,
   listCommitsByFile,
@@ -21,10 +22,8 @@ import {
   listCommitFiles,
   listCommitRefs,
   listCommitsByRef,
-  listAnnotations,
   type FileRow,
   type SymbolRow,
-  type AnnotationRow,
 } from '../../src/kb-server/db.js';
 
 // Helper: create an in-memory DB with the minimal schema needed for tests.
@@ -52,15 +51,16 @@ function createTestDb(): Database.Database {
       signature   TEXT,
       doc_comment TEXT
     );
-    CREATE TABLE annotations (
-      id          INTEGER PRIMARY KEY AUTOINCREMENT,
-      file_id     INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
-      kind        TEXT    NOT NULL,
-      line        INTEGER NOT NULL,
-      text        TEXT    NOT NULL,
-      symbol_id   INTEGER REFERENCES symbols(id) ON DELETE SET NULL,
-      author      TEXT,
-      created_at  INTEGER
+    CREATE TABLE api_routes (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      file_id      INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+      method       TEXT    NOT NULL,
+      path         TEXT    NOT NULL,
+      handler_id   INTEGER,
+      handler_name TEXT    NOT NULL,
+      framework    TEXT    NOT NULL,
+      line         INTEGER NOT NULL,
+      middleware   TEXT
     );
   `);
   return db;
@@ -357,57 +357,6 @@ describe('listSymbols', () => {
   });
 });
 
-describe('listAnnotations', () => {
-  let db: Database.Database;
-  let fileId: number;
-  let symbolId: number;
-
-  beforeEach(() => {
-    db = createTestDb();
-    fileId = insertFile(db, 'src/main.ts', 'main');
-    symbolId = insertSymbol(db, fileId, 'parseConfig');
-    const otherFileId = insertFile(db, 'src/other.ts', 'main');
-    db.prepare(
-      'INSERT INTO annotations (file_id, kind, line, text, symbol_id) VALUES (?, ?, ?, ?, ?)',
-    ).run(fileId, 'TODO', 4, 'TODO: parse env vars', symbolId);
-    db.prepare(
-      'INSERT INTO annotations (file_id, kind, line, text, symbol_id) VALUES (?, ?, ?, ?, ?)',
-    ).run(otherFileId, 'TODO', 2, 'TODO: add tests', null);
-    db.prepare(
-      'INSERT INTO annotations (file_id, kind, line, text, symbol_id) VALUES (?, ?, ?, ?, ?)',
-    ).run(fileId, 'FIXME', 9, 'FIXME: edge case', null);
-  });
-
-  it('should filter by kind and include file and symbol context fields', () => {
-    const rows = listAnnotations(db, 'TODO', undefined, 10);
-    expect(rows.length).toBe(2);
-    const first = rows[0] as AnnotationRow;
-    expect(first).toHaveProperty('file_path');
-    expect(first).toHaveProperty('line');
-    expect(first).toHaveProperty('kind');
-    expect(first).toHaveProperty('text');
-    expect(first).toHaveProperty('symbol_name');
-    expect(first).toHaveProperty('symbol_kind');
-    expect(rows.some((row) => row.symbol_name === 'parseConfig')).toBe(true);
-  });
-
-  it('should filter by path when provided', () => {
-    const rows = listAnnotations(db, 'TODO', 'src/main.ts', 10);
-    expect(rows.length).toBe(1);
-    expect(rows[0].file_path).toBe('src/main.ts');
-    expect(rows[0].symbol_name).toBe('parseConfig');
-  });
-
-  it('should respect the limit parameter', () => {
-    const rows = listAnnotations(db, 'TODO', undefined, 1);
-    expect(rows.length).toBe(1);
-  });
-
-  it('should return empty array when no rows match filters', () => {
-    expect(listAnnotations(db, 'BUG', 'src/main.ts', 10)).toEqual([]);
-  });
-});
-
 // ─── getSymbolById ────────────────────────────────────────────────────────────
 
 describe('getSymbolById', () => {
@@ -428,6 +377,69 @@ describe('getSymbolById', () => {
 
   it('should return undefined when id does not exist', () => {
     expect(getSymbolById(db, 9999)).toBeUndefined();
+  });
+});
+
+describe('listApiRoutes', () => {
+  let db: Database.Database;
+  let apiFileId: number;
+  let usersFileId: number;
+
+  beforeEach(() => {
+    db = createTestDb();
+    apiFileId = insertFile(db, 'src/api.ts', 'main');
+    usersFileId = insertFile(db, 'src/users.py', 'main', 'python');
+
+    db.prepare(
+      `INSERT INTO api_routes (file_id, method, path, handler_name, framework, line)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    ).run(apiFileId, 'GET', '/api/health', 'healthHandler', 'express', 12);
+    db.prepare(
+      `INSERT INTO api_routes (file_id, method, path, handler_name, framework, line)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    ).run(apiFileId, 'POST', '/api/users', 'createUser', 'express', 20);
+    db.prepare(
+      `INSERT INTO api_routes (file_id, method, path, handler_name, framework, line)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    ).run(usersFileId, 'GET', '/v1/users', 'list_users', 'fastapi', 8);
+  });
+
+  it('should return all routes when no filters are provided', () => {
+    const rows = listApiRoutes(db);
+    expect(rows.length).toBe(3);
+    expect(rows[0]).toEqual({
+      method: 'GET',
+      path: '/api/health',
+      handler: 'healthHandler',
+      file: 'src/api.ts',
+      line: 12,
+      framework: 'express',
+    });
+  });
+
+  it('should filter by method case-insensitively', () => {
+    const rows = listApiRoutes(db, { method: 'post' });
+    expect(rows.length).toBe(1);
+    expect(rows[0].method).toBe('POST');
+    expect(rows[0].path).toBe('/api/users');
+  });
+
+  it('should filter by path prefix', () => {
+    const rows = listApiRoutes(db, { pathPrefix: '/api' });
+    expect(rows.length).toBe(2);
+    expect(rows.every((row) => row.path.startsWith('/api'))).toBe(true);
+  });
+
+  it('should filter by framework case-insensitively', () => {
+    const rows = listApiRoutes(db, { framework: 'FASTAPI' });
+    expect(rows.length).toBe(1);
+    expect(rows[0].framework).toBe('fastapi');
+    expect(rows[0].handler).toBe('list_users');
+  });
+
+  it('should combine filters and return an empty list when none match', () => {
+    expect(listApiRoutes(db, { method: 'GET', pathPrefix: '/api', framework: 'express' }).length).toBe(1);
+    expect(listApiRoutes(db, { method: 'DELETE', pathPrefix: '/api' })).toEqual([]);
   });
 });
 
