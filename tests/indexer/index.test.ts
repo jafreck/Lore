@@ -192,7 +192,6 @@ describe('IndexBuilder — branch support in update()', () => {
     expect(headFiles.length).toBeGreaterThan(0);
   });
 
-<<<<<<< HEAD
   it('should ingest git history during update() when history is enabled', async () => {
     runGit(srcDir, ['init']);
     runGit(srcDir, ['config', 'user.name', 'Test User']);
