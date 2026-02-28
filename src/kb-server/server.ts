@@ -124,9 +124,16 @@ export function createKbMcpServer(
   server.tool(
     metrics.toolDef.name,
     metrics.toolDef.description,
-    {},
-    async (_args) => ({
-      content: [{ type: 'text', text: JSON.stringify(metrics.handler(db, {})) }],
+    {
+      mode: z
+        .enum(['aggregate', 'complexity'])
+        .optional()
+        .describe('Metrics mode: aggregate counts (default) or complexity-ranked symbols.'),
+      limit: z.number().int().positive().optional().describe('Max symbols for complexity mode (default 20, max 200).'),
+      min_cyclomatic: z.number().int().nonnegative().optional().describe('Minimum cyclomatic filter for complexity mode.'),
+    },
+    async (args) => ({
+      content: [{ type: 'text', text: JSON.stringify(metrics.handler(db, args)) }],
     }),
   );
 

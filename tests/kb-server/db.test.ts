@@ -50,6 +50,13 @@ function createTestDb(): Database.Database {
       signature   TEXT,
       doc_comment TEXT
     );
+    CREATE TABLE symbol_metrics (
+      symbol_id    INTEGER PRIMARY KEY REFERENCES symbols(id) ON DELETE CASCADE,
+      line_count   INTEGER NOT NULL,
+      param_count  INTEGER NOT NULL,
+      cyclomatic   INTEGER NOT NULL,
+      max_nesting  INTEGER NOT NULL
+    );
   `);
   return db;
 }
@@ -112,6 +119,16 @@ function insertSymbol(
     )
     .run(fileId, name, kind);
   return result.lastInsertRowid as number;
+}
+
+function insertSymbolMetrics(
+  db: Database.Database,
+  symbolId: number,
+  cyclomatic = 3
+): void {
+  db.prepare(
+    'INSERT INTO symbol_metrics (symbol_id, line_count, param_count, cyclomatic, max_nesting) VALUES (?, ?, ?, ?, ?)',
+  ).run(symbolId, 12, 2, cyclomatic, 2);
 }
 
 // ─── openReadOnly ──────────────────────────────────────────────────────────────
@@ -293,8 +310,14 @@ describe('getSymbolsByName', () => {
   });
 
   it('should filter by branch when provided', () => {
+    const symbolId = db.prepare('SELECT id FROM symbols WHERE name = ? LIMIT 1').get('parseConfig') as { id: number };
+    insertSymbolMetrics(db, symbolId.id, 7);
     const rows = getSymbolsByName(db, 'parseConfig', 'main');
     expect(rows.length).toBe(1);
+    expect(rows[0].cyclomatic).toBe(7);
+    expect(rows[0].line_count).toBe(12);
+    expect(rows[0].param_count).toBe(2);
+    expect(rows[0].max_nesting).toBe(2);
   });
 
   it('should return empty array when name does not match', () => {
@@ -328,6 +351,10 @@ describe('listSymbols', () => {
   it('should filter by branch when provided', () => {
     const rows = listSymbols(db, 100, 'main');
     expect(rows.length).toBe(2);
+    expect(rows[0]).toHaveProperty('line_count');
+    expect(rows[0]).toHaveProperty('param_count');
+    expect(rows[0]).toHaveProperty('cyclomatic');
+    expect(rows[0]).toHaveProperty('max_nesting');
   });
 
   it('should respect the default limit of 100', () => {
@@ -355,12 +382,14 @@ describe('getSymbolById', () => {
     db = createTestDb();
     const fileId = insertFile(db, 'src/a.ts', 'main');
     symbolId = insertSymbol(db, fileId, 'myFunc');
+    insertSymbolMetrics(db, symbolId, 5);
   });
 
   it('should return the symbol row when id exists', () => {
     const row = getSymbolById(db, symbolId);
     expect(row).toBeDefined();
     expect(row!.name).toBe('myFunc');
+    expect(row!.cyclomatic).toBe(5);
   });
 
   it('should return undefined when id does not exist', () => {
