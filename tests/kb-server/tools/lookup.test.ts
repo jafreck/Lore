@@ -28,6 +28,13 @@ function createTestDb(): Database.Database {
       signature   TEXT,
       doc_comment TEXT
     );
+    CREATE TABLE symbol_metrics (
+      symbol_id    INTEGER PRIMARY KEY REFERENCES symbols(id) ON DELETE CASCADE,
+      line_count   INTEGER NOT NULL,
+      param_count  INTEGER NOT NULL,
+      cyclomatic   INTEGER NOT NULL,
+      max_nesting  INTEGER NOT NULL
+    );
   `);
   return db;
 }
@@ -48,6 +55,12 @@ function insertSymbol(db: Database.Database, fileId: number, name: string): numb
   return result.lastInsertRowid as number;
 }
 
+function insertSymbolMetrics(db: Database.Database, symbolId: number): void {
+  db.prepare(
+    'INSERT INTO symbol_metrics (symbol_id, line_count, param_count, cyclomatic, max_nesting) VALUES (?, ?, ?, ?, ?)',
+  ).run(symbolId, 20, 3, 8, 4);
+}
+
 // ─── handler (kind=symbol) ────────────────────────────────────────────────────
 
 describe('lookup handler – kind=symbol', () => {
@@ -57,14 +70,19 @@ describe('lookup handler – kind=symbol', () => {
     db = createTestDb();
     const mainId = insertFile(db, 'src/main.ts', 'main');
     const featId = insertFile(db, 'src/feat.ts', 'feat');
-    insertSymbol(db, mainId, 'parseConfig');
+    const parseConfigId = insertSymbol(db, mainId, 'parseConfig');
     insertSymbol(db, featId, 'parseConfig');
     insertSymbol(db, mainId, 'renderPage');
+    insertSymbolMetrics(db, parseConfigId);
   });
 
   it('should return matching symbols by name', () => {
     const result = handler(db, { kind: 'symbol', query: 'parseConfig' });
     expect(result.results.length).toBe(2);
+    expect(result.results[0]).toHaveProperty('line_count');
+    expect(result.results[0]).toHaveProperty('param_count');
+    expect(result.results[0]).toHaveProperty('cyclomatic');
+    expect(result.results[0]).toHaveProperty('max_nesting');
   });
 
   it('should filter symbols by branch when branch is provided', () => {
@@ -108,6 +126,7 @@ describe('lookup handler – kind=file', () => {
   it('should return a file row when path matches', () => {
     const result = handler(db, { kind: 'file', query: 'src/main.ts' });
     expect(result.results.length).toBeGreaterThan(0);
+    expect(result.results[0]).not.toHaveProperty('cyclomatic');
   });
 
   it('should filter file by branch when branch is provided', () => {
