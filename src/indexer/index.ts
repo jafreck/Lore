@@ -199,7 +199,8 @@ export class IndexBuilder {
           if (row) {
             // Null out any resolved_id references pointing to this file
             db.prepare('UPDATE file_imports SET resolved_id = NULL WHERE resolved_id = ?').run(row.id);
-            db.prepare('DELETE FROM files WHERE id = ?').run(row.id);
+            db.prepare('DELETE FROM symbols_fts WHERE rowid IN (SELECT id FROM symbols WHERE file_id = ?)').run(row.id);
+            db.prepare('DELETE FROM files WHERE path = ? AND branch = ?').run(filePath, branch);
           }
           continue;
         }
