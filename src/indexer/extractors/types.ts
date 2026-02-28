@@ -23,6 +23,8 @@ export interface RawSymbol {
   signature: string;
   /** Documentation comment immediately preceding the symbol, if extracted by the language extractor. */
   docComment?: string;
+  /** Original AST node for the symbol declaration/expression, when available. */
+  astNode?: Parser.SyntaxNode;
 }
 
 /** An import or include directive extracted from a source file. */
@@ -65,6 +67,22 @@ export interface RawRelationship {
   line: number;
 }
 
+/** A framework route/endpoint extracted from source. */
+export interface RawRoute {
+  /** HTTP method for the route (e.g. `GET`, `POST`). */
+  method: string;
+  /** Route path template (e.g. `/users/:id`). */
+  path: string;
+  /** Raw handler reference as seen in source. */
+  handler: string;
+  /** Framework inferred by the extractor (e.g. `express`, `fastapi`, `gin`). */
+  framework: string;
+  /** 0-indexed line where the route is declared. */
+  line: number;
+  /** Optional middleware references in declaration order. */
+  middleware?: string[];
+}
+
 /** The full extraction result returned by a `SymbolExtractor`. */
 export interface ExtractionResult {
   symbols: RawSymbol[];
@@ -72,6 +90,7 @@ export interface ExtractionResult {
   callRefs: RawCallRef[];
   envRefs: RawEnvRef[];
   relationships: RawRelationship[];
+  routes: RawRoute[];
 }
 
 // ─── SymbolExtractor interface ────────────────────────────────────────────────
@@ -87,6 +106,13 @@ export interface SymbolExtractor {
    * @param filePath  Absolute path to the file (for context / error messages).
    */
   extract(tree: Parser.Tree, source: string, filePath: string): ExtractionResult;
+}
+
+export interface ComplexityNodeTypes {
+  parameterListTypes: readonly string[];
+  parameterTypes: readonly string[];
+  decisionTypes: readonly string[];
+  nestingTypes: readonly string[];
 }
 
 // ─── Shared utilities ─────────────────────────────────────────────────────────
@@ -129,5 +155,5 @@ export function nodeSignature(node: Parser.SyntaxNode): string {
 
 /** Returns an empty `ExtractionResult`. */
 export function emptyResult(): ExtractionResult {
-  return { symbols: [], imports: [], callRefs: [], envRefs: [], relationships: [] };
+  return { symbols: [], imports: [], callRefs: [], envRefs: [], relationships: [], routes: [] };
 }

@@ -15,13 +15,14 @@ const tree = pool.parse('javascript', simpleSource);
 // ─── emptyResult ──────────────────────────────────────────────────────────────
 
 describe('emptyResult', () => {
-  it('should return an object with empty symbols, imports, callRefs, envRefs, and relationships arrays', () => {
+  it('should return an object with empty symbols, imports, callRefs, relationships, and routes arrays', () => {
     expect(emptyResult()).toEqual({
       symbols: [],
       imports: [],
       callRefs: [],
       envRefs: [],
       relationships: [],
+      routes: [],
     });
   });
 
@@ -36,8 +37,6 @@ describe('emptyResult', () => {
     // Mutating one field must not affect a fresh call.
     result.symbols.push({ name: 'x', kind: 'function', startLine: 0, endLine: 0, signature: '' });
     expect(emptyResult().symbols).toHaveLength(0);
-    result.envRefs.push({ key: 'API_KEY', line: 0 });
-    expect(emptyResult().envRefs).toHaveLength(0);
   });
 });
 

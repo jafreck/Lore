@@ -338,6 +338,7 @@ export class IndexBuilder {
       db.prepare('DELETE FROM symbols WHERE file_id = ?').run(fileId);
       db.prepare('DELETE FROM file_imports WHERE file_id = ?').run(fileId);
       db.prepare('DELETE FROM external_deps WHERE file_id = ?').run(fileId);
+      db.prepare('DELETE FROM api_routes WHERE file_id = ?').run(fileId);
     } else {
       const info = db
         .prepare(
@@ -382,6 +383,23 @@ export class IndexBuilder {
       const symId = Number(info.lastInsertRowid);
       symbolIdMap.set(sym.name, symId);
       insertFts.run(symId, sym.name, sym.signature ?? '', sym.kind);
+    }
+
+    const insertRoute = db.prepare(
+      `INSERT INTO api_routes (file_id, method, path, handler_id, handler_name, framework, line, middleware)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    );
+    for (const route of result.routes) {
+      insertRoute.run(
+        fileId,
+        route.method,
+        route.path,
+        symbolIdMap.get(route.handler) ?? null,
+        route.handler,
+        route.framework,
+        route.line,
+        route.middleware ? JSON.stringify(route.middleware) : null,
+      );
     }
 
     // Insert raw imports (resolved_id will be filled in resolveImports())

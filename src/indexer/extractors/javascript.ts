@@ -10,6 +10,7 @@ import type Parser from 'tree-sitter';
 import {
   type ExtractionResult,
   type RawImport,
+  type RawRoute,
   type RawSymbol,
   type SymbolExtractor,
   emptyResult,
@@ -44,6 +45,8 @@ export class JavaScriptExtractor implements SymbolExtractor {
         case 'call_expression': {
           const imp = maybeExtractRequire(node);
           if (imp) result.imports.push(imp);
+          const route = maybeExtractRoute(node);
+          if (route) result.routes.push(route);
           break;
         }
       }
@@ -153,4 +156,48 @@ function maybeExtractRequire(node: Parser.SyntaxNode): RawImport | null {
 
 function stripQuotes(s: string): string {
   return s.replace(/^['"`]|['"`]$/g, '');
+}
+
+const JS_HTTP_METHODS = new Set([
+  'get',
+  'post',
+  'put',
+  'delete',
+  'patch',
+  'options',
+  'head',
+  'all',
+]);
+
+function maybeExtractRoute(node: Parser.SyntaxNode): RawRoute | null {
+  const fnNode = node.childForFieldName('function');
+  if (!fnNode || fnNode.type !== 'member_expression') return null;
+
+  const methodNode = fnNode.childForFieldName('property');
+  const objectNode = fnNode.childForFieldName('object');
+  const method = methodNode?.text?.toLowerCase() ?? '';
+  if (!JS_HTTP_METHODS.has(method)) return null;
+
+  const argsNode = node.childForFieldName('arguments');
+  const pathNode = argsNode?.namedChildren[0];
+  const handlerNode = argsNode?.namedChildren[1];
+  if (!pathNode || !handlerNode) return null;
+  if (pathNode.type !== 'string' && pathNode.type !== 'template_string') return null;
+
+  const middleware = argsNode!.namedChildren.slice(1, -1).map((n) => n.text);
+  return {
+    method: method.toUpperCase(),
+    path: stripQuotes(pathNode.text),
+    handler: handlerNode.text,
+    framework: inferJsFramework(objectNode?.text ?? ''),
+    line: node.startPosition.row,
+    middleware: middleware.length > 0 ? middleware : undefined,
+  };
+}
+
+function inferJsFramework(receiver: string): string {
+  const lower = receiver.toLowerCase();
+  if (lower.includes('koa')) return 'koa';
+  if (lower.includes('hono')) return 'hono';
+  return 'express';
 }
