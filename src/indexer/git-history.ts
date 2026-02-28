@@ -6,7 +6,7 @@
  */
 
 import { simpleGit } from 'simple-git';
-import type { Database } from './db.js';
+import { getKbMeta, setKbMeta, type Database } from './db.js';
 
 export interface GitHistoryOptions {
   depth?: number;
@@ -14,6 +14,7 @@ export interface GitHistoryOptions {
 }
 
 const DEFAULT_ALL = true;
+const GIT_HISTORY_WATERMARK_KEY = 'git_history_last_ingested_sha';
 
 /**
  * Reads commit history from the git repository at `repoRoot` and upserts each
@@ -36,12 +37,26 @@ export async function ingestGitHistory(
       ? Math.floor(options.depth)
       : undefined;
   const git = simpleGit(repoRoot);
+  const storedWatermark = getKbMeta(db, GIT_HISTORY_WATERMARK_KEY);
+  let watermark: string | undefined;
+  if (storedWatermark) {
+    try {
+      await git.raw(['cat-file', '-e', `${storedWatermark}^{commit}`]);
+      watermark = storedWatermark;
+    } catch {
+      watermark = undefined;
+    }
+  }
 
   const logArgs = [
     'log',
     '--numstat',
     '--format=COMMIT_SEP%n%H%n%an%n%ae%n%at%n%P%n%s',
   ];
+
+  if (watermark) {
+    logArgs.push(`${watermark}..`);
+  }
 
   if (all) {
     logArgs.push('--all');
@@ -77,11 +92,13 @@ export async function ingestGitHistory(
      SELECT ?, ?, ?
      WHERE EXISTS (SELECT 1 FROM commits WHERE sha = ?)`,
   );
+  const deleteCommitRefs = db.prepare('DELETE FROM commit_refs');
 
   // Parse the raw git log output into commit blocks.
   // Each block starts with "COMMIT_SEP" followed by commit metadata lines,
   // then an empty line, then numstat lines (insertions<TAB>deletions<TAB>path).
   const blocks = logResult.split('COMMIT_SEP\n').filter((b: string) => b.trim().length > 0);
+  const latestShaInRun = blocks[0]?.split('\n')[0]?.trim();
 
   db.transaction(() => {
     for (const block of blocks) {
@@ -139,10 +156,14 @@ export async function ingestGitHistory(
       .map((line) => line.trim())
       .filter((line) => line.length > 0);
 
-    for (const line of refLines) {
-      const [sha, refName] = line.split(' ');
-      if (!sha || !refName) continue;
+    const refs = refLines
+      .map((line) => line.split(/\s+/, 2))
+      .filter((parts): parts is [string, string] => Boolean(parts[0]) && Boolean(parts[1]))
+      .map(([sha, refName]) => ({ sha, refName }));
 
+    deleteCommitRefs.run();
+
+    for (const { sha, refName } of refs) {
       let refType = 'other';
       if (refName.startsWith('refs/heads/')) {
         refType = 'branch';
@@ -153,4 +174,8 @@ export async function ingestGitHistory(
       insertCommitRef.run(sha, refName, refType, sha);
     }
   })();
+
+  if (latestShaInRun) {
+    setKbMeta(db, GIT_HISTORY_WATERMARK_KEY, latestShaInRun);
+  }
 }

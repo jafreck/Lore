@@ -10,6 +10,7 @@ import type Parser from 'tree-sitter';
 import {
   type ExtractionResult,
   type RawImport,
+  type RawRelationship,
   type RawSymbol,
   type SymbolExtractor,
   emptyResult,
@@ -31,6 +32,7 @@ export class TypeScriptExtractor implements SymbolExtractor {
           break;
         case 'class_declaration':
           result.symbols.push(extractNamedDecl(node, 'class'));
+          result.relationships.push(...extractClassInheritance(node));
           break;
         case 'interface_declaration':
           result.symbols.push(extractNamedDecl(node, 'interface'));
@@ -56,6 +58,24 @@ export class TypeScriptExtractor implements SymbolExtractor {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function extractClassInheritance(node: Parser.SyntaxNode): RawRelationship[] {
+  const nameNode = node.childForFieldName('name');
+  const heritageNode = node.namedChildren.find((child) => child.type === 'class_heritage');
+  if (!nameNode || !heritageNode) return [];
+  const extendsClause = heritageNode.namedChildren.find((child) => child.type === 'extends_clause');
+  if (!extendsClause) return [];
+  const target = extendsClause.namedChildren[0];
+  if (!target) return [];
+  return [
+    {
+      kind: 'extends',
+      fromSymbol: nameNode.text,
+      toSymbol: target.text,
+      line: extendsClause.startPosition.row,
+    },
+  ];
+}
 
 function extractNamedDecl(node: Parser.SyntaxNode, kind: string): RawSymbol {
   const nameNode = node.childForFieldName('name');

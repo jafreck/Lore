@@ -98,6 +98,13 @@ describe('walkFiles', () => {
     expect(langs).toContain('python');
     expect(langs).toContain('rust');
   });
+
+  it('should default to scanning all files when includeGlobs is empty', async () => {
+    writeFile('alpha.ts');
+    const results = await walkFiles({ rootDir: tmpDir, includeGlobs: [] });
+    expect(results.length).toBe(1);
+    expect(results[0]!.language).toBe('typescript');
+  });
 });
 
 describe('detectLanguageForPath', () => {
@@ -113,5 +120,9 @@ describe('detectLanguageForPath', () => {
   it('should respect explicit extension filters', () => {
     expect(detectLanguageForPath('/tmp/file.ts', { extensions: ['.py'] })).toBeUndefined();
     expect(detectLanguageForPath('/tmp/file.ts', { extensions: ['.ts'] })).toBe('typescript');
+  });
+
+  it('should normalize extension casing before lookup', () => {
+    expect(detectLanguageForPath('/tmp/file.TS')).toBe('typescript');
   });
 });
