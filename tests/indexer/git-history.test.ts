@@ -332,6 +332,8 @@ describe('ingestGitHistory', () => {
     await expect(ingestGitHistory(db, '/fake/repo')).resolves.not.toThrow();
     db.close();
 
+    expect(mockRaw).toHaveBeenCalledWith(['cat-file', '-e', 'stale999^{commit}']);
+
     const logCall = mockRaw.mock.calls.find(([args]) => Array.isArray(args) && args[0] === 'log')?.[0] as
       | string[]
       | undefined;
