@@ -20,6 +20,7 @@ describe('emptyResult', () => {
       symbols: [],
       imports: [],
       callRefs: [],
+      envRefs: [],
       relationships: [],
       routes: [],
     });
