@@ -23,6 +23,8 @@ export interface RawSymbol {
   signature: string;
   /** Documentation comment immediately preceding the symbol, if extracted by the language extractor. */
   docComment?: string;
+  /** Original AST node for the symbol declaration/expression, when available. */
+  astNode?: Parser.SyntaxNode;
 }
 
 /** An import or include directive extracted from a source file. */
@@ -78,6 +80,13 @@ export interface SymbolExtractor {
    * @param filePath  Absolute path to the file (for context / error messages).
    */
   extract(tree: Parser.Tree, source: string, filePath: string): ExtractionResult;
+}
+
+export interface ComplexityNodeTypes {
+  parameterListTypes: readonly string[];
+  parameterTypes: readonly string[];
+  decisionTypes: readonly string[];
+  nestingTypes: readonly string[];
 }
 
 // ─── Shared utilities ─────────────────────────────────────────────────────────
