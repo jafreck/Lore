@@ -33,4 +33,24 @@ describe('createKbMcpServer', () => {
     expect(graphSchema.kind.safeParse('inheritance').success).toBe(true);
     expect(graphSchema.kind.safeParse('invalid-kind').success).toBe(false);
   });
+
+  it('should register kb_routes with optional method, path_prefix, and framework filters', () => {
+    const db = new Database(':memory:');
+
+    createKbMcpServer(db, '/tmp/test.db');
+
+    const routesToolCall = mockTool.mock.calls.find((call) => call[0] === 'kb_routes');
+    expect(routesToolCall).toBeDefined();
+
+    const routesSchema = routesToolCall?.[2] as {
+      method: { safeParse: (v: unknown) => { success: boolean } };
+      path_prefix: { safeParse: (v: unknown) => { success: boolean } };
+      framework: { safeParse: (v: unknown) => { success: boolean } };
+    };
+    expect(routesSchema.method.safeParse(undefined).success).toBe(true);
+    expect(routesSchema.method.safeParse('GET').success).toBe(true);
+    expect(routesSchema.path_prefix.safeParse('/api').success).toBe(true);
+    expect(routesSchema.framework.safeParse('express').success).toBe(true);
+    expect(routesSchema.framework.safeParse(42).success).toBe(false);
+  });
 });

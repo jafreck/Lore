@@ -14,6 +14,7 @@ import {
   getSymbolsByName,
   listSymbols,
   getSymbolById,
+  listApiRoutes,
   getCommitBySha,
   listRecentCommits,
   listCommitsByFile,
@@ -49,6 +50,17 @@ function createTestDb(): Database.Database {
       end_line    INTEGER NOT NULL,
       signature   TEXT,
       doc_comment TEXT
+    );
+    CREATE TABLE api_routes (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      file_id      INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+      method       TEXT    NOT NULL,
+      path         TEXT    NOT NULL,
+      handler_id   INTEGER,
+      handler_name TEXT    NOT NULL,
+      framework    TEXT    NOT NULL,
+      line         INTEGER NOT NULL,
+      middleware   TEXT
     );
   `);
   return db;
@@ -365,6 +377,69 @@ describe('getSymbolById', () => {
 
   it('should return undefined when id does not exist', () => {
     expect(getSymbolById(db, 9999)).toBeUndefined();
+  });
+});
+
+describe('listApiRoutes', () => {
+  let db: Database.Database;
+  let apiFileId: number;
+  let usersFileId: number;
+
+  beforeEach(() => {
+    db = createTestDb();
+    apiFileId = insertFile(db, 'src/api.ts', 'main');
+    usersFileId = insertFile(db, 'src/users.py', 'main', 'python');
+
+    db.prepare(
+      `INSERT INTO api_routes (file_id, method, path, handler_name, framework, line)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    ).run(apiFileId, 'GET', '/api/health', 'healthHandler', 'express', 12);
+    db.prepare(
+      `INSERT INTO api_routes (file_id, method, path, handler_name, framework, line)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    ).run(apiFileId, 'POST', '/api/users', 'createUser', 'express', 20);
+    db.prepare(
+      `INSERT INTO api_routes (file_id, method, path, handler_name, framework, line)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    ).run(usersFileId, 'GET', '/v1/users', 'list_users', 'fastapi', 8);
+  });
+
+  it('should return all routes when no filters are provided', () => {
+    const rows = listApiRoutes(db);
+    expect(rows.length).toBe(3);
+    expect(rows[0]).toEqual({
+      method: 'GET',
+      path: '/api/health',
+      handler: 'healthHandler',
+      file: 'src/api.ts',
+      line: 12,
+      framework: 'express',
+    });
+  });
+
+  it('should filter by method case-insensitively', () => {
+    const rows = listApiRoutes(db, { method: 'post' });
+    expect(rows.length).toBe(1);
+    expect(rows[0].method).toBe('POST');
+    expect(rows[0].path).toBe('/api/users');
+  });
+
+  it('should filter by path prefix', () => {
+    const rows = listApiRoutes(db, { pathPrefix: '/api' });
+    expect(rows.length).toBe(2);
+    expect(rows.every((row) => row.path.startsWith('/api'))).toBe(true);
+  });
+
+  it('should filter by framework case-insensitively', () => {
+    const rows = listApiRoutes(db, { framework: 'FASTAPI' });
+    expect(rows.length).toBe(1);
+    expect(rows[0].framework).toBe('fastapi');
+    expect(rows[0].handler).toBe('list_users');
+  });
+
+  it('should combine filters and return an empty list when none match', () => {
+    expect(listApiRoutes(db, { method: 'GET', pathPrefix: '/api', framework: 'express' }).length).toBe(1);
+    expect(listApiRoutes(db, { method: 'DELETE', pathPrefix: '/api' })).toEqual([]);
   });
 });
 
