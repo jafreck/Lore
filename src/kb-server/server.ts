@@ -36,6 +36,7 @@ import * as blame from './tools/blame.js';
 import * as metrics from './tools/metrics.js';
 import * as writeback from './tools/writeback.js';
 import * as history from './tools/history.js';
+import * as notes from './tools/notes.js';
 
 // ─── Server factory ───────────────────────────────────────────────────────────
 
@@ -177,6 +178,37 @@ export function createKbMcpServer(
     },
     async (args) => ({
       content: [{ type: 'text', text: JSON.stringify(history.handler(db, args)) }],
+    }),
+  );
+
+  // ── kb_notes_write ─────────────────────────────────────────────────────────
+  server.tool(
+    notes.writeToolDef.name,
+    notes.writeToolDef.description,
+    {
+      key: z.string().describe('Topic identifier for the note.'),
+      scope: z.string().optional().describe('Optional scope (default "global").'),
+      content: z.string().describe('The note body to persist.'),
+      model: z.string().optional().describe('Optional model identifier that authored the note.'),
+      source_hash: z.string().optional().describe('Optional source hash for staleness checks.'),
+    },
+    async (args) => ({
+      content: [{ type: 'text', text: JSON.stringify(notes.writeHandler(dbPath, args)) }],
+    }),
+  );
+
+  // ── kb_notes_read ──────────────────────────────────────────────────────────
+  server.tool(
+    notes.readToolDef.name,
+    notes.readToolDef.description,
+    {
+      key: z.string().optional().describe('Optional exact note key filter.'),
+      key_prefix: z.string().optional().describe('Optional note key prefix filter.'),
+      scope: z.string().optional().describe('Optional scope filter.'),
+      limit: z.number().optional().describe('Optional max notes to return (default 20).'),
+    },
+    async (args) => ({
+      content: [{ type: 'text', text: JSON.stringify(notes.readHandler(db, args)) }],
     }),
   );
 
