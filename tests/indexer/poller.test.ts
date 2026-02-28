@@ -112,6 +112,37 @@ describe('FilePoller', () => {
   });
 
   describe('poll() — change detection', () => {
+    it('should not run overlapping poll cycles while update is in flight', async () => {
+      const file = '/tmp/testroot/overlap.ts';
+      vi.mocked(walkFiles).mockResolvedValue([makeEntry(file)]);
+      let mtime = 0;
+      vi.mocked(fs.statSync).mockImplementation(() => ({ mtimeMs: ++mtime } as Stats));
+
+      let resolveUpdate!: () => void;
+      const updateGate = new Promise<void>((resolve) => {
+        resolveUpdate = resolve;
+      });
+      let inFlight = 0;
+      let maxInFlight = 0;
+      mockUpdate.mockImplementation(async () => {
+        inFlight++;
+        maxInFlight = Math.max(maxInFlight, inFlight);
+        await updateGate;
+        inFlight--;
+      });
+
+      const poller = new FilePoller('/db.sqlite', walkerConfig, { intervalMs: 50 });
+      poller.start();
+      await vi.advanceTimersByTimeAsync(150);
+
+      expect(mockUpdate).toHaveBeenCalledTimes(1);
+      expect(maxInFlight).toBe(1);
+
+      resolveUpdate();
+      await vi.advanceTimersByTimeAsync(0);
+      poller.stop();
+    });
+
     it('should call IndexBuilder.update for newly created files', async () => {
       vi.mocked(walkFiles).mockResolvedValue([makeEntry('/tmp/testroot/new.ts')]);
       vi.mocked(fs.statSync).mockReturnValue({ mtimeMs: 1000 } as Stats);
@@ -124,6 +155,19 @@ describe('FilePoller', () => {
       expect(mockUpdate).toHaveBeenCalledOnce();
       const paths = mockUpdate.mock.calls[0]?.[0] as string[];
       expect(paths).toContain('/tmp/testroot/new.ts');
+    });
+
+    it('should pass the history option to IndexBuilder when applying updates', async () => {
+      vi.mocked(walkFiles).mockResolvedValue([makeEntry('/tmp/testroot/new.ts')]);
+      vi.mocked(fs.statSync).mockReturnValue({ mtimeMs: 1000 } as Stats);
+
+      const history = { depth: 3, all: true };
+      const poller = new FilePoller('/db.sqlite', walkerConfig, { intervalMs: 100, history });
+      poller.start();
+      await vi.advanceTimersByTimeAsync(100);
+      poller.stop();
+
+      expect(IndexBuilder).toHaveBeenCalledWith('/db.sqlite', walkerConfig, undefined, { history });
     });
 
     it('should call IndexBuilder.update for files with changed mtime', async () => {
@@ -226,6 +270,23 @@ describe('FilePoller', () => {
       expect(mockUpdate).not.toHaveBeenCalled();
     });
 
+    it('should continue polling after a walkFiles failure on a prior cycle', async () => {
+      const file = '/tmp/testroot/recovered.ts';
+      vi.mocked(walkFiles)
+        .mockRejectedValueOnce(new Error('walk failed'))
+        .mockResolvedValueOnce([makeEntry(file)]);
+      vi.mocked(fs.statSync).mockReturnValue({ mtimeMs: 1000 } as Stats);
+
+      const poller = new FilePoller('/db.sqlite', walkerConfig, { intervalMs: 100 });
+      poller.start();
+      await vi.advanceTimersByTimeAsync(200);
+      poller.stop();
+
+      expect(mockUpdate).toHaveBeenCalledTimes(1);
+      const paths = mockUpdate.mock.calls[0]?.[0] as string[];
+      expect(paths).toContain(file);
+    });
+
     it('should log an error when IndexBuilder.update throws', async () => {
       const file = '/tmp/testroot/a.ts';
       vi.mocked(walkFiles).mockResolvedValue([makeEntry(file)]);
@@ -251,6 +312,20 @@ describe('FilePoller', () => {
       expect(infoLine).toBeDefined();
       expect(infoLine.errors).toBe(1);
     });
+
+    it('should continue polling after an update failure on a prior cycle', async () => {
+      const file = '/tmp/testroot/recovered-after-update-failure.ts';
+      vi.mocked(walkFiles).mockResolvedValue([makeEntry(file)]);
+      let mtime = 0;
+      vi.mocked(fs.statSync).mockImplementation(() => ({ mtimeMs: ++mtime } as Stats));
+      mockUpdate.mockRejectedValueOnce(new Error('update failed'));
+
+      const poller = new FilePoller('/db.sqlite', walkerConfig, { intervalMs: 100 });
+      poller.start();
+      await vi.advanceTimersByTimeAsync(200);
+      poller.stop();
+
+      expect(mockUpdate).toHaveBeenCalledTimes(2);
+    });
   });
 });
-
