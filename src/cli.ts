@@ -11,6 +11,7 @@
  *   lore refresh --db <path> --root <dir>       Run an incremental index update and exit.
  *   lore refresh --db <path> --root <dir> --watch  Watch for changes and refresh automatically.
  *   lore refresh --db <path> --root <dir> --poll   Poll for changes and refresh automatically.
+ *   lore hooks --root <dir> --db <path>         Install git hooks for automatic Lore refresh.
  */
 
 import * as fs from 'node:fs';
@@ -20,17 +21,22 @@ import * as fs from 'node:fs';
 function usage(): never {
   console.error(
     `Usage:
-  lore index --root <dir> --db <path> [--embedding-model <id>]
+  lore index --root <dir> --db <path> [--embedding-model <id>] [--history] [--history-depth <n>] [--history-all]
                          Index a codebase into a knowledge-base SQLite file
   lore mcp --db <path>                          Start the KB MCP server (stdio transport)
-  lore refresh --db <path> --root <dir>         Run an incremental index update and exit
+  lore refresh --db <path> --root <dir> [--history] [--history-depth <n>] [--history-all]  Run an incremental index update and exit
   lore refresh --db <path> --root <dir> --watch Watch for file changes and refresh automatically
   lore refresh --db <path> --root <dir> --poll  Poll for file changes and refresh automatically
+  lore hooks --db <path> --root <dir> [--history] [--history-depth <n>] [--history-all]
+                         Install git hooks for automatic refresh on commit/merge/checkout
 
 Options:
   --root <dir>             Root directory to index (required for index, refresh)
   --db <path>              Path to a Lore knowledge-base SQLite file (required for index, mcp, refresh)
   --embedding-model <id>   Embedding model identifier (default: Qwen/Qwen3-Embedding-4B)
+  --history                Enable git history ingestion
+  --history-depth <n>      Limit commit ingestion to the most recent N commits
+  --history-all            Traverse all refs (branches/tags) for history ingestion
   --include <glob>         Glob pattern for files to include (repeatable)
   --exclude <glob>         Glob pattern for paths to exclude (repeatable)
   --language <lang>        Language name to filter by, e.g. typescript (repeatable)
@@ -63,6 +69,7 @@ async function main(): Promise<void> {
 
   if (args.includes('--help') || args.includes('-h') || args.length === 0) {
     usage();
+    return;
   }
 
   const subcommand = args[0];
@@ -73,12 +80,29 @@ async function main(): Promise<void> {
     if (!rootDir) {
       console.error('Error: --root <dir> is required for the index subcommand.\n');
       usage();
+      return;
     }
     if (!dbPath) {
       console.error('Error: --db <path> is required for the index subcommand.\n');
       usage();
+      return;
     }
     const embeddingModel = flag(args, '--embedding-model');
+    const historyEnabled = args.includes('--history');
+    const historyAll = args.includes('--history-all');
+    const historyDepthRaw = flag(args, '--history-depth');
+
+    let historyDepth: number | undefined;
+    if (historyDepthRaw !== undefined) {
+      const parsed = Number(historyDepthRaw);
+      if (!Number.isFinite(parsed) || parsed <= 0) {
+        console.error('Error: --history-depth must be a positive number.\n');
+        usage();
+        return;
+      }
+      historyDepth = Math.floor(parsed);
+    }
+
     const includeGlobs = flags(args, '--include');
     const excludeGlobs = flags(args, '--exclude');
     const languageNames = flags(args, '--language');
@@ -120,12 +144,24 @@ async function main(): Promise<void> {
         if (!exts) {
           console.error(`Error: unknown language "${lang}". Known languages: ${Object.keys(LANG_TO_EXTS).sort().join(', ')}\n`);
           process.exit(1);
+          return;
         }
         extensions.push(...exts);
       }
     }
 
     const { IndexBuilder } = await import('./indexer/index.js');
+
+    const shouldEnableHistory = historyEnabled || historyAll || historyDepth !== undefined;
+    const options = {
+      ...(embeddingModel && { embeddingModel }),
+      ...(shouldEnableHistory && {
+        history: {
+          ...(historyDepth !== undefined && { depth: historyDepth }),
+          ...(historyAll && { all: true }),
+        },
+      }),
+    };
 
     const builder = new IndexBuilder(
       dbPath,
@@ -136,7 +172,7 @@ async function main(): Promise<void> {
         ...(extensions && { extensions }),
       },
       undefined,
-      embeddingModel,
+      Object.keys(options).length > 0 ? options : undefined,
     );
     await builder.build();
   } else if (subcommand === 'mcp') {
@@ -144,6 +180,7 @@ async function main(): Promise<void> {
     if (!dbPath) {
       console.error('Error: --db <path> is required for the mcp subcommand.\n');
       usage();
+      return;
     }
 
     // Dynamically import so tree-shaking keeps the MCP server out of the
@@ -193,16 +230,42 @@ async function main(): Promise<void> {
     if (!dbPath || !rootDir) {
       console.error('Error: --db <path> and --root <dir> are required for the refresh subcommand.\n');
       usage();
+      return;
     }
 
     const watchMode = args.includes('--watch');
     const pollMode = args.includes('--poll');
 
+    const historyEnabled = args.includes('--history');
+    const historyAll = args.includes('--history-all');
+    const historyDepthRaw = flag(args, '--history-depth');
+
+    let historyDepth: number | undefined;
+    if (historyDepthRaw !== undefined) {
+      const parsed = Number(historyDepthRaw);
+      if (!Number.isFinite(parsed) || parsed <= 0) {
+        console.error('Error: --history-depth must be a positive number.\n');
+        usage();
+        return;
+      }
+      historyDepth = Math.floor(parsed);
+    }
+
+    const shouldEnableHistory = historyEnabled || historyAll || historyDepth !== undefined;
+    const historyOption = shouldEnableHistory
+      ? {
+          ...(historyDepth !== undefined && { depth: historyDepth }),
+          ...(historyAll && { all: true }),
+        }
+      : false;
+
     const walkerConfig = { rootDir };
 
     if (watchMode) {
       const { FileWatcher } = await import('./indexer/watcher.js');
-      const watcher = new FileWatcher(dbPath, walkerConfig);
+      const watcher = new FileWatcher(dbPath, walkerConfig, {
+        history: historyOption,
+      });
       watcher.start();
       process.stderr.write(
         JSON.stringify({ level: 'info', source: 'cli', message: 'watch mode started', rootDir }) + '\n',
@@ -212,7 +275,9 @@ async function main(): Promise<void> {
       process.on('SIGTERM', () => { watcher.stop(); process.exit(0); });
     } else if (pollMode) {
       const { FilePoller } = await import('./indexer/poller.js');
-      const poller = new FilePoller(dbPath, walkerConfig);
+      const poller = new FilePoller(dbPath, walkerConfig, {
+        history: historyOption,
+      });
       poller.start();
       process.stderr.write(
         JSON.stringify({ level: 'info', source: 'cli', message: 'poll mode started', rootDir }) + '\n',
@@ -223,7 +288,9 @@ async function main(): Promise<void> {
     } else {
       // Manual refresh: full build if DB doesn't exist yet, otherwise incremental update
       const { IndexBuilder } = await import('./indexer/index.js');
-      const builder = new IndexBuilder(dbPath, walkerConfig);
+      const builder = new IndexBuilder(dbPath, walkerConfig, undefined, {
+        ...(shouldEnableHistory && { history: historyOption }),
+      });
 
       const dbExists = fs.existsSync(dbPath);
       if (dbExists) {
@@ -239,9 +306,42 @@ async function main(): Promise<void> {
         JSON.stringify({ level: 'info', source: 'cli', message: 'refresh complete', rootDir }) + '\n',
       );
     }
+  } else if (subcommand === 'hooks') {
+    const dbPath = flag(args, '--db');
+    const rootDir = flag(args, '--root');
+
+    if (!dbPath || !rootDir) {
+      console.error('Error: --db <path> and --root <dir> are required for the hooks subcommand.\n');
+      usage();
+      return;
+    }
+
+    const historyEnabled = args.includes('--history');
+    const historyAll = args.includes('--history-all');
+    const historyDepthRaw = flag(args, '--history-depth');
+    const includeHistory = historyEnabled || historyAll || historyDepthRaw !== undefined;
+
+    const { installGitHooks } = await import('./indexer/git-hooks.js');
+    const result = installGitHooks({
+      repoRoot: rootDir,
+      rootDir,
+      dbPath,
+      includeHistory,
+    });
+
+    process.stderr.write(
+      JSON.stringify({
+        level: 'info',
+        source: 'cli',
+        message: 'git hooks installed',
+        rootDir,
+        hooks: result.installed,
+      }) + '\n',
+    );
   } else {
     console.error(`Unknown subcommand: ${subcommand}\n`);
     usage();
+    return;
   }
 }
 

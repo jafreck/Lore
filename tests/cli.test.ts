@@ -114,6 +114,44 @@ describe('cli', () => {
     });
   });
 
+  // ── hooks subcommand ───────────────────────────────────────────────────────
+
+  describe('hooks subcommand', () => {
+    it('should print an error and exit with code 1 when --db is missing', async () => {
+      await loadCli(['hooks', '--root', tmpDir]);
+      expect(exitSpy).toHaveBeenCalledWith(1);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('--db'),
+      );
+    });
+
+    it('should print an error and exit with code 1 when --root is missing', async () => {
+      await loadCli(['hooks', '--db', freshDb()]);
+      expect(exitSpy).toHaveBeenCalledWith(1);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('--root'),
+      );
+    });
+
+    it('should install hooks and emit a structured log line', async () => {
+      nodeFs.mkdirSync(nodePath.join(tmpDir, '.git', 'hooks'), { recursive: true });
+      const dbPath = freshDb();
+
+      await loadCli(['hooks', '--db', dbPath, '--root', tmpDir]);
+      await waitForStderr(stderrSpy, 'git hooks installed');
+
+      const text = stderrSpy.mock.calls.map((c) => String(c[0])).join('');
+      const jsonLine = text.split('\n').find(
+        (l) => l.includes('"git hooks installed"') && l.includes(tmpDir),
+      );
+      expect(jsonLine).toBeDefined();
+      const parsed = JSON.parse(jsonLine!.trim());
+      expect(parsed.level).toBe('info');
+      expect(parsed.source).toBe('cli');
+      expect(parsed.message).toBe('git hooks installed');
+    });
+  });
+
   // ── refresh subcommand — argument validation ───────────────────────────────
 
   describe('refresh subcommand — argument validation', () => {

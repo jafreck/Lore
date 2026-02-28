@@ -24,6 +24,12 @@ function createTestDb(): Database.Database {
       deletions   INTEGER,
       PRIMARY KEY (commit_sha, file_path)
     );
+    CREATE TABLE IF NOT EXISTS commit_refs (
+      commit_sha TEXT NOT NULL REFERENCES commits(sha) ON DELETE CASCADE,
+      ref_name   TEXT NOT NULL,
+      ref_type   TEXT NOT NULL,
+      PRIMARY KEY (commit_sha, ref_name)
+    );
   `);
   return db;
 }
@@ -54,6 +60,18 @@ function insertCommitFile(
   ).run(commitSha, filePath, changeType);
 }
 
+function insertCommitRef(
+  db: Database.Database,
+  commitSha: string,
+  refName: string,
+  refType = 'branch',
+) {
+  db.prepare(
+    `INSERT INTO commit_refs (commit_sha, ref_name, ref_type)
+     VALUES (?, ?, ?)`,
+  ).run(commitSha, refName, refType);
+}
+
 // ─── toolDef ──────────────────────────────────────────────────────────────────
 
 describe('toolDef', () => {
@@ -75,6 +93,7 @@ describe('toolDef', () => {
     expect(modeEnum).toContain('file');
     expect(modeEnum).toContain('commit');
     expect(modeEnum).toContain('author');
+    expect(modeEnum).toContain('ref');
     expect(modeEnum).toContain('recent');
   });
 });
@@ -198,6 +217,8 @@ describe('handler – commit mode', () => {
     insertCommit(db, 'abcdef123456', 'Alice', 'a@x.com', 1700000001);
     insertCommitFile(db, 'abcdef123456', 'src/foo.ts', 'added');
     insertCommitFile(db, 'abcdef123456', 'src/bar.ts', 'modified');
+    insertCommitRef(db, 'abcdef123456', 'refs/heads/main', 'branch');
+    insertCommitRef(db, 'abcdef123456', 'refs/tags/v1.0.0', 'tag');
   });
 
   it('should return mode="commit"', () => {
@@ -224,6 +245,14 @@ describe('handler – commit mode', () => {
     const paths = commit.files!.map((f) => f.file_path);
     expect(paths).toContain('src/foo.ts');
     expect(paths).toContain('src/bar.ts');
+  });
+
+  it('should attach commit_refs to the result when available', () => {
+    const result = handler(db, { mode: 'commit', query: 'abcdef123456' });
+    const commit = result.results[0];
+    expect(commit.refs).toBeDefined();
+    expect(commit.refs!.map((r) => r.ref_name)).toContain('refs/heads/main');
+    expect(commit.refs!.map((r) => r.ref_name)).toContain('refs/tags/v1.0.0');
   });
 
   it('should return empty results for a non-matching SHA', () => {
@@ -285,6 +314,42 @@ describe('handler – author mode', () => {
   it('should return empty results when no author matches', () => {
     const result = handler(db, { mode: 'author', query: 'Zara' });
     expect(result.count).toBe(0);
+  });
+});
+
+// ─── handler – ref mode ─────────────────────────────────────────────────────
+
+describe('handler – ref mode', () => {
+  let db: Database.Database;
+
+  beforeEach(() => {
+    db = createTestDb();
+    insertCommit(db, 'sha-main', 'Alice', 'alice@example.com', 1700000010);
+    insertCommit(db, 'sha-tag', 'Bob', 'bob@example.com', 1700000011);
+    insertCommitRef(db, 'sha-main', 'refs/heads/main', 'branch');
+    insertCommitRef(db, 'sha-tag', 'refs/tags/v1.0.0', 'tag');
+  });
+
+  it('should return mode="ref"', () => {
+    const result = handler(db, { mode: 'ref', query: 'main' });
+    expect(result.mode).toBe('ref');
+  });
+
+  it('should return commits matching a ref substring', () => {
+    const result = handler(db, { mode: 'ref', query: 'main' });
+    expect(result.count).toBe(1);
+    expect(result.results[0].sha).toBe('sha-main');
+  });
+
+  it('should return commits matching a full ref name', () => {
+    const result = handler(db, { mode: 'ref', query: 'refs/tags/v1.0.0' });
+    expect(result.count).toBe(1);
+    expect(result.results[0].sha).toBe('sha-tag');
+  });
+
+  it('should fall back to recent commits when query is empty', () => {
+    const result = handler(db, { mode: 'ref', query: '' });
+    expect(result.count).toBe(2);
   });
 });
 

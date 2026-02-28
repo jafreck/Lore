@@ -11,6 +11,7 @@
  *   kb_graph     — call / import graph queries
  *   kb_search    — structural, semantic, and fused search
  *   kb_snippet   — source-code snippet extraction
+ *   kb_blame     — git blame metadata for file lines
  *   kb_metrics   — aggregate code metrics
  *   kb_writeback — LLM summary write-back
  *   kb_history   — git commit history queries
@@ -31,6 +32,7 @@ import * as lookup from './tools/lookup.js';
 import * as graph from './tools/graph.js';
 import * as search from './tools/search.js';
 import * as snippet from './tools/snippet.js';
+import * as blame from './tools/blame.js';
 import * as metrics from './tools/metrics.js';
 import * as writeback from './tools/writeback.js';
 import * as history from './tools/history.js';
@@ -126,6 +128,23 @@ export function createKbMcpServer(
     }),
   );
 
+  // ── kb_blame ───────────────────────────────────────────────────────────────
+  server.tool(
+    blame.toolDef.name,
+    blame.toolDef.description,
+    {
+      path: z.string().describe('Absolute file path as stored in the index.'),
+      line: z.number().optional().describe('Single line to blame (1-based).'),
+      start_line: z.number().optional().describe('Range start line (1-based).'),
+      end_line: z.number().optional().describe('Range end line (1-based).'),
+      ref: z.string().optional().describe('Git ref to blame against (default HEAD).'),
+      branch: z.string().optional().describe('Optional branch to disambiguate indexed file path.'),
+    },
+    async (args) => ({
+      content: [{ type: 'text', text: JSON.stringify(blame.handler(db, args)) }],
+    }),
+  );
+
   // ── kb_writeback ───────────────────────────────────────────────────────────
   server.tool(
     writeback.toolDef.name,
@@ -149,9 +168,9 @@ export function createKbMcpServer(
     history.toolDef.description,
     {
       mode: z
-        .enum(['file', 'commit', 'author', 'recent'])
-        .describe('Query mode: file, commit, author, or recent.'),
-      query: z.string().optional().describe('File path, commit SHA, or author name/email.'),
+        .enum(['file', 'commit', 'author', 'ref', 'recent'])
+        .describe('Query mode: file, commit, author, ref, or recent.'),
+      query: z.string().optional().describe('File path, commit SHA, author name/email, or ref.'),
       limit: z.number().optional().describe('Max results (default 20, max 200).'),
     },
     async (args) => ({

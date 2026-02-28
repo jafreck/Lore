@@ -146,3 +146,13 @@ export async function walkFiles(config: WalkerConfig): Promise<FileEntry[]> {
 
   return results;
 }
+
+/**
+ * Detect the Lore language for a single file path using extension mapping.
+ * Returns `undefined` when the extension is unknown or filtered out.
+ */
+export function detectLanguageForPath(filePath: string, config?: Pick<WalkerConfig, 'extensions'>): string | undefined {
+  const ext = extname(filePath).toLowerCase();
+  if (config?.extensions && !config.extensions.includes(ext)) return undefined;
+  return EXT_TO_LANG[ext];
+}
