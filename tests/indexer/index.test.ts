@@ -3,8 +3,12 @@ import { mkdtempSync, writeFileSync, mkdirSync, rmSync, existsSync } from 'node:
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { execFileSync } from 'node:child_process';
+import { createRequire } from 'node:module';
 import Database from 'better-sqlite3';
 import { IndexBuilder } from '../../src/indexer/index.js';
+import type { EmbeddingProvider } from '../../src/indexer/embedder.js';
+
+const esmRequire = createRequire(import.meta.url);
 
 /** Create a temp directory containing a minimal TypeScript source file. */
 function createTmpSrcDir(): string {
@@ -45,6 +49,41 @@ function queryFilesWithBranch(dbPath: string, branch: string): { path: string; b
   const rows = db.prepare('SELECT path, branch FROM files WHERE branch = ?').all(branch) as { path: string; branch: string }[];
   db.close();
   return rows;
+}
+
+function queryStructuralEmbeddingCount(dbPath: string): number {
+  const db = new Database(dbPath, { readonly: true });
+  (esmRequire('sqlite-vec') as { load(database: Database.Database): void }).load(db);
+  const hasTable = db
+    .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'symbol_embeddings'")
+    .get() as { name: string } | undefined;
+  if (!hasTable) {
+    db.close();
+    return 0;
+  }
+  const row = db.prepare('SELECT COUNT(*) AS count FROM symbol_embeddings').get() as { count: number };
+  db.close();
+  return row.count;
+}
+
+function queryCommitCount(dbPath: string): number {
+  const db = new Database(dbPath, { readonly: true });
+  const row = db.prepare('SELECT COUNT(*) as count FROM commits').get() as { count: number };
+  db.close();
+  return row.count;
+}
+
+function querySymbolNamesForFile(dbPath: string, filePath: string, branch: string): string[] {
+  const db = new Database(dbPath, { readonly: true });
+  const rows = db.prepare(
+    `SELECT s.name
+     FROM symbols s
+     JOIN files f ON f.id = s.file_id
+     WHERE f.path = ? AND f.branch = ?
+     ORDER BY s.name`,
+  ).all(filePath, branch) as { name: string }[];
+  db.close();
+  return rows.map((r) => r.name);
 }
 
 describe('IndexBuilder — branch support in build()', () => {
@@ -185,6 +224,137 @@ describe('IndexBuilder — branch support in update()', () => {
     expect(headFiles.length).toBeGreaterThan(0);
   });
 
+  it('should ingest git history during update() when history is enabled', async () => {
+    runGit(srcDir, ['init']);
+    runGit(srcDir, ['config', 'user.name', 'Test User']);
+    runGit(srcDir, ['config', 'user.email', 'test@example.com']);
+    runGit(srcDir, ['add', 'hello.ts']);
+    runGit(srcDir, ['commit', '-m', 'initial commit']);
+
+    writeFileSync(srcFile, 'export function updatedWithHistory(): void {}\n');
+
+    const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' }, undefined, { history: true });
+    await builder.update([srcFile]);
+
+    expect(queryCommitCount(dbPath)).toBeGreaterThan(0);
+  });
+
+  it('should respect history options during update() when history is configured as an object', async () => {
+    runGit(srcDir, ['init']);
+    runGit(srcDir, ['config', 'user.name', 'Test User']);
+    runGit(srcDir, ['config', 'user.email', 'test@example.com']);
+    runGit(srcDir, ['add', 'hello.ts']);
+    runGit(srcDir, ['commit', '-m', 'initial commit']);
+
+    writeFileSync(srcFile, 'export function secondCommit(): void {}\n');
+    runGit(srcDir, ['add', 'hello.ts']);
+    runGit(srcDir, ['commit', '-m', 'second commit']);
+
+    const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' }, undefined, {
+      history: { depth: 1, all: false },
+    });
+    await builder.update([srcFile]);
+
+    expect(queryCommitCount(dbPath)).toBe(1);
+  });
+
+  it('should not persist structural embeddings during update() when embedder is not configured', async () => {
+    writeFileSync(srcFile, 'export function updatedWithoutEmbeddings(name: string): string { return name; }\n');
+
+    const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
+    await builder.update([srcFile]);
+
+    expect(queryStructuralEmbeddingCount(dbPath)).toBe(0);
+  });
+
+  it('should persist structural embeddings during update() when embedder is configured', async () => {
+    writeFileSync(srcFile, 'export function updatedWithEmbeddings(name: string): string { return name; }\n');
+
+    let initCalled = false;
+    const embedder: EmbeddingProvider = {
+      modelName: 'test-embedder',
+      dims: 3,
+      async init(): Promise<void> {
+        initCalled = true;
+      },
+      async embed(texts: string[]): Promise<number[][]> {
+        return texts.map((_, i) => [i + 1, i + 2, i + 3]);
+      },
+      async dispose(): Promise<void> {},
+    };
+
+    const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' }, embedder);
+    await builder.update([srcFile]);
+
+    expect(initCalled).toBe(true);
+    expect(queryStructuralEmbeddingCount(dbPath)).toBeGreaterThan(0);
+  });
+
+  it('should remove branch-scoped file rows and related symbols_fts entries when a tracked file is deleted', async () => {
+    const importingFile = join(srcDir, 'consumer.ts');
+    writeFileSync(importingFile, 'import { hello } from "./hello";\nexport const value = hello();\n');
+    const builderMainForImport = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
+    await builderMainForImport.update([importingFile]);
+
+    const builderDev = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'dev' });
+    await builderDev.build();
+
+    const beforeDb = new Database(dbPath, { readonly: true });
+    const mainFileRow = beforeDb
+      .prepare('SELECT id FROM files WHERE path = ? AND branch = ?')
+      .get(srcFile, 'main') as { id: number } | undefined;
+    expect(mainFileRow).toBeDefined();
+
+    const mainSymbolIds = beforeDb
+      .prepare(
+        'SELECT s.id FROM symbols s JOIN files f ON f.id = s.file_id WHERE f.path = ? AND f.branch = ?',
+      )
+      .all(srcFile, 'main') as Array<{ id: number }>;
+    const resolvedImportRows = beforeDb
+      .prepare(
+        `SELECT fi.id
+         FROM file_imports fi
+         JOIN files f ON f.id = fi.file_id
+         WHERE fi.resolved_id = ? AND f.branch = ?`,
+      )
+      .all(mainFileRow!.id, 'main') as Array<{ id: number }>;
+    beforeDb.close();
+    expect(mainSymbolIds.length).toBeGreaterThan(0);
+    expect(resolvedImportRows.length).toBeGreaterThan(0);
+
+    rmSync(srcFile, { force: true });
+    const builderMain = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
+    await builderMain.update([srcFile]);
+
+    const afterDb = new Database(dbPath, { readonly: true });
+    const deletedMainFile = afterDb
+      .prepare('SELECT id FROM files WHERE path = ? AND branch = ?')
+      .get(srcFile, 'main') as { id: number } | undefined;
+    const devFile = afterDb
+      .prepare('SELECT id FROM files WHERE path = ? AND branch = ?')
+      .get(srcFile, 'dev') as { id: number } | undefined;
+    const staleFtsCountRow = afterDb
+      .prepare(
+        `SELECT COUNT(*) AS count
+         FROM symbols_fts
+         WHERE rowid IN (${mainSymbolIds.map(() => '?').join(',')})`,
+      )
+      .get(...mainSymbolIds.map(row => row.id)) as { count: number };
+    const clearedResolvedCount = afterDb
+      .prepare(
+        `SELECT COUNT(*) AS count
+         FROM file_imports
+         WHERE id IN (${resolvedImportRows.map(() => '?').join(',')}) AND resolved_id IS NULL`,
+      )
+      .get(...resolvedImportRows.map(row => row.id)) as { count: number };
+    afterDb.close();
+
+    expect(deletedMainFile).toBeUndefined();
+    expect(devFile).toBeDefined();
+    expect(staleFtsCountRow.count).toBe(0);
+    expect(clearedResolvedCount.count).toBe(resolvedImportRows.length);
+  });
+
   it('should detect and use the current git branch during update when branch is omitted', async () => {
     const gitBranch = createGitRepoWithCommit(srcDir, 'feature/update-auto');
     const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: gitBranch });
@@ -196,6 +366,76 @@ describe('IndexBuilder — branch support in update()', () => {
 
     const files = queryFilesWithBranch(dbPath, gitBranch);
     expect(files.length).toBeGreaterThan(0);
+  });
+});
+
+describe('IndexBuilder — transactional file loops', () => {
+  let srcDir: string;
+  let dbPath: string;
+
+  beforeEach(() => {
+    srcDir = mkdtempSync(join(tmpdir(), 'lore-index-test-src-'));
+    dbPath = tmpDbPath();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    try { rmSync(srcDir, { recursive: true, force: true }); } catch { /* ignore */ }
+    const dbDir = join(dbPath, '..');
+    try { rmSync(dbDir, { recursive: true, force: true }); } catch { /* ignore */ }
+  });
+
+  it('should roll back build() file writes when one file processing step fails', async () => {
+    const firstFile = join(srcDir, 'one.ts');
+    const secondFile = join(srcDir, 'two.ts');
+    writeFileSync(firstFile, 'export function one(): string { return "one"; }\n');
+    writeFileSync(secondFile, 'export function two(): string { return "two"; }\n');
+
+    const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
+    const privateBuilder = builder as unknown as {
+      processFile: (db: unknown, filePath: string, language: string, branch: string) => void;
+    };
+    const originalProcessFile = privateBuilder.processFile.bind(builder) as typeof privateBuilder.processFile;
+    let calls = 0;
+    vi.spyOn(privateBuilder, 'processFile').mockImplementation((db, filePath, language, branch) => {
+      calls += 1;
+      if (calls === 2) throw new Error('forced build failure');
+      originalProcessFile(db, filePath, language, branch);
+    });
+
+    await expect(builder.build()).rejects.toThrow('forced build failure');
+    expect(queryFilesWithBranch(dbPath, 'main')).toEqual([]);
+  });
+
+  it('should roll back update() file writes when one changed file fails to process', async () => {
+    const firstFile = join(srcDir, 'one.ts');
+    const secondFile = join(srcDir, 'two.ts');
+    writeFileSync(firstFile, 'export function one(): string { return "one"; }\n');
+    writeFileSync(secondFile, 'export function two(): string { return "two"; }\n');
+
+    const seedBuilder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
+    await seedBuilder.build();
+    expect(querySymbolNamesForFile(dbPath, firstFile, 'main')).toContain('one');
+
+    writeFileSync(firstFile, 'export function oneUpdated(): string { return "one"; }\n');
+    writeFileSync(secondFile, 'export function twoUpdated(): string { return "two"; }\n');
+
+    const updateBuilder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
+    const privateBuilder = updateBuilder as unknown as {
+      processFile: (db: unknown, filePath: string, language: string, branch: string) => void;
+    };
+    const originalProcessFile = privateBuilder.processFile.bind(updateBuilder) as typeof privateBuilder.processFile;
+    let calls = 0;
+    vi.spyOn(privateBuilder, 'processFile').mockImplementation((db, filePath, language, branch) => {
+      calls += 1;
+      if (calls === 2) throw new Error('forced update failure');
+      originalProcessFile(db, filePath, language, branch);
+    });
+
+    await expect(updateBuilder.update([firstFile, secondFile])).rejects.toThrow('forced update failure');
+    const symbolNames = querySymbolNamesForFile(dbPath, firstFile, 'main');
+    expect(symbolNames).toContain('one');
+    expect(symbolNames).not.toContain('oneUpdated');
   });
 });
 
