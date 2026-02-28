@@ -3,9 +3,6 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, it, expect, beforeEach } from 'vitest';
 import Database from 'better-sqlite3';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
 import {
   openReadOnly,
   getFileById,
@@ -21,6 +18,11 @@ import {
   listCommitFiles,
   listCommitRefs,
   listCommitsByRef,
+  getLatestCoverageRun,
+  getCoverageStaleness,
+  getLatestCoverageTotals,
+  getSymbolCoverageAggregates,
+  getCoveragePercentBySymbolIds,
   type FileRow,
   type SymbolRow,
 } from '../../src/kb-server/db.js';
@@ -88,6 +90,64 @@ function createCommitDb(withRefs = true): Database.Database {
   return db;
 }
 
+function createCoverageDb(): Database.Database {
+  const db = new Database(':memory:');
+  db.pragma('foreign_keys = ON');
+  db.exec(`
+    CREATE TABLE files (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      path        TEXT    NOT NULL,
+      branch      TEXT    NOT NULL DEFAULT '',
+      language    TEXT    NOT NULL,
+      size_bytes  INTEGER NOT NULL DEFAULT 0,
+      last_hash   TEXT,
+      indexed_at  INTEGER NOT NULL DEFAULT 0,
+      UNIQUE(path, branch)
+    );
+    CREATE TABLE symbols (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      file_id     INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+      name        TEXT    NOT NULL,
+      kind        TEXT    NOT NULL,
+      start_line  INTEGER NOT NULL,
+      end_line    INTEGER NOT NULL,
+      signature   TEXT,
+      doc_comment TEXT
+    );
+    CREATE TABLE commits (
+      sha          TEXT    PRIMARY KEY,
+      author       TEXT    NOT NULL,
+      author_email TEXT    NOT NULL,
+      timestamp    INTEGER NOT NULL,
+      message      TEXT    NOT NULL,
+      parents      TEXT    NOT NULL DEFAULT '[]'
+    );
+    CREATE TABLE coverage_runs (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      commit_sha    TEXT    NOT NULL,
+      source_path   TEXT    NOT NULL,
+      format        TEXT    NOT NULL,
+      ingested_at   INTEGER NOT NULL DEFAULT (unixepoch()),
+      source_mtime  INTEGER
+    );
+    CREATE TABLE coverage_files (
+      run_id        INTEGER NOT NULL REFERENCES coverage_runs(id) ON DELETE CASCADE,
+      file_path     TEXT    NOT NULL,
+      lines_found   INTEGER NOT NULL DEFAULT 0,
+      lines_hit     INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (run_id, file_path)
+    );
+    CREATE TABLE coverage_lines (
+      run_id        INTEGER NOT NULL REFERENCES coverage_runs(id) ON DELETE CASCADE,
+      file_path     TEXT    NOT NULL,
+      line_number   INTEGER NOT NULL,
+      hit_count     INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (run_id, file_path, line_number)
+    );
+  `);
+  return db;
+}
+
 function insertFile(
   db: Database.Database,
   path: string,
@@ -141,6 +201,113 @@ describe('openReadOnly', () => {
 
     db.close();
     fs.rmSync(dbPath);
+  });
+});
+
+describe('coverage helpers', () => {
+  it('should return latest coverage run ordered by ingested_at and id', () => {
+    const db = createCoverageDb();
+    db.prepare(
+      'INSERT INTO coverage_runs (commit_sha, source_path, format, ingested_at) VALUES (?, ?, ?, ?)',
+    ).run('aaa111', 'cov1.info', 'lcov', 100);
+    db.prepare(
+      'INSERT INTO coverage_runs (commit_sha, source_path, format, ingested_at) VALUES (?, ?, ?, ?)',
+    ).run('bbb222', 'cov2.info', 'lcov', 100);
+
+    const latest = getLatestCoverageRun(db);
+    expect(latest?.commit_sha).toBe('bbb222');
+  });
+
+  it('should return non-stale metadata when no coverage run exists', () => {
+    const db = createCoverageDb();
+    db.prepare(
+      `INSERT INTO commits (sha, author, author_email, timestamp, message, parents)
+       VALUES (?, ?, ?, ?, ?, '[]')`,
+    ).run('ccc333', 'Alice', 'alice@example.com', 1700000001, 'first');
+
+    const staleness = getCoverageStaleness(db);
+    expect(staleness).toEqual({
+      coverage_commit: null,
+      current_commit: 'ccc333',
+      commits_behind: 0,
+      stale: false,
+    });
+  });
+
+  it('should compute commit staleness and latest global coverage totals', () => {
+    const db = createCoverageDb();
+    const fileId = insertFile(db, 'src/main.ts', 'main');
+    const symbolId = insertSymbol(db, fileId, 'render');
+    expect(symbolId).toBeGreaterThan(0);
+
+    db.prepare(
+      `INSERT INTO commits (sha, author, author_email, timestamp, message, parents)
+       VALUES (?, ?, ?, ?, ?, '[]')`,
+    ).run('aaa111', 'Alice', 'alice@example.com', 1700000001, 'first');
+    db.prepare(
+      `INSERT INTO commits (sha, author, author_email, timestamp, message, parents)
+       VALUES (?, ?, ?, ?, ?, '[]')`,
+    ).run('bbb222', 'Alice', 'alice@example.com', 1700000002, 'second');
+    db.prepare(
+      `INSERT INTO commits (sha, author, author_email, timestamp, message, parents)
+       VALUES (?, ?, ?, ?, ?, '[]')`,
+    ).run('ccc333', 'Alice', 'alice@example.com', 1700000003, 'third');
+
+    const runId = db
+      .prepare(
+        'INSERT INTO coverage_runs (commit_sha, source_path, format, ingested_at) VALUES (?, ?, ?, ?)',
+      )
+      .run('aaa111', 'cov.info', 'lcov', 1700000002).lastInsertRowid as number;
+    db.prepare(
+      'INSERT INTO coverage_files (run_id, file_path, lines_found, lines_hit) VALUES (?, ?, ?, ?)',
+    ).run(runId, 'src/main.ts', 5, 3);
+    db.prepare('INSERT INTO coverage_lines (run_id, file_path, line_number, hit_count) VALUES (?, ?, ?, ?)').run(runId, 'src/main.ts', 1, 1);
+    db.prepare('INSERT INTO coverage_lines (run_id, file_path, line_number, hit_count) VALUES (?, ?, ?, ?)').run(runId, 'src/main.ts', 2, 0);
+    db.prepare('INSERT INTO coverage_lines (run_id, file_path, line_number, hit_count) VALUES (?, ?, ?, ?)').run(runId, 'src/main.ts', 3, 1);
+    db.prepare('INSERT INTO coverage_lines (run_id, file_path, line_number, hit_count) VALUES (?, ?, ?, ?)').run(runId, 'src/main.ts', 4, 1);
+
+    const staleness = getCoverageStaleness(db);
+    expect(staleness.coverage_commit).toBe('aaa111');
+    expect(staleness.current_commit).toBe('ccc333');
+    expect(staleness.commits_behind).toBe(2);
+    expect(staleness.stale).toBe(true);
+
+    const totals = getLatestCoverageTotals(db);
+    expect(totals).toEqual({
+      lines_found: 5,
+      lines_hit: 3,
+      coverage_percent: 60,
+    });
+  });
+
+  it('should return symbol aggregates and coverage map with branch filtering', () => {
+    const db = createCoverageDb();
+    const mainFileId = insertFile(db, 'src/main.ts', 'main');
+    const featFileId = insertFile(db, 'src/feat.ts', 'feat');
+    const mainSymbolId = insertSymbol(db, mainFileId, 'render');
+    const featSymbolId = insertSymbol(db, featFileId, 'render');
+    const runId = db
+      .prepare(
+        'INSERT INTO coverage_runs (commit_sha, source_path, format, ingested_at) VALUES (?, ?, ?, ?)',
+      )
+      .run('aaa111', 'cov.info', 'lcov', 1700000002).lastInsertRowid as number;
+
+    db.prepare('INSERT INTO coverage_lines (run_id, file_path, line_number, hit_count) VALUES (?, ?, ?, ?)').run(runId, 'src/main.ts', 1, 1);
+    db.prepare('INSERT INTO coverage_lines (run_id, file_path, line_number, hit_count) VALUES (?, ?, ?, ?)').run(runId, 'src/main.ts', 2, 0);
+    db.prepare('INSERT INTO coverage_lines (run_id, file_path, line_number, hit_count) VALUES (?, ?, ?, ?)').run(runId, 'src/main.ts', 3, 1);
+    db.prepare('INSERT INTO coverage_lines (run_id, file_path, line_number, hit_count) VALUES (?, ?, ?, ?)').run(runId, 'src/feat.ts', 1, 0);
+    db.prepare('INSERT INTO coverage_lines (run_id, file_path, line_number, hit_count) VALUES (?, ?, ?, ?)').run(runId, 'src/feat.ts', 2, 0);
+    db.prepare('INSERT INTO coverage_lines (run_id, file_path, line_number, hit_count) VALUES (?, ?, ?, ?)').run(runId, 'src/feat.ts', 3, 1);
+
+    const aggregates = getSymbolCoverageAggregates(db, { symbolIds: [mainSymbolId], limit: 10 });
+    expect(aggregates).toHaveLength(1);
+    expect(aggregates[0]?.uncovered_lines).toEqual([2]);
+    expect(aggregates[0]?.coverage_percent).toBeCloseTo(66.666, 2);
+
+    const coverageMap = getCoveragePercentBySymbolIds(db, [mainSymbolId, featSymbolId], 'main');
+    expect(coverageMap.get(mainSymbolId)).toBeCloseTo(66.666, 2);
+    expect(coverageMap.has(featSymbolId)).toBe(false);
+    expect(getCoveragePercentBySymbolIds(db, [])).toEqual(new Map());
   });
 });
 

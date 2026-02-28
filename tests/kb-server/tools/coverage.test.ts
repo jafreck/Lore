@@ -114,4 +114,41 @@ describe('coverage handler', () => {
     expect(result.coverage_commit).toBeNull();
     expect(result.symbols).toEqual([]);
   });
+
+  it('should return empty symbols when symbol_name has no matches', () => {
+    const fileId = db
+      .prepare('INSERT INTO files (path, branch, language) VALUES (?, ?, ?)')
+      .run('src/main.ts', 'main', 'typescript').lastInsertRowid as number;
+    db.prepare(
+      'INSERT INTO symbols (file_id, name, kind, start_line, end_line) VALUES (?, ?, ?, ?, ?)',
+    ).run(fileId, 'render', 'function', 1, 3);
+    db.prepare(
+      'INSERT INTO coverage_runs (commit_sha, source_path, format, ingested_at) VALUES (?, ?, ?, ?)',
+    ).run('abc123', 'coverage/lcov.info', 'lcov', 150);
+
+    const result = handler(db, { symbol_name: 'doesNotExist' });
+    expect(result.coverage_available).toBe(true);
+    expect(result.symbols).toEqual([]);
+  });
+
+  it('should clamp limit to at least one symbol', () => {
+    const fileId = db
+      .prepare('INSERT INTO files (path, branch, language) VALUES (?, ?, ?)')
+      .run('src/main.ts', 'main', 'typescript').lastInsertRowid as number;
+    db.prepare(
+      'INSERT INTO symbols (file_id, name, kind, start_line, end_line) VALUES (?, ?, ?, ?, ?)',
+    ).run(fileId, 'render', 'function', 1, 3);
+    db.prepare(
+      'INSERT INTO symbols (file_id, name, kind, start_line, end_line) VALUES (?, ?, ?, ?, ?)',
+    ).run(fileId, 'paint', 'function', 4, 6);
+    const runId = db
+      .prepare(
+        'INSERT INTO coverage_runs (commit_sha, source_path, format, ingested_at) VALUES (?, ?, ?, ?)',
+      )
+      .run('abc123', 'coverage/lcov.info', 'lcov', 150).lastInsertRowid as number;
+    db.prepare('INSERT INTO coverage_lines (run_id, file_path, line_number, hit_count) VALUES (?, ?, ?, ?)').run(runId, 'src/main.ts', 1, 1);
+
+    const result = handler(db, { limit: 0 });
+    expect(result.symbols).toHaveLength(1);
+  });
 });
