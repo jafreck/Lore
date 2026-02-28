@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, writeFileSync, rmdirSync, unlinkSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { walkFiles } from '../../src/indexer/walker.js';
+import { walkFiles, detectLanguageForPath } from '../../src/indexer/walker.js';
 import type { WalkerConfig } from '../../src/indexer/walker.js';
 
 describe('WalkerConfig', () => {
@@ -97,5 +97,21 @@ describe('walkFiles', () => {
     expect(langs).toContain('typescript');
     expect(langs).toContain('python');
     expect(langs).toContain('rust');
+  });
+});
+
+describe('detectLanguageForPath', () => {
+  it('should detect language by extension', () => {
+    expect(detectLanguageForPath('/tmp/file.ts')).toBe('typescript');
+    expect(detectLanguageForPath('/tmp/file.py')).toBe('python');
+  });
+
+  it('should return undefined for unknown extensions', () => {
+    expect(detectLanguageForPath('/tmp/file.unknown')).toBeUndefined();
+  });
+
+  it('should respect explicit extension filters', () => {
+    expect(detectLanguageForPath('/tmp/file.ts', { extensions: ['.py'] })).toBeUndefined();
+    expect(detectLanguageForPath('/tmp/file.ts', { extensions: ['.ts'] })).toBe('typescript');
   });
 });

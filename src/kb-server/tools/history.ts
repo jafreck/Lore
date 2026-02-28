@@ -10,9 +10,12 @@ import {
   listRecentCommits,
   listCommitsByFile,
   listCommitsByAuthor,
+  listCommitsByRef,
   listCommitFiles,
+  listCommitRefs,
   type CommitRow,
   type CommitFileRow,
+  type CommitRefRow,
 } from '../db.js';
 
 // ─── Tool definition ──────────────────────────────────────────────────────────
@@ -24,6 +27,7 @@ export const toolDef = {
     'Supports four modes: "file" (commits that touched a file path), ' +
     '"commit" (look up a commit by full or partial SHA), ' +
     '"author" (commits by a given author name or email), ' +
+    '"ref" (commits matching branch/tag refs), and ' +
     '"recent" (most recent commits). ' +
     'All modes support an optional `limit` parameter (default 20, max 200).',
   inputSchema: {
@@ -31,7 +35,7 @@ export const toolDef = {
     properties: {
       mode: {
         type: 'string',
-        enum: ['file', 'commit', 'author', 'recent'],
+        enum: ['file', 'commit', 'author', 'ref', 'recent'],
         description: 'Query mode.',
       },
       query: {
@@ -40,6 +44,7 @@ export const toolDef = {
           'For mode="file": the file path. ' +
           'For mode="commit": full or partial commit SHA. ' +
           'For mode="author": author name or email substring. ' +
+            'For mode="ref": branch/tag ref name or substring (e.g. refs/heads/main, main, v1.2.0). ' +
           'Not required for mode="recent".',
       },
       limit: {
@@ -54,13 +59,14 @@ export const toolDef = {
 // ─── Handler ──────────────────────────────────────────────────────────────────
 
 export interface HistoryArgs {
-  mode: 'file' | 'commit' | 'author' | 'recent';
+  mode: 'file' | 'commit' | 'author' | 'ref' | 'recent';
   query?: string;
   limit?: number;
 }
 
 export interface CommitWithFiles extends CommitRow {
   files?: CommitFileRow[];
+  refs?: CommitRefRow[];
 }
 
 export interface HistoryResult {
@@ -100,7 +106,8 @@ export function handler(db: Database.Database, args: HistoryArgs): HistoryResult
         return { mode: 'commit', results: [], count: 0 };
       }
       const files = listCommitFiles(db, commit.sha);
-      const result: CommitWithFiles = { ...commit, files };
+      const refs = listCommitRefs(db, commit.sha);
+      const result: CommitWithFiles = { ...commit, files, refs };
       return { mode: 'commit', results: [result], count: 1 };
     }
 
@@ -110,6 +117,14 @@ export function handler(db: Database.Database, args: HistoryArgs): HistoryResult
         ? listCommitsByAuthor(db, author, limit)
         : listRecentCommits(db, limit);
       return { mode: 'author', results: rows, count: rows.length };
+    }
+
+    case 'ref': {
+      const ref = args.query?.trim() ?? '';
+      const rows = ref
+        ? listCommitsByRef(db, ref, limit)
+        : listRecentCommits(db, limit);
+      return { mode: 'ref', results: rows, count: rows.length };
     }
 
     case 'recent': {

@@ -10,14 +10,17 @@ import type { Database } from './db.js';
 
 export interface GitHistoryOptions {
   depth?: number;
+  all?: boolean;
 }
 
-const DEFAULT_DEPTH = 500;
+const DEFAULT_ALL = true;
 
 /**
- * Reads up to `options.depth` commits (default 500) from the git repository
- * at `repoRoot` and upserts each commit and its associated file changes into
- * the `commits` and `commit_files` tables.
+ * Reads commit history from the git repository at `repoRoot` and upserts each
+ * commit and its associated file changes into the `commits` and
+ * `commit_files` tables. By default, Lore traverses all refs (`--all`) with
+ * no depth limit; `options.depth` can be used to cap the number of ingested
+ * commits.
  *
  * The function is idempotent: rows are inserted with INSERT OR IGNORE so
  * re-running it on the same repository will not produce duplicates.
@@ -27,17 +30,39 @@ export async function ingestGitHistory(
   repoRoot: string,
   options?: GitHistoryOptions,
 ): Promise<void> {
-  const depth = options?.depth ?? DEFAULT_DEPTH;
+  const all = options?.all ?? DEFAULT_ALL;
+  const depth =
+    typeof options?.depth === 'number' && Number.isFinite(options.depth) && options.depth > 0
+      ? Math.floor(options.depth)
+      : undefined;
   const git = simpleGit(repoRoot);
+
+  const logArgs = [
+    'log',
+    '--numstat',
+    '--format=COMMIT_SEP%n%H%n%an%n%ae%n%at%n%P%n%s',
+  ];
+
+  if (all) {
+    logArgs.push('--all');
+  }
+
+  if (depth !== undefined) {
+    logArgs.push(`--max-count=${depth}`);
+  }
 
   // Fetch log with numstat for diff stats.
   // --numstat outputs insertion/deletion counts per file after each commit header.
-  const logResult = await git.raw([
-    'log',
-    `--max-count=${depth}`,
-    '--numstat',
-    '--format=COMMIT_SEP%n%H%n%an%n%ae%n%at%n%P%n%s',
-  ]);
+  const logResult = await git.raw(logArgs);
+
+  // Capture heads/tags that currently point to commits so branch/tag metadata
+  // is also available in the KB.
+  let refsRaw = '';
+  try {
+    refsRaw = await git.raw(['show-ref', '--heads', '--tags']);
+  } catch {
+    refsRaw = '';
+  }
 
   const insertCommit = db.prepare(
     `INSERT OR IGNORE INTO commits (sha, author, author_email, timestamp, message, parents)
@@ -46,6 +71,11 @@ export async function ingestGitHistory(
   const insertCommitFile = db.prepare(
     `INSERT OR IGNORE INTO commit_files (commit_sha, file_path, change_type, insertions, deletions)
      VALUES (?, ?, ?, ?, ?)`,
+  );
+  const insertCommitRef = db.prepare(
+    `INSERT OR IGNORE INTO commit_refs (commit_sha, ref_name, ref_type)
+     SELECT ?, ?, ?
+     WHERE EXISTS (SELECT 1 FROM commits WHERE sha = ?)`,
   );
 
   // Parse the raw git log output into commit blocks.
@@ -102,6 +132,25 @@ export async function ingestGitHistory(
 
         insertCommitFile.run(sha, filePath, changeType, insertions, deletions);
       }
+    }
+
+    const refLines = refsRaw
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+
+    for (const line of refLines) {
+      const [sha, refName] = line.split(' ');
+      if (!sha || !refName) continue;
+
+      let refType = 'other';
+      if (refName.startsWith('refs/heads/')) {
+        refType = 'branch';
+      } else if (refName.startsWith('refs/tags/')) {
+        refType = 'tag';
+      }
+
+      insertCommitRef.run(sha, refName, refType, sha);
     }
   })();
 }
