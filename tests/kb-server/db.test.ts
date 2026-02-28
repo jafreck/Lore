@@ -1,6 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import Database from 'better-sqlite3';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import {
+  openReadOnly,
   getFileById,
   getFileByPath,
   listFiles,
@@ -65,6 +69,36 @@ function insertSymbol(
     .run(fileId, name, kind);
   return result.lastInsertRowid as number;
 }
+
+// ─── openReadOnly ──────────────────────────────────────────────────────────────
+
+describe('openReadOnly', () => {
+  it('should open the database in read-only mode with foreign keys enabled', () => {
+    const dbPath = path.join(os.tmpdir(), `lore-db-test-${Date.now()}.sqlite`);
+    const seedDb = new Database(dbPath);
+    seedDb.exec(`
+      CREATE TABLE files (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        path        TEXT    NOT NULL,
+        branch      TEXT    NOT NULL DEFAULT '',
+        language    TEXT    NOT NULL,
+        size_bytes  INTEGER NOT NULL DEFAULT 0,
+        last_hash   TEXT,
+        indexed_at  INTEGER NOT NULL DEFAULT 0,
+        UNIQUE(path, branch)
+      );
+    `);
+    seedDb.close();
+
+    const db = openReadOnly(dbPath);
+    const foreignKeys = db.pragma('foreign_keys', { simple: true });
+    expect(foreignKeys).toBe(1);
+    expect(() => db.prepare('INSERT INTO files (path, branch, language) VALUES (?, ?, ?)').run('a.ts', 'main', 'typescript')).toThrow();
+
+    db.close();
+    fs.rmSync(dbPath);
+  });
+});
 
 // ─── FileRow interface ────────────────────────────────────────────────────────
 
