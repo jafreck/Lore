@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -145,6 +146,36 @@ describe('openReadOnly', () => {
       ).toThrow();
     } finally {
       db.close();
+      fs.rmSync(path.dirname(dbPath), { recursive: true, force: true });
+    }
+  });
+
+  it('should continue opening read-only connections when sqlite-vec load throws', () => {
+    const dbPath = createTempDbPath();
+    const cjsRequire = createRequire(import.meta.url);
+    const sqliteVecPath = cjsRequire.resolve('sqlite-vec');
+    const cachedEntry = cjsRequire.cache[sqliteVecPath];
+    const originalExports = cachedEntry?.exports;
+
+    if (!cachedEntry) {
+      throw new Error('sqlite-vec must be available in test environment');
+    }
+
+    cachedEntry.exports = {
+      load() {
+        throw new Error('simulated sqlite-vec load failure');
+      },
+    };
+
+    try {
+      const db = openReadOnly(dbPath);
+      try {
+        expect(db.pragma('foreign_keys', { simple: true })).toBe(1);
+      } finally {
+        db.close();
+      }
+    } finally {
+      cachedEntry.exports = originalExports;
       fs.rmSync(path.dirname(dbPath), { recursive: true, force: true });
     }
   });
