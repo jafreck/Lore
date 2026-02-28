@@ -72,8 +72,21 @@ describe('openDb', () => {
     ).map((r) => r.name);
     expect(tables).toContain('files');
     expect(tables).toContain('symbols');
+    expect(tables).toContain('symbol_relationships');
     expect(tables).toContain('kb_meta');
     expect(tables).toContain('commit_refs');
+  });
+
+  it('should create symbol_relationships with relationship persistence columns', () => {
+    db = openDb(dbPath);
+    const columns = (
+      db.prepare("PRAGMA table_info('symbol_relationships')").all() as Array<{ name: string }>
+    ).map((column) => column.name);
+
+    expect(columns).toContain('source_symbol_id');
+    expect(columns).toContain('target_symbol_id');
+    expect(columns).toContain('target_symbol_name');
+    expect(columns).toContain('relationship_type');
   });
 
   it('should be idempotent — calling openDb twice on the same path is safe', () => {

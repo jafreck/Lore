@@ -47,6 +47,21 @@ function queryFilesWithBranch(dbPath: string, branch: string): { path: string; b
   return rows;
 }
 
+function queryInheritanceRelationships(
+  dbPath: string,
+): Array<{ source_name: string; target_name: string; relationship_type: string }> {
+  const db = new Database(dbPath, { readonly: true });
+  const rows = db.prepare(`
+    SELECT s_src.name AS source_name,
+           rel.target_symbol_name AS target_name,
+           rel.relationship_type AS relationship_type
+      FROM symbol_relationships rel
+      JOIN symbols s_src ON s_src.id = rel.source_symbol_id
+  `).all() as Array<{ source_name: string; target_name: string; relationship_type: string }>;
+  db.close();
+  return rows;
+}
+
 describe('IndexBuilder — branch support in build()', () => {
   let srcDir: string;
   let dbPath: string;
@@ -123,6 +138,45 @@ describe('IndexBuilder — branch support in build()', () => {
     expect(checkpoint.branch).toBe(branch);
     expect(checkpoint.nextFileIndex).toBe(checkpoint.totalFiles);
     expect(headRow?.value).toBe(runGit(srcDir, ['rev-parse', 'HEAD']));
+  });
+
+  it('should persist extracted inheritance relationships during build', async () => {
+    writeFileSync(
+      join(srcDir, 'inheritance.ts'),
+      'export class Base {}\nexport class Child extends Base {}\n',
+    );
+    const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
+    await builder.build();
+
+    expect(queryInheritanceRelationships(dbPath)).toContainEqual({
+      source_name: 'Child',
+      target_name: 'Base',
+      relationship_type: 'extends',
+    });
+  });
+
+  it('should persist relationships even when target symbol is not indexed', async () => {
+    writeFileSync(
+      join(srcDir, 'external-inheritance.ts'),
+      'export class Child extends ExternalBase {}\n',
+    );
+    const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
+    await builder.build();
+
+    const db = new Database(dbPath, { readonly: true });
+    const relationship = db.prepare(`
+      SELECT rel.target_symbol_id AS target_symbol_id,
+             rel.target_symbol_name AS target_symbol_name
+        FROM symbol_relationships rel
+        JOIN symbols s_src ON s_src.id = rel.source_symbol_id
+       WHERE s_src.name = 'Child'
+         AND rel.relationship_type = 'extends'
+    `).get() as { target_symbol_id: number | null; target_symbol_name: string } | undefined;
+    db.close();
+
+    expect(relationship).toBeDefined();
+    expect(relationship?.target_symbol_name).toBe('ExternalBase');
+    expect(relationship?.target_symbol_id).toBeNull();
   });
 });
 
