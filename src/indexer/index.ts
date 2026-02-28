@@ -216,6 +216,7 @@ export class IndexBuilder {
             | undefined;
           if (existingRow) {
             db.prepare('UPDATE file_imports SET resolved_id = NULL WHERE resolved_id = ?').run(existingRow.id);
+            db.prepare('DELETE FROM symbols_fts WHERE rowid IN (SELECT id FROM symbols WHERE file_id = ?)').run(existingRow.id);
           }
 
           // Delete existing rows for this file (cascade handles symbols/imports)
