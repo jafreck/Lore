@@ -8,6 +8,7 @@
  */
 
 import type { Database } from '../db.js';
+import { getCoveragePercentBySymbolIds } from '../db.js';
 
 // ─── Tool definition ──────────────────────────────────────────────────────────
 
@@ -60,6 +61,7 @@ export interface GraphEdge {
   source_branch: string;
   target_id: number | null;
   target_name: string;
+  callee_coverage_percent?: number | null;
 }
 
 export interface GraphResult {
@@ -100,8 +102,17 @@ export function handler(db: Database.Database, args: GraphArgs): GraphResult {
       ? (args.branch !== undefined ? [args.source_id, args.branch, limit] : [args.source_id, limit])
       : (args.branch !== undefined ? [args.branch, limit] : [limit]);
     const edges = db.prepare(sql).all(...edgeParams) as GraphEdge[];
+    const calleeIds = Array.from(
+      new Set(edges.map((edge) => edge.target_id).filter((id): id is number => id !== null)),
+    );
+    const coverageBySymbolId = getCoveragePercentBySymbolIds(db, calleeIds, args.branch);
+    const edgesWithCoverage = edges.map((edge) => ({
+      ...edge,
+      callee_coverage_percent:
+        edge.target_id !== null ? (coverageBySymbolId.get(edge.target_id) ?? null) : null,
+    }));
 
-    return { edges };
+    return { edges: edgesWithCoverage };
   } else if (args.kind === 'import') {
     // File-level: file_imports rows
     const hasFilter = args.source_id !== undefined;

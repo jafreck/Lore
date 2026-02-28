@@ -7,6 +7,7 @@
  */
 
 import * as fs from 'node:fs';
+import * as path from 'node:path';
 import { IndexBuilder } from './index.js';
 import { walkFiles } from './walker.js';
 import type { WalkerConfig } from './walker.js';
@@ -22,6 +23,12 @@ export interface PollerOptions {
   /** Whether to refresh git history during poll update cycles. */
   history?: boolean | { depth?: number; all?: boolean };
 }
+
+const COVERAGE_REPORT_RELATIVE_PATHS = [
+  'coverage/lcov.info',
+  'coverage/cobertura-coverage.xml',
+  'coverage.xml',
+];
 
 // ─── FilePoller ───────────────────────────────────────────────────────────────
 
@@ -105,6 +112,23 @@ export class FilePoller {
         if (prev === undefined || prev !== mtime) {
           changed.push(entry.path);
           this.snapshot.set(entry.path, mtime);
+        }
+      }
+
+      for (const relPath of COVERAGE_REPORT_RELATIVE_PATHS) {
+        const coveragePath = path.join(this.walkerConfig.rootDir, relPath);
+        let mtime: number;
+        try {
+          mtime = fs.statSync(coveragePath).mtimeMs;
+        } catch {
+          continue;
+        }
+
+        currentPaths.add(coveragePath);
+        const prev = this.snapshot.get(coveragePath);
+        if (prev === undefined || prev !== mtime) {
+          changed.push(coveragePath);
+          this.snapshot.set(coveragePath, mtime);
         }
       }
 

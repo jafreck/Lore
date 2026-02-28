@@ -11,7 +11,16 @@
 import * as fs from 'node:fs';
 import * as crypto from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { openDb, setKbMeta, getKbMeta, createVec0Tables, KB_META_INDEX_CHECKPOINT, KB_META_LAST_HEAD_SHA } from './db.js';
+import {
+  openDb,
+  setKbMeta,
+  getKbMeta,
+  createVec0Tables,
+  KB_META_INDEX_CHECKPOINT,
+  KB_META_LAST_HEAD_SHA,
+  KB_META_COVERAGE_LAST_SOURCE_PATH,
+  KB_META_COVERAGE_LAST_SOURCE_MTIME,
+} from './db.js';
 import type { Database } from './db.js';
 import { walkFiles } from './walker.js';
 import { detectLanguageForPath } from './walker.js';
@@ -48,6 +57,7 @@ import { ObjcExtractor } from './extractors/objc.js';
 import type { SymbolExtractor } from './extractors/types.js';
 import type { EmbeddingProvider } from './embedder.js';
 import { DEFAULT_EMBEDDING_MODEL } from './embedder.js';
+import { ingestCoverageReport, type CoverageFormat } from './coverage.js';
 
 // ─── Extractor registry ───────────────────────────────────────────────────────
 
@@ -267,6 +277,26 @@ export class IndexBuilder {
           'INSERT OR REPLACE INTO symbol_semantic_embeddings(rowid, embedding) VALUES (CAST(? AS INTEGER), json(?))',
         ).run(symbolId, JSON.stringify(embedding));
       }
+    } finally {
+      db.close();
+    }
+  }
+
+  async ingestCoverage(reportPath: string, format: CoverageFormat, commitSha?: string): Promise<void> {
+    const db = openDb(this.dbPath);
+    try {
+      const resolvedCommitSha = commitSha ?? this.readGitValue(['rev-parse', 'HEAD']) ?? 'HEAD';
+      const sourceMtime = Math.floor(fs.statSync(reportPath).mtimeMs / 1000);
+      ingestCoverageReport({
+        db,
+        rootDir: this.walkerConfig.rootDir,
+        reportPath,
+        format,
+        commitSha: resolvedCommitSha,
+        sourceMtime,
+      });
+      setKbMeta(db, KB_META_COVERAGE_LAST_SOURCE_PATH, reportPath);
+      setKbMeta(db, KB_META_COVERAGE_LAST_SOURCE_MTIME, String(sourceMtime));
     } finally {
       db.close();
     }

@@ -33,4 +33,21 @@ describe('createKbMcpServer', () => {
     expect(graphSchema.kind.safeParse('inheritance').success).toBe(true);
     expect(graphSchema.kind.safeParse('invalid-kind').success).toBe(false);
   });
+
+  it('should register kb_coverage with expected schema fields', () => {
+    const db = new Database(':memory:');
+
+    createKbMcpServer(db, '/tmp/test.db');
+
+    const coverageToolCall = mockTool.mock.calls.find((call) => call[0] === 'kb_coverage');
+    expect(coverageToolCall).toBeDefined();
+
+    const coverageSchema = coverageToolCall?.[2] as {
+      symbol_id: { safeParse: (v: unknown) => { success: boolean } };
+      symbol_name: { safeParse: (v: unknown) => { success: boolean } };
+    };
+    expect(coverageSchema.symbol_id.safeParse(1).success).toBe(true);
+    expect(coverageSchema.symbol_name.safeParse('render').success).toBe(true);
+    expect(coverageSchema.symbol_id.safeParse('1').success).toBe(false);
+  });
 });

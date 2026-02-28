@@ -140,6 +140,40 @@ export interface CommitRefRow {
   ref_type: string;
 }
 
+export interface CoverageRunRow {
+  id: number;
+  commit_sha: string;
+  source_path: string;
+  format: string;
+  ingested_at: number;
+  source_mtime: number | null;
+}
+
+export interface CoverageStaleness {
+  coverage_commit: string | null;
+  current_commit: string | null;
+  commits_behind: number;
+  stale: boolean;
+}
+
+export interface CoverageTotals {
+  lines_found: number;
+  lines_hit: number;
+  coverage_percent: number | null;
+}
+
+export interface SymbolCoverageAggregate {
+  symbol_id: number;
+  symbol_name: string;
+  file_path: string;
+  start_line: number;
+  end_line: number;
+  total_lines: number;
+  covered_lines: number;
+  uncovered_lines: number[];
+  coverage_percent: number | null;
+}
+
 function expandRenamePathVariants(path: string): string[] {
   if (!path.includes('=>')) {
     return [path];
@@ -264,4 +298,203 @@ export function listCommitsByRef(db: Database.Database, refQuery: string, limit 
   } catch {
     return [];
   }
+}
+
+/** Return the most recent coverage ingestion run. */
+export function getLatestCoverageRun(db: Database.Database): CoverageRunRow | undefined {
+  return db
+    .prepare(
+      `SELECT id, commit_sha, source_path, format, ingested_at, source_mtime
+         FROM coverage_runs
+        ORDER BY ingested_at DESC, id DESC
+        LIMIT 1`,
+    )
+    .get() as CoverageRunRow | undefined;
+}
+
+/** Return staleness metadata comparing latest coverage run commit against indexed history. */
+export function getCoverageStaleness(db: Database.Database): CoverageStaleness {
+  const latestRun = getLatestCoverageRun(db);
+  const currentCommit = db
+    .prepare('SELECT sha FROM commits ORDER BY timestamp DESC, sha ASC LIMIT 1')
+    .get() as { sha: string } | undefined;
+
+  if (!latestRun) {
+    return {
+      coverage_commit: null,
+      current_commit: currentCommit?.sha ?? null,
+      commits_behind: 0,
+      stale: false,
+    };
+  }
+
+  if (!currentCommit) {
+    return {
+      coverage_commit: latestRun.commit_sha,
+      current_commit: null,
+      commits_behind: 0,
+      stale: false,
+    };
+  }
+
+  const coverageCommitRow = db
+    .prepare('SELECT timestamp FROM commits WHERE sha = ? LIMIT 1')
+    .get(latestRun.commit_sha) as { timestamp: number } | undefined;
+
+  const commitsBehind = coverageCommitRow
+    ? (
+        db
+          .prepare('SELECT COUNT(*) AS c FROM commits WHERE timestamp > ?')
+          .get(coverageCommitRow.timestamp) as { c: number }
+      ).c
+    : (latestRun.commit_sha === currentCommit.sha ? 0 : 1);
+
+  return {
+    coverage_commit: latestRun.commit_sha,
+    current_commit: currentCommit.sha,
+    commits_behind: commitsBehind,
+    stale: commitsBehind > 0,
+  };
+}
+
+/** Return global line totals for the most recent coverage run. */
+export function getLatestCoverageTotals(db: Database.Database): CoverageTotals | undefined {
+  const latestRun = getLatestCoverageRun(db);
+  if (!latestRun) {
+    return undefined;
+  }
+
+  const totals = db
+    .prepare(
+      `SELECT COALESCE(SUM(lines_found), 0) AS lines_found,
+              COALESCE(SUM(lines_hit), 0) AS lines_hit
+         FROM coverage_files
+        WHERE run_id = ?`,
+    )
+    .get(latestRun.id) as { lines_found: number; lines_hit: number };
+
+  return {
+    lines_found: totals.lines_found,
+    lines_hit: totals.lines_hit,
+    coverage_percent: totals.lines_found > 0 ? (totals.lines_hit / totals.lines_found) * 100 : null,
+  };
+}
+
+/** Return symbol-level coverage aggregates computed from the latest coverage run. */
+export function getSymbolCoverageAggregates(
+  db: Database.Database,
+  options: { symbolIds?: number[]; path?: string; branch?: string; limit?: number } = {},
+): SymbolCoverageAggregate[] {
+  const latestRun = getLatestCoverageRun(db);
+  if (!latestRun) {
+    return [];
+  }
+
+  const whereClauses: string[] = [];
+  const params: Array<number | string> = [];
+  const limit = options.limit ?? 200;
+
+  if (options.symbolIds && options.symbolIds.length > 0) {
+    const placeholders = options.symbolIds.map(() => '?').join(', ');
+    whereClauses.push(`s.id IN (${placeholders})`);
+    params.push(...options.symbolIds);
+  }
+  if (options.path !== undefined) {
+    whereClauses.push('f.path = ?');
+    params.push(options.path);
+  }
+  if (options.branch !== undefined) {
+    whereClauses.push('f.branch = ?');
+    params.push(options.branch);
+  }
+
+  const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+  const symbols = db
+    .prepare(
+      `SELECT s.id AS symbol_id,
+              s.name AS symbol_name,
+              f.path AS file_path,
+              s.start_line,
+              s.end_line
+         FROM symbols s
+         JOIN files f ON f.id = s.file_id
+         ${whereSql}
+         ORDER BY s.id
+         LIMIT ?`,
+    )
+    .all(...params, limit) as Array<{
+    symbol_id: number;
+    symbol_name: string;
+    file_path: string;
+    start_line: number;
+    end_line: number;
+  }>;
+
+  if (symbols.length === 0) {
+    return [];
+  }
+
+  const filePaths = Array.from(new Set(symbols.map((symbol) => symbol.file_path)));
+  const filePlaceholders = filePaths.map(() => '?').join(', ');
+  const coverageRows = db
+    .prepare(
+      `SELECT file_path, line_number, hit_count
+         FROM coverage_lines
+        WHERE run_id = ?
+          AND file_path IN (${filePlaceholders})`,
+    )
+    .all(latestRun.id, ...filePaths) as Array<{ file_path: string; line_number: number; hit_count: number }>;
+
+  const lineHitsByFile = new Map<string, Map<number, number>>();
+  for (const row of coverageRows) {
+    const existing = lineHitsByFile.get(row.file_path) ?? new Map<number, number>();
+    existing.set(row.line_number, row.hit_count);
+    lineHitsByFile.set(row.file_path, existing);
+  }
+
+  return symbols.map((symbol) => {
+    const fileHits = lineHitsByFile.get(symbol.file_path) ?? new Map<number, number>();
+    let totalLines = 0;
+    let coveredLines = 0;
+    const uncoveredLines: number[] = [];
+
+    for (let line = symbol.start_line; line <= symbol.end_line; line += 1) {
+      if (!fileHits.has(line)) {
+        continue;
+      }
+      totalLines += 1;
+      const hitCount = fileHits.get(line) ?? 0;
+      if (hitCount > 0) {
+        coveredLines += 1;
+      } else {
+        uncoveredLines.push(line);
+      }
+    }
+
+    return {
+      symbol_id: symbol.symbol_id,
+      symbol_name: symbol.symbol_name,
+      file_path: symbol.file_path,
+      start_line: symbol.start_line,
+      end_line: symbol.end_line,
+      total_lines: totalLines,
+      covered_lines: coveredLines,
+      uncovered_lines: uncoveredLines,
+      coverage_percent: totalLines > 0 ? (coveredLines / totalLines) * 100 : null,
+    };
+  });
+}
+
+/** Return symbol coverage percentages for selected symbol ids from latest coverage run. */
+export function getCoveragePercentBySymbolIds(
+  db: Database.Database,
+  symbolIds: number[],
+  branch?: string,
+): Map<number, number | null> {
+  if (symbolIds.length === 0) {
+    return new Map();
+  }
+
+  const rows = getSymbolCoverageAggregates(db, { symbolIds, branch, limit: symbolIds.length });
+  return new Map(rows.map((row) => [row.symbol_id, row.coverage_percent]));
 }

@@ -34,6 +34,7 @@ import * as search from './tools/search.js';
 import * as snippet from './tools/snippet.js';
 import * as blame from './tools/blame.js';
 import * as metrics from './tools/metrics.js';
+import * as coverage from './tools/coverage.js';
 import * as writeback from './tools/writeback.js';
 import * as history from './tools/history.js';
 
@@ -127,6 +128,22 @@ export function createKbMcpServer(
     {},
     async (_args) => ({
       content: [{ type: 'text', text: JSON.stringify(metrics.handler(db, {})) }],
+    }),
+  );
+
+  // ── kb_coverage ────────────────────────────────────────────────────────────
+  server.tool(
+    coverage.toolDef.name,
+    coverage.toolDef.description,
+    {
+      symbol_id: z.number().optional().describe('Optional symbol id to fetch exact coverage for.'),
+      symbol_name: z.string().optional().describe('Optional symbol name filter (case-insensitive).'),
+      path: z.string().optional().describe('Optional file path filter.'),
+      branch: z.string().optional().describe('Optional branch filter.'),
+      limit: z.number().optional().describe('Maximum symbols to return (default 50).'),
+    },
+    async (args) => ({
+      content: [{ type: 'text', text: JSON.stringify(coverage.handler(db, args)) }],
     }),
   );
 
