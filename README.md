@@ -197,6 +197,8 @@ Modes:
 - Watch: filesystem event driven (`fs.watch`), low latency
 - Poll: periodic mtime diffing, most reliable across filesystems
 
+Coverage reports are auto-detected during build/update/refresh from known paths (`coverage/lcov.info`, `coverage/cobertura-coverage.xml`, `coverage.xml`) and only ingested when newer than the last stored coverage run.
+
 ### lore hooks
 
 Install repo-local git hooks that trigger Lore refresh automatically on:
@@ -213,6 +215,22 @@ npx @jafreck/lore hooks --root <repo> --db <path> --history
 
 Note: for `lore hooks`, any history-related flag currently enables history in
 hook-triggered refreshes.
+
+### lore ingest-coverage
+
+Manually ingest an explicit coverage report (useful for CI or non-standard report locations).
+
+```bash
+npx @jafreck/lore ingest-coverage --db <path> --root <dir> --file <path> --format <lcov|cobertura> [--commit <sha>]
+```
+
+Key flags:
+
+- `--db <path>` required SQLite output path
+- `--root <dir>` required repository root used to normalize relative coverage paths
+- `--file <path>` required coverage report file path
+- `--format <lcov|cobertura>` required coverage format
+- `--commit <sha>` optional commit override (defaults to `HEAD`)
 
 ### lore mcp
 
@@ -231,12 +249,13 @@ gracefully degrades to structural search.
 |------|---------|
 | `kb_lookup` | Find symbols by name or files by path (optional branch filter) |
 | `kb_search` | Structural BM25, semantic vector, or fused RRF search |
-| `kb_graph` | Query call or import edges (optional source/branch filters) |
+| `kb_graph` | Query call/import/module/inheritance edges; call edges include `callee_coverage_percent` |
 | `kb_snippet` | Return source snippets by file path and line range |
 | `kb_blame` | Return git blame metadata for a line or line range |
-| `kb_metrics` | Return aggregate index metrics and per-branch breakdown |
-| `kb_writeback` | Persist symbol summaries into `symbol_summaries` |
 | `kb_history` | Query history by file, commit, author, ref, or recency |
+| `kb_metrics` | Return aggregate index metrics plus coverage/staleness fields (`coverage_available`, `coverage_commit`, `current_commit`, `commits_behind`, `stale`, global coverage totals) |
+| `kb_coverage` | Return symbol-level coverage, uncovered lines, and staleness metadata for the latest coverage run |
+| `kb_writeback` | Persist symbol summaries into `symbol_summaries` |
 
 ### MCP config example
 
