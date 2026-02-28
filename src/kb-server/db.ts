@@ -52,43 +52,63 @@ export interface SymbolRow {
   max_nesting: number | null;
 }
 
+function hasSymbolMetricsTable(db: Database.Database): boolean {
+  const row = db
+    .prepare("SELECT 1 AS ok FROM sqlite_master WHERE type = 'table' AND name = 'symbol_metrics' LIMIT 1")
+    .get() as { ok: number } | undefined;
+  return row?.ok === 1;
+}
+
 /** Fetch a single symbol by primary key.  Returns `undefined` if not found. */
 export function getSymbolById(db: Database.Database, id: number): SymbolRow | undefined {
-  return db
-    .prepare(
-      'SELECT s.*, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting FROM symbols s LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id WHERE s.id = ?'
-    )
-    .get(id) as SymbolRow | undefined;
+  if (hasSymbolMetricsTable(db)) {
+    return db
+      .prepare(
+        'SELECT s.*, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting FROM symbols s LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id WHERE s.id = ?'
+      )
+      .get(id) as SymbolRow | undefined;
+  }
+  return db.prepare('SELECT * FROM symbols WHERE id = ?').get(id) as SymbolRow | undefined;
 }
 
 /** Fetch all symbols whose name matches the given string (case-insensitive). */
 export function getSymbolsByName(db: Database.Database, name: string, branch?: string): SymbolRow[] {
+  const includeMetrics = hasSymbolMetricsTable(db);
   if (branch !== undefined) {
     return db
       .prepare(
-        'SELECT s.*, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting FROM symbols s JOIN files f ON s.file_id = f.id LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id WHERE s.name = ? COLLATE NOCASE AND f.branch = ?'
+        includeMetrics
+          ? 'SELECT s.*, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting FROM symbols s JOIN files f ON s.file_id = f.id LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id WHERE s.name = ? COLLATE NOCASE AND f.branch = ?'
+          : 'SELECT s.* FROM symbols s JOIN files f ON s.file_id = f.id WHERE s.name = ? COLLATE NOCASE AND f.branch = ?'
       )
       .all(name, branch) as SymbolRow[];
   }
   return db
     .prepare(
-      'SELECT s.*, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting FROM symbols s LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id WHERE s.name = ? COLLATE NOCASE'
+      includeMetrics
+        ? 'SELECT s.*, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting FROM symbols s LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id WHERE s.name = ? COLLATE NOCASE'
+        : 'SELECT * FROM symbols WHERE name = ? COLLATE NOCASE'
     )
     .all(name) as SymbolRow[];
 }
 
 /** Return all symbols, optionally limited to `limit` rows. */
 export function listSymbols(db: Database.Database, limit = 100, branch?: string): SymbolRow[] {
+  const includeMetrics = hasSymbolMetricsTable(db);
   if (branch !== undefined) {
     return db
       .prepare(
-        'SELECT s.*, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting FROM symbols s JOIN files f ON s.file_id = f.id LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id WHERE f.branch = ? LIMIT ?'
+        includeMetrics
+          ? 'SELECT s.*, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting FROM symbols s JOIN files f ON s.file_id = f.id LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id WHERE f.branch = ? LIMIT ?'
+          : 'SELECT s.* FROM symbols s JOIN files f ON s.file_id = f.id WHERE f.branch = ? LIMIT ?'
       )
       .all(branch, limit) as SymbolRow[];
   }
   return db
     .prepare(
-      'SELECT s.*, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting FROM symbols s LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id LIMIT ?'
+      includeMetrics
+        ? 'SELECT s.*, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting FROM symbols s LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id LIMIT ?'
+        : 'SELECT * FROM symbols LIMIT ?'
     )
     .all(limit) as SymbolRow[];
 }
