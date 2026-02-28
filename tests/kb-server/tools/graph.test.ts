@@ -230,6 +230,12 @@ describe('graph handler – kind=import', () => {
     expect(result.edges[0].source_branch).toBe('feat');
   });
 
+  it('should filter import edges by source_id and branch', () => {
+    const result = handler(db, { kind: 'import', source_id: mainFileId, branch: 'main' });
+    expect(result.edges.length).toBe(1);
+    expect(result.edges[0].source_branch).toBe('main');
+  });
+
   it('should return empty edges when branch does not match', () => {
     const result = handler(db, { kind: 'import', branch: 'nonexistent' });
     expect(result.edges).toEqual([]);
@@ -283,6 +289,13 @@ describe('graph handler – kind=module', () => {
     expect(result.edges[0].target_name).toBe('./missing');
   });
 
+  it('should filter module edges by source_id and branch', () => {
+    const result = handler(db, { kind: 'module', source_id: appModuleId, branch: 'main' });
+    expect(result.edges.length).toBe(1);
+    expect(result.edges[0].source_name).toBe('app');
+    expect(result.edges[0].source_branch).toBe('main');
+  });
+
   it('should return empty module edges when branch does not match', () => {
     const result = handler(db, { kind: 'module', branch: 'nonexistent' });
     expect(result.edges).toEqual([]);
@@ -321,6 +334,20 @@ describe('graph handler – kind=inheritance', () => {
     const result = handler(db, { kind: 'inheritance', branch: 'main' });
     expect(result.edges.length).toBe(1);
     expect(result.edges[0].source_branch).toBe('main');
+  });
+
+  it('should filter inheritance edges by source_id and branch', () => {
+    const result = handler(db, { kind: 'inheritance', source_id: derivedId, branch: 'main' });
+    expect(result.edges.length).toBe(1);
+    expect(result.edges[0].source_name).toBe('Derived');
+    expect(result.edges[0].source_branch).toBe('main');
+  });
+
+  it('should use target_symbol_name when target symbol id is missing', () => {
+    const result = handler(db, { kind: 'inheritance', branch: 'feat' });
+    expect(result.edges.length).toBe(1);
+    expect(result.edges[0].target_id).toBeNull();
+    expect(result.edges[0].target_name).toBe('UnknownBase');
   });
 
   it('should return empty inheritance edges when branch does not match', () => {
