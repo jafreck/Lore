@@ -1,6 +1,7 @@
 import * as nodeFs from 'node:fs';
 import * as nodePath from 'node:path';
 import * as nodeOs from 'node:os';
+import Database from 'better-sqlite3';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // ── Test-resource helpers ─────────────────────────────────────────────────────
@@ -203,6 +204,30 @@ describe('cli', () => {
       await waitForStderr(stderrSpy, 'refresh complete');
 
       expect(nodeFs.existsSync(dbPath)).toBe(true);
+    });
+
+    it('should remove stale DB rows for files deleted before a manual refresh update', async () => {
+      const dbPath = freshDb();
+      const filePath = nodePath.join(tmpDir, 'deleted.ts');
+      nodeFs.writeFileSync(filePath, 'export const x = 1;\n', 'utf8');
+
+      await loadCli(['refresh', '--db', dbPath, '--root', tmpDir]);
+      await waitForStderr(stderrSpy, 'refresh complete');
+
+      let db = new Database(dbPath, { readonly: true });
+      let row = db.prepare('SELECT path FROM files WHERE path = ?').get(filePath) as { path: string } | undefined;
+      db.close();
+      expect(row?.path).toBe(filePath);
+
+      nodeFs.unlinkSync(filePath);
+      stderrSpy.mockClear();
+      await loadCli(['refresh', '--db', dbPath, '--root', tmpDir]);
+      await waitForStderr(stderrSpy, 'refresh complete');
+
+      db = new Database(dbPath, { readonly: true });
+      row = db.prepare('SELECT path FROM files WHERE path = ?').get(filePath) as { path: string } | undefined;
+      db.close();
+      expect(row).toBeUndefined();
     });
   });
 
