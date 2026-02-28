@@ -46,6 +46,15 @@ async function waitForStderr(
   );
 }
 
+async function waitForFile(path: string, timeoutMs = 5000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (nodeFs.existsSync(path)) return;
+    await new Promise<void>((r) => setTimeout(r, 20));
+  }
+  throw new Error(`"${path}" was not created within ${timeoutMs}ms`);
+}
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('cli', () => {
@@ -112,6 +121,109 @@ describe('cli', () => {
       expect(consoleErrorSpy).toHaveBeenCalledWith(
         expect.stringContaining('--db'),
       );
+    });
+  });
+
+  // ── ingest-coverage subcommand ─────────────────────────────────────────────
+
+  describe('ingest-coverage subcommand', () => {
+    it('should print an error and exit with code 1 when required flags are missing', async () => {
+      await loadCli(['ingest-coverage', '--db', freshDb(), '--root', tmpDir]);
+      expect(exitSpy).toHaveBeenCalledWith(1);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('--file'),
+      );
+    });
+
+    it('should print an error and exit with code 1 for an unsupported format', async () => {
+      const reportPath = nodePath.join(tmpDir, 'coverage.info');
+      nodeFs.writeFileSync(reportPath, '', 'utf8');
+      await loadCli([
+        'ingest-coverage',
+        '--db', freshDb(),
+        '--root', tmpDir,
+        '--file', reportPath,
+        '--format', 'json',
+      ]);
+      expect(exitSpy).toHaveBeenCalledWith(1);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('unsupported coverage format'),
+      );
+    });
+
+    it('should ingest an explicit LCOV report with a commit override', async () => {
+      const dbPath = freshDb();
+      const reportPath = nodePath.join(tmpDir, 'lcov.info');
+      nodeFs.writeFileSync(
+        reportPath,
+        ['TN:', 'SF:src/a.ts', 'DA:1,1', 'DA:2,0', 'end_of_record', ''].join('\n'),
+        'utf8',
+      );
+
+      await loadCli([
+        'ingest-coverage',
+        '--db', dbPath,
+        '--root', tmpDir,
+        '--file', reportPath,
+        '--format', 'lcov',
+        '--commit', 'deadbeef',
+      ]);
+      await waitForFile(dbPath);
+
+      const db = new Database(dbPath, { readonly: true });
+      const run = db
+        .prepare('SELECT commit_sha, format, source_path FROM coverage_runs ORDER BY id DESC LIMIT 1')
+        .get() as { commit_sha: string; format: string; source_path: string } | undefined;
+      db.close();
+
+      expect(run).toBeDefined();
+      expect(run?.commit_sha).toBe('deadbeef');
+      expect(run?.format).toBe('lcov');
+      expect(run?.source_path).toBe(reportPath);
+    });
+
+    it('should default commit SHA to HEAD when --commit is omitted', async () => {
+      const dbPath = freshDb();
+      const reportPath = nodePath.join(tmpDir, 'coverage.xml');
+      nodeFs.writeFileSync(
+        reportPath,
+        [
+          '<coverage>',
+          '  <packages>',
+          '    <package name="x">',
+          '      <classes>',
+          '        <class name="A" filename="src/a.ts">',
+          '          <lines>',
+          '            <line number="1" hits="1"/>',
+          '          </lines>',
+          '        </class>',
+          '      </classes>',
+          '    </package>',
+          '  </packages>',
+          '</coverage>',
+          '',
+        ].join('\n'),
+        'utf8',
+      );
+
+      await loadCli([
+        'ingest-coverage',
+        '--db', dbPath,
+        '--root', tmpDir,
+        '--file', reportPath,
+        '--format', 'cobertura',
+      ]);
+      await waitForFile(dbPath);
+
+      const db = new Database(dbPath, { readonly: true });
+      const run = db
+        .prepare('SELECT commit_sha, format FROM coverage_runs ORDER BY id DESC LIMIT 1')
+        .get() as { commit_sha: string; format: string } | undefined;
+      db.close();
+
+      expect(run).toBeDefined();
+      expect(run?.commit_sha).toBe('HEAD');
+      expect(run?.format).toBe('cobertura');
     });
   });
 

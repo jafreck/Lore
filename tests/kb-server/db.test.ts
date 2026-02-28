@@ -3,18 +3,15 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, it, expect, beforeEach } from 'vitest';
 import Database from 'better-sqlite3';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
 import {
   openReadOnly,
   getFileById,
   getFileByPath,
   listFiles,
+  listConfigEntries,
   getSymbolsByName,
   listSymbols,
   getSymbolById,
-  listApiRoutes,
   getCommitBySha,
   listRecentCommits,
   listCommitsByFile,
@@ -22,13 +19,11 @@ import {
   listCommitFiles,
   listCommitRefs,
   listCommitsByRef,
-  listCommitCadence,
-  listCommitSizes,
-  listCommitChurnByFile,
-  listCommitAuthorStats,
-  listCommitMessagePrefixes,
-  listCommitSchedule,
-  listCommitBranchActivity,
+  getLatestCoverageRun,
+  getCoverageStaleness,
+  getLatestCoverageTotals,
+  getSymbolCoverageAggregates,
+  getCoveragePercentBySymbolIds,
   type FileRow,
   type SymbolRow,
 } from '../../src/kb-server/db.js';
@@ -58,16 +53,23 @@ function createTestDb(): Database.Database {
       signature   TEXT,
       doc_comment TEXT
     );
-    CREATE TABLE api_routes (
-      id           INTEGER PRIMARY KEY AUTOINCREMENT,
-      file_id      INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
-      method       TEXT    NOT NULL,
-      path         TEXT    NOT NULL,
-      handler_id   INTEGER,
-      handler_name TEXT    NOT NULL,
-      framework    TEXT    NOT NULL,
-      line         INTEGER NOT NULL,
-      middleware   TEXT
+    CREATE TABLE config_entries (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      file_id       INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+      key           TEXT    NOT NULL,
+      value         TEXT,
+      default_value TEXT,
+      inferred_type TEXT,
+      required      INTEGER NOT NULL DEFAULT 0,
+      description   TEXT,
+      kind          TEXT    NOT NULL,
+      UNIQUE(file_id, key)
+    );
+    CREATE TABLE config_entry_refs (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      config_entry_id INTEGER NOT NULL REFERENCES config_entries(id) ON DELETE CASCADE,
+      file_id         INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+      line            INTEGER NOT NULL
     );
   `);
   return db;
@@ -107,6 +109,64 @@ function createCommitDb(withRefs = true): Database.Database {
   return db;
 }
 
+function createCoverageDb(): Database.Database {
+  const db = new Database(':memory:');
+  db.pragma('foreign_keys = ON');
+  db.exec(`
+    CREATE TABLE files (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      path        TEXT    NOT NULL,
+      branch      TEXT    NOT NULL DEFAULT '',
+      language    TEXT    NOT NULL,
+      size_bytes  INTEGER NOT NULL DEFAULT 0,
+      last_hash   TEXT,
+      indexed_at  INTEGER NOT NULL DEFAULT 0,
+      UNIQUE(path, branch)
+    );
+    CREATE TABLE symbols (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      file_id     INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+      name        TEXT    NOT NULL,
+      kind        TEXT    NOT NULL,
+      start_line  INTEGER NOT NULL,
+      end_line    INTEGER NOT NULL,
+      signature   TEXT,
+      doc_comment TEXT
+    );
+    CREATE TABLE commits (
+      sha          TEXT    PRIMARY KEY,
+      author       TEXT    NOT NULL,
+      author_email TEXT    NOT NULL,
+      timestamp    INTEGER NOT NULL,
+      message      TEXT    NOT NULL,
+      parents      TEXT    NOT NULL DEFAULT '[]'
+    );
+    CREATE TABLE coverage_runs (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      commit_sha    TEXT    NOT NULL,
+      source_path   TEXT    NOT NULL,
+      format        TEXT    NOT NULL,
+      ingested_at   INTEGER NOT NULL DEFAULT (unixepoch()),
+      source_mtime  INTEGER
+    );
+    CREATE TABLE coverage_files (
+      run_id        INTEGER NOT NULL REFERENCES coverage_runs(id) ON DELETE CASCADE,
+      file_path     TEXT    NOT NULL,
+      lines_found   INTEGER NOT NULL DEFAULT 0,
+      lines_hit     INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (run_id, file_path)
+    );
+    CREATE TABLE coverage_lines (
+      run_id        INTEGER NOT NULL REFERENCES coverage_runs(id) ON DELETE CASCADE,
+      file_path     TEXT    NOT NULL,
+      line_number   INTEGER NOT NULL,
+      hit_count     INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (run_id, file_path, line_number)
+    );
+  `);
+  return db;
+}
+
 function insertFile(
   db: Database.Database,
   path: string,
@@ -131,6 +191,37 @@ function insertSymbol(
     )
     .run(fileId, name, kind);
   return result.lastInsertRowid as number;
+}
+
+function insertConfigEntry(
+  db: Database.Database,
+  fileId: number,
+  key: string,
+  kind: string,
+  value: string | null,
+  defaultValue: string | null,
+  inferredType: string,
+  required: number,
+  description: string | null,
+): number {
+  const result = db
+    .prepare(
+      `INSERT INTO config_entries (file_id, key, value, default_value, inferred_type, required, description, kind)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .run(fileId, key, value, defaultValue, inferredType, required, description, kind);
+  return result.lastInsertRowid as number;
+}
+
+function insertConfigRef(
+  db: Database.Database,
+  configEntryId: number,
+  fileId: number,
+  line: number,
+): void {
+  db.prepare(
+    'INSERT INTO config_entry_refs (config_entry_id, file_id, line) VALUES (?, ?, ?)',
+  ).run(configEntryId, fileId, line);
 }
 
 // ─── openReadOnly ──────────────────────────────────────────────────────────────
@@ -160,6 +251,113 @@ describe('openReadOnly', () => {
 
     db.close();
     fs.rmSync(dbPath);
+  });
+});
+
+describe('coverage helpers', () => {
+  it('should return latest coverage run ordered by ingested_at and id', () => {
+    const db = createCoverageDb();
+    db.prepare(
+      'INSERT INTO coverage_runs (commit_sha, source_path, format, ingested_at) VALUES (?, ?, ?, ?)',
+    ).run('aaa111', 'cov1.info', 'lcov', 100);
+    db.prepare(
+      'INSERT INTO coverage_runs (commit_sha, source_path, format, ingested_at) VALUES (?, ?, ?, ?)',
+    ).run('bbb222', 'cov2.info', 'lcov', 100);
+
+    const latest = getLatestCoverageRun(db);
+    expect(latest?.commit_sha).toBe('bbb222');
+  });
+
+  it('should return non-stale metadata when no coverage run exists', () => {
+    const db = createCoverageDb();
+    db.prepare(
+      `INSERT INTO commits (sha, author, author_email, timestamp, message, parents)
+       VALUES (?, ?, ?, ?, ?, '[]')`,
+    ).run('ccc333', 'Alice', 'alice@example.com', 1700000001, 'first');
+
+    const staleness = getCoverageStaleness(db);
+    expect(staleness).toEqual({
+      coverage_commit: null,
+      current_commit: 'ccc333',
+      commits_behind: 0,
+      stale: false,
+    });
+  });
+
+  it('should compute commit staleness and latest global coverage totals', () => {
+    const db = createCoverageDb();
+    const fileId = insertFile(db, 'src/main.ts', 'main');
+    const symbolId = insertSymbol(db, fileId, 'render');
+    expect(symbolId).toBeGreaterThan(0);
+
+    db.prepare(
+      `INSERT INTO commits (sha, author, author_email, timestamp, message, parents)
+       VALUES (?, ?, ?, ?, ?, '[]')`,
+    ).run('aaa111', 'Alice', 'alice@example.com', 1700000001, 'first');
+    db.prepare(
+      `INSERT INTO commits (sha, author, author_email, timestamp, message, parents)
+       VALUES (?, ?, ?, ?, ?, '[]')`,
+    ).run('bbb222', 'Alice', 'alice@example.com', 1700000002, 'second');
+    db.prepare(
+      `INSERT INTO commits (sha, author, author_email, timestamp, message, parents)
+       VALUES (?, ?, ?, ?, ?, '[]')`,
+    ).run('ccc333', 'Alice', 'alice@example.com', 1700000003, 'third');
+
+    const runId = db
+      .prepare(
+        'INSERT INTO coverage_runs (commit_sha, source_path, format, ingested_at) VALUES (?, ?, ?, ?)',
+      )
+      .run('aaa111', 'cov.info', 'lcov', 1700000002).lastInsertRowid as number;
+    db.prepare(
+      'INSERT INTO coverage_files (run_id, file_path, lines_found, lines_hit) VALUES (?, ?, ?, ?)',
+    ).run(runId, 'src/main.ts', 5, 3);
+    db.prepare('INSERT INTO coverage_lines (run_id, file_path, line_number, hit_count) VALUES (?, ?, ?, ?)').run(runId, 'src/main.ts', 1, 1);
+    db.prepare('INSERT INTO coverage_lines (run_id, file_path, line_number, hit_count) VALUES (?, ?, ?, ?)').run(runId, 'src/main.ts', 2, 0);
+    db.prepare('INSERT INTO coverage_lines (run_id, file_path, line_number, hit_count) VALUES (?, ?, ?, ?)').run(runId, 'src/main.ts', 3, 1);
+    db.prepare('INSERT INTO coverage_lines (run_id, file_path, line_number, hit_count) VALUES (?, ?, ?, ?)').run(runId, 'src/main.ts', 4, 1);
+
+    const staleness = getCoverageStaleness(db);
+    expect(staleness.coverage_commit).toBe('aaa111');
+    expect(staleness.current_commit).toBe('ccc333');
+    expect(staleness.commits_behind).toBe(2);
+    expect(staleness.stale).toBe(true);
+
+    const totals = getLatestCoverageTotals(db);
+    expect(totals).toEqual({
+      lines_found: 5,
+      lines_hit: 3,
+      coverage_percent: 60,
+    });
+  });
+
+  it('should return symbol aggregates and coverage map with branch filtering', () => {
+    const db = createCoverageDb();
+    const mainFileId = insertFile(db, 'src/main.ts', 'main');
+    const featFileId = insertFile(db, 'src/feat.ts', 'feat');
+    const mainSymbolId = insertSymbol(db, mainFileId, 'render');
+    const featSymbolId = insertSymbol(db, featFileId, 'render');
+    const runId = db
+      .prepare(
+        'INSERT INTO coverage_runs (commit_sha, source_path, format, ingested_at) VALUES (?, ?, ?, ?)',
+      )
+      .run('aaa111', 'cov.info', 'lcov', 1700000002).lastInsertRowid as number;
+
+    db.prepare('INSERT INTO coverage_lines (run_id, file_path, line_number, hit_count) VALUES (?, ?, ?, ?)').run(runId, 'src/main.ts', 1, 1);
+    db.prepare('INSERT INTO coverage_lines (run_id, file_path, line_number, hit_count) VALUES (?, ?, ?, ?)').run(runId, 'src/main.ts', 2, 0);
+    db.prepare('INSERT INTO coverage_lines (run_id, file_path, line_number, hit_count) VALUES (?, ?, ?, ?)').run(runId, 'src/main.ts', 3, 1);
+    db.prepare('INSERT INTO coverage_lines (run_id, file_path, line_number, hit_count) VALUES (?, ?, ?, ?)').run(runId, 'src/feat.ts', 1, 0);
+    db.prepare('INSERT INTO coverage_lines (run_id, file_path, line_number, hit_count) VALUES (?, ?, ?, ?)').run(runId, 'src/feat.ts', 2, 0);
+    db.prepare('INSERT INTO coverage_lines (run_id, file_path, line_number, hit_count) VALUES (?, ?, ?, ?)').run(runId, 'src/feat.ts', 3, 1);
+
+    const aggregates = getSymbolCoverageAggregates(db, { symbolIds: [mainSymbolId], limit: 10 });
+    expect(aggregates).toHaveLength(1);
+    expect(aggregates[0]?.uncovered_lines).toEqual([2]);
+    expect(aggregates[0]?.coverage_percent).toBeCloseTo(66.666, 2);
+
+    const coverageMap = getCoveragePercentBySymbolIds(db, [mainSymbolId, featSymbolId], 'main');
+    expect(coverageMap.get(mainSymbolId)).toBeCloseTo(66.666, 2);
+    expect(coverageMap.has(featSymbolId)).toBe(false);
+    expect(getCoveragePercentBySymbolIds(db, [])).toEqual(new Map());
   });
 });
 
@@ -364,6 +562,144 @@ describe('listSymbols', () => {
   });
 });
 
+// ─── listConfigEntries ────────────────────────────────────────────────────────
+
+describe('listConfigEntries', () => {
+  let db: Database.Database;
+
+  beforeEach(() => {
+    db = createTestDb();
+    const envFileId = insertFile(db, 'config/.env', 'main', 'config');
+    const appConfigFileId = insertFile(db, 'config/app.config.json', 'main', 'config');
+    const appTsId = insertFile(db, 'src/app.ts', 'main');
+    const workerTsId = insertFile(db, 'src/worker.ts', 'main');
+
+    const apiKeyEntryId = insertConfigEntry(
+      db,
+      envFileId,
+      'API_KEY',
+      'env',
+      'abc123',
+      null,
+      'string',
+      1,
+      'API credential',
+    );
+    insertConfigEntry(
+      db,
+      envFileId,
+      'LOG_LEVEL',
+      'env',
+      null,
+      'info',
+      'string',
+      0,
+      null,
+    );
+    const flagEntryId = insertConfigEntry(
+      db,
+      appConfigFileId,
+      'features.chat.enabled',
+      'json',
+      'true',
+      null,
+      'boolean',
+      0,
+      'chat feature flag',
+    );
+
+    insertConfigRef(db, apiKeyEntryId, appTsId, 12);
+    insertConfigRef(db, apiKeyEntryId, workerTsId, 7);
+    insertConfigRef(db, flagEntryId, appTsId, 44);
+  });
+
+  it('should return config entries with joined file metadata and references', () => {
+    const rows = listConfigEntries(db);
+    expect(rows.length).toBe(3);
+
+    const apiKeyRow = rows.find((row) => row.key === 'API_KEY');
+    const featureFlagRow = rows.find((row) => row.key === 'features.chat.enabled');
+
+    expect(apiKeyRow).toBeDefined();
+    expect(apiKeyRow?.file_path).toBe('config/.env');
+    expect(apiKeyRow?.references).toEqual([
+      { path: 'src/app.ts', branch: 'main', line: 12 },
+      { path: 'src/worker.ts', branch: 'main', line: 7 },
+    ]);
+    expect(featureFlagRow).toBeDefined();
+    expect(featureFlagRow?.references).toEqual([
+      { path: 'src/app.ts', branch: 'main', line: 44 },
+    ]);
+  });
+
+  it('should filter by key', () => {
+    const rows = listConfigEntries(db, { key: 'API_KEY' });
+    expect(rows.length).toBe(1);
+    expect(rows[0]?.kind).toBe('env');
+  });
+
+  it('should filter by file path', () => {
+    const rows = listConfigEntries(db, { filePath: 'config/app.config.json' });
+    expect(rows.length).toBe(1);
+    expect(rows[0]?.key).toBe('features.chat.enabled');
+  });
+
+  it('should filter by kind', () => {
+    const rows = listConfigEntries(db, { kind: 'env' });
+    expect(rows.length).toBe(2);
+    expect(rows.every((row) => row.kind === 'env')).toBe(true);
+  });
+
+  it('should apply key, file path, and kind filters together', () => {
+    const rows = listConfigEntries(db, {
+      key: 'API_KEY',
+      filePath: 'config/.env',
+      kind: 'env',
+    });
+    expect(rows.length).toBe(1);
+    expect(rows[0]?.key).toBe('API_KEY');
+  });
+
+  it('should return an empty list when filters do not match any entry', () => {
+    expect(listConfigEntries(db, { key: 'MISSING_KEY' })).toEqual([]);
+    expect(listConfigEntries(db, { filePath: 'config/missing.json' })).toEqual([]);
+  });
+
+  it('should include an empty references array when an entry has no usages', () => {
+    const rows = listConfigEntries(db, { key: 'LOG_LEVEL' });
+    expect(rows.length).toBe(1);
+    expect(rows[0]?.references).toEqual([]);
+  });
+
+  it('should return an empty list when config tables are not fully available', () => {
+    const noRefsDb = new Database(':memory:');
+    noRefsDb.exec(`
+      CREATE TABLE files (id INTEGER PRIMARY KEY, path TEXT NOT NULL, branch TEXT NOT NULL, language TEXT NOT NULL);
+      CREATE TABLE config_entries (
+        id INTEGER PRIMARY KEY,
+        file_id INTEGER NOT NULL,
+        key TEXT NOT NULL,
+        value TEXT,
+        default_value TEXT,
+        inferred_type TEXT,
+        required INTEGER NOT NULL,
+        description TEXT,
+        kind TEXT NOT NULL
+      );
+    `);
+    noRefsDb.prepare(
+      `INSERT INTO files (id, path, branch, language) VALUES (1, 'config/.env', 'main', 'config')`,
+    ).run();
+    noRefsDb.prepare(
+      `INSERT INTO config_entries (id, file_id, key, value, default_value, inferred_type, required, description, kind)
+       VALUES (1, 1, 'API_KEY', 'abc123', NULL, 'string', 1, NULL, 'env')`,
+    ).run();
+
+    expect(listConfigEntries(noRefsDb)).toEqual([]);
+    noRefsDb.close();
+  });
+});
+
 // ─── getSymbolById ────────────────────────────────────────────────────────────
 
 describe('getSymbolById', () => {
@@ -384,69 +720,6 @@ describe('getSymbolById', () => {
 
   it('should return undefined when id does not exist', () => {
     expect(getSymbolById(db, 9999)).toBeUndefined();
-  });
-});
-
-describe('listApiRoutes', () => {
-  let db: Database.Database;
-  let apiFileId: number;
-  let usersFileId: number;
-
-  beforeEach(() => {
-    db = createTestDb();
-    apiFileId = insertFile(db, 'src/api.ts', 'main');
-    usersFileId = insertFile(db, 'src/users.py', 'main', 'python');
-
-    db.prepare(
-      `INSERT INTO api_routes (file_id, method, path, handler_name, framework, line)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-    ).run(apiFileId, 'GET', '/api/health', 'healthHandler', 'express', 12);
-    db.prepare(
-      `INSERT INTO api_routes (file_id, method, path, handler_name, framework, line)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-    ).run(apiFileId, 'POST', '/api/users', 'createUser', 'express', 20);
-    db.prepare(
-      `INSERT INTO api_routes (file_id, method, path, handler_name, framework, line)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-    ).run(usersFileId, 'GET', '/v1/users', 'list_users', 'fastapi', 8);
-  });
-
-  it('should return all routes when no filters are provided', () => {
-    const rows = listApiRoutes(db);
-    expect(rows.length).toBe(3);
-    expect(rows[0]).toEqual({
-      method: 'GET',
-      path: '/api/health',
-      handler: 'healthHandler',
-      file: 'src/api.ts',
-      line: 12,
-      framework: 'express',
-    });
-  });
-
-  it('should filter by method case-insensitively', () => {
-    const rows = listApiRoutes(db, { method: 'post' });
-    expect(rows.length).toBe(1);
-    expect(rows[0].method).toBe('POST');
-    expect(rows[0].path).toBe('/api/users');
-  });
-
-  it('should filter by path prefix', () => {
-    const rows = listApiRoutes(db, { pathPrefix: '/api' });
-    expect(rows.length).toBe(2);
-    expect(rows.every((row) => row.path.startsWith('/api'))).toBe(true);
-  });
-
-  it('should filter by framework case-insensitively', () => {
-    const rows = listApiRoutes(db, { framework: 'FASTAPI' });
-    expect(rows.length).toBe(1);
-    expect(rows[0].framework).toBe('fastapi');
-    expect(rows[0].handler).toBe('list_users');
-  });
-
-  it('should combine filters and return an empty list when none match', () => {
-    expect(listApiRoutes(db, { method: 'GET', pathPrefix: '/api', framework: 'express' }).length).toBe(1);
-    expect(listApiRoutes(db, { method: 'DELETE', pathPrefix: '/api' })).toEqual([]);
   });
 });
 
@@ -480,11 +753,11 @@ describe('commit helpers', () => {
     db.prepare(
       `INSERT INTO commits (sha, author, author_email, timestamp, message, parents)
        VALUES (?, ?, ?, ?, ?, '[]')`,
-    ).run('bbb222', 'Bob', 'bob@example.com', 1700172800, 'second');
+    ).run('bbb222', 'Bob', 'bob@example.com', 1700000003, 'second');
     db.prepare(
       `INSERT INTO commits (sha, author, author_email, timestamp, message, parents)
        VALUES (?, ?, ?, ?, ?, '[]')`,
-    ).run('ccc333', 'Alice', 'alice@example.com', 1700086400, 'third');
+    ).run('ccc333', 'Alice', 'alice@example.com', 1700000002, 'third');
 
     db.prepare(
       `INSERT INTO commit_files (commit_sha, file_path, change_type, insertions, deletions)
@@ -579,91 +852,6 @@ describe('commit helpers', () => {
 
     expect(listCommitRefs(noRefsDb, 'sha1')).toEqual([]);
     expect(listCommitsByRef(noRefsDb, 'main', 10)).toEqual([]);
-    noRefsDb.close();
-  });
-
-  it('should apply author filters to commit-stat helpers', () => {
-    const rows = listCommitAuthorStats(db, { author: 'alice' });
-    expect(rows.length).toBe(1);
-    expect(rows[0].author).toBe('Alice');
-    expect(rows[0].commit_count).toBe(2);
-  });
-
-  it('should apply since/until date filters to commit-stat helpers', () => {
-    const since = '2023-11-15';
-    const until = '2023-11-15';
-    const rows = listCommitSizes(db, { since, until });
-    expect(rows.map((row) => row.sha)).toEqual(['ccc333']);
-  });
-
-  it('should use default top-N limit and allow explicit override', () => {
-    for (let index = 0; index < 30; index += 1) {
-      const sha = `bulk-${index.toString().padStart(2, '0')}`;
-      db.prepare(
-        `INSERT INTO commits (sha, author, author_email, timestamp, message, parents)
-         VALUES (?, ?, ?, ?, ?, '[]')`,
-      ).run(sha, 'Bulk', 'bulk@example.com', 1700259200 + index, `bulk ${index}`);
-      db.prepare(
-        `INSERT INTO commit_files (commit_sha, file_path, change_type, insertions, deletions)
-         VALUES (?, ?, ?, 1, 1)`,
-      ).run(sha, `src/bulk-${index}.ts`, 'modified');
-    }
-
-    const defaultRows = listCommitChurnByFile(db);
-    const customRows = listCommitChurnByFile(db, { limit: 5 });
-    expect(defaultRows.length).toBe(20);
-    expect(customRows.length).toBe(5);
-  });
-
-  it('should aggregate cadence by granularity with shared filters', () => {
-    const allDays = listCommitCadence(db, 'day');
-    const filteredDays = listCommitCadence(db, 'day', { author: 'Bob' });
-    expect(allDays.reduce((acc, row) => acc + row.commits, 0)).toBe(3);
-    expect(filteredDays.reduce((acc, row) => acc + row.commits, 0)).toBe(1);
-  });
-
-  it('should aggregate normalized commit message prefixes with limits', () => {
-    db.prepare(
-      `INSERT INTO commits (sha, author, author_email, timestamp, message, parents)
-       VALUES (?, ?, ?, ?, ?, '[]')`,
-    ).run('ddd444', 'Alice', 'alice@example.com', 1700260000, 'feat: add endpoint');
-    db.prepare(
-      `INSERT INTO commits (sha, author, author_email, timestamp, message, parents)
-       VALUES (?, ?, ?, ?, ?, '[]')`,
-    ).run('eee555', 'Bob', 'bob@example.com', 1700261000, 'fix: patch bug');
-
-    const rows = listCommitMessagePrefixes(db, { limit: 2 });
-    expect(rows).toEqual([
-      { prefix: '(other)', count: 3 },
-      { prefix: 'feat:', count: 1 },
-    ]);
-  });
-
-  it('should aggregate commit schedule by UTC day and hour', () => {
-    const first = new Date(1700000001 * 1000);
-    const rows = listCommitSchedule(db, { author: 'Alice' });
-    expect(rows).toContainEqual({
-      day_of_week: first.getUTCDay(),
-      hour_of_day: first.getUTCHours(),
-      commits: 1,
-    });
-    expect(rows.reduce((acc, row) => acc + row.commits, 0)).toBe(2);
-  });
-
-  it('should aggregate branch activity and return empty rows when refs are unavailable', () => {
-    const rows = listCommitBranchActivity(db);
-    expect(rows).toEqual([
-      { ref_name: 'refs/heads/main', ref_type: 'branch', commits: 1 },
-      { ref_name: 'refs/remotes/origin/main', ref_type: 'branch', commits: 1 },
-      { ref_name: 'refs/tags/v1.0.0', ref_type: 'tag', commits: 1 },
-    ]);
-
-    const noRefsDb = createCommitDb(false);
-    noRefsDb.prepare(
-      `INSERT INTO commits (sha, author, author_email, timestamp, message, parents)
-       VALUES (?, ?, ?, ?, ?, '[]')`,
-    ).run('sha2', 'User', 'user@example.com', 1, 'msg');
-    expect(listCommitBranchActivity(noRefsDb)).toEqual([]);
     noRefsDb.close();
   });
 });
