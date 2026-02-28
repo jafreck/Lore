@@ -32,4 +32,24 @@ describe('TypeScriptExtractor', () => {
 
     expect(result.relationships).toEqual([]);
   });
+
+  it('should return no relationships for implements-only class heritage', () => {
+    const result = extractFromSource(`
+      interface Shape { area(): number; }
+      class Standalone implements Shape { area() { return 1; } }
+    `);
+
+    expect(result.relationships).toEqual([]);
+  });
+
+  it('should extract an extends relationship when extends and implements are both present', () => {
+    const result = extractFromSource(`
+      interface Shape { area(): number; }
+      class Child extends BaseShape implements Shape { area() { return 1; } }
+    `);
+
+    expect(result.relationships).toEqual([
+      { kind: 'extends', fromSymbol: 'Child', toSymbol: 'BaseShape', line: 2 },
+    ]);
+  });
 });
