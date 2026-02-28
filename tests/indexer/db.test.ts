@@ -74,6 +74,58 @@ describe('openDb', () => {
     expect(tables).toContain('symbols');
     expect(tables).toContain('kb_meta');
     expect(tables).toContain('commit_refs');
+    expect(tables).toContain('api_routes');
+  });
+
+  it('should create api_routes with expected uniqueness constraint', () => {
+    db = openDb(dbPath);
+    const file = db
+      .prepare("INSERT INTO files (path, branch, language) VALUES ('a.ts', 'main', 'typescript')")
+      .run();
+
+    db.prepare(
+      "INSERT INTO api_routes (file_id, method, path, handler_name, framework, line) VALUES (?, 'GET', '/health', 'health', 'express', 1)"
+    ).run(file.lastInsertRowid);
+
+    expect(() =>
+      db
+        .prepare(
+          "INSERT INTO api_routes (file_id, method, path, handler_name, framework, line) VALUES (?, 'GET', '/health', 'health2', 'express', 2)"
+        )
+        .run(file.lastInsertRowid)
+    ).toThrow();
+  });
+
+  it('should create api_routes with expected columns', () => {
+    db = openDb(dbPath);
+    const columns = (
+      db.prepare("PRAGMA table_info('api_routes')").all() as { name: string }[]
+    ).map((column) => column.name);
+    expect(columns).toEqual(
+      expect.arrayContaining([
+        'file_id',
+        'method',
+        'path',
+        'handler_id',
+        'handler_name',
+        'framework',
+        'line',
+        'middleware',
+      ])
+    );
+  });
+
+  it('should create api_routes indexes for method and path filtering', () => {
+    db = openDb(dbPath);
+    const indexes = (
+      db
+        .prepare(
+          "SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'api_routes' ORDER BY name"
+        )
+        .all() as { name: string }[]
+    ).map((row) => row.name);
+    expect(indexes).toContain('idx_api_routes_method');
+    expect(indexes).toContain('idx_api_routes_path');
   });
 
   it('should be idempotent — calling openDb twice on the same path is safe', () => {

@@ -129,6 +129,23 @@ CREATE TABLE IF NOT EXISTS commit_refs (
   ref_type    TEXT    NOT NULL,
   PRIMARY KEY (commit_sha, ref_name)
 );
+
+-- Extracted framework API routes/endpoints.
+CREATE TABLE IF NOT EXISTS api_routes (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  file_id      INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+  method       TEXT    NOT NULL,
+  path         TEXT    NOT NULL,
+  handler_id   INTEGER REFERENCES symbols(id) ON DELETE SET NULL,
+  handler_name TEXT    NOT NULL,
+  framework    TEXT    NOT NULL,
+  line         INTEGER NOT NULL,
+  middleware   TEXT,
+  UNIQUE(file_id, method, path)
+);
+
+CREATE INDEX IF NOT EXISTS idx_api_routes_method ON api_routes(method);
+CREATE INDEX IF NOT EXISTS idx_api_routes_path ON api_routes(path);
 `;
 
 // ─── Public API ───────────────────────────────────────────────────────────────
