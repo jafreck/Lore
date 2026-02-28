@@ -15,7 +15,6 @@
  *   kb_metrics   — aggregate code metrics
  *   kb_writeback — LLM summary write-back
  *   kb_history   — git commit history queries
- *   kb_routes    — indexed API route queries
  *
  * Standalone usage:
  *   node dist/kb-server/server.js --db <path-to-kb.db>
@@ -26,7 +25,17 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import { fileURLToPath } from 'url';
-import { openReadOnly, type Database } from './db.js';
+import {
+  listCommitAuthorStats,
+  listCommitBranchActivity,
+  listCommitCadence,
+  listCommitChurnByFile,
+  listCommitMessagePrefixes,
+  listCommitSchedule,
+  listCommitSizes,
+  openReadOnly,
+  type Database,
+} from './db.js';
 import { getKbMeta } from '../indexer/db.js';
 import { SentenceTransformersProvider, type EmbeddingProvider } from '../indexer/embedder.js';
 import * as lookup from './tools/lookup.js';
@@ -37,7 +46,53 @@ import * as blame from './tools/blame.js';
 import * as metrics from './tools/metrics.js';
 import * as writeback from './tools/writeback.js';
 import * as history from './tools/history.js';
-import * as routes from './tools/routes.js';
+
+type CommitStatsMetric =
+  | 'cadence'
+  | 'size'
+  | 'churn'
+  | 'authors'
+  | 'messages'
+  | 'schedule'
+  | 'branches';
+
+interface CommitStatsArgs {
+  metric: CommitStatsMetric;
+  limit?: number;
+  since?: string;
+  until?: string;
+  author?: string;
+}
+
+function handleCommitStats(db: Database.Database, args: CommitStatsArgs): unknown {
+  const filters = {
+    limit: args.limit,
+    since: args.since,
+    until: args.until,
+    author: args.author,
+  };
+  switch (args.metric) {
+    case 'cadence':
+      return {
+        metric: args.metric,
+        day: listCommitCadence(db, 'day', filters),
+        week: listCommitCadence(db, 'week', filters),
+        month: listCommitCadence(db, 'month', filters),
+      };
+    case 'size':
+      return { metric: args.metric, commits: listCommitSizes(db, filters) };
+    case 'churn':
+      return { metric: args.metric, files: listCommitChurnByFile(db, filters) };
+    case 'authors':
+      return { metric: args.metric, authors: listCommitAuthorStats(db, filters) };
+    case 'messages':
+      return { metric: args.metric, prefixes: listCommitMessagePrefixes(db, filters) };
+    case 'schedule':
+      return { metric: args.metric, buckets: listCommitSchedule(db, filters) };
+    case 'branches':
+      return { metric: args.metric, refs: listCommitBranchActivity(db, filters) };
+  }
+}
 
 // ─── Server factory ───────────────────────────────────────────────────────────
 
@@ -182,17 +237,21 @@ export function createKbMcpServer(
     }),
   );
 
-  // ── kb_routes ──────────────────────────────────────────────────────────────
+  // ── kb_commit_stats ────────────────────────────────────────────────────────
   server.tool(
-    routes.toolDef.name,
-    routes.toolDef.description,
+    'kb_commit_stats',
+    'Return git commit analytics for a selected metric.',
     {
-      method: z.string().optional().describe('Optional HTTP method filter (for example GET, POST).'),
-      path_prefix: z.string().optional().describe('Optional route path prefix filter.'),
-      framework: z.string().optional().describe('Optional framework filter (for example express, fastapi, gin).'),
+      metric: z
+        .enum(['cadence', 'size', 'churn', 'authors', 'messages', 'schedule', 'branches'])
+        .describe('Analytics metric to compute.'),
+      limit: z.number().optional().describe('Max rows for top-N metrics (default 20, max 200).'),
+      since: z.string().optional().describe('Optional ISO date lower bound (inclusive).'),
+      until: z.string().optional().describe('Optional ISO date upper bound (inclusive).'),
+      author: z.string().optional().describe('Optional author name/email substring filter.'),
     },
     async (args) => ({
-      content: [{ type: 'text', text: JSON.stringify(routes.handler(db, args)) }],
+      content: [{ type: 'text', text: JSON.stringify(handleCommitStats(db, args)) }],
     }),
   );
 
