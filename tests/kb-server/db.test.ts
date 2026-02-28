@@ -3,9 +3,6 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, it, expect, beforeEach } from 'vitest';
 import Database from 'better-sqlite3';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
 import {
   openReadOnly,
   getFileById,
@@ -117,30 +114,39 @@ function insertSymbol(
 // ─── openReadOnly ──────────────────────────────────────────────────────────────
 
 describe('openReadOnly', () => {
-  it('should open the database in read-only mode with foreign keys enabled', () => {
-    const dbPath = path.join(os.tmpdir(), `lore-db-test-${Date.now()}.sqlite`);
+  function createTempDbPath(): string {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'kb-db-'));
+    const dbPath = path.join(tempDir, 'kb.sqlite');
     const seedDb = new Database(dbPath);
-    seedDb.exec(`
-      CREATE TABLE files (
-        id          INTEGER PRIMARY KEY AUTOINCREMENT,
-        path        TEXT    NOT NULL,
-        branch      TEXT    NOT NULL DEFAULT '',
-        language    TEXT    NOT NULL,
-        size_bytes  INTEGER NOT NULL DEFAULT 0,
-        last_hash   TEXT,
-        indexed_at  INTEGER NOT NULL DEFAULT 0,
-        UNIQUE(path, branch)
-      );
-    `);
+    seedDb.exec('CREATE TABLE files (id INTEGER PRIMARY KEY AUTOINCREMENT, path TEXT, branch TEXT, language TEXT);');
     seedDb.close();
+    return dbPath;
+  }
 
+  it('should enable foreign keys on a read-only connection', () => {
+    const dbPath = createTempDbPath();
     const db = openReadOnly(dbPath);
-    const foreignKeys = db.pragma('foreign_keys', { simple: true });
-    expect(foreignKeys).toBe(1);
-    expect(() => db.prepare('INSERT INTO files (path, branch, language) VALUES (?, ?, ?)').run('a.ts', 'main', 'typescript')).toThrow();
 
-    db.close();
-    fs.rmSync(dbPath);
+    try {
+      expect(db.pragma('foreign_keys', { simple: true })).toBe(1);
+    } finally {
+      db.close();
+      fs.rmSync(path.dirname(dbPath), { recursive: true, force: true });
+    }
+  });
+
+  it('should reject writes when opened in read-only mode', () => {
+    const dbPath = createTempDbPath();
+    const db = openReadOnly(dbPath);
+
+    try {
+      expect(() =>
+        db.prepare('INSERT INTO files (path, branch, language) VALUES (?, ?, ?)').run('a.ts', 'main', 'typescript'),
+      ).toThrow();
+    } finally {
+      db.close();
+      fs.rmSync(path.dirname(dbPath), { recursive: true, force: true });
+    }
   });
 });
 
@@ -365,24 +371,6 @@ describe('getSymbolById', () => {
 
   it('should return undefined when id does not exist', () => {
     expect(getSymbolById(db, 9999)).toBeUndefined();
-  });
-});
-
-describe('openReadOnly', () => {
-  it('should open an existing database in readonly mode', () => {
-    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'kb-db-'));
-    const dbPath = path.join(tempDir, 'kb.sqlite');
-    const writable = new Database(dbPath);
-    writable.exec('CREATE TABLE demo (id INTEGER PRIMARY KEY);');
-    writable.close();
-
-    try {
-      const readOnly = openReadOnly(dbPath);
-      expect(() => readOnly.prepare('INSERT INTO demo (id) VALUES (1)').run()).toThrow();
-      readOnly.close();
-    } finally {
-      fs.rmSync(tempDir, { recursive: true, force: true });
-    }
   });
 });
 
