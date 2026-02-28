@@ -305,6 +305,59 @@ describe('FileWatcher', () => {
       expect(errorLine.source).toBe('FileWatcher');
     });
 
+    it('should process a later flush after an earlier update error', async () => {
+      mockUpdate.mockRejectedValueOnce(new Error('index failure'));
+
+      const watcher = new FileWatcher('/db.sqlite', walkerConfig, { debounceMs: 50 });
+      watcher.start();
+
+      const watchCb = vi.mocked(fs.watch).mock.calls[0]?.[2] as (
+        event: string,
+        filename: string,
+      ) => void;
+      watchCb('change', 'y.ts');
+      await vi.advanceTimersByTimeAsync(50);
+
+      watchCb('change', 'z.ts');
+      await vi.advanceTimersByTimeAsync(50);
+
+      expect(mockUpdate).toHaveBeenCalledTimes(2);
+    });
+
+    it('should process pending paths after an overlapping flush was skipped', async () => {
+      let resolveUpdate!: () => void;
+      const updateGate = new Promise<void>((resolve) => {
+        resolveUpdate = resolve;
+      });
+      mockUpdate.mockImplementationOnce(async () => {
+        await updateGate;
+      });
+
+      const watcher = new FileWatcher('/db.sqlite', walkerConfig, { debounceMs: 50 });
+      watcher.start();
+
+      const watchCb = vi.mocked(fs.watch).mock.calls[0]?.[2] as (
+        event: string,
+        filename: string,
+      ) => void;
+
+      watchCb('change', 'a.ts');
+      await vi.advanceTimersByTimeAsync(50);
+      watchCb('change', 'b.ts');
+      await vi.advanceTimersByTimeAsync(50);
+      expect(mockUpdate).toHaveBeenCalledTimes(1);
+
+      resolveUpdate();
+      await vi.advanceTimersByTimeAsync(0);
+      watchCb('change', 'c.ts');
+      await vi.advanceTimersByTimeAsync(50);
+
+      expect(mockUpdate).toHaveBeenCalledTimes(2);
+      const secondCallPaths = mockUpdate.mock.calls[1]?.[0] as string[];
+      expect(secondCallPaths).toContain(`${walkerConfig.rootDir}/b.ts`);
+      expect(secondCallPaths).toContain(`${walkerConfig.rootDir}/c.ts`);
+    });
+
     it('should write an error log to stderr when the FSWatcher emits an error', () => {
       const watcher = new FileWatcher('/db.sqlite', walkerConfig);
       watcher.start();
