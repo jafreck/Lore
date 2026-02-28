@@ -132,6 +132,12 @@ export interface CommitFileRow {
   deletions: number | null;
 }
 
+export interface CommitRefRow {
+  commit_sha: string;
+  ref_name: string;
+  ref_type: string;
+}
+
 /** Fetch a single commit by its SHA (full or prefix match). */
 export function getCommitBySha(db: Database.Database, sha: string): CommitRow | undefined {
   return db
@@ -177,4 +183,34 @@ export function listCommitFiles(db: Database.Database, commitSha: string): Commi
   return db
     .prepare('SELECT * FROM commit_files WHERE commit_sha = ?')
     .all(commitSha) as CommitFileRow[];
+}
+
+/** Return refs (branches/tags) that currently point to the given commit SHA. */
+export function listCommitRefs(db: Database.Database, commitSha: string): CommitRefRow[] {
+  try {
+    return db
+      .prepare('SELECT * FROM commit_refs WHERE commit_sha = ? ORDER BY ref_type ASC, ref_name ASC')
+      .all(commitSha) as CommitRefRow[];
+  } catch {
+    return [];
+  }
+}
+
+/** Return commits associated with a branch/tag ref name or prefix. */
+export function listCommitsByRef(db: Database.Database, refQuery: string, limit = 50): CommitRow[] {
+  const exact = refQuery;
+  const wildcard = `%${refQuery}%`;
+  try {
+    return db
+      .prepare(
+        `SELECT c.* FROM commits c
+         JOIN commit_refs cr ON cr.commit_sha = c.sha
+         WHERE cr.ref_name = ? OR cr.ref_name LIKE ?
+         ORDER BY c.timestamp DESC, c.sha ASC
+         LIMIT ?`,
+      )
+      .all(exact, wildcard, limit) as CommitRow[];
+  } catch {
+    return [];
+  }
 }

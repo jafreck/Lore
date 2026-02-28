@@ -121,6 +121,14 @@ CREATE TABLE IF NOT EXISTS commit_files (
   deletions   INTEGER,
   PRIMARY KEY (commit_sha, file_path)
 );
+
+-- Named refs that currently point at commits (e.g. branches/tags).
+CREATE TABLE IF NOT EXISTS commit_refs (
+  commit_sha  TEXT    NOT NULL REFERENCES commits(sha) ON DELETE CASCADE,
+  ref_name    TEXT    NOT NULL,
+  ref_type    TEXT    NOT NULL,
+  PRIMARY KEY (commit_sha, ref_name)
+);
 `;
 
 // ─── Public API ───────────────────────────────────────────────────────────────

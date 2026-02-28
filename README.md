@@ -1,22 +1,28 @@
 # Lore
 
-**The teammate who's read every commit.** Lore is your codebase's institutional memory — it knows what was built, why it changed, and how it all connects.
+The teammate who has read your codebase and git history.
 
-Language-aware codebase indexer — tree-sitter parsing, symbol extraction,
-call-graph construction, and optional embeddings for semantic search.
+Lore indexes source code into a SQLite knowledge base with symbols, imports,
+call relationships, summaries, and git history. It also ships an MCP server so
+agents and IDEs can query that knowledge base directly.
 
-Lore is designed to be consumed by agent orchestration frameworks (e.g. AAMF,
-Cadre) that need a structured knowledge base of a source repository.
+## What Lore does
 
-## Features
+- Parses source files with tree-sitter and extracts symbols/imports/call refs
+- Resolves internal vs external imports and builds call/import graph edges
+- Stores everything in a normalized SQLite schema with optional vector search
+- Indexes git history (commits, touched files, refs/branches/tags)
+- Supports line-level git blame through MCP (`kb_blame`)
+- Supports automatic refresh via watch mode, poll mode, and git hooks
 
-- **Source-tree walking** with language detection and configurable ignore patterns
-- **Tree-sitter parsing** with extractors for C, C++, C#, Go, Java, JavaScript, Python, Rust, and TypeScript
-- **Symbol extraction** — functions, classes, methods, interfaces, enums, type aliases, and more
-- **Import resolution** and **call-graph construction** across files
-- **SQLite persistence** with a normalised schema for symbols, references, and files
-- **Optional embedding pipeline** for semantic search via `sqlite-vec`
-- **Built-in MCP server** — expose the knowledge base to any MCP-compatible AI agent or IDE
+## Supported languages
+
+Lore currently supports extractors for:
+
+- C, C++, C#
+- Rust, Go, Java, Kotlin, Scala, Swift, Objective-C, Zig, Dart
+- Python, JavaScript, TypeScript, PHP, Ruby, Lua, Bash, Elixir
+- OCaml, Haskell, Julia, Elm
 
 ## Install
 
@@ -24,65 +30,114 @@ Cadre) that need a structured knowledge base of a source repository.
 npm install @jafreck/lore
 ```
 
-> **Note:** Lore uses native add-ons (`tree-sitter`, `better-sqlite3`). A
-> working C/C++ toolchain is required on first install.
+Note: Lore uses native add-ons (`tree-sitter`, `better-sqlite3`). A working
+C/C++ toolchain is required the first time dependencies are built.
 
-## Quick start
-
-```ts
-import { runKbIndex } from "@jafreck/lore";
-
-await runKbIndex({
-  rootDir: "/path/to/source",
-  dbPath: "/path/to/kb.db",
-  languages: ["c", "rust"],
-  embeddings: { enabled: false },
-});
-```
-
-## CLI
-
-### `lore index` — build or update the knowledge base
+## Quick start (CLI)
 
 ```bash
-npx @jafreck/lore index --root <dir> --db <path> [--embedding-model <id>]
-```
-
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--root <dir>` | *(required)* | Root directory of the source tree to index |
-| `--db <path>` | *(required)* | Path to the SQLite knowledge-base file (created if absent) |
-| `--embedding-model <id>` | `Qwen/Qwen3-Embedding-4B` | Hugging Face model ID used to generate embeddings for semantic search |
-
-**Example**
-
-```bash
+# 1) Build an index
 npx @jafreck/lore index --root ./my-project --db ./kb.db
-# or with a custom embedding model:
-npx @jafreck/lore index --root ./my-project --db ./kb.db --embedding-model sentence-transformers/all-MiniLM-L6-v2
-```
 
-## MCP Server
-
-Lore ships with a built-in [Model Context Protocol](https://modelcontextprotocol.io)
-server that lets any MCP-compatible client (Claude Desktop, VS Code Copilot,
-Cadre, AAMF, etc.) query a Lore knowledge base.
-
-### Start via CLI
-
-```bash
-# stdio transport (default — works with all MCP clients)
+# 2) Start MCP server over stdio
 npx @jafreck/lore mcp --db ./kb.db
 ```
 
-> **Note:** If the embedding model fails to initialise at startup (e.g. the
-> model weights are unavailable), semantic search is silently disabled and the
-> MCP server continues to start normally. Structural (`bm25`) search remains
-> fully functional.
+## Quick start (programmatic)
 
-### MCP client configuration
+```ts
+import { IndexBuilder } from '@jafreck/lore';
 
-Add to your MCP config (Claude Desktop, VS Code, etc.):
+const builder = new IndexBuilder(
+  './kb.db',
+  { rootDir: './my-project' },
+  undefined,
+  { history: true },
+);
+
+await builder.build();
+```
+
+## CLI reference
+
+### lore index
+
+Build or update a knowledge base.
+
+```bash
+npx @jafreck/lore index --root <dir> --db <path> [--embedding-model <id>] [--history] [--history-depth <n>] [--history-all] [--include <glob>] [--exclude <glob>] [--language <lang>]
+```
+
+Key flags:
+
+- `--root <dir>` required source root
+- `--db <path>` required SQLite output path
+- `--embedding-model <id>` embedding model identifier
+- `--history` enable git history ingestion
+- `--history-depth <n>` cap number of ingested commits
+- `--history-all` traverse all refs (branches/tags)
+- `--include` repeatable glob include filter
+- `--exclude` repeatable glob exclude filter
+- `--language` repeatable language filter (mapped to extensions)
+
+### lore refresh
+
+Incremental refresh flow for an existing index.
+
+```bash
+npx @jafreck/lore refresh --db <path> --root <dir> [--history] [--history-depth <n>] [--history-all]
+npx @jafreck/lore refresh --db <path> --root <dir> --watch [--history]
+npx @jafreck/lore refresh --db <path> --root <dir> --poll [--history]
+```
+
+Modes:
+
+- Manual: one-shot incremental refresh and exit
+- Watch: filesystem event driven (`fs.watch`), low latency
+- Poll: periodic mtime diffing, most reliable across filesystems
+
+### lore hooks
+
+Install repo-local git hooks that trigger Lore refresh automatically on:
+
+- `post-commit`
+- `post-merge`
+- `post-checkout`
+- `post-rewrite`
+
+```bash
+npx @jafreck/lore hooks --root <repo> --db <path>
+npx @jafreck/lore hooks --root <repo> --db <path> --history
+```
+
+Note: for `lore hooks`, any history-related flag currently enables history in
+hook-triggered refreshes.
+
+### lore mcp
+
+Start the built-in MCP server over stdio.
+
+```bash
+npx @jafreck/lore mcp --db <path>
+```
+
+If the embedding model cannot initialize at runtime, semantic/fused search
+gracefully degrades to structural search.
+
+## MCP tools
+
+| Tool | Purpose |
+|------|---------|
+| `kb_lookup` | Find symbols by name or files by path (optional branch filter) |
+| `kb_search` | Structural BM25, semantic vector, or fused RRF search |
+| `kb_graph` | Query call or import edges (optional source/branch filters) |
+| `kb_snippet` | Return source snippets by file path and line range |
+| `kb_blame` | Return git blame metadata for a line or line range |
+| `kb_metrics` | Return aggregate index metrics and per-branch breakdown |
+| `kb_writeback` | Persist symbol summaries into `symbol_summaries` |
+| `kb_history` | Query history by file, commit, author, ref, or recency |
+
+### MCP config example
 
 ```json
 {
@@ -95,125 +150,43 @@ Add to your MCP config (Claude Desktop, VS Code, etc.):
 }
 ```
 
-### Available tools
+## Git history indexing
 
-| Tool | Description |
-|------|-------------|
-| `kb_lookup` | Look up symbols by name or files by path |
-| `kb_search` | BM25 structural, semantic (cosine), or fused (RRF) search |
-| `kb_graph` | Query call-graph or import-graph edges |
-| `kb_snippet` | Extract source-code snippets by file and line range |
-| `kb_metrics` | Aggregate codebase metrics (symbol/file/import counts) |
-| `kb_writeback` | Persist LLM-generated symbol summaries back to the KB |
-| `kb_history` | Query git commit history by file, SHA, author, or recency |
+Lore can ingest full git history and expose it through `kb_history`.
 
-## Commit History Indexing
+### Indexed history tables
 
-Lore can ingest your repository's git commit history and expose it through the `kb_history` MCP tool.
+- `commits`: sha, author, author_email, timestamp, message, parents
+- `commit_files`: per-commit touched paths with change type and diff stats
+- `commit_refs`: refs currently pointing at commits (`branch`/`tag`/`other`)
 
-### Enabling history ingestion
+### kb_history modes
 
-Pass `history: true` (or a config object) to `IndexBuilder`:
+- `recent`: newest commits
+- `file`: commits that touched a path
+- `commit`: full/prefix sha lookup (+files +refs)
+- `author`: commits by author/email substring
+- `ref`: commits matching branch/tag ref name substring
 
-```ts
-import { IndexBuilder } from "@jafreck/lore";
+## Blame queries
 
-// Enable with defaults (depth: 500)
-await new IndexBuilder("/path/to/kb.db", { rootDir: "/path/to/source" }, undefined, {
-  history: true,
-}).build();
+Use `kb_blame` for line-level attribution.
 
-// Or configure a custom depth
-await new IndexBuilder("/path/to/kb.db", { rootDir: "/path/to/source" }, undefined, {
-  history: { depth: 200 },
-}).build();
-```
-
-### What is stored
-
-- **`commits` table** — sha, author, author_email, timestamp, message, parents (JSON array of parent SHAs)
-- **`commit_files` table** — commit_sha, file_path, change_type (A/M/D/R), and diff stats (insertions/deletions) when available
-
-### Querying with `kb_history`
-
-The `kb_history` tool supports four query modes:
-
-| Mode | Required `query` | Description |
-|------|-----------------|-------------|
-| `file` | file path | All commits that touched the given file |
-| `commit` | full or partial SHA | Look up a specific commit with its file list |
-| `author` | name or email substring | All commits by the matching author |
-| `recent` | — | Most recent commits |
-
-All modes accept an optional `limit` (default 20, max 200).
-
-**Example invocations:**
+Examples:
 
 ```json
-// Most recent commits
-{ "mode": "recent", "limit": 10 }
-
-// Commits that touched a file
-{ "mode": "file", "query": "src/indexer/db.ts" }
-
-// Look up a commit by SHA prefix
-{ "mode": "commit", "query": "a1b2c3d" }
-
-// Commits by an author
-{ "mode": "author", "query": "alice@example.com" }
+{ "path": "/repo/src/index.ts", "line": 120 }
+{ "path": "/repo/src/index.ts", "start_line": 120, "end_line": 140 }
+{ "path": "/repo/src/index.ts", "line": 120, "ref": "main" }
 ```
 
-### Programmatic usage
+## Automatic freshness patterns
 
-```ts
-import { createKbMcpServer, openReadOnly } from "@jafreck/lore";
+If you want Lore to stay updated without explicit requests:
 
-const db = openReadOnly("/path/to/kb.db");
-const server = createKbMcpServer(db, "/path/to/kb.db");
-// Connect to your preferred transport...
-```
-
-## Index Refresh
-
-Lore supports three modes for keeping the index up to date after an initial build:
-
-### Manual refresh (recommended for CI/scripted use)
-
-Performs an incremental update over all files in the root directory and exits.
-This is the safest option because it is idempotent and has no long-running process to manage.
-
-```bash
-npx @jafreck/lore refresh --db ./kb.db --root ./src
-```
-
-### Watch mode
-
-Uses native filesystem events (`fs.watch`) to detect file changes and trigger
-incremental updates automatically. Watch mode is **low-latency** — changes are
-picked up within milliseconds — but may **miss events** on network file systems,
-some Linux configurations, or WSL2 environments where kernel inotify limits apply.
-
-```bash
-npx @jafreck/lore refresh --db ./kb.db --root ./src --watch
-```
-
-### Poll mode
-
-Periodically walks the directory tree, compares file modification times against
-a snapshot, and triggers an incremental update for any files that changed.
-Poll mode is **reliable** on all platforms and file systems, but incurs a
-**higher CPU and I/O cost** proportional to the size of the tree and the polling
-interval (default: 5 s).
-
-```bash
-npx @jafreck/lore refresh --db ./kb.db --root ./src --poll
-```
-
-| Mode | Latency | Reliability | Cost |
-|------|---------|-------------|------|
-| Manual | on-demand | highest | none (run once) |
-| `--watch` | low (~ms) | platform-dependent | minimal |
-| `--poll` | ~interval | highest | moderate (CPU/IO) |
+1. Run `lore hooks` once in the repo (git lifecycle updates)
+2. Optionally run `lore refresh --watch` in a background session for near-real-time updates during active editing
+3. Use `--poll` on filesystems where watch events are unreliable
 
 ## Build from source
 
@@ -226,33 +199,12 @@ npm run build
 
 ## Contributing
 
-### Setup
-
-```bash
-git clone https://github.com/jafreck/Lore.git
-cd Lore
-npm install
-```
-
-### Build
-
-```bash
-npm run build
-```
-
-### Tests
-
 ```bash
 npm test
-```
-
-### Coverage
-
-```bash
 npm run coverage
 ```
 
-CI enforces a minimum of **95% code coverage**. Pull requests that drop coverage below this threshold will fail the CI check.
+CI enforces a minimum 95% coverage threshold.
 
 ## License
 

@@ -19,6 +19,8 @@ export interface PollerOptions {
   enabled?: boolean;
   /** Polling interval in milliseconds. Defaults to 5000 (5 s). */
   intervalMs?: number;
+  /** Whether to refresh git history during poll update cycles. */
+  history?: boolean | { depth?: number; all?: boolean };
 }
 
 // ─── FilePoller ───────────────────────────────────────────────────────────────
@@ -40,6 +42,7 @@ export class FilePoller {
   private readonly walkerConfig: WalkerConfig;
   private readonly intervalMs: number;
   private readonly enabled: boolean;
+  private readonly history: boolean | { depth?: number; all?: boolean };
 
   /** Maps absolute path → last seen mtime (ms since epoch). */
   private snapshot: Map<string, number> = new Map();
@@ -50,6 +53,7 @@ export class FilePoller {
     this.walkerConfig = walkerConfig;
     this.intervalMs = options.intervalMs ?? 5000;
     this.enabled = options.enabled ?? true;
+    this.history = options.history ?? false;
   }
 
   /** Begin polling `walkerConfig.rootDir` at the configured interval. */
@@ -109,7 +113,9 @@ export class FilePoller {
     }
 
     if (changed.length > 0) {
-      const builder = new IndexBuilder(this.dbPath, this.walkerConfig);
+      const builder = new IndexBuilder(this.dbPath, this.walkerConfig, undefined, {
+        history: this.history,
+      });
       try {
         await builder.update(changed);
       } catch (err) {

@@ -13,6 +13,7 @@ import * as crypto from 'node:crypto';
 import { openDb, setKbMeta, createVec0Tables } from './db.js';
 import type { Database } from './db.js';
 import { walkFiles } from './walker.js';
+import { detectLanguageForPath } from './walker.js';
 import type { WalkerConfig } from './walker.js';
 import { ingestGitHistory } from './git-history.js';
 import { ParserPool } from './parser.js';
@@ -102,14 +103,14 @@ export class IndexBuilder {
   private readonly pool: ParserPool;
   private readonly resolver: ImportResolver;
   private readonly embedder: EmbeddingProvider | null;
-  private readonly history: boolean | { depth?: number };
+  private readonly history: boolean | { depth?: number; all?: boolean };
   private readonly embeddingModel: string;
 
   constructor(
     dbPath: string,
     walkerConfig: WalkerConfig,
     embedder?: EmbeddingProvider,
-    embeddingModelOrOptions?: string | { history?: boolean | { depth?: number }; embeddingModel?: string },
+    embeddingModelOrOptions?: string | { history?: boolean | { depth?: number; all?: boolean }; embeddingModel?: string },
   ) {
     this.dbPath = dbPath;
     this.walkerConfig = walkerConfig;
@@ -172,10 +173,6 @@ export class IndexBuilder {
     const db = openDb(this.dbPath);
     const branch = this.walkerConfig.branch ?? 'HEAD';
     try {
-      // Determine languages for changed files using the walker config
-      const allFiles = await walkFiles(this.walkerConfig);
-      const languageMap = new Map(allFiles.map(f => [f.path, f.language]));
-
       for (const filePath of changedFiles) {
         // If the file no longer exists, remove it from the DB
         if (!fs.existsSync(filePath)) {
@@ -190,7 +187,7 @@ export class IndexBuilder {
           continue;
         }
 
-        const language = languageMap.get(filePath);
+        const language = detectLanguageForPath(filePath, this.walkerConfig);
         if (!language) continue;
 
         // Null out resolved_id references pointing to this file before deletion

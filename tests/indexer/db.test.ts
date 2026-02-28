@@ -66,6 +66,7 @@ describe('openDb', () => {
     expect(tables).toContain('files');
     expect(tables).toContain('symbols');
     expect(tables).toContain('kb_meta');
+    expect(tables).toContain('commit_refs');
   });
 
   it('should be idempotent — calling openDb twice on the same path is safe', () => {

@@ -18,6 +18,8 @@ export interface WatcherOptions {
   enabled?: boolean;
   /** Debounce window in milliseconds before flushing batched changes. Defaults to 300. */
   debounceMs?: number;
+  /** Whether to refresh git history during update cycles. */
+  history?: boolean | { depth?: number; all?: boolean };
 }
 
 // ─── FileWatcher ──────────────────────────────────────────────────────────────
@@ -39,6 +41,7 @@ export class FileWatcher {
   private readonly walkerConfig: WalkerConfig;
   private readonly debounceMs: number;
   private readonly enabled: boolean;
+  private readonly history: boolean | { depth?: number; all?: boolean };
 
   private watcher: fs.FSWatcher | null = null;
   private pendingPaths: Set<string> = new Set();
@@ -49,6 +52,7 @@ export class FileWatcher {
     this.walkerConfig = walkerConfig;
     this.debounceMs = options.debounceMs ?? 300;
     this.enabled = options.enabled ?? true;
+    this.history = options.history ?? false;
   }
 
   /** Begin watching `walkerConfig.rootDir` recursively for file changes. */
@@ -101,7 +105,9 @@ export class FileWatcher {
 
     if (paths.length === 0) return;
 
-    const builder = new IndexBuilder(this.dbPath, this.walkerConfig);
+    const builder = new IndexBuilder(this.dbPath, this.walkerConfig, undefined, {
+      history: this.history,
+    });
     let errorCount = 0;
 
     try {

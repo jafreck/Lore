@@ -237,6 +237,9 @@ describe('ingestGitHistory', () => {
     db.close();
 
     expect(mockRaw).toHaveBeenCalledWith(
+      expect.arrayContaining(['--all']),
+    );
+    expect(mockRaw).not.toHaveBeenCalledWith(
       expect.arrayContaining(['--max-count=500']),
     );
   });
@@ -252,6 +255,59 @@ describe('ingestGitHistory', () => {
     expect(mockRaw).toHaveBeenCalledWith(
       expect.arrayContaining(['--max-count=100']),
     );
+  });
+
+  it('should skip --all when options.all is false', async () => {
+    mockRaw.mockResolvedValue('');
+
+    const db = openDb(dbPath);
+    const { ingestGitHistory } = await import('../../src/indexer/git-history.js');
+    await ingestGitHistory(db, '/fake/repo', { all: false });
+    db.close();
+
+    expect(mockRaw).toHaveBeenCalledWith(
+      expect.arrayContaining(['log', '--numstat', '--format=COMMIT_SEP%n%H%n%an%n%ae%n%at%n%P%n%s']),
+    );
+    expect(mockRaw).not.toHaveBeenCalledWith(
+      expect.arrayContaining(['--all']),
+    );
+  });
+
+  it('should ingest branch and tag refs into commit_refs when available', async () => {
+    mockRaw
+      .mockResolvedValueOnce(
+        buildLogOutput([
+          {
+            sha: 'ref111',
+            author: 'Ivy',
+            authorEmail: 'ivy@example.com',
+            timestamp: 1700000011,
+            parents: '',
+            message: 'Ref commit',
+            files: [],
+          },
+        ]),
+      )
+      .mockResolvedValueOnce(
+        [
+          'ref111 refs/heads/main',
+          'ref111 refs/tags/v1.0.0',
+        ].join('\n'),
+      );
+
+    const db = openDb(dbPath);
+    const { ingestGitHistory } = await import('../../src/indexer/git-history.js');
+    await ingestGitHistory(db, '/fake/repo');
+
+    const refs = db
+      .prepare('SELECT commit_sha, ref_name, ref_type FROM commit_refs WHERE commit_sha = ? ORDER BY ref_name')
+      .all('ref111') as Array<{ commit_sha: string; ref_name: string; ref_type: string }>;
+    db.close();
+
+    expect(refs).toEqual([
+      { commit_sha: 'ref111', ref_name: 'refs/heads/main', ref_type: 'branch' },
+      { commit_sha: 'ref111', ref_name: 'refs/tags/v1.0.0', ref_type: 'tag' },
+    ]);
   });
 
   it('should detect deleted files (only deletions, no insertions)', async () => {
