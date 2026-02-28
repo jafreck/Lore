@@ -86,6 +86,24 @@ function querySymbolNamesForFile(dbPath: string, filePath: string, branch: strin
   return rows.map((r) => r.name);
 }
 
+function queryAnnotationsForFile(
+  dbPath: string,
+  filePath: string,
+  branch: string,
+): Array<{ kind: string; line: number; text: string; symbolName: string | null }> {
+  const db = new Database(dbPath, { readonly: true });
+  const rows = db.prepare(
+    `SELECT a.kind, a.line, a.text, s.name AS symbolName
+     FROM annotations a
+     JOIN files f ON f.id = a.file_id
+     LEFT JOIN symbols s ON s.id = a.symbol_id
+     WHERE f.path = ? AND f.branch = ?
+     ORDER BY a.line`,
+  ).all(filePath, branch) as Array<{ kind: string; line: number; text: string; symbolName: string | null }>;
+  db.close();
+  return rows;
+}
+
 describe('IndexBuilder — branch support in build()', () => {
   let srcDir: string;
   let dbPath: string;
@@ -366,6 +384,85 @@ describe('IndexBuilder — branch support in update()', () => {
 
     const files = queryFilesWithBranch(dbPath, gitBranch);
     expect(files.length).toBeGreaterThan(0);
+  });
+});
+
+describe('IndexBuilder — annotation persistence', () => {
+  let srcDir: string;
+  let dbPath: string;
+  let srcFile: string;
+
+  beforeEach(() => {
+    srcDir = createTmpSrcDir();
+    dbPath = tmpDbPath();
+    srcFile = join(srcDir, 'hello.ts');
+  });
+
+  afterEach(() => {
+    try { rmSync(srcDir, { recursive: true, force: true }); } catch { /* ignore */ }
+    const dbDir = join(dbPath, '..');
+    try { rmSync(dbDir, { recursive: true, force: true }); } catch { /* ignore */ }
+  });
+
+  it('should persist extracted annotations after build and link in-range annotations to symbols', async () => {
+    writeFileSync(
+      srcFile,
+      `// TODO: top-level task
+export function hello(): string {
+  // FIXME: inside function
+  return "hi";
+}
+`,
+    );
+    const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
+    await builder.build();
+
+    const annotations = queryAnnotationsForFile(dbPath, srcFile, 'main');
+    expect(annotations.length).toBeGreaterThan(0);
+    const topLevel = annotations.find(a => a.kind === 'TODO');
+    const inFunction = annotations.find(a => a.kind === 'FIXME');
+    expect(topLevel?.symbolName ?? null).toBeNull();
+    expect(inFunction?.symbolName).toBe('hello');
+  });
+
+  it('should refresh annotation rows for a file during update', async () => {
+    writeFileSync(srcFile, '// TODO: old note\nexport function hello(): string { return "hi"; }\n');
+    const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
+    await builder.build();
+    expect(queryAnnotationsForFile(dbPath, srcFile, 'main').map(a => a.kind)).toEqual(['TODO']);
+
+    writeFileSync(
+      srcFile,
+      `// NOTE: new top-level note
+export function hello(): string {
+  // BUG: changed annotation
+  return "hi";
+}
+`,
+    );
+    await builder.update([srcFile]);
+
+    const kinds = queryAnnotationsForFile(dbPath, srcFile, 'main').map(a => a.kind);
+    expect(kinds).toEqual(['NOTE', 'BUG']);
+  });
+
+  it('should link an annotation to the narrowest enclosing symbol when ranges overlap', async () => {
+    writeFileSync(
+      srcFile,
+      `export function outer(): string {
+  function inner(): string {
+    // TODO: nested task
+    return "inner";
+  }
+  return inner();
+}
+`,
+    );
+    const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
+    await builder.build();
+
+    const nested = queryAnnotationsForFile(dbPath, srcFile, 'main').find(a => a.kind === 'TODO');
+    expect(nested?.symbolName).toBe('inner');
   });
 });
 

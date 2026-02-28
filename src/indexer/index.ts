@@ -96,6 +96,12 @@ interface BuildCheckpoint {
   updatedAt: number;
 }
 
+interface ExtractedAnnotation {
+  kind: string;
+  line: number;
+  text: string;
+}
+
 // ─── IndexBuilder ─────────────────────────────────────────────────────────────
 
 /**
@@ -305,10 +311,11 @@ export class IndexBuilder {
       db.prepare(
         `DELETE FROM symbols_fts WHERE rowid IN (SELECT id FROM symbols WHERE file_id = ?)`,
       ).run(fileId);
-      db.prepare('DELETE FROM symbols WHERE file_id = ?').run(fileId);
-      db.prepare('DELETE FROM file_imports WHERE file_id = ?').run(fileId);
-      db.prepare('DELETE FROM external_deps WHERE file_id = ?').run(fileId);
-    } else {
+       db.prepare('DELETE FROM symbols WHERE file_id = ?').run(fileId);
+       db.prepare('DELETE FROM file_imports WHERE file_id = ?').run(fileId);
+       db.prepare('DELETE FROM external_deps WHERE file_id = ?').run(fileId);
+       db.prepare('DELETE FROM annotations WHERE file_id = ?').run(fileId);
+     } else {
       const info = db
         .prepare(
           `INSERT INTO files (path, branch, language, size_bytes, last_hash)
@@ -338,6 +345,7 @@ export class IndexBuilder {
 
     // Map from callerSymbol name → symbol row ID (for call refs)
     const symbolIdMap = new Map<string, number>();
+    const symbolRanges: Array<{ id: number; startLine: number; endLine: number }> = [];
 
     for (const sym of result.symbols) {
       const info = insertSymbol.run(
@@ -351,7 +359,22 @@ export class IndexBuilder {
       ) as { lastInsertRowid: number | bigint };
       const symId = Number(info.lastInsertRowid);
       symbolIdMap.set(sym.name, symId);
+      symbolRanges.push({ id: symId, startLine: sym.startLine, endLine: sym.endLine });
       insertFts.run(symId, sym.name, sym.signature ?? '', sym.kind);
+    }
+
+    const insertAnnotation = db.prepare(
+      `INSERT INTO annotations (file_id, kind, line, text, symbol_id)
+       VALUES (?, ?, ?, ?, ?)`,
+    );
+    for (const annotation of this.extractAnnotations(source)) {
+      insertAnnotation.run(
+        fileId,
+        annotation.kind,
+        annotation.line,
+        annotation.text,
+        this.findEnclosingSymbolId(annotation.line, symbolRanges),
+      );
     }
 
     // Insert raw imports (resolved_id will be filled in resolveImports())
@@ -373,6 +396,48 @@ export class IndexBuilder {
         insertCallRef.run(callerId, ref.calleeRaw, ref.line);
       }
     }
+  }
+
+  private extractAnnotations(source: string): ExtractedAnnotation[] {
+    const annotations: ExtractedAnnotation[] = [];
+    const annotationPattern = /\b(TODO|FIXME|HACK|XXX|NOTE|BUG|OPTIMIZE)\b\s*:?\s*(.+)?$/;
+    const commentPrefixPattern = /^(?:\/\/+|#+|--+|;+|\/\*+|\*+)\s*/;
+    const lines = source.split('\n');
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (!line) continue;
+      const commentStart = line.search(/\/\/|#|--|;|\/\*|\*/);
+      if (commentStart === -1) continue;
+      const commentText = line.slice(commentStart).replace(commentPrefixPattern, '').trim();
+      if (!commentText) continue;
+      const match = commentText.match(annotationPattern);
+      if (!match) continue;
+      annotations.push({
+        kind: match[1] ?? '',
+        line: i,
+        text: (match[2] ?? '').trim(),
+      });
+    }
+
+    return annotations;
+  }
+
+  private findEnclosingSymbolId(
+    line: number,
+    symbolRanges: Array<{ id: number; startLine: number; endLine: number }>,
+  ): number | null {
+    let best: { id: number; startLine: number; endLine: number } | null = null;
+    for (const symbolRange of symbolRanges) {
+      if (line < symbolRange.startLine || line > symbolRange.endLine) continue;
+      if (
+        !best ||
+        symbolRange.endLine - symbolRange.startLine < best.endLine - best.startLine
+      ) {
+        best = symbolRange;
+      }
+    }
+    return best?.id ?? null;
   }
 
   /**
