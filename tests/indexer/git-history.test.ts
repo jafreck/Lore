@@ -339,6 +339,42 @@ describe('ingestGitHistory', () => {
     expect(logCall).not.toContain('stale999..');
   });
 
+  it('should preserve an existing watermark when no newer commits are returned', async () => {
+    mockRaw.mockImplementation(async (args: string[]) => {
+      if (args[0] === 'cat-file') return '';
+      if (args[0] === 'log') return '';
+      if (args[0] === 'show-ref') return '';
+      return '';
+    });
+
+    const db = openDb(dbPath);
+    setKbMeta(db, 'git_history_last_ingested_sha', 'wm123');
+    const { ingestGitHistory } = await import('../../src/indexer/git-history.js');
+    await ingestGitHistory(db, '/fake/repo');
+
+    const watermarkRow = db.prepare('SELECT value FROM kb_meta WHERE key = ?').get('git_history_last_ingested_sha') as
+      | { value: string }
+      | undefined;
+    db.close();
+
+    expect(watermarkRow?.value).toBe('wm123');
+  });
+
+  it('should skip watermark validation when no watermark is stored', async () => {
+    mockRaw.mockImplementation(async (args: string[]) => {
+      if (args[0] === 'log') return '';
+      if (args[0] === 'show-ref') return '';
+      return '';
+    });
+
+    const db = openDb(dbPath);
+    const { ingestGitHistory } = await import('../../src/indexer/git-history.js');
+    await ingestGitHistory(db, '/fake/repo');
+    db.close();
+
+    expect(mockRaw).not.toHaveBeenCalledWith(expect.arrayContaining(['cat-file', '-e']));
+  });
+
   it('should skip --all when options.all is false', async () => {
     mockRaw.mockResolvedValue('');
 
