@@ -140,4 +140,47 @@ describe('IndexBuilder — branch support in update()', () => {
     const headFiles = queryFilesWithBranch(dbPath, 'HEAD');
     expect(headFiles.length).toBeGreaterThan(0);
   });
+
+  it('should remove branch-scoped file rows and related symbols_fts entries when a tracked file is deleted', async () => {
+    const builderDev = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'dev' });
+    await builderDev.build();
+
+    const beforeDb = new Database(dbPath, { readonly: true });
+    const mainFileRow = beforeDb
+      .prepare('SELECT id FROM files WHERE path = ? AND branch = ?')
+      .get(srcFile, 'main') as { id: number } | undefined;
+    expect(mainFileRow).toBeDefined();
+
+    const mainSymbolIds = beforeDb
+      .prepare(
+        'SELECT s.id FROM symbols s JOIN files f ON f.id = s.file_id WHERE f.path = ? AND f.branch = ?',
+      )
+      .all(srcFile, 'main') as Array<{ id: number }>;
+    beforeDb.close();
+    expect(mainSymbolIds.length).toBeGreaterThan(0);
+
+    rmSync(srcFile, { force: true });
+    const builderMain = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
+    await builderMain.update([srcFile]);
+
+    const afterDb = new Database(dbPath, { readonly: true });
+    const deletedMainFile = afterDb
+      .prepare('SELECT id FROM files WHERE path = ? AND branch = ?')
+      .get(srcFile, 'main') as { id: number } | undefined;
+    const devFile = afterDb
+      .prepare('SELECT id FROM files WHERE path = ? AND branch = ?')
+      .get(srcFile, 'dev') as { id: number } | undefined;
+    const staleFtsCountRow = afterDb
+      .prepare(
+        `SELECT COUNT(*) AS count
+         FROM symbols_fts
+         WHERE rowid IN (${mainSymbolIds.map(() => '?').join(',')})`,
+      )
+      .get(...mainSymbolIds.map(row => row.id)) as { count: number };
+    afterDb.close();
+
+    expect(deletedMainFile).toBeUndefined();
+    expect(devFile).toBeDefined();
+    expect(staleFtsCountRow.count).toBe(0);
+  });
 });
