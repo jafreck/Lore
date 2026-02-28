@@ -42,6 +42,18 @@ CREATE TABLE IF NOT EXISTS symbols (
   doc_comment TEXT
 );
 
+-- File-linked annotations extracted from comments (e.g. TODO/FIXME/NOTE).
+CREATE TABLE IF NOT EXISTS annotations (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  file_id     INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+  kind        TEXT    NOT NULL,
+  line        INTEGER NOT NULL,
+  text        TEXT    NOT NULL,
+  symbol_id   INTEGER REFERENCES symbols(id) ON DELETE SET NULL,
+  author      TEXT,
+  created_at  INTEGER
+);
+
 -- Import / use declarations found in source files.
 CREATE TABLE IF NOT EXISTS file_imports (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -129,6 +141,9 @@ CREATE TABLE IF NOT EXISTS commit_refs (
   ref_type    TEXT    NOT NULL,
   PRIMARY KEY (commit_sha, ref_name)
 );
+
+CREATE INDEX IF NOT EXISTS idx_annotations_kind ON annotations(kind);
+CREATE INDEX IF NOT EXISTS idx_annotations_file_id ON annotations(file_id);
 `;
 
 // ─── Public API ───────────────────────────────────────────────────────────────
