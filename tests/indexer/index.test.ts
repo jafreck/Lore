@@ -142,6 +142,11 @@ describe('IndexBuilder — branch support in update()', () => {
   });
 
   it('should remove branch-scoped file rows and related symbols_fts entries when a tracked file is deleted', async () => {
+    const importingFile = join(srcDir, 'consumer.ts');
+    writeFileSync(importingFile, 'import { hello } from "./hello";\nexport const value = hello();\n');
+    const builderMainForImport = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
+    await builderMainForImport.update([importingFile]);
+
     const builderDev = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'dev' });
     await builderDev.build();
 
@@ -156,8 +161,17 @@ describe('IndexBuilder — branch support in update()', () => {
         'SELECT s.id FROM symbols s JOIN files f ON f.id = s.file_id WHERE f.path = ? AND f.branch = ?',
       )
       .all(srcFile, 'main') as Array<{ id: number }>;
+    const resolvedImportRows = beforeDb
+      .prepare(
+        `SELECT fi.id
+         FROM file_imports fi
+         JOIN files f ON f.id = fi.file_id
+         WHERE fi.resolved_id = ? AND f.branch = ?`,
+      )
+      .all(mainFileRow!.id, 'main') as Array<{ id: number }>;
     beforeDb.close();
     expect(mainSymbolIds.length).toBeGreaterThan(0);
+    expect(resolvedImportRows.length).toBeGreaterThan(0);
 
     rmSync(srcFile, { force: true });
     const builderMain = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
@@ -177,10 +191,18 @@ describe('IndexBuilder — branch support in update()', () => {
          WHERE rowid IN (${mainSymbolIds.map(() => '?').join(',')})`,
       )
       .get(...mainSymbolIds.map(row => row.id)) as { count: number };
+    const clearedResolvedCount = afterDb
+      .prepare(
+        `SELECT COUNT(*) AS count
+         FROM file_imports
+         WHERE id IN (${resolvedImportRows.map(() => '?').join(',')}) AND resolved_id IS NULL`,
+      )
+      .get(...resolvedImportRows.map(row => row.id)) as { count: number };
     afterDb.close();
 
     expect(deletedMainFile).toBeUndefined();
     expect(devFile).toBeDefined();
     expect(staleFtsCountRow.count).toBe(0);
+    expect(clearedResolvedCount.count).toBe(resolvedImportRows.length);
   });
 });
