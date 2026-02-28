@@ -205,6 +205,10 @@ export class IndexBuilder {
       }
 
       this.resolveImports(db, branch);
+      if (this.embedder) {
+        await this.embedder.init();
+        await this.embedStructural(db);
+      }
     } finally {
       db.close();
     }
