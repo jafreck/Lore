@@ -1,23 +1,98 @@
 # Lore
 
-**The teammate who knows every commit.** Lore is your codebase's institutional memory — it knows what was built, why it changed, and how it all connects.
-
-Language-aware codebase indexer — it maps symbols, imports, call relationships,
-code summaries, and git history, with optional embeddings for semantic search.
-
-Lore builds a rich, queryable memory of your codebase and its evolution. You
-can explore it directly through the CLI and MCP tools, or connect IDEs and
-agents so they can reason over the same shared context.
+**The teammate that has seen it all** Lore is your agent's institutional knowledge over the codebase — it knows what was built, why it changed, and how it all connects. Lore indexes your code and git history into a structured knowledge base that agents query through MCP. It maps symbols, imports, call relationships, and git history — with optional embeddings for semantic search — so agents can reason about your codebase
+without re-reading it from scratch.
 
 ## What Lore does
 
-- Parses source files with tree-sitter and extracts symbols/imports/call refs
+- Parses source files and extracts symbols, imports, and call refs
 - Resolves internal vs external imports and builds call/import graph edges
-- Stores everything in a normalized SQLite schema with optional vector search
-- Enables RAG-style retrieval with semantic/fused `kb_search` for people and agents
+- Stores everything in a normalized SQL schema with optional vector search
+- Enables RAG-style retrieval with semantic/fused search
 - Indexes git history (commits, touched files, refs/branches/tags)
-- Supports line-level git blame through MCP (`kb_blame`)
+- Supports line-level git blame through MCP
 - Supports automatic refresh via watch mode, poll mode, and git hooks
+
+## How Lore integrates with LLMs
+
+```mermaid
+flowchart LR
+    subgraph Codebase
+        SRC[Source Files]
+        GIT[Git Repo]
+    end
+
+    subgraph Lore Indexer
+        WALK[Walker]
+        PARSE[Parser]
+        EXTRACT[Extractors<br/>symbols · imports · call refs]
+        RESOLVE[Import Resolver<br/>internal ↔ external]
+        CALLGRAPH[Call-Graph Builder]
+        EMBED[Embedder]
+        GITHIST[Git History Ingest<br/>commits · diffs · refs]
+    end
+
+    DB[(SQL DB)]
+
+    subgraph MCP Server
+        LOOKUP[kb_lookup]
+        SEARCH[kb_search]
+        GRAPH[kb_graph]
+        SNIPPET[kb_snippet]
+        BLAME[kb_blame]
+        HISTORY[kb_history]
+        METRICS[kb_metrics]
+        WRITEBACK[kb_writeback]
+    end
+
+    subgraph LLM_AGENTS[Agents]
+        CLAUDE[Claude]
+        COPILOT[GitHub Copilot]
+        CUSTOM_AGENT[Custom Agents]
+        CLAUDE ~~~ COPILOT ~~~ CUSTOM_AGENT
+    end
+
+    subgraph ENTRY[User Entrypoints]
+        VSCODE[VS Code]
+        CURSOR[Cursor]
+        CHAT[Chat UI]
+        ORCH[Agent Frameworks]
+        VSCODE ~~~ CURSOR ~~~ CHAT ~~~ ORCH
+    end
+
+    SRC --> WALK --> PARSE --> EXTRACT
+    EXTRACT --> RESOLVE & CALLGRAPH
+    EXTRACT & RESOLVE & CALLGRAPH --> DB
+    EMBED -.->|optional| DB
+    GIT --> GITHIST --> DB
+
+    DB --- LOOKUP & SEARCH & GRAPH & SNIPPET & BLAME & HISTORY & METRICS & WRITEBACK
+
+    LOOKUP & SEARCH & GRAPH & SNIPPET & BLAME & HISTORY & METRICS & WRITEBACK <--> LLM_AGENTS
+
+    LLM_AGENTS <--- ENTRY
+```
+
+Lore sits between your codebase and any LLM-powered tool. The **indexer**
+pipeline walks source files, parses them into ASTs, and extracts
+symbols/imports/call-refs via language-specific extractors, then resolves
+imports (internal vs external) and builds the call graph. An optional
+**embedder** generates dense vectors for semantic search, and a parallel
+**git history** ingest captures commits, diffs, and refs. Everything is
+persisted to a normalized SQL database. The **MCP server** then exposes that
+database as a set of tools that any MCP-compatible client can call to look up
+symbols, search code, traverse call graphs, read snippets, query
+blame/history, and write summaries back.
+
+The index stays fresh automatically. You can install **git hooks**
+(`post-commit`, `post-merge`, etc.) that trigger an incremental refresh on
+every commit, run a **watch** mode that reacts to filesystem events in
+real time, or use **poll** mode for environments where watch events are
+unreliable. Each refresh only re-processes files whose content hash has
+changed, so updates are fast even on large repositories.
+
+See [docs/architecture.md](docs/architecture.md) for the full schema and
+pipeline breakdown.
 
 ## Supported languages
 
