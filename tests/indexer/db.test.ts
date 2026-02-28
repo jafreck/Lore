@@ -7,6 +7,8 @@ import {
   createVec0Tables,
   KB_META_INDEX_CHECKPOINT,
   KB_META_LAST_HEAD_SHA,
+  KB_META_COVERAGE_LAST_SOURCE_PATH,
+  KB_META_COVERAGE_LAST_SOURCE_MTIME,
 } from '../../src/indexer/db.js';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -74,6 +76,59 @@ describe('openDb', () => {
     expect(tables).toContain('symbols');
     expect(tables).toContain('kb_meta');
     expect(tables).toContain('commit_refs');
+    expect(tables).toContain('coverage_runs');
+    expect(tables).toContain('coverage_files');
+    expect(tables).toContain('coverage_lines');
+  });
+
+  it('should enforce foreign keys from coverage tables to coverage runs', () => {
+    db = openDb(dbPath);
+    const coverageFilesFks = db.pragma('foreign_key_list(coverage_files)') as Array<{
+      from: string;
+      table: string;
+    }>;
+    const coverageLinesFks = db.pragma('foreign_key_list(coverage_lines)') as Array<{
+      from: string;
+      table: string;
+    }>;
+
+    expect(
+      coverageFilesFks.some((fk) => fk.from === 'run_id' && fk.table === 'coverage_runs'),
+    ).toBe(true);
+    expect(
+      coverageLinesFks.some((fk) => fk.from === 'run_id' && fk.table === 'coverage_runs'),
+    ).toBe(true);
+  });
+
+  it('should reject coverage rows when the referenced run does not exist', () => {
+    db = openDb(dbPath);
+
+    expect(() =>
+      db.prepare(
+        "INSERT INTO coverage_files (run_id, file_path, lines_found, lines_hit) VALUES (999, 'src/a.ts', 1, 1)",
+      ).run(),
+    ).toThrow();
+
+    expect(() =>
+      db.prepare(
+        "INSERT INTO coverage_lines (run_id, file_path, line_number, hit_count) VALUES (999, 'src/a.ts', 1, 1)",
+      ).run(),
+    ).toThrow();
+  });
+
+  it('should reject coverage line rows when the matching coverage file row is missing', () => {
+    db = openDb(dbPath);
+    const run = db
+      .prepare(
+        "INSERT INTO coverage_runs (commit_sha, source_path, format) VALUES ('abc123', 'coverage/lcov.info', 'lcov')",
+      )
+      .run();
+
+    expect(() =>
+      db.prepare(
+        "INSERT INTO coverage_lines (run_id, file_path, line_number, hit_count) VALUES (?, 'src/a.ts', 10, 3)",
+      ).run(run.lastInsertRowid),
+    ).toThrow();
   });
 
   it('should be idempotent — calling openDb twice on the same path is safe', () => {
@@ -120,6 +175,8 @@ describe('setKbMeta / getKbMeta', () => {
   it('should export expected kb_meta key constants', () => {
     expect(KB_META_INDEX_CHECKPOINT).toBe('index_checkpoint');
     expect(KB_META_LAST_HEAD_SHA).toBe('last_known_head_sha');
+    expect(KB_META_COVERAGE_LAST_SOURCE_PATH).toBe('coverage_last_source_path');
+    expect(KB_META_COVERAGE_LAST_SOURCE_MTIME).toBe('coverage_last_source_mtime');
   });
 });
 
