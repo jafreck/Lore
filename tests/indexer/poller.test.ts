@@ -312,5 +312,20 @@ describe('FilePoller', () => {
       expect(infoLine).toBeDefined();
       expect(infoLine.errors).toBe(1);
     });
+
+    it('should continue polling after an update failure on a prior cycle', async () => {
+      const file = '/tmp/testroot/recovered-after-update-failure.ts';
+      vi.mocked(walkFiles).mockResolvedValue([makeEntry(file)]);
+      let mtime = 0;
+      vi.mocked(fs.statSync).mockImplementation(() => ({ mtimeMs: ++mtime } as Stats));
+      mockUpdate.mockRejectedValueOnce(new Error('update failed'));
+
+      const poller = new FilePoller('/db.sqlite', walkerConfig, { intervalMs: 100 });
+      poller.start();
+      await vi.advanceTimersByTimeAsync(200);
+      poller.stop();
+
+      expect(mockUpdate).toHaveBeenCalledTimes(2);
+    });
   });
 });
