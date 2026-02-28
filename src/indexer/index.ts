@@ -10,7 +10,8 @@
 
 import * as fs from 'node:fs';
 import * as crypto from 'node:crypto';
-import { openDb, setKbMeta, createVec0Tables } from './db.js';
+import { execFileSync } from 'node:child_process';
+import { openDb, setKbMeta, getKbMeta, createVec0Tables, KB_META_INDEX_CHECKPOINT, KB_META_LAST_HEAD_SHA } from './db.js';
 import type { Database } from './db.js';
 import { walkFiles } from './walker.js';
 import { detectLanguageForPath } from './walker.js';
@@ -86,6 +87,14 @@ interface FileRow {
   last_hash: string | null;
 }
 
+interface BuildCheckpoint {
+  branch: string;
+  rootDir: string;
+  totalFiles: number;
+  nextFileIndex: number;
+  updatedAt: number;
+}
+
 // ─── IndexBuilder ─────────────────────────────────────────────────────────────
 
 /**
@@ -142,15 +151,21 @@ export class IndexBuilder {
    */
   async build(): Promise<void> {
     const db = openDb(this.dbPath);
-    const branch = this.walkerConfig.branch ?? 'HEAD';
+    const branch = this.resolveBranch();
     try {
       const files = await walkFiles(this.walkerConfig);
+      const resumeAt = this.loadBuildCheckpoint(db, branch, files.length);
       db.transaction(() => {
-        for (const file of files) {
+        for (let i = resumeAt; i < files.length; i++) {
+          const file = files[i];
+          if (!file) continue;
           this.processFile(db, file.path, file.language, branch);
+          this.saveBuildCheckpoint(db, branch, i + 1, files.length);
         }
       })();
+      this.saveBuildCheckpoint(db, branch, files.length, files.length);
       this.resolveImports(db, branch);
+      this.saveLastKnownHead(db);
       if (this.embedder) {
         await this.embedder.init();
         await this.embedStructural(db);
@@ -173,7 +188,7 @@ export class IndexBuilder {
    */
   async update(changedFiles: string[]): Promise<void> {
     const db = openDb(this.dbPath);
-    const branch = this.walkerConfig.branch ?? 'HEAD';
+    const branch = this.resolveBranch();
     try {
       db.transaction(() => {
         for (const filePath of changedFiles) {
@@ -209,6 +224,7 @@ export class IndexBuilder {
       })();
 
       this.resolveImports(db, branch);
+      this.saveLastKnownHead(db);
     } finally {
       db.close();
     }
@@ -389,6 +405,55 @@ export class IndexBuilder {
         insertExternalDep.run(row.file_id, resolved.externalName);
       }
     }
+  }
+
+  private resolveBranch(): string {
+    if (this.walkerConfig.branch) return this.walkerConfig.branch;
+    return this.readGitValue(['rev-parse', '--abbrev-ref', 'HEAD']) ?? 'HEAD';
+  }
+
+  private saveLastKnownHead(db: Database.Database): void {
+    const headSha = this.readGitValue(['rev-parse', 'HEAD']);
+    if (headSha) {
+      setKbMeta(db, KB_META_LAST_HEAD_SHA, headSha);
+    }
+  }
+
+  private readGitValue(args: string[]): string | undefined {
+    try {
+      const value = execFileSync(
+        'git',
+        ['-C', this.walkerConfig.rootDir, ...args],
+        { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
+      ).trim();
+      return value || undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  private loadBuildCheckpoint(db: Database.Database, branch: string, totalFiles: number): number {
+    const raw = getKbMeta(db, KB_META_INDEX_CHECKPOINT);
+    if (!raw) return 0;
+    try {
+      const parsed = JSON.parse(raw) as Partial<BuildCheckpoint>;
+      if (parsed.branch !== branch || parsed.rootDir !== this.walkerConfig.rootDir) return 0;
+      const nextFileIndex = parsed.nextFileIndex ?? 0;
+      return Math.max(0, Math.min(totalFiles, nextFileIndex));
+    } catch {
+      return 0;
+    }
+  }
+
+  private saveBuildCheckpoint(db: Database.Database, branch: string, nextFileIndex: number, totalFiles: number): void {
+    const checkpoint: BuildCheckpoint = {
+      branch,
+      rootDir: this.walkerConfig.rootDir,
+      totalFiles,
+      nextFileIndex,
+      updatedAt: Math.floor(Date.now() / 1000),
+    };
+    setKbMeta(db, KB_META_INDEX_CHECKPOINT, JSON.stringify(checkpoint));
   }
 
   /**
