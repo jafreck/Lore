@@ -1,16 +1,20 @@
 # Lore
 
-The teammate who has read your codebase and git history.
+**The teammate who knows every commit.** Lore is your codebase's institutional memory — it knows what was built, why it changed, and how it all connects.
 
-Lore indexes source code into a SQLite knowledge base with symbols, imports,
-call relationships, summaries, and git history. It also ships an MCP server so
-agents and IDEs can query that knowledge base directly.
+Language-aware codebase indexer — it maps symbols, imports, call relationships,
+code summaries, and git history, with optional embeddings for semantic search.
+
+Lore builds a rich, queryable memory of your codebase and its evolution. You
+can explore it directly through the CLI and MCP tools, or connect IDEs and
+agents so they can reason over the same shared context.
 
 ## What Lore does
 
 - Parses source files with tree-sitter and extracts symbols/imports/call refs
 - Resolves internal vs external imports and builds call/import graph edges
 - Stores everything in a normalized SQLite schema with optional vector search
+- Enables RAG-style retrieval with semantic/fused `kb_search` for people and agents
 - Indexes git history (commits, touched files, refs/branches/tags)
 - Supports line-level git blame through MCP (`kb_blame`)
 - Supports automatic refresh via watch mode, poll mode, and git hooks
