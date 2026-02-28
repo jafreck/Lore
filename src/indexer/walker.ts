@@ -36,7 +36,7 @@ export interface WalkerConfig {
 
   /**
    * Git branch name to associate with indexed files.
-   * Defaults to `'HEAD'` when omitted.
+   * When omitted, indexing resolves the current branch from git.
    */
   branch?: string;
 }

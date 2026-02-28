@@ -185,6 +185,15 @@ describe('handler – file mode', () => {
     expect(result.results[0].sha).toBe('sha1');
   });
 
+  it('should return commits across rename-linked file history', () => {
+    insertCommit(db, 'sha3', 'Carol', 'c@x.com', 1700000003);
+    insertCommitFile(db, 'sha3', 'src/{foo.ts => baz.ts}', 'renamed');
+
+    const result = handler(db, { mode: 'file', query: 'src/baz.ts' });
+    expect(result.count).toBe(1);
+    expect(result.results[0].sha).toBe('sha3');
+  });
+
   it('should return empty results for a file with no commits', () => {
     const result = handler(db, { mode: 'file', query: 'src/nonexistent.ts' });
     expect(result.count).toBe(0);
@@ -349,6 +358,14 @@ describe('handler – ref mode', () => {
 
   it('should fall back to recent commits when query is empty', () => {
     const result = handler(db, { mode: 'ref', query: '' });
+    expect(result.count).toBe(2);
+  });
+
+  it('should exclude commits without current refs when query is empty', () => {
+    insertCommit(db, 'sha-unreferenced', 'Carol', 'carol@example.com', 1700000012);
+    const result = handler(db, { mode: 'ref', query: '' });
+
+    expect(result.results.map((row) => row.sha)).not.toContain('sha-unreferenced');
     expect(result.count).toBe(2);
   });
 });

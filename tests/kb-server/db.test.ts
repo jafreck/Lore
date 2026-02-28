@@ -1,12 +1,23 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { describe, it, expect, beforeEach } from 'vitest';
 import Database from 'better-sqlite3';
 import {
+  openReadOnly,
   getFileById,
   getFileByPath,
   listFiles,
   getSymbolsByName,
   listSymbols,
   getSymbolById,
+  getCommitBySha,
+  listRecentCommits,
+  listCommitsByFile,
+  listCommitsByAuthor,
+  listCommitFiles,
+  listCommitRefs,
+  listCommitsByRef,
   type FileRow,
   type SymbolRow,
 } from '../../src/kb-server/db.js';
@@ -37,6 +48,40 @@ function createTestDb(): Database.Database {
       doc_comment TEXT
     );
   `);
+  return db;
+}
+
+function createCommitDb(withRefs = true): Database.Database {
+  const db = new Database(':memory:');
+  db.pragma('foreign_keys = ON');
+  db.exec(`
+    CREATE TABLE commits (
+      sha          TEXT    PRIMARY KEY,
+      author       TEXT    NOT NULL,
+      author_email TEXT    NOT NULL,
+      timestamp    INTEGER NOT NULL,
+      message      TEXT    NOT NULL,
+      parents      TEXT    NOT NULL DEFAULT '[]'
+    );
+    CREATE TABLE commit_files (
+      commit_sha  TEXT    NOT NULL REFERENCES commits(sha) ON DELETE CASCADE,
+      file_path   TEXT    NOT NULL,
+      change_type TEXT    NOT NULL,
+      insertions  INTEGER,
+      deletions   INTEGER,
+      PRIMARY KEY (commit_sha, file_path)
+    );
+  `);
+  if (withRefs) {
+    db.exec(`
+      CREATE TABLE commit_refs (
+        commit_sha TEXT NOT NULL REFERENCES commits(sha) ON DELETE CASCADE,
+        ref_name   TEXT NOT NULL,
+        ref_type   TEXT NOT NULL,
+        PRIMARY KEY (commit_sha, ref_name)
+      );
+    `);
+  }
   return db;
 }
 
@@ -287,5 +332,138 @@ describe('getSymbolById', () => {
 
   it('should return undefined when id does not exist', () => {
     expect(getSymbolById(db, 9999)).toBeUndefined();
+  });
+});
+
+describe('openReadOnly', () => {
+  it('should open an existing database in readonly mode', () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'kb-db-'));
+    const dbPath = path.join(tempDir, 'kb.sqlite');
+    const writable = new Database(dbPath);
+    writable.exec('CREATE TABLE demo (id INTEGER PRIMARY KEY);');
+    writable.close();
+
+    try {
+      const readOnly = openReadOnly(dbPath);
+      expect(() => readOnly.prepare('INSERT INTO demo (id) VALUES (1)').run()).toThrow();
+      readOnly.close();
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('commit helpers', () => {
+  let db: Database.Database;
+
+  beforeEach(() => {
+    db = createCommitDb();
+    db.prepare(
+      `INSERT INTO commits (sha, author, author_email, timestamp, message, parents)
+       VALUES (?, ?, ?, ?, ?, '[]')`,
+    ).run('aaa111', 'Alice', 'alice@example.com', 1700000001, 'first');
+    db.prepare(
+      `INSERT INTO commits (sha, author, author_email, timestamp, message, parents)
+       VALUES (?, ?, ?, ?, ?, '[]')`,
+    ).run('bbb222', 'Bob', 'bob@example.com', 1700000003, 'second');
+    db.prepare(
+      `INSERT INTO commits (sha, author, author_email, timestamp, message, parents)
+       VALUES (?, ?, ?, ?, ?, '[]')`,
+    ).run('ccc333', 'Alice', 'alice@example.com', 1700000002, 'third');
+
+    db.prepare(
+      `INSERT INTO commit_files (commit_sha, file_path, change_type, insertions, deletions)
+       VALUES (?, ?, ?, 5, 2)`,
+    ).run('aaa111', 'src/{old-name.ts => new-name.ts}', 'renamed');
+    db.prepare(
+      `INSERT INTO commit_files (commit_sha, file_path, change_type, insertions, deletions)
+       VALUES (?, ?, ?, 3, 1)`,
+    ).run('bbb222', 'src/new-name.ts', 'modified');
+    db.prepare(
+      `INSERT INTO commit_files (commit_sha, file_path, change_type, insertions, deletions)
+       VALUES (?, ?, ?, 2, 1)`,
+    ).run('ccc333', 'src/old-two.ts => src/new-two.ts', 'renamed');
+
+    db.prepare(
+      `INSERT INTO commit_refs (commit_sha, ref_name, ref_type)
+       VALUES (?, ?, ?)`,
+    ).run('aaa111', 'refs/tags/v1.0.0', 'tag');
+    db.prepare(
+      `INSERT INTO commit_refs (commit_sha, ref_name, ref_type)
+       VALUES (?, ?, ?)`,
+    ).run('bbb222', 'refs/heads/main', 'branch');
+    db.prepare(
+      `INSERT INTO commit_refs (commit_sha, ref_name, ref_type)
+       VALUES (?, ?, ?)`,
+    ).run('bbb222', 'refs/remotes/origin/main', 'branch');
+  });
+
+  it('should find a commit by full or partial sha', () => {
+    expect(getCommitBySha(db, 'bbb222')?.sha).toBe('bbb222');
+    expect(getCommitBySha(db, 'bbb')?.sha).toBe('bbb222');
+  });
+
+  it('should list recent commits sorted by timestamp descending', () => {
+    const rows = listRecentCommits(db, 2);
+    expect(rows.map((r) => r.sha)).toEqual(['bbb222', 'ccc333']);
+  });
+
+  it('should list commits by file including brace-rename variants', () => {
+    const rows = listCommitsByFile(db, 'src/new-name.ts', 10);
+    expect(rows.map((r) => r.sha)).toEqual(['bbb222', 'aaa111']);
+  });
+
+  it('should list commits by file including arrow-rename variants', () => {
+    const rows = listCommitsByFile(db, 'src/old-two.ts', 10);
+    expect(rows.map((r) => r.sha)).toEqual(['ccc333']);
+  });
+
+  it('should return an empty list when no commits touched the file', () => {
+    expect(listCommitsByFile(db, 'src/missing.ts', 10)).toEqual([]);
+  });
+
+  it('should list commits by author name or email substring', () => {
+    expect(listCommitsByAuthor(db, 'Alice', 10).map((r) => r.sha)).toEqual(['ccc333', 'aaa111']);
+    expect(listCommitsByAuthor(db, 'bob@', 10).map((r) => r.sha)).toEqual(['bbb222']);
+  });
+
+  it('should return files touched by a commit', () => {
+    const rows = listCommitFiles(db, 'aaa111');
+    expect(rows.length).toBe(1);
+    expect(rows[0].file_path).toContain('old-name.ts');
+  });
+
+  it('should return refs for a commit ordered by type then name', () => {
+    const rows = listCommitRefs(db, 'bbb222');
+    expect(rows.map((r) => r.ref_name)).toEqual(['refs/heads/main', 'refs/remotes/origin/main']);
+  });
+
+  it('should return commits for ref queries and only current commit_refs mappings', () => {
+    db.prepare('INSERT INTO commit_refs (commit_sha, ref_name, ref_type) VALUES (?, ?, ?)')
+      .run('aaa111', 'refs/heads/feature/demo', 'branch');
+    db.prepare('DELETE FROM commit_refs WHERE commit_sha = ? AND ref_name = ?')
+      .run('aaa111', 'refs/heads/feature/demo');
+    db.prepare('INSERT INTO commit_refs (commit_sha, ref_name, ref_type) VALUES (?, ?, ?)')
+      .run('ccc333', 'refs/heads/feature/demo', 'branch');
+
+    const rows = listCommitsByRef(db, 'feature/demo', 10);
+    expect(rows.map((r) => r.sha)).toEqual(['ccc333']);
+  });
+
+  it('should return referenced commits when ref query is empty', () => {
+    const rows = listCommitsByRef(db, '', 10);
+    expect(rows.map((r) => r.sha)).toEqual(['bbb222', 'aaa111']);
+  });
+
+  it('should return empty arrays when commit_refs table is unavailable', () => {
+    const noRefsDb = createCommitDb(false);
+    noRefsDb.prepare(
+      `INSERT INTO commits (sha, author, author_email, timestamp, message, parents)
+       VALUES (?, ?, ?, ?, ?, '[]')`,
+    ).run('sha1', 'User', 'user@example.com', 1, 'msg');
+
+    expect(listCommitRefs(noRefsDb, 'sha1')).toEqual([]);
+    expect(listCommitsByRef(noRefsDb, 'main', 10)).toEqual([]);
+    noRefsDb.close();
   });
 });
