@@ -45,11 +45,24 @@ export interface RawCallRef {
   line: number;
 }
 
+/** A semantic relationship between two symbols found in a source file. */
+export interface RawRelationship {
+  /** Relationship category (e.g. `extends`, `implements`). */
+  kind: string;
+  /** Name of the source symbol in the relationship. */
+  fromSymbol: string;
+  /** Name of the target symbol in the relationship. */
+  toSymbol: string;
+  /** 0-indexed line where the relationship is declared. */
+  line: number;
+}
+
 /** The full extraction result returned by a `SymbolExtractor`. */
 export interface ExtractionResult {
   symbols: RawSymbol[];
   imports: RawImport[];
   callRefs: RawCallRef[];
+  relationships: RawRelationship[];
 }
 
 // ─── SymbolExtractor interface ────────────────────────────────────────────────
@@ -107,5 +120,5 @@ export function nodeSignature(node: Parser.SyntaxNode): string {
 
 /** Returns an empty `ExtractionResult`. */
 export function emptyResult(): ExtractionResult {
-  return { symbols: [], imports: [], callRefs: [] };
+  return { symbols: [], imports: [], callRefs: [], relationships: [] };
 }

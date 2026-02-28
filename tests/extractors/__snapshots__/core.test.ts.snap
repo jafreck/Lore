@@ -15,6 +15,8 @@ exports[`Go extractor > imports 1`] = `
 ]
 `;
 
+exports[`Go extractor > relationships 1`] = `[]`;
+
 exports[`Go extractor > symbols 1`] = `
 [
   {
@@ -86,6 +88,8 @@ exports[`Java extractor > imports 1`] = `
   },
 ]
 `;
+
+exports[`Java extractor > relationships 1`] = `[]`;
 
 exports[`Java extractor > symbols 1`] = `
 [
@@ -170,6 +174,8 @@ exports[`JavaScript extractor > imports 1`] = `
 ]
 `;
 
+exports[`JavaScript extractor > relationships 1`] = `[]`;
+
 exports[`JavaScript extractor > symbols 1`] = `
 [
   {
@@ -237,6 +243,8 @@ exports[`Python extractor > imports 1`] = `
   },
 ]
 `;
+
+exports[`Python extractor > relationships 1`] = `[]`;
 
 exports[`Python extractor > symbols 1`] = `
 [
@@ -331,6 +339,8 @@ exports[`Rust extractor > imports 1`] = `
 ]
 `;
 
+exports[`Rust extractor > relationships 1`] = `[]`;
+
 exports[`Rust extractor > symbols 1`] = `
 [
   {
@@ -407,6 +417,17 @@ exports[`TypeScript extractor > imports 1`] = `
 ]
 `;
 
+exports[`TypeScript extractor > relationships 1`] = `
+[
+  {
+    "fromSymbol": "Circle",
+    "kind": "extends",
+    "line": 23,
+    "toSymbol": "BaseShape",
+  },
+]
+`;
+
 exports[`TypeScript extractor > symbols 1`] = `
 [
   {
@@ -438,25 +459,32 @@ exports[`TypeScript extractor > symbols 1`] = `
     "startLine": 17,
   },
   {
-    "endLine": 31,
+    "endLine": 21,
     "kind": "class",
-    "name": "Circle",
-    "signature": "class Circle implements Shape",
+    "name": "BaseShape",
+    "signature": "class BaseShape",
     "startLine": 21,
   },
   {
     "endLine": 33,
-    "kind": "function",
-    "name": "multiply",
-    "signature": "const multiply = (a: number, b: number): number => a * b;",
-    "startLine": 33,
+    "kind": "class",
+    "name": "Circle",
+    "signature": "class Circle extends BaseShape implements Shape",
+    "startLine": 23,
   },
   {
     "endLine": 35,
     "kind": "function",
+    "name": "multiply",
+    "signature": "const multiply = (a: number, b: number): number => a * b;",
+    "startLine": 35,
+  },
+  {
+    "endLine": 37,
+    "kind": "function",
     "name": "formatPath",
     "signature": "const formatPath = (p: string): string => path.normalize(p);",
-    "startLine": 35,
+    "startLine": 37,
   },
 ]
 `;
