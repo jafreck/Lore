@@ -86,6 +86,30 @@ function querySymbolNamesForFile(dbPath: string, filePath: string, branch: strin
   return rows.map((r) => r.name);
 }
 
+function querySymbolMetricsForFile(
+  dbPath: string,
+  filePath: string,
+  branch: string,
+): Array<{ name: string; line_count: number; param_count: number; cyclomatic: number; max_nesting: number }> {
+  const db = new Database(dbPath, { readonly: true });
+  const rows = db.prepare(
+    `SELECT s.name, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting
+     FROM symbol_metrics sm
+     JOIN symbols s ON s.id = sm.symbol_id
+     JOIN files f ON f.id = s.file_id
+     WHERE f.path = ? AND f.branch = ?
+     ORDER BY s.name`,
+  ).all(filePath, branch) as Array<{
+    name: string;
+    line_count: number;
+    param_count: number;
+    cyclomatic: number;
+    max_nesting: number;
+  }>;
+  db.close();
+  return rows;
+}
+
 describe('IndexBuilder — branch support in build()', () => {
   let srcDir: string;
   let dbPath: string;
@@ -267,6 +291,28 @@ describe('IndexBuilder — branch support in update()', () => {
     expect(queryStructuralEmbeddingCount(dbPath)).toBe(0);
   });
 
+  it('should persist symbol_metrics rows during indexing', () => {
+    const metricsRows = querySymbolMetricsForFile(dbPath, srcFile, 'main');
+    expect(metricsRows.length).toBeGreaterThan(0);
+  });
+
+  it('should replace stale symbol_metrics values when re-indexing a changed file', async () => {
+    const initialMetrics = querySymbolMetricsForFile(dbPath, srcFile, 'main');
+    expect(initialMetrics).toHaveLength(1);
+    expect(initialMetrics[0]?.cyclomatic).toBe(1);
+
+    writeFileSync(
+      srcFile,
+      'export function hello(name: string): string { if (name.length > 0) { return name; } return "hi"; }\n',
+    );
+    const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
+    await builder.update([srcFile]);
+
+    const updatedMetrics = querySymbolMetricsForFile(dbPath, srcFile, 'main');
+    expect(updatedMetrics).toHaveLength(1);
+    expect(updatedMetrics[0]?.cyclomatic).toBeGreaterThan(initialMetrics[0]!.cyclomatic);
+  });
+
   it('should persist structural embeddings during update() when embedder is configured', async () => {
     writeFileSync(srcFile, 'export function updatedWithEmbeddings(name: string): string { return name; }\n');
 
@@ -310,6 +356,13 @@ describe('IndexBuilder — branch support in update()', () => {
         'SELECT s.id FROM symbols s JOIN files f ON f.id = s.file_id WHERE f.path = ? AND f.branch = ?',
       )
       .all(srcFile, 'main') as Array<{ id: number }>;
+    const metricsBeforeDelete = beforeDb
+      .prepare(
+        `SELECT COUNT(*) AS count
+         FROM symbol_metrics
+         WHERE symbol_id IN (${mainSymbolIds.map(() => '?').join(',')})`,
+      )
+      .get(...mainSymbolIds.map(row => row.id)) as { count: number };
     const resolvedImportRows = beforeDb
       .prepare(
         `SELECT fi.id
@@ -320,6 +373,7 @@ describe('IndexBuilder — branch support in update()', () => {
       .all(mainFileRow!.id, 'main') as Array<{ id: number }>;
     beforeDb.close();
     expect(mainSymbolIds.length).toBeGreaterThan(0);
+    expect(metricsBeforeDelete.count).toBeGreaterThan(0);
     expect(resolvedImportRows.length).toBeGreaterThan(0);
 
     rmSync(srcFile, { force: true });
@@ -347,12 +401,20 @@ describe('IndexBuilder — branch support in update()', () => {
          WHERE id IN (${resolvedImportRows.map(() => '?').join(',')}) AND resolved_id IS NULL`,
       )
       .get(...resolvedImportRows.map(row => row.id)) as { count: number };
+    const metricsAfterDelete = afterDb
+      .prepare(
+        `SELECT COUNT(*) AS count
+         FROM symbol_metrics
+         WHERE symbol_id IN (${mainSymbolIds.map(() => '?').join(',')})`,
+      )
+      .get(...mainSymbolIds.map(row => row.id)) as { count: number };
     afterDb.close();
 
     expect(deletedMainFile).toBeUndefined();
     expect(devFile).toBeDefined();
     expect(staleFtsCountRow.count).toBe(0);
     expect(clearedResolvedCount.count).toBe(resolvedImportRows.length);
+    expect(metricsAfterDelete.count).toBe(0);
   });
 
   it('should detect and use the current git branch during update when branch is omitted', async () => {

@@ -11,7 +11,6 @@ import {
   getFileById,
   getFileByPath,
   listFiles,
-  listConfigEntries,
   getSymbolsByName,
   listSymbols,
   getSymbolById,
@@ -51,23 +50,12 @@ function createTestDb(): Database.Database {
       signature   TEXT,
       doc_comment TEXT
     );
-    CREATE TABLE config_entries (
-      id            INTEGER PRIMARY KEY AUTOINCREMENT,
-      file_id       INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
-      key           TEXT    NOT NULL,
-      value         TEXT,
-      default_value TEXT,
-      inferred_type TEXT,
-      required      INTEGER NOT NULL DEFAULT 0,
-      description   TEXT,
-      kind          TEXT    NOT NULL,
-      UNIQUE(file_id, key)
-    );
-    CREATE TABLE config_entry_refs (
-      id              INTEGER PRIMARY KEY AUTOINCREMENT,
-      config_entry_id INTEGER NOT NULL REFERENCES config_entries(id) ON DELETE CASCADE,
-      file_id         INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
-      line            INTEGER NOT NULL
+    CREATE TABLE symbol_metrics (
+      symbol_id    INTEGER PRIMARY KEY REFERENCES symbols(id) ON DELETE CASCADE,
+      line_count   INTEGER NOT NULL,
+      param_count  INTEGER NOT NULL,
+      cyclomatic   INTEGER NOT NULL,
+      max_nesting  INTEGER NOT NULL
     );
   `);
   return db;
@@ -133,35 +121,14 @@ function insertSymbol(
   return result.lastInsertRowid as number;
 }
 
-function insertConfigEntry(
+function insertSymbolMetrics(
   db: Database.Database,
-  fileId: number,
-  key: string,
-  kind: string,
-  value: string | null,
-  defaultValue: string | null,
-  inferredType: string,
-  required: number,
-  description: string | null,
-): number {
-  const result = db
-    .prepare(
-      `INSERT INTO config_entries (file_id, key, value, default_value, inferred_type, required, description, kind)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    )
-    .run(fileId, key, value, defaultValue, inferredType, required, description, kind);
-  return result.lastInsertRowid as number;
-}
-
-function insertConfigRef(
-  db: Database.Database,
-  configEntryId: number,
-  fileId: number,
-  line: number,
+  symbolId: number,
+  cyclomatic = 3
 ): void {
   db.prepare(
-    'INSERT INTO config_entry_refs (config_entry_id, file_id, line) VALUES (?, ?, ?)',
-  ).run(configEntryId, fileId, line);
+    'INSERT INTO symbol_metrics (symbol_id, line_count, param_count, cyclomatic, max_nesting) VALUES (?, ?, ?, ?, ?)',
+  ).run(symbolId, 12, 2, cyclomatic, 2);
 }
 
 // ─── openReadOnly ──────────────────────────────────────────────────────────────
@@ -343,8 +310,14 @@ describe('getSymbolsByName', () => {
   });
 
   it('should filter by branch when provided', () => {
+    const symbolId = db.prepare('SELECT id FROM symbols WHERE name = ? LIMIT 1').get('parseConfig') as { id: number };
+    insertSymbolMetrics(db, symbolId.id, 7);
     const rows = getSymbolsByName(db, 'parseConfig', 'main');
     expect(rows.length).toBe(1);
+    expect(rows[0].cyclomatic).toBe(7);
+    expect(rows[0].line_count).toBe(12);
+    expect(rows[0].param_count).toBe(2);
+    expect(rows[0].max_nesting).toBe(2);
   });
 
   it('should return empty array when name does not match', () => {
@@ -378,6 +351,10 @@ describe('listSymbols', () => {
   it('should filter by branch when provided', () => {
     const rows = listSymbols(db, 100, 'main');
     expect(rows.length).toBe(2);
+    expect(rows[0]).toHaveProperty('line_count');
+    expect(rows[0]).toHaveProperty('param_count');
+    expect(rows[0]).toHaveProperty('cyclomatic');
+    expect(rows[0]).toHaveProperty('max_nesting');
   });
 
   it('should respect the default limit of 100', () => {
@@ -395,144 +372,6 @@ describe('listSymbols', () => {
   });
 });
 
-// ─── listConfigEntries ────────────────────────────────────────────────────────
-
-describe('listConfigEntries', () => {
-  let db: Database.Database;
-
-  beforeEach(() => {
-    db = createTestDb();
-    const envFileId = insertFile(db, 'config/.env', 'main', 'config');
-    const appConfigFileId = insertFile(db, 'config/app.config.json', 'main', 'config');
-    const appTsId = insertFile(db, 'src/app.ts', 'main');
-    const workerTsId = insertFile(db, 'src/worker.ts', 'main');
-
-    const apiKeyEntryId = insertConfigEntry(
-      db,
-      envFileId,
-      'API_KEY',
-      'env',
-      'abc123',
-      null,
-      'string',
-      1,
-      'API credential',
-    );
-    insertConfigEntry(
-      db,
-      envFileId,
-      'LOG_LEVEL',
-      'env',
-      null,
-      'info',
-      'string',
-      0,
-      null,
-    );
-    const flagEntryId = insertConfigEntry(
-      db,
-      appConfigFileId,
-      'features.chat.enabled',
-      'json',
-      'true',
-      null,
-      'boolean',
-      0,
-      'chat feature flag',
-    );
-
-    insertConfigRef(db, apiKeyEntryId, appTsId, 12);
-    insertConfigRef(db, apiKeyEntryId, workerTsId, 7);
-    insertConfigRef(db, flagEntryId, appTsId, 44);
-  });
-
-  it('should return config entries with joined file metadata and references', () => {
-    const rows = listConfigEntries(db);
-    expect(rows.length).toBe(3);
-
-    const apiKeyRow = rows.find((row) => row.key === 'API_KEY');
-    const featureFlagRow = rows.find((row) => row.key === 'features.chat.enabled');
-
-    expect(apiKeyRow).toBeDefined();
-    expect(apiKeyRow?.file_path).toBe('config/.env');
-    expect(apiKeyRow?.references).toEqual([
-      { path: 'src/app.ts', branch: 'main', line: 12 },
-      { path: 'src/worker.ts', branch: 'main', line: 7 },
-    ]);
-    expect(featureFlagRow).toBeDefined();
-    expect(featureFlagRow?.references).toEqual([
-      { path: 'src/app.ts', branch: 'main', line: 44 },
-    ]);
-  });
-
-  it('should filter by key', () => {
-    const rows = listConfigEntries(db, { key: 'API_KEY' });
-    expect(rows.length).toBe(1);
-    expect(rows[0]?.kind).toBe('env');
-  });
-
-  it('should filter by file path', () => {
-    const rows = listConfigEntries(db, { filePath: 'config/app.config.json' });
-    expect(rows.length).toBe(1);
-    expect(rows[0]?.key).toBe('features.chat.enabled');
-  });
-
-  it('should filter by kind', () => {
-    const rows = listConfigEntries(db, { kind: 'env' });
-    expect(rows.length).toBe(2);
-    expect(rows.every((row) => row.kind === 'env')).toBe(true);
-  });
-
-  it('should apply key, file path, and kind filters together', () => {
-    const rows = listConfigEntries(db, {
-      key: 'API_KEY',
-      filePath: 'config/.env',
-      kind: 'env',
-    });
-    expect(rows.length).toBe(1);
-    expect(rows[0]?.key).toBe('API_KEY');
-  });
-
-  it('should return an empty list when filters do not match any entry', () => {
-    expect(listConfigEntries(db, { key: 'MISSING_KEY' })).toEqual([]);
-    expect(listConfigEntries(db, { filePath: 'config/missing.json' })).toEqual([]);
-  });
-
-  it('should include an empty references array when an entry has no usages', () => {
-    const rows = listConfigEntries(db, { key: 'LOG_LEVEL' });
-    expect(rows.length).toBe(1);
-    expect(rows[0]?.references).toEqual([]);
-  });
-
-  it('should return an empty list when config tables are not fully available', () => {
-    const noRefsDb = new Database(':memory:');
-    noRefsDb.exec(`
-      CREATE TABLE files (id INTEGER PRIMARY KEY, path TEXT NOT NULL, branch TEXT NOT NULL, language TEXT NOT NULL);
-      CREATE TABLE config_entries (
-        id INTEGER PRIMARY KEY,
-        file_id INTEGER NOT NULL,
-        key TEXT NOT NULL,
-        value TEXT,
-        default_value TEXT,
-        inferred_type TEXT,
-        required INTEGER NOT NULL,
-        description TEXT,
-        kind TEXT NOT NULL
-      );
-    `);
-    noRefsDb.prepare(
-      `INSERT INTO files (id, path, branch, language) VALUES (1, 'config/.env', 'main', 'config')`,
-    ).run();
-    noRefsDb.prepare(
-      `INSERT INTO config_entries (id, file_id, key, value, default_value, inferred_type, required, description, kind)
-       VALUES (1, 1, 'API_KEY', 'abc123', NULL, 'string', 1, NULL, 'env')`,
-    ).run();
-
-    expect(listConfigEntries(noRefsDb)).toEqual([]);
-    noRefsDb.close();
-  });
-});
-
 // ─── getSymbolById ────────────────────────────────────────────────────────────
 
 describe('getSymbolById', () => {
@@ -543,12 +382,14 @@ describe('getSymbolById', () => {
     db = createTestDb();
     const fileId = insertFile(db, 'src/a.ts', 'main');
     symbolId = insertSymbol(db, fileId, 'myFunc');
+    insertSymbolMetrics(db, symbolId, 5);
   });
 
   it('should return the symbol row when id exists', () => {
     const row = getSymbolById(db, symbolId);
     expect(row).toBeDefined();
     expect(row!.name).toBe('myFunc');
+    expect(row!.cyclomatic).toBe(5);
   });
 
   it('should return undefined when id does not exist', () => {
