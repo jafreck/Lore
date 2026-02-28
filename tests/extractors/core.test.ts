@@ -61,6 +61,10 @@ describe('TypeScript extractor', () => {
   test.skipIf(!tsResult)('callRefs', () => {
     expect(tsResult!.callRefs).toMatchSnapshot();
   });
+
+  test.skipIf(!tsResult)('relationships', () => {
+    expect(tsResult!.relationships).toMatchSnapshot();
+  });
 });
 
 // ─── JavaScript ───────────────────────────────────────────────────────────────
@@ -76,6 +80,10 @@ describe('JavaScript extractor', () => {
 
   test.skipIf(!jsResult)('callRefs', () => {
     expect(jsResult!.callRefs).toMatchSnapshot();
+  });
+
+  test.skipIf(!jsResult)('relationships', () => {
+    expect(jsResult!.relationships).toMatchSnapshot();
   });
 });
 
@@ -93,6 +101,10 @@ describe('Python extractor', () => {
   test.skipIf(!pyResult)('callRefs', () => {
     expect(pyResult!.callRefs).toMatchSnapshot();
   });
+
+  test.skipIf(!pyResult)('relationships', () => {
+    expect(pyResult!.relationships).toMatchSnapshot();
+  });
 });
 
 // ─── Go ───────────────────────────────────────────────────────────────────────
@@ -108,6 +120,10 @@ describe('Go extractor', () => {
 
   test.skipIf(!goResult)('callRefs', () => {
     expect(goResult!.callRefs).toMatchSnapshot();
+  });
+
+  test.skipIf(!goResult)('relationships', () => {
+    expect(goResult!.relationships).toMatchSnapshot();
   });
 });
 
@@ -125,6 +141,10 @@ describe('Rust extractor', () => {
   test.skipIf(!rustResult)('callRefs', () => {
     expect(rustResult!.callRefs).toMatchSnapshot();
   });
+
+  test.skipIf(!rustResult)('relationships', () => {
+    expect(rustResult!.relationships).toMatchSnapshot();
+  });
 });
 
 // ─── Java ─────────────────────────────────────────────────────────────────────
@@ -140,5 +160,9 @@ describe('Java extractor', () => {
 
   test.skipIf(!javaResult)('callRefs', () => {
     expect(javaResult!.callRefs).toMatchSnapshot();
+  });
+
+  test.skipIf(!javaResult)('relationships', () => {
+    expect(javaResult!.relationships).toMatchSnapshot();
   });
 });
