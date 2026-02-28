@@ -154,6 +154,9 @@ export function openDb(path: string): Database.Database {
 
 // ─── kb_meta helpers ──────────────────────────────────────────────────────────
 
+export const KB_META_INDEX_CHECKPOINT = 'index_checkpoint';
+export const KB_META_LAST_HEAD_SHA = 'last_known_head_sha';
+
 /** Write (or overwrite) a key-value pair in `kb_meta`. */
 export function setKbMeta(db: Database.Database, key: string, value: string): void {
   db.prepare('INSERT OR REPLACE INTO kb_meta (key, value) VALUES (?, ?)').run(key, value);

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, writeFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { execFileSync } from 'node:child_process';
 import Database from 'better-sqlite3';
 import { IndexBuilder } from '../../src/indexer/index.js';
 
@@ -16,6 +17,20 @@ function createTmpSrcDir(): string {
 function tmpDbPath(): string {
   const dir = mkdtempSync(join(tmpdir(), 'lore-index-test-db-'));
   return join(dir, 'test.db');
+}
+
+function runGit(cwd: string, args: string[]): string {
+  return execFileSync('git', ['-C', cwd, ...args], { encoding: 'utf8' }).trim();
+}
+
+function createGitRepoWithCommit(dir: string, branchName = 'feature/auto-branch'): string {
+  runGit(dir, ['init']);
+  runGit(dir, ['config', 'user.name', 'Lore Test']);
+  runGit(dir, ['config', 'user.email', 'lore-test@example.com']);
+  runGit(dir, ['add', '.']);
+  runGit(dir, ['commit', '-m', 'initial']);
+  runGit(dir, ['checkout', '-b', branchName]);
+  return branchName;
 }
 
 function queryBranches(dbPath: string): string[] {
@@ -54,6 +69,14 @@ describe('IndexBuilder — branch support in build()', () => {
     expect(branches).toEqual(['HEAD']);
   });
 
+  it('should detect and use the current git branch when branch is omitted', async () => {
+    const branch = createGitRepoWithCommit(srcDir);
+    const builder = new IndexBuilder(dbPath, { rootDir: srcDir });
+    await builder.build();
+    const branches = queryBranches(dbPath);
+    expect(branches).toEqual([branch]);
+  });
+
   it('should use the specified branch when provided in WalkerConfig', async () => {
     const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
     await builder.build();
@@ -79,6 +102,27 @@ describe('IndexBuilder — branch support in build()', () => {
     const branches = queryBranches(dbPath).sort();
     expect(branches).toContain('main');
     expect(branches).toContain('dev');
+  });
+
+  it('should persist checkpoint and last known HEAD metadata after build', async () => {
+    const branch = createGitRepoWithCommit(srcDir);
+    const builder = new IndexBuilder(dbPath, { rootDir: srcDir });
+    await builder.build();
+
+    const db = new Database(dbPath, { readonly: true });
+    const checkpointRow = db
+      .prepare("SELECT value FROM kb_meta WHERE key = 'index_checkpoint'")
+      .get() as { value: string } | undefined;
+    const headRow = db
+      .prepare("SELECT value FROM kb_meta WHERE key = 'last_known_head_sha'")
+      .get() as { value: string } | undefined;
+    db.close();
+
+    expect(checkpointRow).toBeDefined();
+    const checkpoint = JSON.parse(checkpointRow!.value) as { branch: string; nextFileIndex: number; totalFiles: number };
+    expect(checkpoint.branch).toBe(branch);
+    expect(checkpoint.nextFileIndex).toBe(checkpoint.totalFiles);
+    expect(headRow?.value).toBe(runGit(srcDir, ['rev-parse', 'HEAD']));
   });
 });
 
@@ -204,5 +248,18 @@ describe('IndexBuilder — branch support in update()', () => {
     expect(devFile).toBeDefined();
     expect(staleFtsCountRow.count).toBe(0);
     expect(clearedResolvedCount.count).toBe(resolvedImportRows.length);
+  });
+
+  it('should detect and use the current git branch during update when branch is omitted', async () => {
+    const gitBranch = createGitRepoWithCommit(srcDir, 'feature/update-auto');
+    const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: gitBranch });
+    await builder.build();
+
+    writeFileSync(srcFile, 'export function updatedOnAutoBranch(): void {}\n');
+    const autoBranchBuilder = new IndexBuilder(dbPath, { rootDir: srcDir });
+    await autoBranchBuilder.update([srcFile]);
+
+    const files = queryFilesWithBranch(dbPath, gitBranch);
+    expect(files.length).toBeGreaterThan(0);
   });
 });

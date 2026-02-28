@@ -121,9 +121,7 @@ export function handler(db: Database.Database, args: HistoryArgs): HistoryResult
 
     case 'ref': {
       const ref = args.query?.trim() ?? '';
-      const rows = ref
-        ? listCommitsByRef(db, ref, limit)
-        : listRecentCommits(db, limit);
+      const rows = listCommitsByRef(db, ref, limit);
       return { mode: 'ref', results: rows, count: rows.length };
     }
 
