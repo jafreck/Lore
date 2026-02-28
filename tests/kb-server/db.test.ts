@@ -21,8 +21,10 @@ import {
   listCommitFiles,
   listCommitRefs,
   listCommitsByRef,
+  listAnnotations,
   type FileRow,
   type SymbolRow,
+  type AnnotationRow,
 } from '../../src/kb-server/db.js';
 
 // Helper: create an in-memory DB with the minimal schema needed for tests.
@@ -50,12 +52,15 @@ function createTestDb(): Database.Database {
       signature   TEXT,
       doc_comment TEXT
     );
-    CREATE TABLE symbol_metrics (
-      symbol_id    INTEGER PRIMARY KEY REFERENCES symbols(id) ON DELETE CASCADE,
-      line_count   INTEGER NOT NULL,
-      param_count  INTEGER NOT NULL,
-      cyclomatic   INTEGER NOT NULL,
-      max_nesting  INTEGER NOT NULL
+    CREATE TABLE annotations (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      file_id     INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+      kind        TEXT    NOT NULL,
+      line        INTEGER NOT NULL,
+      text        TEXT    NOT NULL,
+      symbol_id   INTEGER REFERENCES symbols(id) ON DELETE SET NULL,
+      author      TEXT,
+      created_at  INTEGER
     );
   `);
   return db;
@@ -119,16 +124,6 @@ function insertSymbol(
     )
     .run(fileId, name, kind);
   return result.lastInsertRowid as number;
-}
-
-function insertSymbolMetrics(
-  db: Database.Database,
-  symbolId: number,
-  cyclomatic = 3
-): void {
-  db.prepare(
-    'INSERT INTO symbol_metrics (symbol_id, line_count, param_count, cyclomatic, max_nesting) VALUES (?, ?, ?, ?, ?)',
-  ).run(symbolId, 12, 2, cyclomatic, 2);
 }
 
 // ─── openReadOnly ──────────────────────────────────────────────────────────────
@@ -310,14 +305,8 @@ describe('getSymbolsByName', () => {
   });
 
   it('should filter by branch when provided', () => {
-    const symbolId = db.prepare('SELECT id FROM symbols WHERE name = ? LIMIT 1').get('parseConfig') as { id: number };
-    insertSymbolMetrics(db, symbolId.id, 7);
     const rows = getSymbolsByName(db, 'parseConfig', 'main');
     expect(rows.length).toBe(1);
-    expect(rows[0].cyclomatic).toBe(7);
-    expect(rows[0].line_count).toBe(12);
-    expect(rows[0].param_count).toBe(2);
-    expect(rows[0].max_nesting).toBe(2);
   });
 
   it('should return empty array when name does not match', () => {
@@ -351,10 +340,6 @@ describe('listSymbols', () => {
   it('should filter by branch when provided', () => {
     const rows = listSymbols(db, 100, 'main');
     expect(rows.length).toBe(2);
-    expect(rows[0]).toHaveProperty('line_count');
-    expect(rows[0]).toHaveProperty('param_count');
-    expect(rows[0]).toHaveProperty('cyclomatic');
-    expect(rows[0]).toHaveProperty('max_nesting');
   });
 
   it('should respect the default limit of 100', () => {
@@ -372,6 +357,57 @@ describe('listSymbols', () => {
   });
 });
 
+describe('listAnnotations', () => {
+  let db: Database.Database;
+  let fileId: number;
+  let symbolId: number;
+
+  beforeEach(() => {
+    db = createTestDb();
+    fileId = insertFile(db, 'src/main.ts', 'main');
+    symbolId = insertSymbol(db, fileId, 'parseConfig');
+    const otherFileId = insertFile(db, 'src/other.ts', 'main');
+    db.prepare(
+      'INSERT INTO annotations (file_id, kind, line, text, symbol_id) VALUES (?, ?, ?, ?, ?)',
+    ).run(fileId, 'TODO', 4, 'TODO: parse env vars', symbolId);
+    db.prepare(
+      'INSERT INTO annotations (file_id, kind, line, text, symbol_id) VALUES (?, ?, ?, ?, ?)',
+    ).run(otherFileId, 'TODO', 2, 'TODO: add tests', null);
+    db.prepare(
+      'INSERT INTO annotations (file_id, kind, line, text, symbol_id) VALUES (?, ?, ?, ?, ?)',
+    ).run(fileId, 'FIXME', 9, 'FIXME: edge case', null);
+  });
+
+  it('should filter by kind and include file and symbol context fields', () => {
+    const rows = listAnnotations(db, 'TODO', undefined, 10);
+    expect(rows.length).toBe(2);
+    const first = rows[0] as AnnotationRow;
+    expect(first).toHaveProperty('file_path');
+    expect(first).toHaveProperty('line');
+    expect(first).toHaveProperty('kind');
+    expect(first).toHaveProperty('text');
+    expect(first).toHaveProperty('symbol_name');
+    expect(first).toHaveProperty('symbol_kind');
+    expect(rows.some((row) => row.symbol_name === 'parseConfig')).toBe(true);
+  });
+
+  it('should filter by path when provided', () => {
+    const rows = listAnnotations(db, 'TODO', 'src/main.ts', 10);
+    expect(rows.length).toBe(1);
+    expect(rows[0].file_path).toBe('src/main.ts');
+    expect(rows[0].symbol_name).toBe('parseConfig');
+  });
+
+  it('should respect the limit parameter', () => {
+    const rows = listAnnotations(db, 'TODO', undefined, 1);
+    expect(rows.length).toBe(1);
+  });
+
+  it('should return empty array when no rows match filters', () => {
+    expect(listAnnotations(db, 'BUG', 'src/main.ts', 10)).toEqual([]);
+  });
+});
+
 // ─── getSymbolById ────────────────────────────────────────────────────────────
 
 describe('getSymbolById', () => {
@@ -382,14 +418,12 @@ describe('getSymbolById', () => {
     db = createTestDb();
     const fileId = insertFile(db, 'src/a.ts', 'main');
     symbolId = insertSymbol(db, fileId, 'myFunc');
-    insertSymbolMetrics(db, symbolId, 5);
   });
 
   it('should return the symbol row when id exists', () => {
     const row = getSymbolById(db, symbolId);
     expect(row).toBeDefined();
     expect(row!.name).toBe('myFunc');
-    expect(row!.cyclomatic).toBe(5);
   });
 
   it('should return undefined when id does not exist', () => {

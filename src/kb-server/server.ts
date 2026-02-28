@@ -36,7 +36,7 @@ import * as blame from './tools/blame.js';
 import * as metrics from './tools/metrics.js';
 import * as writeback from './tools/writeback.js';
 import * as history from './tools/history.js';
-import * as notes from './tools/notes.js';
+import * as annotations from './tools/annotations.js';
 
 // ─── Server factory ───────────────────────────────────────────────────────────
 
@@ -125,16 +125,9 @@ export function createKbMcpServer(
   server.tool(
     metrics.toolDef.name,
     metrics.toolDef.description,
-    {
-      mode: z
-        .enum(['aggregate', 'complexity'])
-        .optional()
-        .describe('Metrics mode: aggregate counts (default) or complexity-ranked symbols.'),
-      limit: z.number().int().positive().optional().describe('Max symbols for complexity mode (default 20, max 200).'),
-      min_cyclomatic: z.number().int().nonnegative().optional().describe('Minimum cyclomatic filter for complexity mode.'),
-    },
-    async (args) => ({
-      content: [{ type: 'text', text: JSON.stringify(metrics.handler(db, args)) }],
+    {},
+    async (_args) => ({
+      content: [{ type: 'text', text: JSON.stringify(metrics.handler(db, {})) }],
     }),
   );
 
@@ -188,34 +181,19 @@ export function createKbMcpServer(
     }),
   );
 
-  // ── kb_notes_write ─────────────────────────────────────────────────────────
+  // ── kb_annotations ──────────────────────────────────────────────────────────
   server.tool(
-    notes.writeToolDef.name,
-    notes.writeToolDef.description,
+    annotations.toolDef.name,
+    annotations.toolDef.description,
     {
-      key: z.string().describe('Topic identifier for the note.'),
-      scope: z.string().optional().describe('Optional scope (default "global").'),
-      content: z.string().describe('The note body to persist.'),
-      model: z.string().optional().describe('Optional model identifier that authored the note.'),
-      source_hash: z.string().optional().describe('Optional source hash for staleness checks.'),
+      kind: z
+        .enum(['TODO', 'FIXME', 'HACK', 'XXX', 'NOTE', 'BUG', 'OPTIMIZE'])
+        .describe('Annotation kind/tag to filter by.'),
+      path: z.string().optional().describe('Optional exact file path filter.'),
+      limit: z.number().optional().describe('Max results (default 20).'),
     },
     async (args) => ({
-      content: [{ type: 'text', text: JSON.stringify(notes.writeHandler(dbPath, args)) }],
-    }),
-  );
-
-  // ── kb_notes_read ──────────────────────────────────────────────────────────
-  server.tool(
-    notes.readToolDef.name,
-    notes.readToolDef.description,
-    {
-      key: z.string().optional().describe('Optional exact note key filter.'),
-      key_prefix: z.string().optional().describe('Optional note key prefix filter.'),
-      scope: z.string().optional().describe('Optional scope filter.'),
-      limit: z.number().optional().describe('Optional max notes to return (default 20).'),
-    },
-    async (args) => ({
-      content: [{ type: 'text', text: JSON.stringify(notes.readHandler(db, args)) }],
+      content: [{ type: 'text', text: JSON.stringify(annotations.handler(db, args)) }],
     }),
   );
 

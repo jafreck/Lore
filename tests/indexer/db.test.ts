@@ -63,7 +63,7 @@ describe('openDb', () => {
     ).not.toThrow();
   });
 
-  it('should create the symbols, kb_meta, and other required tables', () => {
+  it('should create the symbols, annotations, kb_meta, and other required tables', () => {
     db = openDb(dbPath);
     const tables = (
       db
@@ -72,28 +72,37 @@ describe('openDb', () => {
     ).map((r) => r.name);
     expect(tables).toContain('files');
     expect(tables).toContain('symbols');
-    expect(tables).toContain('symbol_metrics');
+    expect(tables).toContain('annotations');
     expect(tables).toContain('kb_meta');
     expect(tables).toContain('commit_refs');
   });
 
-  it('should create symbol_metrics with cascade FK and cyclomatic index', () => {
+  it('should create annotations table with required and nullable metadata columns', () => {
     db = openDb(dbPath);
-    const tableSql = db
-      .prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='symbol_metrics'")
-      .get() as { sql: string } | undefined;
-    const indexRow = db
-      .prepare("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_symbol_metrics_cyclomatic'")
-      .get() as { name: string } | undefined;
+    const columns = db.prepare("PRAGMA table_info('annotations')").all() as {
+      name: string;
+      notnull: number;
+    }[];
+    const byName = new Map(columns.map((column) => [column.name, column]));
 
-    expect(tableSql).toBeDefined();
-    expect(tableSql!.sql).toContain('symbol_id');
-    expect(tableSql!.sql).toContain('REFERENCES symbols(id) ON DELETE CASCADE');
-    expect(tableSql!.sql).toContain('line_count');
-    expect(tableSql!.sql).toContain('param_count');
-    expect(tableSql!.sql).toContain('cyclomatic');
-    expect(tableSql!.sql).toContain('max_nesting');
-    expect(indexRow?.name).toBe('idx_symbol_metrics_cyclomatic');
+    expect(byName.get('file_id')?.notnull).toBe(1);
+    expect(byName.get('kind')?.notnull).toBe(1);
+    expect(byName.get('line')?.notnull).toBe(1);
+    expect(byName.get('text')?.notnull).toBe(1);
+    expect(byName.get('symbol_id')?.notnull).toBe(0);
+    expect(byName.get('author')?.notnull).toBe(0);
+    expect(byName.get('created_at')?.notnull).toBe(0);
+  });
+
+  it('should create annotation indexes for kind and file lookups', () => {
+    db = openDb(dbPath);
+    const indexes = (
+      db
+        .prepare("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='annotations'")
+        .all() as { name: string }[]
+    ).map((r) => r.name);
+    expect(indexes).toContain('idx_annotations_kind');
+    expect(indexes).toContain('idx_annotations_file_id');
   });
 
   it('should be idempotent — calling openDb twice on the same path is safe', () => {
