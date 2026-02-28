@@ -316,11 +316,20 @@ describe('graph handler – kind=inheritance', () => {
 
     insertInheritanceEdge(db, derivedId, baseId, 'Base');
     insertInheritanceEdge(db, featDerivedId, null, 'UnknownBase');
+    db.prepare(
+      `INSERT INTO symbol_relationships (source_symbol_id, target_symbol_id, target_symbol_name, relationship_type)
+       VALUES (?, ?, ?, 'implements')`,
+    ).run(derivedId, null, 'SomeInterface');
   });
 
   it('should return inheritance edges', () => {
     const result = handler(db, { kind: 'inheritance' });
     expect(result.edges.length).toBe(2);
+  });
+
+  it('should only return extends relationships for inheritance kind', () => {
+    const result = handler(db, { kind: 'inheritance' });
+    expect(result.edges.map((edge) => edge.target_name)).not.toContain('SomeInterface');
   });
 
   it('should filter inheritance edges by source_id', () => {
