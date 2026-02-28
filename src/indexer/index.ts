@@ -48,6 +48,7 @@ import { ObjcExtractor } from './extractors/objc.js';
 import type { SymbolExtractor } from './extractors/types.js';
 import type { EmbeddingProvider } from './embedder.js';
 import { DEFAULT_EMBEDDING_MODEL } from './embedder.js';
+import { computeSymbolMetrics } from './complexity.js';
 
 // ─── Extractor registry ───────────────────────────────────────────────────────
 
@@ -342,6 +343,10 @@ export class IndexBuilder {
     const insertFts = db.prepare(
       `INSERT INTO symbols_fts(rowid, name, signature, kind) VALUES (?, ?, ?, ?)`,
     );
+    const insertMetrics = db.prepare(
+      `INSERT INTO symbol_metrics (symbol_id, line_count, param_count, cyclomatic, max_nesting)
+       VALUES (?, ?, ?, ?, ?)`,
+    );
 
     // Map from callerSymbol name → symbol row ID (for call refs)
     const symbolIdMap = new Map<string, number>();
@@ -361,6 +366,14 @@ export class IndexBuilder {
       symbolIdMap.set(sym.name, symId);
       symbolRanges.push({ id: symId, startLine: sym.startLine, endLine: sym.endLine });
       insertFts.run(symId, sym.name, sym.signature ?? '', sym.kind);
+      const metrics = computeSymbolMetrics(sym, language);
+      insertMetrics.run(
+        symId,
+        metrics.line_count,
+        metrics.param_count,
+        metrics.cyclomatic,
+        metrics.max_nesting,
+      );
     }
 
     const insertAnnotation = db.prepare(

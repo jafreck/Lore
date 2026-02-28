@@ -34,6 +34,13 @@ function createTestDb(): Database.Database {
       raw_import  TEXT    NOT NULL,
       resolved_id INTEGER REFERENCES files(id)
     );
+    CREATE TABLE symbol_metrics (
+      symbol_id    INTEGER PRIMARY KEY REFERENCES symbols(id) ON DELETE CASCADE,
+      line_count   INTEGER NOT NULL,
+      param_count  INTEGER NOT NULL,
+      cyclomatic   INTEGER NOT NULL,
+      max_nesting  INTEGER NOT NULL
+    );
   `);
   return db;
 }
@@ -54,6 +61,12 @@ function insertSymbol(db: Database.Database, fileId: number, name: string): numb
   return result.lastInsertRowid as number;
 }
 
+function insertSymbolMetrics(db: Database.Database, symbolId: number, cyclomatic: number): void {
+  db.prepare(
+    'INSERT INTO symbol_metrics (symbol_id, line_count, param_count, cyclomatic, max_nesting) VALUES (?, ?, ?, ?, ?)',
+  ).run(symbolId, 14, 2, cyclomatic, 3);
+}
+
 // ─── handler ──────────────────────────────────────────────────────────────────
 
 describe('metrics handler', () => {
@@ -64,9 +77,12 @@ describe('metrics handler', () => {
     const mainId = insertFile(db, 'src/main.ts', 'main');
     const featId = insertFile(db, 'src/feat.ts', 'feat');
     insertFile(db, 'src/utils.ts', 'main');
-    insertSymbol(db, mainId, 'parseConfig');
-    insertSymbol(db, mainId, 'renderPage');
-    insertSymbol(db, featId, 'featFunc');
+    const parseConfigId = insertSymbol(db, mainId, 'parseConfig');
+    const renderPageId = insertSymbol(db, mainId, 'renderPage');
+    const featFuncId = insertSymbol(db, featId, 'featFunc');
+    insertSymbolMetrics(db, parseConfigId, 3);
+    insertSymbolMetrics(db, renderPageId, 8);
+    insertSymbolMetrics(db, featFuncId, 5);
     db.prepare('INSERT INTO file_imports (file_id, raw_import) VALUES (?, ?)').run(
       mainId,
       './utils',
@@ -127,5 +143,42 @@ describe('metrics handler', () => {
     expect(result.import_edge_count).toBe(0);
     expect(result.per_branch).toEqual([]);
     emptyDb.close();
+  });
+
+  it('should return complexity-ranked symbols ordered by cyclomatic desc', () => {
+    const result = handler(db, { mode: 'complexity' });
+    expect('symbols' in result).toBe(true);
+    if ('symbols' in result) {
+      expect(result.symbols.map((row) => row.cyclomatic)).toEqual([8, 5, 3]);
+    }
+  });
+
+  it('should apply min_cyclomatic and limit in complexity mode', () => {
+    const result = handler(db, { mode: 'complexity', min_cyclomatic: 4, limit: 1 });
+    expect('symbols' in result).toBe(true);
+    if ('symbols' in result) {
+      expect(result.symbols.length).toBe(1);
+      expect(result.symbols[0].cyclomatic).toBe(8);
+      expect(result.symbols[0].line_count).toBe(14);
+      expect(result.symbols[0].param_count).toBe(2);
+      expect(result.symbols[0].max_nesting).toBe(3);
+    }
+  });
+
+  it('should clamp negative min_cyclomatic and low limit values in complexity mode', () => {
+    const result = handler(db, { mode: 'complexity', min_cyclomatic: -10, limit: 0 });
+    expect('symbols' in result).toBe(true);
+    if ('symbols' in result) {
+      expect(result.symbols.length).toBe(1);
+      expect(result.symbols[0].cyclomatic).toBe(8);
+    }
+  });
+
+  it('should cap complexity mode limit at 200', () => {
+    const result = handler(db, { mode: 'complexity', limit: 999 });
+    expect('symbols' in result).toBe(true);
+    if ('symbols' in result) {
+      expect(result.symbols.length).toBe(3);
+    }
   });
 });
