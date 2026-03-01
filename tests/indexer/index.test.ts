@@ -6,6 +6,7 @@ import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import Database from 'better-sqlite3';
 import { IndexBuilder } from '../../src/indexer/index.js';
+import { buildCallGraph } from '../../src/indexer/call-graph.js';
 import type { EmbeddingProvider } from '../../src/indexer/embedder.js';
 
 const esmRequire = createRequire(import.meta.url);
@@ -371,7 +372,7 @@ describe('IndexBuilder — branch support in update()', () => {
     const builderDev = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'dev' });
     await builderDev.build();
 
-    const beforeDb = new Database(dbPath, { readonly: true });
+    const beforeDb = new Database(dbPath);
     const mainFileRow = beforeDb
       .prepare('SELECT id FROM files WHERE path = ? AND branch = ?')
       .get(srcFile, 'main') as { id: number } | undefined;
@@ -390,9 +391,14 @@ describe('IndexBuilder — branch support in update()', () => {
          WHERE fi.resolved_id = ? AND f.branch = ?`,
       )
       .all(mainFileRow!.id, 'main') as Array<{ id: number }>;
-    beforeDb.close();
     expect(mainSymbolIds.length).toBeGreaterThan(0);
     expect(resolvedImportRows.length).toBeGreaterThan(0);
+    const insertedSymbolRefId = Number(
+      beforeDb
+        .prepare('INSERT INTO symbol_refs (caller_id, callee_name, call_line) VALUES (?, ?, ?)')
+        .run(mainSymbolIds[0]!.id, 'hello', 0).lastInsertRowid,
+    );
+    beforeDb.close();
 
     rmSync(srcFile, { force: true });
     const builderMain = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
@@ -412,6 +418,13 @@ describe('IndexBuilder — branch support in update()', () => {
          WHERE rowid IN (${mainSymbolIds.map(() => '?').join(',')})`,
       )
       .get(...mainSymbolIds.map(row => row.id)) as { count: number };
+    const staleSymbolRefCountRow = afterDb
+      .prepare(
+        `SELECT COUNT(*) AS count
+         FROM symbol_refs
+         WHERE id = ?`,
+      )
+      .get(insertedSymbolRefId) as { count: number };
     const clearedResolvedCount = afterDb
       .prepare(
         `SELECT COUNT(*) AS count
@@ -424,6 +437,7 @@ describe('IndexBuilder — branch support in update()', () => {
     expect(deletedMainFile).toBeUndefined();
     expect(devFile).toBeDefined();
     expect(staleFtsCountRow.count).toBe(0);
+    expect(staleSymbolRefCountRow.count).toBe(0);
     expect(clearedResolvedCount.count).toBe(resolvedImportRows.length);
   });
 
@@ -625,5 +639,38 @@ describe('IndexBuilder — call graph resolution during indexing', () => {
     await builder.update([srcFile]);
 
     expect(buildCallGraph).toHaveBeenCalledTimes(2);
+  });
+
+  it('should resolve symbol_refs.callee_id for known symbol names during build()', async () => {
+    writeFileSync(srcFile, 'export function target() { return "ok"; }\nexport function caller() { return target(); }\n');
+    const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
+    await builder.build();
+
+    const db = new Database(dbPath);
+    const caller = db
+      .prepare(
+        `SELECT s.id
+         FROM symbols s
+         JOIN files f ON f.id = s.file_id
+         WHERE f.path = ? AND f.branch = ? AND s.name = ?`,
+      )
+      .get(srcFile, 'main', 'caller') as { id: number } | undefined;
+    expect(caller).toBeDefined();
+    db.prepare('INSERT INTO symbol_refs (caller_id, callee_name, call_line) VALUES (?, ?, ?)')
+      .run(caller!.id, 'target', 1);
+
+    buildCallGraph(db);
+    const row = db
+      .prepare(
+        `SELECT COUNT(*) AS count
+         FROM symbol_refs sr
+         JOIN symbols s ON s.id = sr.caller_id
+         JOIN files f ON f.id = s.file_id
+         WHERE f.path = ? AND f.branch = ? AND sr.callee_name = ? AND sr.callee_id IS NOT NULL`,
+      )
+      .get(srcFile, 'main', 'target') as { count: number };
+    db.close();
+
+    expect(row.count).toBeGreaterThan(0);
   });
 });
