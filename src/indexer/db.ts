@@ -62,6 +62,14 @@ CREATE TABLE IF NOT EXISTS file_imports (
   resolved_id INTEGER REFERENCES files(id)
 );
 
+-- Test file to source file mappings derived during indexing.
+CREATE TABLE IF NOT EXISTS test_mappings (
+  test_file_id   INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+  source_file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+  confidence     TEXT    NOT NULL DEFAULT 'heuristic',
+  UNIQUE(test_file_id, source_file_id)
+);
+
 -- Call-site references from one symbol to another.
 CREATE TABLE IF NOT EXISTS symbol_refs (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,

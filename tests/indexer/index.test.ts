@@ -103,6 +103,24 @@ function queryRoutesForFile(
   return rows;
 }
 
+function queryTestsForSourceFile(
+  dbPath: string,
+  sourcePath: string,
+  branch: string,
+): Array<{ test_path: string; confidence: string }> {
+  const db = new Database(dbPath, { readonly: true });
+  const rows = db.prepare(
+    `SELECT test_files.path AS test_path, tm.confidence
+     FROM test_mappings tm
+     JOIN files source_files ON source_files.id = tm.source_file_id
+     JOIN files test_files ON test_files.id = tm.test_file_id
+     WHERE source_files.path = ? AND source_files.branch = ?
+     ORDER BY test_files.path`,
+  ).all(sourcePath, branch) as Array<{ test_path: string; confidence: string }>;
+  db.close();
+  return rows;
+}
+
 describe('IndexBuilder — branch support in build()', () => {
   let srcDir: string;
   let dbPath: string;
@@ -200,6 +218,22 @@ describe('IndexBuilder — branch support in build()', () => {
 
     await builder.build();
     expect(queryRoutesForFile(dbPath, routeFile, 'main').map((row) => row.path)).toEqual(['/status']);
+  });
+
+  it('should persist test mappings after build resolves imports', async () => {
+    const sourceFile = join(srcDir, 'math.ts');
+    const testDir = join(srcDir, 'tests');
+    const testFile = join(testDir, 'math.test.ts');
+    mkdirSync(testDir);
+    writeFileSync(sourceFile, 'export const sum = (a: number, b: number) => a + b;\n');
+    writeFileSync(testFile, 'import { sum } from "../math";\nexport const value = sum(1, 2);\n');
+
+    const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
+    await builder.build();
+
+    expect(queryTestsForSourceFile(dbPath, sourceFile, 'main')).toEqual([
+      { test_path: testFile, confidence: 'import' },
+    ]);
   });
 });
 
@@ -450,6 +484,31 @@ describe('IndexBuilder — branch support in update()', () => {
     await builder.update([routeFile]);
 
     expect(queryRoutesForFile(dbPath, routeFile, 'main')).toEqual([]);
+  });
+
+  it('should refresh test mappings after update resolves changed imports', async () => {
+    const sourceFile = join(srcDir, 'math.ts');
+    const replacementSourceFile = join(srcDir, 'math2.ts');
+    const testDir = join(srcDir, 'tests');
+    const testFile = join(testDir, 'math.test.ts');
+    mkdirSync(testDir);
+    writeFileSync(sourceFile, 'export const sum = (a: number, b: number) => a + b;\n');
+    writeFileSync(testFile, 'import { sum } from "../math";\nexport const value = sum(1, 2);\n');
+
+    const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
+    await builder.build();
+    expect(queryTestsForSourceFile(dbPath, sourceFile, 'main')).toEqual([
+      { test_path: testFile, confidence: 'import' },
+    ]);
+
+    writeFileSync(replacementSourceFile, 'export const sum = (a: number, b: number) => a + b;\n');
+    writeFileSync(testFile, 'import { sum } from "../math2";\nexport const value = sum(2, 3);\n');
+    await builder.update([replacementSourceFile, testFile]);
+
+    expect(queryTestsForSourceFile(dbPath, sourceFile, 'main')).toEqual([]);
+    expect(queryTestsForSourceFile(dbPath, replacementSourceFile, 'main')).toEqual([
+      { test_path: testFile, confidence: 'import' },
+    ]);
   });
 });
 
