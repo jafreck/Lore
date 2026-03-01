@@ -58,6 +58,7 @@ import type { SymbolExtractor } from './extractors/types.js';
 import type { EmbeddingProvider } from './embedder.js';
 import { DEFAULT_EMBEDDING_MODEL } from './embedder.js';
 import { ingestCoverageReport, type CoverageFormat } from './coverage.js';
+import { refreshTestMappings } from './test-mapper.js';
 
 // ─── Extractor registry ───────────────────────────────────────────────────────
 
@@ -176,6 +177,7 @@ export class IndexBuilder {
       })();
       this.saveBuildCheckpoint(db, branch, files.length, files.length);
       this.resolveImports(db, branch);
+      refreshTestMappings(db, branch);
       buildCallGraph(db);
       this.saveLastKnownHead(db);
       if (this.embedder) {
@@ -238,6 +240,7 @@ export class IndexBuilder {
       })();
 
       this.resolveImports(db, branch);
+      refreshTestMappings(db, branch);
       if (this.history) {
         const historyOptions =
           typeof this.history === 'object' ? this.history : undefined;

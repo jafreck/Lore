@@ -10,6 +10,7 @@
  *   kb_lookup    — symbol / file lookup
  *   kb_graph     — call / import graph queries
  *   kb_search    — structural, semantic, and fused search
+ *   kb_test_map  — source-file to mapped-test lookup
  *   kb_snippet   — source-code snippet extraction
  *   kb_blame     — git blame metadata for file lines
  *   kb_metrics   — aggregate code metrics
@@ -41,6 +42,7 @@ import { SentenceTransformersProvider, type EmbeddingProvider } from '../indexer
 import * as lookup from './tools/lookup.js';
 import * as graph from './tools/graph.js';
 import * as search from './tools/search.js';
+import * as testMap from './tools/test-map.js';
 import * as snippet from './tools/snippet.js';
 import * as blame from './tools/blame.js';
 import * as metrics from './tools/metrics.js';
@@ -160,6 +162,19 @@ export function createKbMcpServer(
     },
     async (args) => ({
       content: [{ type: 'text', text: JSON.stringify(await search.handler(db, args, embedder)) }],
+    }),
+  );
+
+  // ── kb_test_map ─────────────────────────────────────────────────────────────
+  server.tool(
+    testMap.toolDef.name,
+    testMap.toolDef.description,
+    {
+      source_path: z.string().describe('Source file path to resolve mapped test files for.'),
+      branch: z.string().optional().describe('Optional branch to constrain mappings.'),
+    },
+    async (args) => ({
+      content: [{ type: 'text', text: JSON.stringify(testMap.handler(db, args)) }],
     }),
   );
 

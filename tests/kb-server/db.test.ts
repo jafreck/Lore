@@ -9,6 +9,7 @@ import {
   getFileByPath,
   listFiles,
   listConfigEntries,
+  listTestMappingsBySourcePath,
   getSymbolsByName,
   listSymbols,
   getSymbolById,
@@ -482,6 +483,59 @@ describe('listFiles', () => {
   it('should return an empty array when branch has no files', () => {
     const rows = listFiles(db, 100, 'nonexistent');
     expect(rows).toEqual([]);
+  });
+});
+
+// ─── listTestMappingsBySourcePath ──────────────────────────────────────────────
+
+describe('listTestMappingsBySourcePath', () => {
+  let db: Database.Database;
+
+  beforeEach(() => {
+    db = createTestDb();
+    db.exec(`
+      CREATE TABLE test_mappings (
+        test_file_id   INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+        source_file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+        confidence     TEXT    NOT NULL DEFAULT 'heuristic',
+        UNIQUE(test_file_id, source_file_id)
+      );
+    `);
+  });
+
+  it('should return mapped test paths with confidence sorted by test path', () => {
+    const sourceMainId = insertFile(db, 'src/math.ts', 'main');
+    const sourceFeatId = insertFile(db, 'src/math.ts', 'feat');
+    const testMainId = insertFile(db, 'tests/main/math.test.ts', 'main');
+    const testFeatId = insertFile(db, 'tests/feat/math.test.ts', 'feat');
+
+    db.prepare('INSERT INTO test_mappings (test_file_id, source_file_id, confidence) VALUES (?, ?, ?)').run(testMainId, sourceMainId, 'import');
+    db.prepare('INSERT INTO test_mappings (test_file_id, source_file_id, confidence) VALUES (?, ?, ?)').run(testFeatId, sourceFeatId, 'heuristic');
+
+    const mappings = listTestMappingsBySourcePath(db, 'src/math.ts');
+    expect(mappings).toEqual([
+      { test_path: 'tests/feat/math.test.ts', confidence: 'heuristic' },
+      { test_path: 'tests/main/math.test.ts', confidence: 'import' },
+    ]);
+  });
+
+  it('should filter mappings by source and test branch when branch is provided', () => {
+    const sourceMainId = insertFile(db, 'src/math.ts', 'main');
+    const sourceFeatId = insertFile(db, 'src/math.ts', 'feat');
+    const testMainId = insertFile(db, 'tests/math.test.ts', 'main');
+    const testFeatId = insertFile(db, 'tests/math.test.ts', 'feat');
+
+    db.prepare('INSERT INTO test_mappings (test_file_id, source_file_id, confidence) VALUES (?, ?, ?)').run(testMainId, sourceMainId, 'import');
+    db.prepare('INSERT INTO test_mappings (test_file_id, source_file_id, confidence) VALUES (?, ?, ?)').run(testFeatId, sourceFeatId, 'heuristic');
+
+    const mappings = listTestMappingsBySourcePath(db, 'src/math.ts', 'feat');
+    expect(mappings).toEqual([{ test_path: 'tests/math.test.ts', confidence: 'heuristic' }]);
+  });
+
+  it('should return an empty array when the source file has no mappings', () => {
+    insertFile(db, 'src/math.ts', 'main');
+    expect(listTestMappingsBySourcePath(db, 'src/math.ts')).toEqual([]);
+    expect(listTestMappingsBySourcePath(db, 'src/missing.ts')).toEqual([]);
   });
 });
 
