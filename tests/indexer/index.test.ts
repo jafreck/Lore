@@ -372,7 +372,7 @@ describe('IndexBuilder — branch support in update()', () => {
     const builderDev = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'dev' });
     await builderDev.build();
 
-    const beforeDb = new Database(dbPath);
+    const beforeDb = new Database(dbPath, { readonly: true });
     const mainFileRow = beforeDb
       .prepare('SELECT id FROM files WHERE path = ? AND branch = ?')
       .get(srcFile, 'main') as { id: number } | undefined;
@@ -393,12 +393,14 @@ describe('IndexBuilder — branch support in update()', () => {
       .all(mainFileRow!.id, 'main') as Array<{ id: number }>;
     expect(mainSymbolIds.length).toBeGreaterThan(0);
     expect(resolvedImportRows.length).toBeGreaterThan(0);
-    const insertedSymbolRefId = Number(
-      beforeDb
-        .prepare('INSERT INTO symbol_refs (caller_id, callee_name, call_line) VALUES (?, ?, ?)')
-        .run(mainSymbolIds[0]!.id, 'hello', 0).lastInsertRowid,
-    );
     beforeDb.close();
+    const writeDb = new Database(dbPath);
+    const insertedSymbolRefId = Number(
+      writeDb
+        .prepare('INSERT INTO symbol_refs (caller_id, callee_name, call_line) VALUES (?, ?, ?)')
+        .run(mainSymbolIds[0]!.id, 'hello', 1).lastInsertRowid,
+    );
+    writeDb.close();
 
     rmSync(srcFile, { force: true });
     const builderMain = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
