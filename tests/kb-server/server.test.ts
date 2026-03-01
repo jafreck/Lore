@@ -50,4 +50,21 @@ describe('createKbMcpServer', () => {
     expect(coverageSchema.symbol_name.safeParse('render').success).toBe(true);
     expect(coverageSchema.symbol_id.safeParse('1').success).toBe(false);
   });
+
+  it('should register kb_test_map with expected schema fields', () => {
+    const db = new Database(':memory:');
+
+    createKbMcpServer(db, '/tmp/test.db');
+
+    const testMapToolCall = mockTool.mock.calls.find((call) => call[0] === 'kb_test_map');
+    expect(testMapToolCall).toBeDefined();
+
+    const testMapSchema = testMapToolCall?.[2] as {
+      source_path: { safeParse: (v: unknown) => { success: boolean } };
+      branch: { safeParse: (v: unknown) => { success: boolean } };
+    };
+    expect(testMapSchema.source_path.safeParse('src/main.ts').success).toBe(true);
+    expect(testMapSchema.branch.safeParse('feat').success).toBe(true);
+    expect(testMapSchema.source_path.safeParse(42).success).toBe(false);
+  });
 });

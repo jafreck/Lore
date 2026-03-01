@@ -149,6 +149,46 @@ export function listFiles(db: Database.Database, limit = 100, branch?: string): 
   return db.prepare('SELECT * FROM files LIMIT ?').all(limit) as FileRow[];
 }
 
+export interface TestMappingRow {
+  test_path: string;
+  confidence: string;
+}
+
+/** Return mapped tests (path + confidence) for a source file path. */
+export function listTestMappingsBySourcePath(
+  db: Database.Database,
+  sourcePath: string,
+  branch?: string,
+): TestMappingRow[] {
+  if (branch !== undefined) {
+    return db
+      .prepare(
+        `SELECT tf.path AS test_path,
+                tm.confidence
+           FROM files sf
+           JOIN test_mappings tm ON tm.source_file_id = sf.id
+           JOIN files tf ON tf.id = tm.test_file_id
+          WHERE sf.path = ?
+            AND sf.branch = ?
+            AND tf.branch = ?
+          ORDER BY tf.path ASC`,
+      )
+      .all(sourcePath, branch, branch) as TestMappingRow[];
+  }
+
+  return db
+    .prepare(
+      `SELECT tf.path AS test_path,
+              tm.confidence
+         FROM files sf
+         JOIN test_mappings tm ON tm.source_file_id = sf.id
+         JOIN files tf ON tf.id = tm.test_file_id
+        WHERE sf.path = ?
+        ORDER BY tf.path ASC`,
+    )
+    .all(sourcePath) as TestMappingRow[];
+}
+
 // ─── Config helpers ───────────────────────────────────────────────────────────
 
 export interface ConfigEntryRefRow {
