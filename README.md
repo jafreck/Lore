@@ -120,6 +120,44 @@ npm install @jafreck/lore
 Note: Lore uses native add-ons (`tree-sitter`, `better-sqlite3`). A working
 C/C++ toolchain is required the first time dependencies are built.
 
+## Publish authentication (npm)
+
+Lore publish operations use `NODE_AUTH_TOKEN` (see `.npmrc`) and never commit
+tokens to the repository.
+
+Local publish flow:
+
+```bash
+export NODE_AUTH_TOKEN=<npm automation token>
+npm publish --access public
+```
+
+CI publish flow:
+
+- Add `NODE_AUTH_TOKEN` as a secret in your CI provider (for GitHub Actions,
+  use a repository or environment secret).
+- Ensure publish jobs expose that secret as the `NODE_AUTH_TOKEN` environment
+  variable before running `npm publish`.
+
+## Release publish workflow (`@jafreck/lore@0.1.0`)
+
+Publishing is automated by `.github/workflows/publish.yml`. Creating a version
+tag (for example, `v0.1.0`) or publishing a GitHub Release triggers the npm
+publish job.
+
+Release steps for `@jafreck/lore@0.1.0`:
+
+1. Ensure `package.json` has `"version": "0.1.0"`.
+2. Push the tag: `git tag v0.1.0 && git push origin v0.1.0` (or publish a
+   GitHub Release for `v0.1.0`).
+3. Confirm the workflow logs show `npm publish --dry-run` output before the
+   live `npm publish` step.
+
+Post-publish verification:
+
+- Check the package metadata: `npm view @jafreck/lore version` returns `0.1.0`.
+- Confirm installability: `npm view @jafreck/lore@0.1.0 name version`.
+
 ## Quick start (CLI)
 
 ```bash

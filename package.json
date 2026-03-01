@@ -32,6 +32,7 @@
     "type": "git",
     "url": "https://github.com/jafreck/Lore.git"
   },
+  "homepage": "https://github.com/jafreck/Lore#readme",
   "keywords": [
     "code-indexing",
     "tree-sitter",
@@ -42,6 +43,9 @@
   ],
   "author": "Jacob Freck",
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1",
     "better-sqlite3": "^12.6.2",
