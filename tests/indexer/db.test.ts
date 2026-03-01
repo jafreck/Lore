@@ -75,10 +75,60 @@ describe('openDb', () => {
     expect(tables).toContain('files');
     expect(tables).toContain('symbols');
     expect(tables).toContain('kb_meta');
+    expect(tables).toContain('test_mappings');
     expect(tables).toContain('commit_refs');
     expect(tables).toContain('coverage_runs');
     expect(tables).toContain('coverage_files');
     expect(tables).toContain('coverage_lines');
+  });
+
+  it('should create test_mappings with expected columns and unique pair constraint', () => {
+    db = openDb(dbPath);
+
+    const columns = db.pragma('table_info(test_mappings)') as Array<{ name: string }>;
+    expect(columns.map((column) => column.name)).toEqual(
+      expect.arrayContaining(['test_file_id', 'source_file_id', 'confidence']),
+    );
+
+    const firstTestFile = db.prepare(
+      "INSERT INTO files (path, branch, language) VALUES ('tests/a.test.ts', 'main', 'typescript')",
+    ).run() as { lastInsertRowid: number | bigint };
+    const firstSourceFile = db.prepare(
+      "INSERT INTO files (path, branch, language) VALUES ('src/a.ts', 'main', 'typescript')",
+    ).run() as { lastInsertRowid: number | bigint };
+
+    db.prepare(
+      "INSERT INTO test_mappings (test_file_id, source_file_id, confidence) VALUES (?, ?, 'import')",
+    ).run(firstTestFile.lastInsertRowid, firstSourceFile.lastInsertRowid);
+
+    expect(() =>
+      db.prepare(
+        "INSERT INTO test_mappings (test_file_id, source_file_id, confidence) VALUES (?, ?, 'import')",
+      ).run(firstTestFile.lastInsertRowid, firstSourceFile.lastInsertRowid),
+    ).toThrow();
+  });
+
+  it('should cascade delete test_mappings when either linked file is deleted', () => {
+    db = openDb(dbPath);
+
+    const testFile = db.prepare(
+      "INSERT INTO files (path, branch, language) VALUES ('tests/a.test.ts', 'main', 'typescript')",
+    ).run() as { lastInsertRowid: number | bigint };
+    const sourceFile = db.prepare(
+      "INSERT INTO files (path, branch, language) VALUES ('src/a.ts', 'main', 'typescript')",
+    ).run() as { lastInsertRowid: number | bigint };
+
+    db.prepare(
+      "INSERT INTO test_mappings (test_file_id, source_file_id, confidence) VALUES (?, ?, 'import')",
+    ).run(testFile.lastInsertRowid, sourceFile.lastInsertRowid);
+    expect(
+      (db.prepare('SELECT COUNT(*) AS count FROM test_mappings').get() as { count: number }).count,
+    ).toBe(1);
+
+    db.prepare('DELETE FROM files WHERE id = ?').run(sourceFile.lastInsertRowid);
+    expect(
+      (db.prepare('SELECT COUNT(*) AS count FROM test_mappings').get() as { count: number }).count,
+    ).toBe(0);
   });
 
   it('should enforce foreign keys from coverage tables to coverage runs', () => {
