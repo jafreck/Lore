@@ -15,6 +15,34 @@
 import type { Database } from '../db.js';
 import type { EmbeddingProvider } from '../../indexer/embedder.js';
 
+// ─── Observability ────────────────────────────────────────────────────────────
+
+/**
+ * Observation emitted after every `kb_search` invocation.
+ * Consumers can use this to log, collect metrics, or detect search-quality issues.
+ */
+export interface SearchObservation {
+  /** ISO-8601 timestamp when the search completed. */
+  timestamp: string;
+  /** The raw query string sent by the caller. */
+  query: string;
+  /** The mode the caller requested (defaults to 'structural'). */
+  requestedMode: 'structural' | 'semantic' | 'fused';
+  /** The mode that was actually used (may differ due to fallback). */
+  modeUsed: string;
+  /** Number of results returned. */
+  resultCount: number;
+  /** Best (lowest distance / highest BM25) score among results, or `null` if empty. */
+  topScore: number | null;
+  /** Wall-clock milliseconds for the entire handler call. */
+  latencyMs: number;
+  /** Branch filter applied, if any. */
+  branch?: string;
+}
+
+/** Callback invoked after each search completes. Fire-and-forget — errors are swallowed. */
+export type SearchObserver = (observation: SearchObservation) => void;
+
 // ─── Tool definition ──────────────────────────────────────────────────────────
 
 export const toolDef = {
@@ -197,32 +225,53 @@ export async function handler(
   db: Database.Database,
   args: SearchArgs,
   embedder?: EmbeddingProvider,
+  observer?: SearchObserver,
 ): Promise<SearchResult> {
+  const start = Date.now();
   const limit = args.limit ?? 20;
   const mode = args.mode ?? 'structural';
 
   const structural = structuralSearch(db, args.query, limit, args.branch);
 
+  let result: SearchResult;
+
   if (mode === 'structural') {
-    return { results: structural, mode_used: 'structural' };
-  }
-
-  if (!embedder) {
+    result = { results: structural, mode_used: 'structural' };
+  } else if (!embedder) {
     // No query-time embedder available — callers can detect this degradation.
-    return { results: structural, mode_used: 'structural (no query-time embedder)' };
-  }
+    result = { results: structural, mode_used: 'structural (no query-time embedder)' };
+  } else {
+    const semantic = await semanticSearch(db, args.query, limit, embedder, args.branch);
 
-  const semantic = await semanticSearch(db, args.query, limit, embedder, args.branch);
-
-  if (mode === 'semantic') {
-    if (semantic) {
-      return { results: semantic, mode_used: 'semantic' };
+    if (mode === 'semantic') {
+      result = semantic
+        ? { results: semantic, mode_used: 'semantic' }
+        : { results: structural, mode_used: 'structural (fallback: no embeddings)' };
+    } else {
+      // mode === 'fused'
+      const fused = rrfFuse(structural, semantic, limit);
+      const modeUsed = semantic ? 'fused' : 'structural (fallback: no embeddings)';
+      result = { results: fused, mode_used: modeUsed };
     }
-    return { results: structural, mode_used: 'structural (fallback: no embeddings)' };
   }
 
-  // mode === 'fused'
-  const fused = rrfFuse(structural, semantic, limit);
-  const modeUsed = semantic ? 'fused' : 'structural (fallback: no embeddings)';
-  return { results: fused, mode_used: modeUsed };
+  // ── Emit observation ─────────────────────────────────────────────────────
+  if (observer) {
+    try {
+      observer({
+        timestamp: new Date().toISOString(),
+        query: args.query,
+        requestedMode: mode,
+        modeUsed: result.mode_used,
+        resultCount: result.results.length,
+        topScore: result.results.length > 0 ? result.results[0]!.score : null,
+        latencyMs: Date.now() - start,
+        branch: args.branch,
+      });
+    } catch {
+      // Observer errors must never break search.
+    }
+  }
+
+  return result;
 }

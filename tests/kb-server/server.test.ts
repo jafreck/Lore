@@ -11,11 +11,25 @@ vi.mock('@modelcontextprotocol/sdk/server/mcp.js', () => ({
   },
 }));
 
-import { createKbMcpServer } from '../../src/kb-server/server.js';
+import { createKbMcpServer, type KbServerOptions } from '../../src/kb-server/server.js';
 
 describe('createKbMcpServer', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it('should accept an options parameter with searchObserver', () => {
+    const db = new Database(':memory:');
+    const observer = vi.fn();
+    const options: KbServerOptions = { searchObserver: observer };
+
+    // Should not throw when options are provided.
+    createKbMcpServer(db, '/tmp/test.db', undefined, options);
+
+    // All standard tools should still be registered.
+    const toolNames = mockTool.mock.calls.map((call) => call[0]);
+    expect(toolNames).toContain('kb_search');
+    expect(toolNames).toContain('kb_lookup');
   });
 
   it('should register kb_graph kind schema with module and inheritance values', () => {

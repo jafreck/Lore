@@ -42,6 +42,7 @@ import { SentenceTransformersProvider, type EmbeddingProvider } from '../indexer
 import * as lookup from './tools/lookup.js';
 import * as graph from './tools/graph.js';
 import * as search from './tools/search.js';
+import type { SearchObserver } from './tools/search.js';
 import * as testMap from './tools/test-map.js';
 import * as snippet from './tools/snippet.js';
 import * as blame from './tools/blame.js';
@@ -97,19 +98,29 @@ function handleCommitStats(db: Database.Database, args: CommitStatsArgs): unknow
   }
 }
 
+// ─── Server options ───────────────────────────────────────────────────────────
+
+/** Optional configuration for `createKbMcpServer`. */
+export interface KbServerOptions {
+  /** Callback invoked after every `kb_search` call with query/mode/latency/result metadata. */
+  searchObserver?: SearchObserver;
+}
+
 // ─── Server factory ───────────────────────────────────────────────────────────
 
 /**
  * Create and return a fully-configured `McpServer` with all KB tools registered.
  *
- * @param db      Read-only SQLite connection to the knowledge-base.
- * @param dbPath  Path to the DB file, needed by `kb_writeback` for write access.
+ * @param db       Read-only SQLite connection to the knowledge-base.
+ * @param dbPath   Path to the DB file, needed by `kb_writeback` for write access.
  * @param embedder Optional live embedding provider for semantic/fused search.
+ * @param options  Optional server configuration (e.g. search observer).
  */
 export function createKbMcpServer(
   db: Database.Database,
   dbPath: string,
   embedder?: EmbeddingProvider,
+  options?: KbServerOptions,
 ): McpServer {
   const server = new McpServer(
     { name: 'lore-kb-server', version: '0.1.0' },
@@ -161,7 +172,7 @@ export function createKbMcpServer(
       branch: z.string().optional().describe('Optional branch to filter results.'),
     },
     async (args) => ({
-      content: [{ type: 'text', text: JSON.stringify(await search.handler(db, args, embedder)) }],
+      content: [{ type: 'text', text: JSON.stringify(await search.handler(db, args, embedder, options?.searchObserver)) }],
     }),
   );
 
