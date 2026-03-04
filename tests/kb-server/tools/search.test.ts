@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import Database from 'better-sqlite3';
-import { handler, type SearchArgs, type SearchResult } from '../../../src/kb-server/tools/search.js';
+import { handler, type SearchArgs, type SearchResult, type SearchObservation, type SearchObserver } from '../../../src/kb-server/tools/search.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -133,5 +133,94 @@ describe('search handler – semantic/fused fallback without embedder', () => {
   it('should fall back to structural when mode=fused and no embedder provided', async () => {
     const result = await handler(db, { query: 'myFunc', mode: 'fused' });
     expect(result.mode_used).toBe('structural (no query-time embedder)');
+  });
+});
+
+// ─── SearchObserver callback ──────────────────────────────────────────────────
+
+describe('search handler – observer callback', () => {
+  let db: Database.Database;
+
+  beforeEach(() => {
+    db = createTestDb();
+    const mainId = insertFile(db, 'src/main.ts', 'main');
+    insertSymbol(db, mainId, 'parseConfig');
+    insertSymbol(db, mainId, 'renderPage');
+  });
+
+  it('should invoke observer with correct fields on structural search', async () => {
+    const observations: SearchObservation[] = [];
+    const observer: SearchObserver = (obs) => observations.push(obs);
+
+    await handler(db, { query: 'parseConfig', mode: 'structural' }, undefined, observer);
+
+    expect(observations).toHaveLength(1);
+    const obs = observations[0]!;
+    expect(obs.query).toBe('parseConfig');
+    expect(obs.requestedMode).toBe('structural');
+    expect(obs.modeUsed).toBe('structural');
+    expect(obs.resultCount).toBe(1);
+    expect(obs.topScore).toBeTypeOf('number');
+    expect(obs.latencyMs).toBeGreaterThanOrEqual(0);
+    expect(obs.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+  });
+
+  it('should report zero results and null topScore when query has no matches', async () => {
+    const observations: SearchObservation[] = [];
+    const observer: SearchObserver = (obs) => observations.push(obs);
+
+    await handler(db, { query: 'zzz_no_match_zzz', mode: 'structural' }, undefined, observer);
+
+    expect(observations).toHaveLength(1);
+    expect(observations[0]!.resultCount).toBe(0);
+    expect(observations[0]!.topScore).toBeNull();
+  });
+
+  it('should report fallback mode when semantic requested without embedder', async () => {
+    const observations: SearchObservation[] = [];
+    const observer: SearchObserver = (obs) => observations.push(obs);
+
+    await handler(db, { query: 'parseConfig', mode: 'semantic' }, undefined, observer);
+
+    expect(observations).toHaveLength(1);
+    expect(observations[0]!.requestedMode).toBe('semantic');
+    expect(observations[0]!.modeUsed).toBe('structural (no query-time embedder)');
+  });
+
+  it('should include branch in observation when branch filter is used', async () => {
+    const observations: SearchObservation[] = [];
+    const observer: SearchObserver = (obs) => observations.push(obs);
+
+    await handler(db, { query: 'parseConfig', mode: 'structural', branch: 'main' }, undefined, observer);
+
+    expect(observations).toHaveLength(1);
+    expect(observations[0]!.branch).toBe('main');
+  });
+
+  it('should not include branch in observation when no branch filter is used', async () => {
+    const observations: SearchObservation[] = [];
+    const observer: SearchObserver = (obs) => observations.push(obs);
+
+    await handler(db, { query: 'parseConfig', mode: 'structural' }, undefined, observer);
+
+    expect(observations).toHaveLength(1);
+    expect(observations[0]!.branch).toBeUndefined();
+  });
+
+  it('should not break search if observer throws', async () => {
+    const throwingObserver: SearchObserver = () => {
+      throw new Error('observer boom');
+    };
+
+    const result = await handler(db, { query: 'parseConfig', mode: 'structural' }, undefined, throwingObserver);
+
+    expect(result.mode_used).toBe('structural');
+    expect(result.results.length).toBeGreaterThan(0);
+  });
+
+  it('should not invoke observer when none is provided', async () => {
+    // Ensure no errors when observer is undefined (default path).
+    const result = await handler(db, { query: 'parseConfig', mode: 'structural' });
+    expect(result.results.length).toBeGreaterThan(0);
   });
 });

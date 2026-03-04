@@ -27,6 +27,8 @@ export type { PollerOptions } from './indexer/poller.js';
 
 // ── MCP server ────────────────────────────────────────────────────────────────
 export { createKbMcpServer } from './kb-server/server.js';
+export type { KbServerOptions } from './kb-server/server.js';
+export type { SearchObservation, SearchObserver } from './kb-server/tools/search.js';
 export {
   openReadOnly,
   getSymbolById,
