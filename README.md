@@ -53,19 +53,12 @@ flowchart LR
         WRITEBACK[lore_writeback]
     end
 
-    subgraph LLM_AGENTS[Agents]
-        CLAUDE[Claude]
-        COPILOT[GitHub Copilot]
-        CUSTOM_AGENT[Custom Agents]
-        CLAUDE ~~~ COPILOT ~~~ CUSTOM_AGENT
-    end
-
-    subgraph ENTRY[User Entrypoints]
-        VSCODE[VS Code]
+    subgraph MCP_CLIENTS[MCP Clients — Agents]
+        CLAUDE_CODE[Claude Code / Desktop]
+        COPILOT[VS Code + Copilot]
         CURSOR[Cursor]
-        CHAT[Chat UI]
-        ORCH[Agent Frameworks]
-        VSCODE ~~~ CURSOR ~~~ CHAT ~~~ ORCH
+        CUSTOM[Custom Agent Frameworks]
+        CLAUDE_CODE ~~~ COPILOT ~~~ CURSOR ~~~ CUSTOM
     end
 
     SRC --> WALK --> PARSE --> EXTRACT
@@ -77,9 +70,7 @@ flowchart LR
 
     DB --- LOOKUP & SEARCH & GRAPH & SNIPPET & BLAME & HISTORY & METRICS & WRITEBACK
 
-    LOOKUP & SEARCH & GRAPH & SNIPPET & BLAME & HISTORY & METRICS & WRITEBACK <--> LLM_AGENTS
-
-    LLM_AGENTS <--- ENTRY
+    LOOKUP & SEARCH & GRAPH & SNIPPET & BLAME & HISTORY & METRICS & WRITEBACK <--> MCP_CLIENTS
 ```
 
 Lore sits between your codebase and any LLM-powered tool. The **indexer**
