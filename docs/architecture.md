@@ -35,15 +35,15 @@ flowchart LR
     end
 
     subgraph MCP Server
-        LOOKUP[kb_lookup]
-        SEARCH[kb_search<br/>BM25 · vector · fused]
-        GRAPH[kb_graph]
-        SNIPPET[kb_snippet]
-        BLAME[kb_blame]
-        HISTORY[kb_history]
-        METRICS[kb_metrics]
-        KB_COVERAGE[kb_coverage]
-        WRITEBACK[kb_writeback]
+        LOOKUP[lore_lookup]
+        SEARCH[lore_search<br/>BM25 · vector · fused]
+        GRAPH[lore_graph]
+        SNIPPET[lore_snippet]
+        BLAME[lore_blame]
+        HISTORY[lore_history]
+        METRICS[lore_metrics]
+        KB_COVERAGE[lore_coverage]
+        WRITEBACK[lore_writeback]
     end
 
     subgraph LLM_AGENTS[Agents]
@@ -109,12 +109,12 @@ Coverage ingestion accepts reports from auto-detected paths (`coverage/lcov.info
 
 | Tool | Purpose |
 |------|---------|
-| `kb_lookup` | Find symbols by name or files by path (optional branch filter) |
-| `kb_search` | Structural BM25, semantic vector, or fused RRF search |
-| `kb_graph` | Query call, import, module, or inheritance edges (`call` edges include `callee_coverage_percent`) |
-| `kb_snippet` | Return source snippets by file path and line range |
-| `kb_blame` | Return git blame metadata for a line or line range |
-| `kb_history` | Query history by file, commit, author, ref, or recency |
-| `kb_metrics` | Return aggregate index metrics plus global coverage totals and staleness metadata (`coverage_commit`, `current_commit`, `commits_behind`, `stale`) |
-| `kb_coverage` | Return symbol-level coverage, uncovered lines, and staleness metadata for the latest coverage run |
-| `kb_writeback` | Persist symbol summaries into `symbol_summaries` |
+| `lore_lookup` | Find symbols by name or files by path (optional branch filter) |
+| `lore_search` | Structural BM25, semantic vector, or fused RRF search |
+| `lore_graph` | Query call, import, module, or inheritance edges (`call` edges include `callee_coverage_percent`) |
+| `lore_snippet` | Return source snippets by file path and line range |
+| `lore_blame` | Return git blame metadata for a line or line range |
+| `lore_history` | Query history by file, commit, author, ref, or recency |
+| `lore_metrics` | Return aggregate index metrics plus global coverage totals and staleness metadata (`coverage_commit`, `current_commit`, `commits_behind`, `stale`) |
+| `lore_coverage` | Return symbol-level coverage, uncovered lines, and staleness metadata for the latest coverage run |
+| `lore_writeback` | Persist symbol summaries into `symbol_summaries` |

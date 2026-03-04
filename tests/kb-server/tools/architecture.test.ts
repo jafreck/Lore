@@ -91,9 +91,9 @@ function insertExternalDep(db: Database.Database, fileId: number, pkg: string): 
   db.prepare('INSERT INTO external_deps (file_id, package) VALUES (?, ?)').run(fileId, pkg);
 }
 
-describe('kb_architecture toolDef', () => {
+describe('lore_architecture toolDef', () => {
   it('should expose optional depth and branch properties', () => {
-    expect(toolDef.name).toBe('kb_architecture');
+    expect(toolDef.name).toBe('lore_architecture');
     expect(toolDef.inputSchema.required).toEqual([]);
     expect(toolDef.inputSchema.properties.depth.type).toBe('number');
     expect(toolDef.inputSchema.properties.branch.type).toBe('string');

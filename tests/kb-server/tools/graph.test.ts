@@ -142,7 +142,7 @@ function insertInheritanceEdge(
 
 // ─── handler (kind=call) ──────────────────────────────────────────────────────
 
-describe('kb_graph toolDef', () => {
+describe('lore_graph toolDef', () => {
   it('should expose kind enum values for call, import, module, and inheritance', () => {
     expect(toolDef.inputSchema.properties.kind.enum).toEqual([
       'call',

@@ -26,8 +26,8 @@ function removeDbFiles(dbPath: string): void {
 
 describe('notes tool exports', () => {
   it('should expose tool definitions and aliases', () => {
-    expect(kbNotesWriteToolDef.name).toBe('kb_notes_write');
-    expect(kbNotesReadToolDef.name).toBe('kb_notes_read');
+    expect(kbNotesWriteToolDef.name).toBe('lore_notes_write');
+    expect(kbNotesReadToolDef.name).toBe('lore_notes_read');
     expect(writeToolDef).toBe(kbNotesWriteToolDef);
     expect(readToolDef).toBe(kbNotesReadToolDef);
   });

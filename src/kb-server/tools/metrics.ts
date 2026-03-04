@@ -10,7 +10,7 @@ import { getCoverageStaleness, getLatestCoverageTotals } from '../db.js';
 // ─── Tool definition ──────────────────────────────────────────────────────────
 
 export const toolDef = {
-  name: 'kb_metrics',
+  name: 'lore_metrics',
   description:
     'Return aggregate KB metrics or top symbols by stored complexity.',
   inputSchema: {

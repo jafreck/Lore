@@ -7,15 +7,15 @@
  * and retains a standalone CLI entry point for development/debugging.
  *
  * MCP tools exposed:
- *   kb_lookup    — symbol / file lookup
- *   kb_graph     — call / import graph queries
- *   kb_search    — structural, semantic, and fused search
- *   kb_test_map  — source-file to mapped-test lookup
- *   kb_snippet   — source-code snippet extraction
- *   kb_blame     — git blame metadata for file lines
- *   kb_metrics   — aggregate code metrics
- *   kb_writeback — LLM summary write-back
- *   kb_history   — git commit history queries
+ *   lore_lookup    — symbol / file lookup
+ *   lore_graph     — call / import graph queries
+ *   lore_search    — structural, semantic, and fused search
+ *   lore_test_map  — source-file to mapped-test lookup
+ *   lore_snippet   — source-code snippet extraction
+ *   lore_blame     — git blame metadata for file lines
+ *   lore_metrics   — aggregate code metrics
+ *   lore_writeback — LLM summary write-back
+ *   lore_history   — git commit history queries
  *
  * Standalone usage:
  *   node dist/kb-server/server.js --db <path-to-kb.db>
@@ -102,7 +102,7 @@ function handleCommitStats(db: Database.Database, args: CommitStatsArgs): unknow
 
 /** Optional configuration for `createKbMcpServer`. */
 export interface KbServerOptions {
-  /** Callback invoked after every `kb_search` call with query/mode/latency/result metadata. */
+  /** Callback invoked after every `lore_search` call with query/mode/latency/result metadata. */
   searchObserver?: SearchObserver;
 }
 
@@ -112,7 +112,7 @@ export interface KbServerOptions {
  * Create and return a fully-configured `McpServer` with all KB tools registered.
  *
  * @param db       Read-only SQLite connection to the knowledge-base.
- * @param dbPath   Path to the DB file, needed by `kb_writeback` for write access.
+ * @param dbPath   Path to the DB file, needed by `lore_writeback` for write access.
  * @param embedder Optional live embedding provider for semantic/fused search.
  * @param options  Optional server configuration (e.g. search observer).
  */
@@ -127,7 +127,7 @@ export function createKbMcpServer(
     { capabilities: { tools: {} } },
   );
 
-  // ── kb_lookup ──────────────────────────────────────────────────────────────
+  // ── lore_lookup ────────────────────────────────────────────────────────────
   server.tool(
     lookup.toolDef.name,
     lookup.toolDef.description,
@@ -141,7 +141,7 @@ export function createKbMcpServer(
     }),
   );
 
-  // ── kb_graph ───────────────────────────────────────────────────────────────
+  // ── lore_graph ─────────────────────────────────────────────────────────────
   server.tool(
     graph.toolDef.name,
     graph.toolDef.description,
@@ -158,7 +158,7 @@ export function createKbMcpServer(
     }),
   );
 
-  // ── kb_search ──────────────────────────────────────────────────────────────
+  // ── lore_search ────────────────────────────────────────────────────────────
   server.tool(
     search.toolDef.name,
     search.toolDef.description,
@@ -176,7 +176,7 @@ export function createKbMcpServer(
     }),
   );
 
-  // ── kb_test_map ─────────────────────────────────────────────────────────────
+  // ── lore_test_map ───────────────────────────────────────────────────────────
   server.tool(
     testMap.toolDef.name,
     testMap.toolDef.description,
@@ -189,7 +189,7 @@ export function createKbMcpServer(
     }),
   );
 
-  // ── kb_snippet ─────────────────────────────────────────────────────────────
+  // ── lore_snippet ───────────────────────────────────────────────────────────
   server.tool(
     snippet.toolDef.name,
     snippet.toolDef.description,
@@ -204,7 +204,7 @@ export function createKbMcpServer(
     }),
   );
 
-  // ── kb_metrics ─────────────────────────────────────────────────────────────
+  // ── lore_metrics ───────────────────────────────────────────────────────────
   server.tool(
     metrics.toolDef.name,
     metrics.toolDef.description,
@@ -214,7 +214,7 @@ export function createKbMcpServer(
     }),
   );
 
-  // ── kb_coverage ────────────────────────────────────────────────────────────
+  // ── lore_coverage ──────────────────────────────────────────────────────────
   server.tool(
     coverage.toolDef.name,
     coverage.toolDef.description,
@@ -230,7 +230,7 @@ export function createKbMcpServer(
     }),
   );
 
-  // ── kb_blame ───────────────────────────────────────────────────────────────
+  // ── lore_blame ─────────────────────────────────────────────────────────────
   server.tool(
     blame.toolDef.name,
     blame.toolDef.description,
@@ -247,7 +247,7 @@ export function createKbMcpServer(
     }),
   );
 
-  // ── kb_writeback ───────────────────────────────────────────────────────────
+  // ── lore_writeback ─────────────────────────────────────────────────────────
   server.tool(
     writeback.toolDef.name,
     writeback.toolDef.description,
@@ -264,7 +264,7 @@ export function createKbMcpServer(
     }),
   );
 
-  // ── kb_history ─────────────────────────────────────────────────────────────
+  // ── lore_history ───────────────────────────────────────────────────────────
   server.tool(
     history.toolDef.name,
     history.toolDef.description,
@@ -280,9 +280,9 @@ export function createKbMcpServer(
     }),
   );
 
-  // ── kb_commit_stats ────────────────────────────────────────────────────────
+  // ── lore_commit_stats ──────────────────────────────────────────────────────
   server.tool(
-    'kb_commit_stats',
+    'lore_commit_stats',
     'Return git commit analytics for a selected metric.',
     {
       metric: z

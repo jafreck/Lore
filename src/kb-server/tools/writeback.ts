@@ -11,11 +11,11 @@ import Database from 'better-sqlite3';
 // ─── Tool definition ──────────────────────────────────────────────────────────
 
 export const toolDef = {
-  name: 'kb_writeback',
+  name: 'lore_writeback',
   description:
     'Persist an LLM-generated natural-language summary for a symbol back into ' +
     'the knowledge-base `symbol_summaries` table.  The summary can be retrieved ' +
-    'later via kb_lookup.',
+    'later via lore_lookup.',
   inputSchema: {
     type: 'object',
     properties: {
