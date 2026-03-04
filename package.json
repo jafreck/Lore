@@ -12,6 +12,14 @@
     },
     "./mcp": {
       "default": "./dist/kb-server/server.js"
+    },
+    "./kb-server/db": {
+      "types": "./dist/kb-server/db.d.ts",
+      "default": "./dist/kb-server/db.js"
+    },
+    "./kb-server/tools/*": {
+      "types": "./dist/kb-server/tools/*.d.ts",
+      "default": "./dist/kb-server/tools/*.js"
     }
   },
   "bin": {
