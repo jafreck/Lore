@@ -12,7 +12,7 @@ import { getFileByPath } from '../db.js';
 // ─── Tool definition ──────────────────────────────────────────────────────────
 
 export const toolDef = {
-  name: 'kb_blame',
+  name: 'lore_blame',
   description:
     'Return git blame metadata for a file and line (or line range). ' +
     'The file path must exist in the indexed knowledge base.',

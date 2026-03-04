@@ -18,7 +18,7 @@ import type { EmbeddingProvider } from '../../indexer/embedder.js';
 // ─── Observability ────────────────────────────────────────────────────────────
 
 /**
- * Observation emitted after every `kb_search` invocation.
+ * Observation emitted after every `lore_search` invocation.
  * Consumers can use this to log, collect metrics, or detect search-quality issues.
  */
 export interface SearchObservation {
@@ -46,7 +46,7 @@ export type SearchObserver = (observation: SearchObservation) => void;
 // ─── Tool definition ──────────────────────────────────────────────────────────
 
 export const toolDef = {
-  name: 'kb_search',
+  name: 'lore_search',
   description:
     'Search the knowledge-base index for symbols matching a natural-language or code query. ' +
     'mode="structural" uses BM25 FTS5 (fast, exact-ish). ' +

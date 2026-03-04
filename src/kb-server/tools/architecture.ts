@@ -7,7 +7,7 @@
 import type { Database } from '../db.js';
 
 export const toolDef = {
-  name: 'kb_architecture',
+  name: 'lore_architecture',
   description:
     'Return an architecture overview grouped by path prefix, including component summaries, ' +
     'inter-component edges, entry points, leaf nodes, and external dependency usage.',

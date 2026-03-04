@@ -43,14 +43,14 @@ flowchart LR
     DB[(SQL DB)]
 
     subgraph MCP Server
-        LOOKUP[kb_lookup]
-        SEARCH[kb_search]
-        GRAPH[kb_graph]
-        SNIPPET[kb_snippet]
-        BLAME[kb_blame]
-        HISTORY[kb_history]
-        METRICS[kb_metrics]
-        WRITEBACK[kb_writeback]
+        LOOKUP[lore_lookup]
+        SEARCH[lore_search]
+        GRAPH[lore_graph]
+        SNIPPET[lore_snippet]
+        BLAME[lore_blame]
+        HISTORY[lore_history]
+        METRICS[lore_metrics]
+        WRITEBACK[lore_writeback]
     end
 
     subgraph LLM_AGENTS[Agents]
@@ -294,15 +294,15 @@ gracefully degrades to structural search.
 
 | Tool | Purpose |
 |------|---------|
-| `kb_lookup` | Find symbols by name or files by path (optional branch filter) |
-| `kb_search` | Structural BM25, semantic vector, or fused RRF search |
-| `kb_graph` | Query call/import/module/inheritance edges; call edges include `callee_coverage_percent` |
-| `kb_snippet` | Return source snippets by file path and line range |
-| `kb_blame` | Return git blame metadata for a line or line range |
-| `kb_history` | Query history by file, commit, author, ref, or recency |
-| `kb_metrics` | Return aggregate index metrics plus coverage/staleness fields (`coverage_available`, `coverage_commit`, `current_commit`, `commits_behind`, `stale`, global coverage totals) |
-| `kb_coverage` | Return symbol-level coverage, uncovered lines, and staleness metadata for the latest coverage run |
-| `kb_writeback` | Persist symbol summaries into `symbol_summaries` |
+| `lore_lookup` | Find symbols by name or files by path (optional branch filter) |
+| `lore_search` | Structural BM25, semantic vector, or fused RRF search |
+| `lore_graph` | Query call/import/module/inheritance edges; call edges include `callee_coverage_percent` |
+| `lore_snippet` | Return source snippets by file path and line range |
+| `lore_blame` | Return git blame metadata for a line or line range |
+| `lore_history` | Query history by file, commit, author, ref, or recency |
+| `lore_metrics` | Return aggregate index metrics plus coverage/staleness fields (`coverage_available`, `coverage_commit`, `current_commit`, `commits_behind`, `stale`, global coverage totals) |
+| `lore_coverage` | Return symbol-level coverage, uncovered lines, and staleness metadata for the latest coverage run |
+| `lore_writeback` | Persist symbol summaries into `symbol_summaries` |
 
 ### MCP config example
 
@@ -319,7 +319,7 @@ gracefully degrades to structural search.
 
 ## Git history indexing
 
-Lore can ingest full git history and expose it through `kb_history`.
+Lore can ingest full git history and expose it through `lore_history`.
 
 ### Indexed history tables
 
@@ -327,7 +327,7 @@ Lore can ingest full git history and expose it through `kb_history`.
 - `commit_files`: per-commit touched paths with change type and diff stats
 - `commit_refs`: refs currently pointing at commits (`branch`/`tag`/`other`)
 
-### kb_history modes
+### lore_history modes
 
 - `recent`: newest commits
 - `file`: commits that touched a path
@@ -337,7 +337,7 @@ Lore can ingest full git history and expose it through `kb_history`.
 
 ## Blame queries
 
-Use `kb_blame` for line-level attribution.
+Use `lore_blame` for line-level attribution.
 
 Examples:
 

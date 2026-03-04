@@ -76,7 +76,7 @@ function insertCommitRef(
 
 describe('toolDef', () => {
   it('should have the correct name', () => {
-    expect(toolDef.name).toBe('kb_history');
+    expect(toolDef.name).toBe('lore_history');
   });
 
   it('should have a description string', () => {
