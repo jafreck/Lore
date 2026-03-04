@@ -54,8 +54,8 @@ function seedRoutes(db: Database.Database): void {
 }
 
 describe('routes toolDef', () => {
-  it('should expose the kb_routes tool name', () => {
-    expect(toolDef.name).toBe('kb_routes');
+  it('should expose the lore_routes tool name', () => {
+    expect(toolDef.name).toBe('lore_routes');
   });
 });
 

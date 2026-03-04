@@ -21,7 +21,7 @@ import {
 // ─── Tool definition ──────────────────────────────────────────────────────────
 
 export const toolDef = {
-  name: 'kb_history',
+  name: 'lore_history',
   description:
     'Query git commit history indexed in the knowledge base. ' +
     'Supports four modes: "file" (commits that touched a file path), ' +
@@ -83,7 +83,7 @@ function clampLimit(limit?: number): number {
   return Math.min(Math.max(1, Math.floor(limit)), MAX_LIMIT);
 }
 
-/** Handle a kb_history tool invocation against the open read-only database. */
+/** Handle a lore_history tool invocation against the open read-only database. */
 export function handler(db: Database.Database, args: HistoryArgs): HistoryResult {
   const limit = clampLimit(args.limit);
 

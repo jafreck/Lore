@@ -8,7 +8,7 @@ import type { Database } from '../db.js';
 import { listApiRoutes, type ApiRouteRow } from '../db.js';
 
 export const toolDef = {
-  name: 'kb_routes',
+  name: 'lore_routes',
   description:
     'Query extracted API routes/endpoints from the knowledge-base index. ' +
     'Optional filters: `method`, `path_prefix`, and `framework`.',

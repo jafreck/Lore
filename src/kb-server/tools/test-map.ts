@@ -8,7 +8,7 @@ import type { Database } from '../db.js';
 import { listTestMappingsBySourcePath } from '../db.js';
 
 export const toolDef = {
-  name: 'kb_test_map',
+  name: 'lore_test_map',
   description:
     'Return mapped test files (with confidence values) for a given source file path.',
   inputSchema: {

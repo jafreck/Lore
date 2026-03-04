@@ -8,7 +8,7 @@ import type { Database } from '../db.js';
 import { listAnnotations } from '../db.js';
 
 export const toolDef = {
-  name: 'kb_annotations',
+  name: 'lore_annotations',
   description:
     'Return indexed annotations (TODO/FIXME/etc.) by kind, with optional file path filter and result limit.',
   inputSchema: {

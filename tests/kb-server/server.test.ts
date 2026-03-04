@@ -28,16 +28,16 @@ describe('createKbMcpServer', () => {
 
     // All standard tools should still be registered.
     const toolNames = mockTool.mock.calls.map((call) => call[0]);
-    expect(toolNames).toContain('kb_search');
-    expect(toolNames).toContain('kb_lookup');
+    expect(toolNames).toContain('lore_search');
+    expect(toolNames).toContain('lore_lookup');
   });
 
-  it('should register kb_graph kind schema with module and inheritance values', () => {
+  it('should register lore_graph kind schema with module and inheritance values', () => {
     const db = new Database(':memory:');
 
     createKbMcpServer(db, '/tmp/test.db');
 
-    const graphToolCall = mockTool.mock.calls.find((call) => call[0] === 'kb_graph');
+    const graphToolCall = mockTool.mock.calls.find((call) => call[0] === 'lore_graph');
     expect(graphToolCall).toBeDefined();
 
     const graphSchema = graphToolCall?.[2] as { kind: { safeParse: (v: unknown) => { success: boolean } } };
@@ -48,12 +48,12 @@ describe('createKbMcpServer', () => {
     expect(graphSchema.kind.safeParse('invalid-kind').success).toBe(false);
   });
 
-  it('should register kb_coverage with expected schema fields', () => {
+  it('should register lore_coverage with expected schema fields', () => {
     const db = new Database(':memory:');
 
     createKbMcpServer(db, '/tmp/test.db');
 
-    const coverageToolCall = mockTool.mock.calls.find((call) => call[0] === 'kb_coverage');
+    const coverageToolCall = mockTool.mock.calls.find((call) => call[0] === 'lore_coverage');
     expect(coverageToolCall).toBeDefined();
 
     const coverageSchema = coverageToolCall?.[2] as {
@@ -65,12 +65,12 @@ describe('createKbMcpServer', () => {
     expect(coverageSchema.symbol_id.safeParse('1').success).toBe(false);
   });
 
-  it('should register kb_test_map with expected schema fields', () => {
+  it('should register lore_test_map with expected schema fields', () => {
     const db = new Database(':memory:');
 
     createKbMcpServer(db, '/tmp/test.db');
 
-    const testMapToolCall = mockTool.mock.calls.find((call) => call[0] === 'kb_test_map');
+    const testMapToolCall = mockTool.mock.calls.find((call) => call[0] === 'lore_test_map');
     expect(testMapToolCall).toBeDefined();
 
     const testMapSchema = testMapToolCall?.[2] as {
