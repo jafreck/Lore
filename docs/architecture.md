@@ -22,6 +22,7 @@ flowchart LR
         CALLGRAPH[Call-Graph Builder<br/>callee resolution · topo sort]
         DOCINGEST[Docs Ingest<br/>discover · classify · chunk]
         DOCNOTES[Doc Note Seeding<br/>README · architecture · ADR]
+        LSP[LSP Enrichment<br/>hover · definition<br/>persisted metadata]
         COVER[Coverage Ingest<br/>LCOV · Cobertura]
         EMBED[Embedder<br/>sentence-transformers<br/>Python subprocess]
         GITHIST[Git History Ingest<br/>commits · diffs · refs]
@@ -73,6 +74,10 @@ flowchart LR
     EXTRACT --> RESOLVE --> IMP
     RESOLVE --> DEPAPI --> EXT
     EXTRACT --> CALLGRAPH --> REFS
+    EXTRACT --> LSP
+    LSP --> SYM
+    LSP --> REFS
+    LSP --> EXT
     EXTRACT --> FILES & SYM
     DOCSRC --> DOCINGEST --> DOCS
     DOCINGEST --> DOCNOTES --> NOTES
@@ -99,6 +104,7 @@ flowchart LR
 | Dependency APIs | `index.ts` dependency API pass | Optional (`--index-deps`) declaration-only indexing from direct dependencies across npm (`.d.ts`), Python (`.pyi` / `py.typed`), Go (direct `go.mod` requirements), and Rust (direct `Cargo.toml` crates); excludes transitive dependencies and implementation bodies |
 | Call-Graph | `call-graph.ts` | Matches raw callee names in `symbol_refs` to concrete symbol IDs; supports topo sort and cycle detection |
 | Docs ingest | `docs.ts` + `IndexBuilder` | Discovers docs from default/configured globs, infers kind/title, persists docs plus retrievable sections/chunks, and optionally seeds doc-scoped notes |
+| LSP Enrichment | `lsp/enrichment.ts` | Optional index-time language-server hover/definition lookups; persists resolved type signature/return/definition metadata into SQLite |
 | Coverage | `coverage.ts` | Parses LCOV/Cobertura reports, normalizes per-file/per-line hit data, and persists a run linked to commit SHA/source mtime |
 | Embed | `embedder.ts` | Optional — spawns a Python subprocess running sentence-transformers to produce dense vectors |
 | Git History | `git-history.ts` | Ingests commits, per-file diffs, and branch/tag refs via `simple-git` |
@@ -114,10 +120,10 @@ When docs auto-notes are enabled (default), `IndexBuilder` seeds/updates notes f
 | Table group | Tables | Purpose |
 |-------------|--------|---------|
 | Files | `files` | Indexed source files with path, branch, language, hash |
-| Symbols | `symbols`, `symbols_fts` | Named code symbols + FTS5 full-text index |
+| Symbols | `symbols`, `symbols_fts` | Named code symbols + FTS5 full-text index; includes optional persisted LSP enrichment (`resolved_type_signature`, `resolved_return_type`, `definition_uri`, `definition_path`) |
 | Imports | `file_imports`, `external_deps` | Import declarations resolved to file IDs or external packages |
-| Dependency APIs | `external_symbols` | Exported/public declarations from direct dependency APIs across npm, Python, Go, and Rust (ecosystem/source/package/version + symbol metadata), stored separately from in-repo symbols |
-| Call refs | `symbol_refs` | Call-site edges from caller symbol to callee symbol |
+| Dependency APIs | `external_symbols` | Exported/public declarations from direct dependency APIs across npm, Python, Go, and Rust (ecosystem/source/package/version + symbol metadata), stored separately from in-repo symbols; includes optional persisted LSP enrichment metadata |
+| Call refs | `symbol_refs` | Call-site edges from caller symbol to callee symbol, including optional persisted LSP enrichment metadata |
 | Docs | `docs`, `doc_sections` | Indexed docs keyed by `(path, branch)` plus chunked sections with heading metadata |
 | Notes | `notes` | User/system notes keyed by `(key, scope)`; doc-scoped notes use `source_hash` to track staleness against `docs.content_hash` |
 | Coverage | `coverage_runs`, `coverage_files`, `coverage_lines` | Coverage ingestion run metadata plus normalized per-file and per-line hit data |
@@ -129,8 +135,8 @@ When docs auto-notes are enabled (default), `IndexBuilder` seeds/updates notes f
 
 | Tool | Purpose |
 |------|---------|
-| `kb_lookup` | Find symbols by name or files by path (optional branch filter), including external API symbol matches from `external_symbols` |
-| `kb_search` | Structural BM25, semantic vector, or fused RRF search; semantic/fused modes can return docs section hits and structural results are augmented by external symbol-name matches from `external_symbols` |
+| `kb_lookup` | Find symbols by name or files by path (optional branch filter), including external API symbol matches from `external_symbols` and persisted LSP-enrichment metadata when available |
+| `kb_search` | Structural BM25, semantic vector, or fused RRF search; semantic/fused modes can return docs section hits and structural results are augmented by external symbol-name matches from `external_symbols`; returns persisted LSP-enrichment metadata fields when available |
 | `kb_docs` | List indexed docs, fetch full docs with optional sections, or search indexed sections |
 | `kb_graph` | Query call, import, module, or inheritance edges (`call` edges include `callee_coverage_percent`) |
 | `kb_snippet` | Return source snippets by file path and line range |
@@ -150,3 +156,7 @@ External symbol retrieval flow:
 2. Exported dependency declarations are persisted to `external_symbols` with package/version metadata.
 3. Transitive dependencies are excluded in all ecosystems; Lore indexes only the direct boundary.
 4. MCP retrieval paths include `external_symbols` for symbol-facing queries so dependency APIs can be returned alongside in-repo symbols in `kb_lookup` and structural `kb_search`.
+
+Query-time behavior:
+- LSP servers are index-time only. MCP/KB query handlers do not spawn or call language servers.
+- `kb_lookup` and `kb_search` read persisted enrichment fields directly from SQLite.

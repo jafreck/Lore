@@ -132,6 +132,27 @@ function sanitizeFts5Query(query: string): string {
   return `"${query.replace(/"/g, '""')}"`;
 }
 
+function symbolEnrichmentProjection(db: Database.Database): string {
+  let columns = new Set<string>();
+  try {
+    const rows = db.prepare('PRAGMA table_info(symbols)').all() as Array<{ name: string }>;
+    columns = new Set(rows.map((row) => row.name));
+  } catch {
+    columns = new Set<string>();
+  }
+
+  const column = (name: string): string => (
+    columns.has(name) ? `s.${name} AS ${name}` : `NULL AS ${name}`
+  );
+
+  return [
+    column('resolved_type_signature'),
+    column('resolved_return_type'),
+    column('definition_uri'),
+    column('definition_path'),
+  ].join(',\n                ');
+}
+
 /** Run a structural BM25 FTS5 search and return ranked rows. */
 function structuralSearch(
   db: Database.Database,
@@ -141,10 +162,12 @@ function structuralSearch(
 ): SearchSymbolResult[] {
   const safeQuery = sanitizeFts5Query(query);
   const branchClause = branch !== undefined ? ' AND f.branch = ?' : '';
+  const enrichmentProjection = symbolEnrichmentProjection(db);
   try {
     const sql = `SELECT 'symbol' AS result_type,
                 s.id AS symbol_id, s.name, s.kind, f.path AS file_path,
                 s.start_line, s.end_line,
+                ${enrichmentProjection},
                 bm25(symbols_fts) AS score,
                 f.branch AS branch
            FROM symbols_fts
@@ -162,6 +185,7 @@ function structuralSearch(
     const sql = `SELECT 'symbol' AS result_type,
                 s.id AS symbol_id, s.name, s.kind, f.path AS file_path,
                 s.start_line, s.end_line,
+                ${enrichmentProjection},
                 0.0 AS score,
                 f.branch AS branch
            FROM symbols s
@@ -193,9 +217,11 @@ function semanticSymbolSearch(
   }
 
   const branchClause = branch !== undefined ? ' AND f.branch = ?' : '';
+  const enrichment = symbolEnrichmentProjection(db);
   const sql = `SELECT 'symbol' AS result_type,
               s.id AS symbol_id, s.name, s.kind, f.path AS file_path,
               s.start_line, s.end_line,
+              ${enrichment},
               distance AS score,
               f.branch AS branch
          FROM symbol_embeddings

@@ -9,6 +9,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { IndexBuilder } from './index.js';
+import type { EffectiveLspSettings } from './lsp/config.js';
 import { walkFiles } from './walker.js';
 import type { WalkerConfig } from './walker.js';
 
@@ -22,6 +23,10 @@ export interface PollerOptions {
   intervalMs?: number;
   /** Whether to refresh git history during poll update cycles. */
   history?: boolean | { depth?: number; all?: boolean };
+  /** Whether to include dependency indexing during update cycles. */
+  indexDependencies?: boolean;
+  /** Effective LSP settings forwarded to update cycles. */
+  lsp?: EffectiveLspSettings;
 }
 
 const COVERAGE_REPORT_RELATIVE_PATHS = [
@@ -50,6 +55,8 @@ export class FilePoller {
   private readonly intervalMs: number;
   private readonly enabled: boolean;
   private readonly history: boolean | { depth?: number; all?: boolean };
+  private readonly indexDependencies: boolean;
+  private readonly lsp: EffectiveLspSettings | undefined;
 
   /** Maps absolute path → last seen mtime (ms since epoch). */
   private snapshot: Map<string, number> = new Map();
@@ -62,6 +69,8 @@ export class FilePoller {
     this.intervalMs = options.intervalMs ?? 5000;
     this.enabled = options.enabled ?? true;
     this.history = options.history ?? false;
+    this.indexDependencies = options.indexDependencies ?? false;
+    this.lsp = options.lsp;
   }
 
   /** Begin polling `walkerConfig.rootDir` at the configured interval. */
@@ -143,6 +152,8 @@ export class FilePoller {
       if (changed.length > 0) {
         const builder = new IndexBuilder(this.dbPath, this.walkerConfig, undefined, {
           history: this.history,
+          ...(this.indexDependencies && { indexDependencies: true }),
+          ...(this.lsp && { lsp: this.lsp }),
         });
         try {
           await builder.update(changed);

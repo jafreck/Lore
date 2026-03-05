@@ -226,6 +226,7 @@ function queryDocScopedNotes(
   db.close();
   return rows;
 }
+
 describe('IndexBuilder — dependency indexing options', () => {
   let srcDir: string;
   let dbPath: string;

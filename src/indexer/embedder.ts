@@ -34,6 +34,24 @@ export interface EmbeddingProvider {
   dispose(): Promise<void>;
 }
 
+export interface StructuralEmbeddingInput {
+  name: string;
+  signature: string | null;
+  resolvedTypeSignature?: string | null;
+  resolvedReturnType?: string | null;
+}
+
+export function buildStructuralEmbeddingText(input: StructuralEmbeddingInput): string {
+  const parts = [
+    input.signature?.trim() ?? '',
+    input.resolvedTypeSignature?.trim() ?? '',
+    input.resolvedReturnType?.trim() ?? '',
+    input.name.trim(),
+  ].filter((part) => part.length > 0);
+  const uniqueParts = [...new Set(parts)];
+  return uniqueParts.join('\n');
+}
+
 // ─── Python bootstrap script ──────────────────────────────────────────────────
 
 /**

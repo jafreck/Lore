@@ -17,6 +17,10 @@
  */
 
 import * as fs from 'node:fs';
+import {
+  loadLspSettingsFromLoreConfig,
+  resolveEffectiveLspSettings,
+} from './indexer/lsp/config.js';
 
 // ─── Argument helpers ─────────────────────────────────────────────────────────
 
@@ -29,7 +33,7 @@ function usage(): never {
   lore refresh --db <path> --root <dir> [--index-deps] [--history] [--history-depth <n>] [--history-all]  Run an incremental index update and exit
   lore refresh --db <path> --root <dir> --watch Watch for file changes and refresh automatically
   lore refresh --db <path> --root <dir> --poll  Poll for file changes and refresh automatically
-  lore hooks --db <path> --root <dir> [--history] [--history-depth <n>] [--history-all]
+  lore hooks --db <path> --root <dir> [--history] [--history-depth <n>] [--history-all] [--lsp] [--no-lsp]
                          Install git hooks for automatic refresh on commit/merge/checkout
   lore ingest-coverage --db <path> --root <dir> --file <path> --format <lcov|cobertura> [--commit <sha>]
                          Ingest an explicit coverage report file into the knowledge base
@@ -52,6 +56,8 @@ Options:
   --no-docs-auto-notes     Disable doc-based note seeding during indexing
   --watch                  Enable fs-event watch mode (low-latency, may miss events on some platforms)
   --poll                   Enable polling mode (reliable but higher CPU/IO cost)
+  --lsp                    Force-enable index-time LSP settings
+  --no-lsp                 Force-disable index-time LSP settings
   --file <path>            Coverage report path (required for ingest-coverage)
   --format <name>          Coverage format: lcov or cobertura (required for ingest-coverage)
   --commit <sha>           Commit SHA to associate with coverage ingestion (default: HEAD)
@@ -85,6 +91,17 @@ function docsAutoNotesFlag(args: string[]): boolean {
   if (enable) return true;
   if (disable) return false;
   return true;
+}
+
+function explicitLspEnabled(args: string[]): boolean | undefined {
+  const enabled = args.includes('--lsp');
+  const disabled = args.includes('--no-lsp');
+  if (enabled && disabled) {
+    throw new Error('cannot combine --lsp and --no-lsp');
+  }
+  if (enabled) return true;
+  if (disabled) return false;
+  return undefined;
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
@@ -127,6 +144,30 @@ async function main(): Promise<void> {
         return;
       }
       historyDepth = Math.floor(parsed);
+    }
+
+    let lspEnabled: boolean | undefined;
+    try {
+      lspEnabled = explicitLspEnabled(args);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`Error: ${message}.\n`);
+      usage();
+      return;
+    }
+
+    let lspSettings;
+    try {
+      const lspConfig = loadLspSettingsFromLoreConfig(rootDir);
+      lspSettings = resolveEffectiveLspSettings(
+        lspConfig,
+        { ...(lspEnabled !== undefined && { enabled: lspEnabled }) },
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`Error: ${message}\n`);
+      process.exit(1);
+      return;
     }
 
     const includeGlobs = flags(args, '--include');
@@ -186,6 +227,7 @@ async function main(): Promise<void> {
     const options = {
       docsAutoNotes,
       indexDependencies,
+      lsp: lspSettings,
       ...(embeddingModel && { embeddingModel }),
       ...(shouldEnableHistory && {
         history: {
@@ -287,6 +329,30 @@ async function main(): Promise<void> {
       historyDepth = Math.floor(parsed);
     }
 
+    let lspEnabled: boolean | undefined;
+    try {
+      lspEnabled = explicitLspEnabled(args);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`Error: ${message}.\n`);
+      usage();
+      return;
+    }
+
+    let lspSettings;
+    try {
+      const lspConfig = loadLspSettingsFromLoreConfig(rootDir);
+      lspSettings = resolveEffectiveLspSettings(
+        lspConfig,
+        { ...(lspEnabled !== undefined && { enabled: lspEnabled }) },
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`Error: ${message}\n`);
+      process.exit(1);
+      return;
+    }
+
     const shouldEnableHistory = historyEnabled || historyAll || historyDepth !== undefined;
     const historyOption = shouldEnableHistory
       ? {
@@ -307,6 +373,7 @@ async function main(): Promise<void> {
     };
     const refreshOptions = {
       indexDependencies,
+      lsp: lspSettings,
       ...(shouldEnableHistory && { history: historyOption }),
     };
 
@@ -380,12 +447,37 @@ async function main(): Promise<void> {
     const historyDepthRaw = flag(args, '--history-depth');
     const includeHistory = historyEnabled || historyAll || historyDepthRaw !== undefined;
 
+    let lspEnabled: boolean | undefined;
+    try {
+      lspEnabled = explicitLspEnabled(args);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`Error: ${message}.\n`);
+      usage();
+      return;
+    }
+
+    let lspSettings;
+    try {
+      const lspConfig = loadLspSettingsFromLoreConfig(rootDir);
+      lspSettings = resolveEffectiveLspSettings(
+        lspConfig,
+        { ...(lspEnabled !== undefined && { enabled: lspEnabled }) },
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`Error: ${message}\n`);
+      process.exit(1);
+      return;
+    }
+
     const { installGitHooks } = await import('./indexer/git-hooks.js');
     const result = installGitHooks({
       repoRoot: rootDir,
       rootDir,
       dbPath,
       includeHistory,
+      lspEnabled: lspSettings.enabled,
     });
 
     process.stderr.write(

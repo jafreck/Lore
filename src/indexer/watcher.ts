@@ -8,6 +8,7 @@
 
 import * as fs from 'node:fs';
 import { IndexBuilder } from './index.js';
+import type { EffectiveLspSettings } from './lsp/config.js';
 import type { WalkerConfig } from './walker.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -20,6 +21,10 @@ export interface WatcherOptions {
   debounceMs?: number;
   /** Whether to refresh git history during update cycles. */
   history?: boolean | { depth?: number; all?: boolean };
+  /** Whether to include dependency indexing during update cycles. */
+  indexDependencies?: boolean;
+  /** Effective LSP settings forwarded to update cycles. */
+  lsp?: EffectiveLspSettings;
 }
 
 // ─── FileWatcher ──────────────────────────────────────────────────────────────
@@ -42,6 +47,8 @@ export class FileWatcher {
   private readonly debounceMs: number;
   private readonly enabled: boolean;
   private readonly history: boolean | { depth?: number; all?: boolean };
+  private readonly indexDependencies: boolean;
+  private readonly lsp: EffectiveLspSettings | undefined;
 
   private watcher: fs.FSWatcher | null = null;
   private pendingPaths: Set<string> = new Set();
@@ -54,6 +61,8 @@ export class FileWatcher {
     this.debounceMs = options.debounceMs ?? 300;
     this.enabled = options.enabled ?? true;
     this.history = options.history ?? false;
+    this.indexDependencies = options.indexDependencies ?? false;
+    this.lsp = options.lsp;
   }
 
   /** Begin watching `walkerConfig.rootDir` recursively for file changes. */
@@ -111,6 +120,8 @@ export class FileWatcher {
 
       const builder = new IndexBuilder(this.dbPath, this.walkerConfig, undefined, {
         history: this.history,
+        ...(this.indexDependencies && { indexDependencies: true }),
+        ...(this.lsp && { lsp: this.lsp }),
       });
       let errorCount = 0;
 

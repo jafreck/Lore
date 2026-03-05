@@ -135,7 +135,7 @@ export function createKbMcpServer(
     lookup.toolDef.description,
     {
       kind: z.enum(['symbol', 'file']).describe('Whether to look up a symbol or a file.'),
-      query: z.string().describe('Symbol name or file path to look up.'),
+      query: z.string().describe('Symbol name or file path to look up (includes persisted enrichment metadata when available).'),
       branch: z.string().optional().describe('Optional branch to filter results.'),
     },
     async (args) => ({
@@ -171,7 +171,7 @@ export function createKbMcpServer(
         .optional()
         .describe('Search mode (default: structural).'),
       limit: z.number().optional().describe('Max results (default 20).'),
-      branch: z.string().optional().describe('Optional branch to filter results.'),
+      branch: z.string().optional().describe('Optional branch to filter results. Query-time retrieval uses SQLite-only persisted data.'),
     },
     async (args) => ({
       content: [{ type: 'text', text: JSON.stringify(await search.handler(db, args, embedder, options?.searchObserver)) }],

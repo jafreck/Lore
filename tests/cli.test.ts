@@ -101,6 +101,41 @@ function readDocScopedNotes(dbPath: string): Array<{ key: string; scope: string 
   return rows;
 }
 
+function mockIndexBuilderWithOptionsCapture(capture: (options: unknown) => void): void {
+  const factory = () => ({
+    IndexBuilder: class {
+      constructor(
+        _dbPath: string,
+        _walkerConfig: unknown,
+        _embedder: unknown,
+        options: unknown,
+      ) {
+        capture(options);
+      }
+
+      async build(): Promise<void> {}
+    },
+  });
+
+  const moduleIds = [
+    '../../src/indexer/index.js',
+    '../../src/indexer/index.ts',
+    nodePath.join(process.cwd(), 'src/indexer/index.js'),
+    nodePath.join(process.cwd(), 'src/indexer/index.ts'),
+  ];
+
+  for (const moduleId of moduleIds) {
+    vi.doMock(moduleId, factory);
+  }
+}
+
+const INDEXER_MODULE_IDS = [
+  '../../src/indexer/index.js',
+  '../../src/indexer/index.ts',
+  nodePath.join(process.cwd(), 'src/indexer/index.js'),
+  nodePath.join(process.cwd(), 'src/indexer/index.ts'),
+];
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('cli', () => {
@@ -123,6 +158,9 @@ describe('cli', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    for (const moduleId of INDEXER_MODULE_IDS) {
+      vi.doUnmock(moduleId);
+    }
     // Remove any SIGINT / SIGTERM listeners registered by the CLI during the
     // test so they do not accumulate across tests.
     process.removeAllListeners('SIGINT');
@@ -253,6 +291,306 @@ describe('cli', () => {
       await loadCli(['index', '--db', dbPath, '--root', tmpDir, '--index-deps']);
       await waitForFile(dbPath);
       expect(nodeFs.existsSync(dbPath)).toBe(true);
+    });
+  });
+
+  describe('index subcommand — LSP config defaults', () => {
+    it('should apply .lore.config LSP defaults when explicit flags are not provided', async () => {
+      const dbPath = freshDb();
+      nodeFs.writeFileSync(
+        nodePath.join(tmpDir, '.lore.config'),
+        JSON.stringify({
+          lsp: {
+            enabled: true,
+            timeoutMs: 4321,
+            servers: {
+              typescript: {
+                command: 'custom-ts-ls',
+                args: ['--stdio'],
+              },
+            },
+          },
+        }),
+        'utf8',
+      );
+
+      let capturedOptions: unknown;
+      await loadCli(
+        ['index', '--db', dbPath, '--root', tmpDir],
+        () => {
+          mockIndexBuilderWithOptionsCapture((options) => {
+            capturedOptions = options;
+          });
+        },
+      );
+      await vi.waitFor(() => {
+        expect(capturedOptions).toBeDefined();
+      });
+
+      expect(capturedOptions).toMatchObject({
+        lsp: {
+          enabled: true,
+          requestTimeoutMs: 4321,
+          servers: {
+            typescript: {
+              command: 'custom-ts-ls',
+              args: ['--stdio'],
+            },
+          },
+        },
+      });
+    });
+
+    it('should report an explicit error for malformed .lore.config LSP settings', async () => {
+      const dbPath = freshDb();
+      nodeFs.writeFileSync(
+        nodePath.join(tmpDir, '.lore.config'),
+        JSON.stringify({
+          lsp: {
+            timeoutMs: 'fast',
+          },
+        }),
+        'utf8',
+      );
+
+      await loadCli(['index', '--db', dbPath, '--root', tmpDir]);
+
+      expect(exitSpy).toHaveBeenCalledWith(1);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Invalid .lore.config lsp settings'),
+      );
+    });
+
+    it('should allow explicit --lsp to override .lore.config defaults', async () => {
+      const dbPath = freshDb();
+      nodeFs.writeFileSync(
+        nodePath.join(tmpDir, '.lore.config'),
+        JSON.stringify({
+          lsp: {
+            enabled: false,
+          },
+        }),
+        'utf8',
+      );
+
+      let capturedOptions: unknown;
+      await loadCli(
+        ['index', '--db', dbPath, '--root', tmpDir, '--lsp'],
+        () => {
+          mockIndexBuilderWithOptionsCapture((options) => {
+            capturedOptions = options;
+          });
+        },
+      );
+      await vi.waitFor(() => {
+        expect(capturedOptions).toBeDefined();
+      });
+
+      expect(capturedOptions).toMatchObject({
+        lsp: {
+          enabled: true,
+        },
+      });
+    });
+
+    it('should allow explicit --no-lsp to override .lore.config defaults', async () => {
+      const dbPath = freshDb();
+      nodeFs.writeFileSync(
+        nodePath.join(tmpDir, '.lore.config'),
+        JSON.stringify({
+          lsp: {
+            enabled: true,
+          },
+        }),
+        'utf8',
+      );
+
+      let capturedOptions: unknown;
+      await loadCli(
+        ['index', '--db', dbPath, '--root', tmpDir, '--no-lsp'],
+        () => {
+          mockIndexBuilderWithOptionsCapture((options) => {
+            capturedOptions = options;
+          });
+        },
+      );
+      await vi.waitFor(() => {
+        expect(capturedOptions).toBeDefined();
+      });
+
+      expect(capturedOptions).toMatchObject({
+        lsp: {
+          enabled: false,
+        },
+      });
+    });
+
+    it('should report an error when --lsp and --no-lsp are combined', async () => {
+      const dbPath = freshDb();
+      await loadCli(['index', '--db', dbPath, '--root', tmpDir, '--lsp', '--no-lsp']);
+
+      expect(exitSpy).toHaveBeenCalledWith(1);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('cannot combine --lsp and --no-lsp'),
+      );
+    });
+
+    it('should keep indexing successful when configured LSP server is unavailable and leave enrichment metadata empty', async () => {
+      const dbPath = freshDb();
+      nodeFs.writeFileSync(
+        nodePath.join(tmpDir, '.lore.config'),
+        JSON.stringify({
+          lsp: {
+            enabled: true,
+            timeoutMs: 800,
+            servers: {
+              typescript: {
+                command: 'definitely-missing-language-server',
+                args: ['--stdio'],
+              },
+            },
+          },
+        }),
+        'utf8',
+      );
+      nodeFs.writeFileSync(
+        nodePath.join(tmpDir, 'main.ts'),
+        'export function greet(name: string): string { return `hello ${name}`; }\n',
+        'utf8',
+      );
+
+      await loadCli(
+        ['index', '--db', dbPath, '--root', tmpDir],
+        () => {
+          for (const moduleId of INDEXER_MODULE_IDS) {
+            vi.doUnmock(moduleId);
+          }
+        },
+      );
+      await waitForFile(dbPath);
+
+      expect(exitSpy).not.toHaveBeenCalledWith(1);
+      const db = new Database(dbPath, { readonly: true });
+      const enrichedCount = (
+        db
+          .prepare(
+            `SELECT COUNT(*) AS count
+             FROM symbols
+             WHERE resolved_type_signature IS NOT NULL
+                OR resolved_return_type IS NOT NULL
+                OR definition_uri IS NOT NULL
+                OR definition_path IS NOT NULL`,
+          )
+          .get() as { count: number }
+      ).count;
+      db.close();
+
+      expect(enrichedCount).toBe(0);
+    });
+  });
+
+  describe('refresh subcommand — LSP config defaults', () => {
+    it('should apply .lore.config LSP defaults when explicit flags are not provided', async () => {
+      nodeFs.writeFileSync(
+        nodePath.join(tmpDir, '.lore.config'),
+        JSON.stringify({
+          lsp: {
+            enabled: true,
+            timeoutMs: 7654,
+            servers: {
+              typescript: {
+                command: 'custom-ts-ls',
+              },
+            },
+          },
+        }),
+        'utf8',
+      );
+
+      let capturedOptions: unknown;
+      await loadCli(
+        ['refresh', '--db', freshDb(), '--root', tmpDir],
+        () => {
+          mockIndexBuilderWithOptionsCapture((options) => {
+            capturedOptions = options;
+          });
+        },
+      );
+      await vi.waitFor(() => {
+        expect(capturedOptions).toBeDefined();
+      });
+
+      expect(capturedOptions).toMatchObject({
+        lsp: {
+          enabled: true,
+          requestTimeoutMs: 7654,
+          servers: {
+            typescript: {
+              command: 'custom-ts-ls',
+              args: ['--stdio'],
+            },
+          },
+        },
+      });
+    });
+
+    it('should allow explicit --no-lsp to override .lore.config defaults', async () => {
+      nodeFs.writeFileSync(
+        nodePath.join(tmpDir, '.lore.config'),
+        JSON.stringify({
+          lsp: {
+            enabled: true,
+          },
+        }),
+        'utf8',
+      );
+
+      let capturedOptions: unknown;
+      await loadCli(
+        ['refresh', '--db', freshDb(), '--root', tmpDir, '--no-lsp'],
+        () => {
+          mockIndexBuilderWithOptionsCapture((options) => {
+            capturedOptions = options;
+          });
+        },
+      );
+      await vi.waitFor(() => {
+        expect(capturedOptions).toBeDefined();
+      });
+
+      expect(capturedOptions).toMatchObject({
+        lsp: {
+          enabled: false,
+        },
+      });
+    });
+
+    it('should report an explicit error for malformed .lore.config LSP settings', async () => {
+      nodeFs.writeFileSync(
+        nodePath.join(tmpDir, '.lore.config'),
+        JSON.stringify({
+          lsp: {
+            timeoutMs: 'bad',
+          },
+        }),
+        'utf8',
+      );
+
+      await loadCli(['refresh', '--db', freshDb(), '--root', tmpDir]);
+
+      expect(exitSpy).toHaveBeenCalledWith(1);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Invalid .lore.config lsp settings'),
+      );
+    });
+
+    it('should report an error when --lsp and --no-lsp are combined', async () => {
+      await loadCli(['refresh', '--db', freshDb(), '--root', tmpDir, '--lsp', '--no-lsp']);
+
+      expect(exitSpy).toHaveBeenCalledWith(1);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('cannot combine --lsp and --no-lsp'),
+      );
     });
   });
 
@@ -394,6 +732,83 @@ describe('cli', () => {
       expect(parsed.level).toBe('info');
       expect(parsed.source).toBe('cli');
       expect(parsed.message).toBe('git hooks installed');
+    });
+
+    it('should apply .lore.config LSP defaults to generated hook refresh commands', async () => {
+      nodeFs.mkdirSync(nodePath.join(tmpDir, '.git', 'hooks'), { recursive: true });
+      nodeFs.writeFileSync(
+        nodePath.join(tmpDir, '.lore.config'),
+        JSON.stringify({ lsp: { enabled: true } }),
+        'utf8',
+      );
+
+      const dbPath = freshDb();
+      await loadCli(['hooks', '--db', dbPath, '--root', tmpDir]);
+      await waitForStderr(stderrSpy, 'git hooks installed');
+
+      const hookPath = nodePath.join(tmpDir, '.git', 'hooks', 'post-commit');
+      const hookContent = nodeFs.readFileSync(hookPath, 'utf8');
+      expect(hookContent).toContain('--lsp');
+      expect(hookContent).not.toContain('--no-lsp');
+    });
+
+    it('should allow explicit --lsp to override .lore.config defaults for hook generation', async () => {
+      nodeFs.mkdirSync(nodePath.join(tmpDir, '.git', 'hooks'), { recursive: true });
+      nodeFs.writeFileSync(
+        nodePath.join(tmpDir, '.lore.config'),
+        JSON.stringify({ lsp: { enabled: false } }),
+        'utf8',
+      );
+
+      const dbPath = freshDb();
+      await loadCli(['hooks', '--db', dbPath, '--root', tmpDir, '--lsp']);
+      await waitForStderr(stderrSpy, 'git hooks installed');
+
+      const hookPath = nodePath.join(tmpDir, '.git', 'hooks', 'post-commit');
+      const hookContent = nodeFs.readFileSync(hookPath, 'utf8');
+      expect(hookContent).toContain('--lsp');
+      expect(hookContent).not.toContain('--no-lsp');
+    });
+
+    it('should allow explicit --no-lsp to override .lore.config defaults for hook generation', async () => {
+      nodeFs.mkdirSync(nodePath.join(tmpDir, '.git', 'hooks'), { recursive: true });
+      nodeFs.writeFileSync(
+        nodePath.join(tmpDir, '.lore.config'),
+        JSON.stringify({ lsp: { enabled: true } }),
+        'utf8',
+      );
+
+      const dbPath = freshDb();
+      await loadCli(['hooks', '--db', dbPath, '--root', tmpDir, '--no-lsp']);
+      await waitForStderr(stderrSpy, 'git hooks installed');
+
+      const hookPath = nodePath.join(tmpDir, '.git', 'hooks', 'post-commit');
+      const hookContent = nodeFs.readFileSync(hookPath, 'utf8');
+      expect(hookContent).toContain('--no-lsp');
+    });
+
+    it('should report an explicit error for malformed .lore.config LSP settings', async () => {
+      nodeFs.writeFileSync(
+        nodePath.join(tmpDir, '.lore.config'),
+        JSON.stringify({ lsp: { timeoutMs: 'invalid' } }),
+        'utf8',
+      );
+
+      await loadCli(['hooks', '--db', freshDb(), '--root', tmpDir]);
+
+      expect(exitSpy).toHaveBeenCalledWith(1);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Invalid .lore.config lsp settings'),
+      );
+    });
+
+    it('should report an error when --lsp and --no-lsp are combined', async () => {
+      await loadCli(['hooks', '--db', freshDb(), '--root', tmpDir, '--lsp', '--no-lsp']);
+
+      expect(exitSpy).toHaveBeenCalledWith(1);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('cannot combine --lsp and --no-lsp'),
+      );
     });
   });
 

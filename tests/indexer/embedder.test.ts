@@ -3,6 +3,7 @@ import {
   DEFAULT_EMBEDDING_MODEL,
   Qwen3EmbeddingProvider,
   SentenceTransformersProvider,
+  buildStructuralEmbeddingText,
 } from '../../src/indexer/embedder.js';
 
 describe('DEFAULT_EMBEDDING_MODEL', () => {
@@ -28,6 +29,43 @@ describe('Qwen3EmbeddingProvider', () => {
     const provider = Qwen3EmbeddingProvider('8B');
     expect(provider).toBeInstanceOf(SentenceTransformersProvider);
     expect(provider.modelName).toBe('Qwen/Qwen3-Embedding-8B');
+  });
+});
+
+describe('buildStructuralEmbeddingText', () => {
+  it('should build newline-separated structural text from signature, resolved metadata, and name', () => {
+    expect(
+      buildStructuralEmbeddingText({
+        name: '  greet ',
+        signature: ' function greet(name: string): string ',
+        resolvedTypeSignature: ' (name: string) => string ',
+        resolvedReturnType: ' string ',
+      }),
+    ).toBe(
+      'function greet(name: string): string\n(name: string) => string\nstring\ngreet',
+    );
+  });
+
+  it('should remove duplicate parts while preserving the first occurrence order', () => {
+    expect(
+      buildStructuralEmbeddingText({
+        name: 'Result',
+        signature: 'Result',
+        resolvedTypeSignature: '  Result  ',
+        resolvedReturnType: 'Result',
+      }),
+    ).toBe('Result');
+  });
+
+  it('should return an empty string when all candidate parts are blank', () => {
+    expect(
+      buildStructuralEmbeddingText({
+        name: '   ',
+        signature: ' ',
+        resolvedTypeSignature: '',
+        resolvedReturnType: null,
+      }),
+    ).toBe('');
   });
 });
 

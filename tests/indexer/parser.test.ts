@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { ParserPool } from '../../src/indexer/parser.js';
+import { ParserPool, SUPPORTED_PARSER_LANGUAGES } from '../../src/indexer/parser.js';
+import { DEFAULT_LSP_SERVER_REGISTRY } from '../../src/indexer/lsp/registry.js';
 
 // Pre-check grammar availability at module level so test.skipIf can use it.
 const _probe = new ParserPool();
@@ -53,5 +54,9 @@ describe('ParserPool', () => {
         expect(tree!.rootNode.type).toBe('program');
       },
     );
+  });
+
+  it('keeps parser language coverage aligned with LSP registry defaults', () => {
+    expect(Object.keys(DEFAULT_LSP_SERVER_REGISTRY).sort()).toEqual([...SUPPORTED_PARSER_LANGUAGES].sort());
   });
 });
