@@ -242,6 +242,9 @@ export class IndexBuilder {
         const historyOptions =
           typeof this.history === 'object' ? this.history : undefined;
         await ingestGitHistory(db, this.walkerConfig.rootDir, historyOptions);
+        if (this.embedder) {
+          await this.embedCommitMessages(db);
+        }
       }
     } finally {
       if (lspCoordinator) {
@@ -335,6 +338,9 @@ export class IndexBuilder {
         await this.embedder.init();
         await this.embedStructural(db);
         await this.embedDocumentation(db);
+        if (this.history) {
+          await this.embedCommitMessages(db);
+        }
       }
       buildCallGraph(db);
       this.saveLastKnownHead(db);
@@ -1134,6 +1140,36 @@ export class IndexBuilder {
           const section = batch[j];
           if (section) {
             insertEmbed.run(section.id, JSON.stringify(embeddings[j]));
+          }
+        }
+      })();
+    }
+  }
+
+  private async embedCommitMessages(db: Database.Database): Promise<void> {
+    const embedder = this.embedder!;
+
+    const commits = db.prepare(
+      `SELECT rowid, message
+       FROM commits
+       WHERE length(trim(message)) > 0
+       ORDER BY rowid`,
+    ).all() as Array<{ rowid: number; message: string }>;
+    if (commits.length === 0) return;
+
+    const insertEmbed = db.prepare(
+      'INSERT OR REPLACE INTO commit_embeddings(rowid, embedding) VALUES (CAST(? AS INTEGER), json(?))',
+    );
+
+    for (let i = 0; i < commits.length; i += EMBED_BATCH_SIZE) {
+      const batch = commits.slice(i, i + EMBED_BATCH_SIZE);
+      const embeddings = await embedder.embed(batch.map((commit) => commit.message));
+
+      db.transaction(() => {
+        for (let j = 0; j < batch.length; j++) {
+          const commit = batch[j];
+          if (commit) {
+            insertEmbed.run(commit.rowid, JSON.stringify(embeddings[j]));
           }
         }
       })();

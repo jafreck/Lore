@@ -31,6 +31,8 @@ import {
   listCommitFiles,
   listCommitRefs,
   listCommitsByRef,
+  hasCommitEmbeddings,
+  listCommitsBySemanticQuery,
   getLatestCoverageRun,
   getCoverageStaleness,
   getLatestCoverageTotals,
@@ -371,6 +373,32 @@ function insertDocSectionEmbedding(
   db.prepare(
     'INSERT OR REPLACE INTO doc_section_embeddings(rowid, embedding) VALUES (CAST(? AS INTEGER), json(?))',
   ).run(sectionId, JSON.stringify(embedding));
+}
+
+function loadCommitEmbeddingsTable(db: Database.Database, dims: number): void {
+  const sqliteVec = esmRequire('sqlite-vec') as { load(db: Database.Database): void };
+  sqliteVec.load(db);
+  db.exec(`
+    CREATE VIRTUAL TABLE commit_embeddings USING vec0(
+      embedding FLOAT[${dims}]
+    );
+  `);
+}
+
+function insertCommitEmbedding(
+  db: Database.Database,
+  commitSha: string,
+  embedding: number[],
+): void {
+  const row = db
+    .prepare('SELECT rowid FROM commits WHERE sha = ?')
+    .get(commitSha) as { rowid: number } | undefined;
+  if (!row) {
+    throw new Error(`Missing commit row for sha ${commitSha}`);
+  }
+  db.prepare(
+    'INSERT OR REPLACE INTO commit_embeddings(rowid, embedding) VALUES (CAST(? AS INTEGER), json(?))',
+  ).run(row.rowid, JSON.stringify(embedding));
 }
 
 // ─── openReadOnly ──────────────────────────────────────────────────────────────
@@ -1650,5 +1678,40 @@ describe('commit helpers', () => {
     expect(listCommitRefs(noRefsDb, 'sha1')).toEqual([]);
     expect(listCommitsByRef(noRefsDb, 'main', 10)).toEqual([]);
     noRefsDb.close();
+  });
+
+  it('should list semantic commit matches ordered by vector distance', () => {
+    loadCommitEmbeddingsTable(db, 3);
+    insertCommitEmbedding(db, 'aaa111', [0, 1, 0]);
+    insertCommitEmbedding(db, 'bbb222', [1, 0, 0]);
+    insertCommitEmbedding(db, 'ccc333', [0.8, 0.2, 0]);
+
+    const rows = listCommitsBySemanticQuery(db, [1, 0, 0], 3);
+    expect(rows.map((row) => row.sha)).toEqual(['bbb222', 'ccc333', 'aaa111']);
+  });
+
+  it('should return an empty array for semantic commit search when vectors are unavailable', () => {
+    expect(listCommitsBySemanticQuery(db, [1, 0, 0], 10)).toEqual([]);
+  });
+
+  it('should return an empty array for semantic commit search when vectors table has no rows', () => {
+    loadCommitEmbeddingsTable(db, 3);
+    expect(listCommitsBySemanticQuery(db, [1, 0, 0], 10)).toEqual([]);
+  });
+
+  it('should report commit embeddings availability only when rows exist', () => {
+    expect(hasCommitEmbeddings(db)).toBe(false);
+
+    loadCommitEmbeddingsTable(db, 3);
+    expect(hasCommitEmbeddings(db)).toBe(false);
+
+    insertCommitEmbedding(db, 'bbb222', [1, 0, 0]);
+    expect(hasCommitEmbeddings(db)).toBe(true);
+  });
+
+  it('should return an empty array for semantic commit search with an empty query vector', () => {
+    loadCommitEmbeddingsTable(db, 3);
+    insertCommitEmbedding(db, 'bbb222', [1, 0, 0]);
+    expect(listCommitsBySemanticQuery(db, [], 10)).toEqual([]);
   });
 });
