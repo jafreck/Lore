@@ -190,6 +190,24 @@ await builder.build();
 { "action": "search", "query": "incremental refresh", "kinds": ["guide", "architecture"], "limit": 10 }
 ```
 
+### lore_search filter parameters
+
+`lore_search` supports additional optional filters to narrow symbol and documentation hits:
+
+| Parameter | Applies to | Description |
+|-----------|------------|-------------|
+| `path_prefix` | Symbol results | Restrict symbol hits to files whose source path starts with the prefix |
+| `language` | Symbol results | Restrict symbol hits to indexed file language (for example `typescript`, `python`) |
+| `kind` | Symbol results | Restrict symbol hits to a symbol kind (for example `function`, `class`) |
+| `doc_path_prefix` | Doc-section results | Restrict semantic/fused doc hits to docs whose path starts with the prefix |
+| `doc_kind` | Doc-section results | Restrict semantic/fused doc hits to a documentation kind (for example `readme`, `architecture`) |
+
+Mode behavior:
+
+- `structural`: returns symbol hits only; applies `path_prefix`, `language`, and `kind`.
+- `semantic`: may return symbol and doc-section hits; symbol filters (`path_prefix`, `language`, `kind`) apply to symbol results, while `doc_path_prefix` and `doc_kind` apply to doc-section results before ranking output.
+- `fused`: combines structural and semantic candidates; symbol filters apply to symbol candidates and doc filters apply to semantic doc-section candidates before final fused ranking.
+
 ### lore_history modes
 
 | Mode | Query |
