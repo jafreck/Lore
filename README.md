@@ -169,6 +169,24 @@ await builder.build();
 | `lore_coverage` | Symbol-level coverage, uncovered lines, and staleness metadata |
 | `lore_writeback` | Persist agent-authored symbol summaries |
 
+### lore_lookup query options
+
+For symbol lookups (`kind: "symbol"`), `lore_lookup` supports:
+
+- `match_mode`: optional symbol-name matching mode (`exact`, `prefix`, `contains`); defaults to `exact` (case-insensitive).
+- `symbol_kind`: optional symbol kind filter (for example, `function` or `class`).
+- `path_prefix`: optional indexed file-path prefix filter.
+- `language`: optional indexed file language filter.
+- `limit`: optional maximum rows for empty/browse symbol queries (default `20`).
+- `offset`: optional rows to skip for empty/browse symbol queries (default `0`).
+
+Example symbol lookup requests:
+
+```json
+{ "kind": "symbol", "query": "IndexBuilder", "match_mode": "prefix", "symbol_kind": "class" }
+{ "kind": "symbol", "query": "", "path_prefix": "src/indexer/", "language": "typescript", "limit": 20, "offset": 20 }
+```
+
 ### MCP config example
 
 ```json

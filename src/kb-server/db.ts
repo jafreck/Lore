@@ -56,6 +56,25 @@ export interface SymbolRow {
   definition_path?: string | null;
 }
 
+export type SymbolMatchMode = 'exact' | 'prefix' | 'contains';
+
+export interface SymbolLookupOptions {
+  branch?: string;
+  matchMode?: SymbolMatchMode;
+  kind?: string;
+  pathPrefix?: string;
+  language?: string;
+}
+
+export interface ListSymbolsOptions {
+  branch?: string;
+  kind?: string;
+  pathPrefix?: string;
+  language?: string;
+  limit?: number;
+  offset?: number;
+}
+
 function hasSymbolMetricsTable(db: Database.Database): boolean {
   const row = db
     .prepare("SELECT 1 AS ok FROM sqlite_master WHERE type = 'table' AND name = 'symbol_metrics' LIMIT 1")
@@ -75,46 +94,102 @@ export function getSymbolById(db: Database.Database, id: number): SymbolRow | un
   return db.prepare('SELECT * FROM symbols WHERE id = ?').get(id) as SymbolRow | undefined;
 }
 
-/** Fetch all symbols whose name matches the given string (case-insensitive). */
-export function getSymbolsByName(db: Database.Database, name: string, branch?: string): SymbolRow[] {
-  const includeMetrics = hasSymbolMetricsTable(db);
-  if (branch !== undefined) {
-    return db
-      .prepare(
-        includeMetrics
-          ? 'SELECT s.*, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting FROM symbols s JOIN files f ON s.file_id = f.id LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id WHERE s.name = ? COLLATE NOCASE AND f.branch = ?'
-          : 'SELECT s.* FROM symbols s JOIN files f ON s.file_id = f.id WHERE s.name = ? COLLATE NOCASE AND f.branch = ?'
-      )
-      .all(name, branch) as SymbolRow[];
+function normalizeSymbolLookupOptions(branchOrOptions?: string | SymbolLookupOptions): SymbolLookupOptions {
+  if (typeof branchOrOptions === 'string') {
+    return { branch: branchOrOptions };
   }
-  return db
-    .prepare(
-      includeMetrics
-        ? 'SELECT s.*, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting FROM symbols s LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id WHERE s.name = ? COLLATE NOCASE'
-        : 'SELECT * FROM symbols WHERE name = ? COLLATE NOCASE'
-    )
-    .all(name) as SymbolRow[];
+  return branchOrOptions ?? {};
 }
 
-/** Return all symbols, optionally limited to `limit` rows. */
-export function listSymbols(db: Database.Database, limit = 100, branch?: string): SymbolRow[] {
-  const includeMetrics = hasSymbolMetricsTable(db);
-  if (branch !== undefined) {
-    return db
-      .prepare(
-        includeMetrics
-          ? 'SELECT s.*, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting FROM symbols s JOIN files f ON s.file_id = f.id LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id WHERE f.branch = ? LIMIT ?'
-          : 'SELECT s.* FROM symbols s JOIN files f ON s.file_id = f.id WHERE f.branch = ? LIMIT ?'
-      )
-      .all(branch, limit) as SymbolRow[];
+function buildNameMatch(name: string, mode: SymbolMatchMode): { clause: string; value: string } {
+  if (mode === 'prefix') {
+    return { clause: 's.name LIKE ? COLLATE NOCASE', value: `${name}%` };
   }
+  if (mode === 'contains') {
+    return { clause: 's.name LIKE ? COLLATE NOCASE', value: `%${name}%` };
+  }
+  return { clause: 's.name = ? COLLATE NOCASE', value: name };
+}
+
+function applySymbolFilters(where: string[], params: Array<string | number>, options: SymbolLookupOptions): void {
+  if (options.branch !== undefined) {
+    where.push('f.branch = ?');
+    params.push(options.branch);
+  }
+  if (options.kind !== undefined) {
+    where.push('s.kind = ?');
+    params.push(options.kind);
+  }
+  if (options.pathPrefix !== undefined) {
+    where.push('f.path LIKE ?');
+    params.push(`${options.pathPrefix}%`);
+  }
+  if (options.language !== undefined) {
+    where.push('f.language = ?');
+    params.push(options.language);
+  }
+}
+
+/** Fetch all symbols whose name matches the given string using the requested match mode. */
+export function getSymbolsByName(db: Database.Database, name: string, branch?: string): SymbolRow[];
+export function getSymbolsByName(db: Database.Database, name: string, options?: SymbolLookupOptions): SymbolRow[];
+export function getSymbolsByName(
+  db: Database.Database,
+  name: string,
+  branchOrOptions?: string | SymbolLookupOptions,
+): SymbolRow[] {
+  const includeMetrics = hasSymbolMetricsTable(db);
+  const options = normalizeSymbolLookupOptions(branchOrOptions);
+  const matchMode = options.matchMode ?? 'exact';
+  const { clause, value } = buildNameMatch(name, matchMode);
+  const where: string[] = [clause];
+  const params: Array<string | number> = [value];
+  applySymbolFilters(where, params, options);
+
   return db
     .prepare(
-      includeMetrics
-        ? 'SELECT s.*, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting FROM symbols s LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id LIMIT ?'
-        : 'SELECT * FROM symbols LIMIT ?'
+      `${includeMetrics
+        ? 'SELECT s.*, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting'
+        : 'SELECT s.*'}
+       FROM symbols s
+       JOIN files f ON s.file_id = f.id
+       ${includeMetrics ? 'LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id' : ''}
+       WHERE ${where.join(' AND ')}`,
     )
-    .all(limit) as SymbolRow[];
+    .all(...params) as SymbolRow[];
+}
+
+/** Return symbols with optional filters and pagination controls. */
+export function listSymbols(db: Database.Database, limit?: number, branch?: string): SymbolRow[];
+export function listSymbols(db: Database.Database, options?: ListSymbolsOptions): SymbolRow[];
+export function listSymbols(
+  db: Database.Database,
+  limitOrOptions: number | ListSymbolsOptions = 100,
+  branch?: string,
+): SymbolRow[] {
+  const includeMetrics = hasSymbolMetricsTable(db);
+  const options: ListSymbolsOptions = typeof limitOrOptions === 'number'
+    ? { limit: limitOrOptions, branch }
+    : (limitOrOptions ?? {});
+  const where: string[] = [];
+  const params: Array<string | number> = [];
+  applySymbolFilters(where, params, options);
+  const limit = options.limit ?? 100;
+  const offset = options.offset ?? 0;
+  params.push(limit, offset);
+
+  return db
+    .prepare(
+      `${includeMetrics
+        ? 'SELECT s.*, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting'
+        : 'SELECT s.*'}
+       FROM symbols s
+       JOIN files f ON s.file_id = f.id
+       ${includeMetrics ? 'LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id' : ''}
+       ${where.length > 0 ? `WHERE ${where.join(' AND ')}` : ''}
+       LIMIT ? OFFSET ?`,
+    )
+    .all(...params) as SymbolRow[];
 }
 
 export interface ExternalSymbolRow {

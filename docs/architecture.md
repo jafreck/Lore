@@ -147,6 +147,12 @@ When docs auto-notes are enabled (default), `IndexBuilder` seeds/updates notes f
 | `kb_notes_read` / `kb_notes_write` | Persist notes and read note freshness metadata (`source_hash_mismatch`, `doc_missing`, etc.) |
 | `kb_writeback` | Persist symbol summaries into `symbol_summaries` |
 
+`kb_lookup` request schema highlights:
+
+- `match_mode` (`exact` | `prefix` | `contains`) is available for `kind="symbol"` lookups and defaults to `exact`.
+- `symbol_kind`, `path_prefix`, and `language` are optional symbol filters.
+- `limit` and `offset` are optional pagination inputs for empty-query symbol browsing (defaults: `20` and `0`).
+
 External symbol retrieval flow:
 1. Dependency API indexing is opt-in and reads declaration surfaces from direct dependencies only:
    - npm: top-level `package.json` direct deps (`dependencies` / `devDependencies` / `peerDependencies`)
