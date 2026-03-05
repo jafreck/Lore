@@ -1,1 +1,0 @@
-/Users/jacobfreck/.cadre/agents-cache-copilot/dependency-analyst.agent.md

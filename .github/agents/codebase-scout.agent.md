@@ -1,1 +1,0 @@
-/Users/jacobfreck/.cadre/agents-cache-copilot/codebase-scout.agent.md
