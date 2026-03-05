@@ -74,6 +74,21 @@ function queryCommitCount(dbPath: string): number {
   return row.count;
 }
 
+function queryCommitEmbeddingCount(dbPath: string): number {
+  const db = new Database(dbPath, { readonly: true });
+  (esmRequire('sqlite-vec') as { load(database: Database.Database): void }).load(db);
+  const hasTable = db
+    .prepare("SELECT name FROM sqlite_master WHERE type IN ('table', 'virtual table') AND name = 'commit_embeddings'")
+    .get() as { name: string } | undefined;
+  if (!hasTable) {
+    db.close();
+    return 0;
+  }
+  const row = db.prepare('SELECT COUNT(*) AS count FROM commit_embeddings').get() as { count: number };
+  db.close();
+  return row.count;
+}
+
 function queryKbMetaValue(dbPath: string, key: string): string | undefined {
   const db = new Database(dbPath, { readonly: true });
   const row = db.prepare('SELECT value FROM kb_meta WHERE key = ?').get(key) as
@@ -262,6 +277,68 @@ describe('IndexBuilder — dependency indexing options', () => {
 
     expect(querySymbolNamesForFile(dbPath, join(srcDir, 'hello.ts'), branch)).toContain('hello');
     expect(queryCommitCount(dbPath)).toBeGreaterThan(0);
+    expect(queryCommitEmbeddingCount(dbPath)).toBe(0);
+  });
+
+  it('should persist commit embeddings during build when history and an embedder are enabled', async () => {
+    createGitRepoWithCommit(srcDir);
+
+    const embedder: EmbeddingProvider = {
+      modelName: 'test-embedder',
+      dims: 3,
+      async init(): Promise<void> {},
+      async embed(texts: string[]): Promise<number[][]> {
+        return texts.map((_, i) => [i + 1, i + 2, i + 3]);
+      },
+      async dispose(): Promise<void> {},
+    };
+
+    const builder = new IndexBuilder(
+      dbPath,
+      { rootDir: srcDir, branch: 'main' },
+      embedder,
+      { history: true },
+    );
+    await builder.build();
+
+    expect(queryCommitCount(dbPath)).toBeGreaterThan(0);
+    expect(queryCommitEmbeddingCount(dbPath)).toBe(queryCommitCount(dbPath));
+  });
+
+  it('should skip commit embeddings for empty commit messages during build', async () => {
+    runGit(srcDir, ['init']);
+    runGit(srcDir, ['config', 'user.name', 'Test User']);
+    runGit(srcDir, ['config', 'user.email', 'test@example.com']);
+    runGit(srcDir, ['add', 'hello.ts']);
+    runGit(srcDir, ['commit', '--allow-empty-message', '-m', '']);
+
+    const embedder: EmbeddingProvider = {
+      modelName: 'test-embedder',
+      dims: 3,
+      async init(): Promise<void> {},
+      async embed(texts: string[]): Promise<number[][]> {
+        return texts.map((_, i) => [i + 1, i + 2, i + 3]);
+      },
+      async dispose(): Promise<void> {},
+    };
+
+    const builder = new IndexBuilder(
+      dbPath,
+      { rootDir: srcDir, branch: 'main' },
+      embedder,
+      { history: true },
+    );
+    await builder.build();
+
+    const db = new Database(dbPath, { readonly: true });
+    const nonEmptyCommitMessages = db.prepare(
+      'SELECT COUNT(*) AS count FROM commits WHERE length(trim(message)) > 0',
+    ).get() as { count: number };
+    db.close();
+
+    expect(queryCommitCount(dbPath)).toBeGreaterThan(0);
+    expect(nonEmptyCommitMessages.count).toBe(0);
+    expect(queryCommitEmbeddingCount(dbPath)).toBe(0);
   });
 
   it('should index only direct dependency declaration exports into external_symbols', async () => {
@@ -830,6 +907,7 @@ describe('IndexBuilder — branch support in update()', () => {
     await builder.update([srcFile]);
 
     expect(queryCommitCount(dbPath)).toBeGreaterThan(0);
+    expect(queryCommitEmbeddingCount(dbPath)).toBe(0);
   });
 
   it('should respect history options during update() when history is configured as an object', async () => {
@@ -849,6 +927,39 @@ describe('IndexBuilder — branch support in update()', () => {
     await builder.update([srcFile]);
 
     expect(queryCommitCount(dbPath)).toBe(1);
+  });
+
+  it('should persist commit embeddings during update() when history and an embedder are enabled', async () => {
+    runGit(srcDir, ['init']);
+    runGit(srcDir, ['config', 'user.name', 'Test User']);
+    runGit(srcDir, ['config', 'user.email', 'test@example.com']);
+    runGit(srcDir, ['add', 'hello.ts']);
+    runGit(srcDir, ['commit', '-m', 'initial commit']);
+
+    writeFileSync(srcFile, 'export function updatedWithHistoryEmbeddings(): void {}\n');
+    runGit(srcDir, ['add', 'hello.ts']);
+    runGit(srcDir, ['commit', '-m', 'second commit']);
+
+    const embedder: EmbeddingProvider = {
+      modelName: 'test-embedder',
+      dims: 3,
+      async init(): Promise<void> {},
+      async embed(texts: string[]): Promise<number[][]> {
+        return texts.map((_, i) => [i + 1, i + 2, i + 3]);
+      },
+      async dispose(): Promise<void> {},
+    };
+
+    const builder = new IndexBuilder(
+      dbPath,
+      { rootDir: srcDir, branch: 'main' },
+      embedder,
+      { history: true },
+    );
+    await builder.update([srcFile]);
+
+    expect(queryCommitCount(dbPath)).toBeGreaterThan(0);
+    expect(queryCommitEmbeddingCount(dbPath)).toBe(queryCommitCount(dbPath));
   });
 
   it('should not persist structural embeddings during update() when embedder is not configured', async () => {

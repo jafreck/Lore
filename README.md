@@ -163,7 +163,7 @@ await builder.build();
 | `lore_snippet` | Return source snippets by file path and line range |
 | `lore_test_map` | Return mapped test files (with confidence) for a given source file path |
 | `lore_blame` | Return git blame metadata for a line or line range |
-| `lore_history` | Query commit history by file, commit, author, ref, or recency |
+| `lore_history` | Query commit history by file, commit, author, ref, recency, or semantic commit-message similarity |
 | `lore_commit_stats` | Git commit analytics: cadence, size, churn, top authors, message patterns, schedule heatmaps, branch activity |
 | `lore_metrics` | Aggregate index metrics plus coverage/staleness fields |
 | `lore_coverage` | Symbol-level coverage, uncovered lines, and staleness metadata |
@@ -195,6 +195,7 @@ await builder.build();
 | Mode | Query |
 |------|-------|
 | `recent` | Newest commits |
+| `semantic` | Conceptual commit-message search (falls back to `recent` when vectors are unavailable) |
 | `file` | Commits that touched a path |
 | `commit` | Full/prefix SHA lookup (+files +refs) |
 | `author` | Commits by author/email substring |
@@ -280,6 +281,7 @@ Indexed tables:
 - `commits` — sha, author, author_email, timestamp, message, parents
 - `commit_files` — per-commit touched paths with change type and diff stats
 - `commit_refs` — refs currently pointing at commits (`branch`/`tag`/`other`)
+- `commit_embeddings` — commit-message vectors keyed to `commits` for semantic history retrieval
 
 Programmatic example:
 
@@ -318,6 +320,8 @@ npx @jafreck/lore index --root ./my-project --db ./kb.db \
 At query time, `lore_search` in `semantic` or `fused` mode embeds the query
 and performs cosine similarity against stored vectors. If the model cannot
 initialize, search gracefully degrades to structural BM25.
+When history indexing is enabled, Lore also stores commit-message vectors in
+`commit_embeddings` so `lore_history` can serve semantic commit retrieval.
 
 ### LSP enrichment
 

@@ -815,6 +815,15 @@ export interface CommitRefRow {
   ref_type: string;
 }
 
+function hasCommitEmbeddingsTable(db: Database.Database): boolean {
+  const row = db
+    .prepare(
+      "SELECT 1 AS ok FROM sqlite_master WHERE type IN ('table', 'virtual table') AND name = 'commit_embeddings' LIMIT 1",
+    )
+    .get() as { ok: number } | undefined;
+  return row?.ok === 1;
+}
+
 export interface CommitStatsFilters {
   since?: string;
   until?: string;
@@ -1036,6 +1045,45 @@ export function listCommitsByRef(db: Database.Database, refQuery: string, limit 
          LIMIT ?`,
       )
       .all(exact, wildcard, limit) as CommitRow[];
+  } catch {
+    return [];
+  }
+}
+
+/** Whether commit semantic vectors are queryable and contain at least one row. */
+export function hasCommitEmbeddings(db: Database.Database): boolean {
+  if (!hasCommitEmbeddingsTable(db)) {
+    return false;
+  }
+  try {
+    const row = db.prepare('SELECT 1 AS ok FROM commit_embeddings LIMIT 1').get() as { ok: number } | undefined;
+    return row?.ok === 1;
+  } catch {
+    return false;
+  }
+}
+
+/** Return commits ranked by commit-message vector distance (ascending). */
+export function listCommitsBySemanticQuery(
+  db: Database.Database,
+  queryVector: number[],
+  limit = 50,
+): CommitRow[] {
+  if (queryVector.length === 0 || !hasCommitEmbeddings(db)) {
+    return [];
+  }
+
+  try {
+    return db
+      .prepare(
+        `SELECT c.*
+           FROM commit_embeddings ce
+           JOIN commits c ON c.rowid = ce.rowid
+          WHERE ce.embedding MATCH ?
+            AND k = ?
+          ORDER BY distance, c.timestamp DESC, c.sha ASC`,
+      )
+      .all(JSON.stringify(queryVector), limit) as CommitRow[];
   } catch {
     return [];
   }
