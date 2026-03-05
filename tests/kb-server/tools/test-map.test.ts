@@ -94,8 +94,8 @@ describe('test-map handler', () => {
 });
 
 describe('test-map toolDef', () => {
-  it('should expose lore_test_map with source_path required and optional branch', () => {
-    expect(toolDef.name).toBe('lore_test_map');
+  it('should expose kb_test_map with source_path required and optional branch', () => {
+    expect(toolDef.name).toBe('kb_test_map');
     expect(toolDef.inputSchema.required).toEqual(['source_path']);
     expect(toolDef.inputSchema.properties.source_path.type).toBe('string');
     expect(toolDef.inputSchema.properties.branch.type).toBe('string');

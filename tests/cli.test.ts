@@ -19,9 +19,10 @@ function freshDb(): string {
  * main() re-executes. Returns once the module is evaluated (main() may still
  * be running asynchronously at that point).
  */
-async function loadCli(args: string[]): Promise<void> {
+async function loadCli(args: string[], applyMocks?: () => void): Promise<void> {
   process.argv = ['node', 'lore', ...args];
   vi.resetModules();
+  applyMocks?.();
   await import('../../src/cli.js');
 }
 
@@ -121,6 +122,22 @@ describe('cli', () => {
       expect(consoleErrorSpy).toHaveBeenCalledWith(
         expect.stringContaining('--db'),
       );
+    });
+  });
+
+  describe('index subcommand — dependency indexing option', () => {
+    it('should complete indexing when --index-deps is omitted', async () => {
+      const dbPath = freshDb();
+      await loadCli(['index', '--db', dbPath, '--root', tmpDir]);
+      await waitForFile(dbPath);
+      expect(nodeFs.existsSync(dbPath)).toBe(true);
+    });
+
+    it('should complete indexing when --index-deps is provided', async () => {
+      const dbPath = freshDb();
+      await loadCli(['index', '--db', dbPath, '--root', tmpDir, '--index-deps']);
+      await waitForFile(dbPath);
+      expect(nodeFs.existsSync(dbPath)).toBe(true);
     });
   });
 
@@ -293,6 +310,13 @@ describe('cli', () => {
   // ── refresh subcommand — manual mode ──────────────────────────────────────
 
   describe('refresh subcommand — manual mode', () => {
+    it('should complete refresh when --index-deps is provided', async () => {
+      const dbPath = freshDb();
+      await loadCli(['refresh', '--db', dbPath, '--root', tmpDir, '--index-deps']);
+      await waitForStderr(stderrSpy, 'refresh complete');
+      expect(nodeFs.existsSync(dbPath)).toBe(true);
+    });
+
     it('should write a structured info log to stderr and exit cleanly when the DB does not yet exist', async () => {
       const dbPath = freshDb();
       await loadCli(['refresh', '--db', dbPath, '--root', tmpDir]);

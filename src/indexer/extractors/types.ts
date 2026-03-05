@@ -10,6 +10,14 @@ import type Parser from 'tree-sitter';
 // ─── Raw data types ───────────────────────────────────────────────────────────
 
 /** A symbol (function, class, struct, etc.) extracted from a source file. */
+export interface DeclarationSurface {
+  /** True when symbol is externally visible from the module/package boundary. */
+  isPublic: boolean;
+  /** True when symbol comes from a declaration-only API surface (no implementation body). */
+  isDeclaration: boolean;
+}
+
+/** A symbol (function, class, struct, etc.) extracted from a source file. */
 export interface RawSymbol {
   /** Simple name of the symbol (e.g. `myFunc`, `MyStruct`). */
   name: string;
@@ -23,6 +31,10 @@ export interface RawSymbol {
   signature: string;
   /** Documentation comment immediately preceding the symbol, if extracted by the language extractor. */
   docComment?: string;
+  /** True when declaration is exported from its module. */
+  isExported?: boolean;
+  /** Normalized declaration-surface metadata for dependency API indexing. */
+  declarationSurface?: DeclarationSurface;
   /** Original AST node for the symbol declaration/expression, when available. */
   astNode?: Parser.SyntaxNode;
 }
@@ -156,4 +168,17 @@ export function nodeSignature(node: Parser.SyntaxNode): string {
 /** Returns an empty `ExtractionResult`. */
 export function emptyResult(): ExtractionResult {
   return { symbols: [], imports: [], callRefs: [], envRefs: [], relationships: [], routes: [] };
+}
+
+/**
+ * Returns true when a symbol belongs to the public declaration API surface.
+ *
+ * Falls back to `isExported` so existing extractors remain compatible while
+ * they migrate to `declarationSurface`.
+ */
+export function isPublicDeclarationSurfaceSymbol(symbol: RawSymbol): boolean {
+  if (symbol.declarationSurface) {
+    return symbol.declarationSurface.isPublic && symbol.declarationSurface.isDeclaration;
+  }
+  return symbol.isExported === true;
 }

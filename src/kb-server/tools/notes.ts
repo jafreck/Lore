@@ -2,8 +2,8 @@
  * @module kb-server/tools/notes
  *
  * MCP tools:
- * - lore_notes_write: upsert notes by (key, scope)
- * - lore_notes_read: retrieve notes with staleness/recency metadata
+ * - kb_notes_write: upsert notes by (key, scope)
+ * - kb_notes_read: retrieve notes with staleness/recency metadata
  */
 
 import Database from 'better-sqlite3';
@@ -14,7 +14,7 @@ const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 200;
 
 export const kbNotesWriteToolDef = {
-  name: 'lore_notes_write',
+  name: 'kb_notes_write',
   description:
     'Upsert an LLM-authored note in the knowledge base by key and scope. ' +
     'Defaults scope to "global" and updates updated_at on existing notes.',
@@ -38,7 +38,7 @@ export const kbNotesWriteToolDef = {
 } as const;
 
 export const kbNotesReadToolDef = {
-  name: 'lore_notes_read',
+  name: 'kb_notes_read',
   description:
     'Read notes by exact key and/or key prefix, optionally filtered by scope. ' +
     'Returns staleness metadata for file-scoped notes and recency metadata for global notes.',

@@ -74,6 +74,7 @@ describe('openDb', () => {
     ).map((r) => r.name);
     expect(tables).toContain('files');
     expect(tables).toContain('symbols');
+    expect(tables).toContain('external_symbols');
     expect(tables).toContain('kb_meta');
     expect(tables).toContain('test_mappings');
     expect(tables).toContain('commit_refs');
@@ -129,6 +130,90 @@ describe('openDb', () => {
     expect(
       (db.prepare('SELECT COUNT(*) AS count FROM test_mappings').get() as { count: number }).count,
     ).toBe(0);
+  });
+
+  it('should create external_symbols with expected columns and indexes', () => {
+    db = openDb(dbPath);
+    const columns = db.pragma('table_info(external_symbols)') as Array<{ name: string }>;
+    expect(columns.map((column) => column.name)).toEqual(
+      expect.arrayContaining([
+        'dependency_ecosystem',
+        'source_type',
+        'source_ref',
+        'package_name',
+        'package_version',
+        'symbol_name',
+        'symbol_kind',
+        'signature',
+        'doc_comment',
+      ]),
+    );
+
+    const indexes = (
+      db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='external_symbols'").all() as Array<{ name: string }>
+    ).map((row) => row.name);
+    expect(indexes).toEqual(
+      expect.arrayContaining([
+        'idx_external_symbols_dependency_ecosystem',
+        'idx_external_symbols_package_name',
+        'idx_external_symbols_symbol_name',
+      ]),
+    );
+  });
+
+  it('should apply default metadata values for external_symbols when omitted', () => {
+    db = openDb(dbPath);
+    db.prepare(
+      `INSERT INTO external_symbols (package_name, package_version, symbol_name, symbol_kind)
+       VALUES ('left-pad', '1.3.0', 'leftPad', 'function')`,
+    ).run();
+
+    const row = db
+      .prepare(
+        `SELECT dependency_ecosystem, source_type, source_ref, signature
+         FROM external_symbols
+         WHERE package_name = 'left-pad'`,
+      )
+      .get() as
+      | {
+          dependency_ecosystem: string;
+          source_type: string;
+          source_ref: string;
+          signature: string;
+        }
+      | undefined;
+
+    expect(row).toEqual({
+      dependency_ecosystem: 'npm',
+      source_type: 'declaration',
+      source_ref: '',
+      signature: '',
+    });
+  });
+
+  it('should enforce unique external_symbols rows for an ecosystem/package/version/symbol signature', () => {
+    db = openDb(dbPath);
+    db.prepare(
+      `INSERT INTO external_symbols
+        (dependency_ecosystem, package_name, package_version, symbol_name, symbol_kind, signature, doc_comment)
+       VALUES ('npm', 'left-pad', '1.3.0', 'leftPad', 'function', 'leftPad(input: string): string', '/** docs */')`,
+    ).run();
+
+    expect(() =>
+      db.prepare(
+        `INSERT INTO external_symbols
+          (dependency_ecosystem, package_name, package_version, symbol_name, symbol_kind, signature)
+         VALUES ('npm', 'left-pad', '1.3.0', 'leftPad', 'function', 'leftPad(input: string): string')`,
+      ).run(),
+    ).toThrow();
+
+    expect(() =>
+      db.prepare(
+        `INSERT INTO external_symbols
+          (dependency_ecosystem, package_name, package_version, symbol_name, symbol_kind, signature)
+         VALUES ('pypi', 'left-pad', '1.3.0', 'leftPad', 'function', 'leftPad(input: string): string')`,
+      ).run(),
+    ).not.toThrow();
   });
 
   it('should enforce foreign keys from coverage tables to coverage runs', () => {

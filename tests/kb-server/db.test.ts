@@ -11,6 +11,8 @@ import {
   listConfigEntries,
   listTestMappingsBySourcePath,
   getSymbolsByName,
+  getExternalSymbolsByName,
+  searchExternalSymbolsByName,
   listSymbols,
   getSymbolById,
   getCommitBySha,
@@ -53,6 +55,18 @@ function createTestDb(): Database.Database {
       end_line    INTEGER NOT NULL,
       signature   TEXT,
       doc_comment TEXT
+    );
+    CREATE TABLE external_symbols (
+      id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+      dependency_ecosystem TEXT    NOT NULL DEFAULT 'npm',
+      source_type          TEXT    NOT NULL DEFAULT 'declaration',
+      source_ref           TEXT    NOT NULL DEFAULT '',
+      package_name         TEXT    NOT NULL,
+      package_version      TEXT,
+      symbol_name          TEXT    NOT NULL,
+      symbol_kind          TEXT    NOT NULL,
+      signature            TEXT    NOT NULL DEFAULT '',
+      doc_comment          TEXT
     );
     CREATE TABLE config_entries (
       id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -191,6 +205,38 @@ function insertSymbol(
       'INSERT INTO symbols (file_id, name, kind, start_line, end_line) VALUES (?, ?, ?, 1, 10)'
     )
     .run(fileId, name, kind);
+  return result.lastInsertRowid as number;
+}
+
+function insertExternalSymbol(
+  db: Database.Database,
+  packageName: string,
+  packageVersion: string | null,
+  symbolName: string,
+  symbolKind: string,
+  signature: string,
+  docComment: string | null,
+  dependencyEcosystem = 'npm',
+  sourceType = 'declaration',
+  sourceRef = '',
+): number {
+  const result = db
+    .prepare(
+      `INSERT INTO external_symbols
+        (dependency_ecosystem, source_type, source_ref, package_name, package_version, symbol_name, symbol_kind, signature, doc_comment)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .run(
+      dependencyEcosystem,
+      sourceType,
+      sourceRef,
+      packageName,
+      packageVersion,
+      symbolName,
+      symbolKind,
+      signature,
+      docComment,
+    );
   return result.lastInsertRowid as number;
 }
 
@@ -574,6 +620,144 @@ describe('getSymbolsByName', () => {
 
   it('should return empty array when branch has no matching symbol', () => {
     expect(getSymbolsByName(db, 'parseConfig', 'nonexistent-branch')).toEqual([]);
+  });
+});
+
+// ─── external symbol helpers ───────────────────────────────────────────────────
+
+describe('external symbol helpers', () => {
+  let db: Database.Database;
+
+  beforeEach(() => {
+    db = createTestDb();
+    insertExternalSymbol(
+      db,
+      'left-pad',
+      '1.3.0',
+      'leftPad',
+      'function',
+      'function leftPad(input: string): string;',
+      '/** Left-pad a string */',
+    );
+    insertExternalSymbol(
+      db,
+      'dep-utils',
+      '2.0.0',
+      'leftPad',
+      'function',
+      'function leftPad(value: string, size: number): string;',
+      null,
+    );
+    insertExternalSymbol(
+      db,
+      'dep-utils',
+      '2.0.0',
+      'mapValues',
+      'function',
+      'function mapValues<T, U>(values: T[]): U[];',
+      '/** Map values */',
+    );
+  });
+
+  it('should return exact external symbol name matches with metadata', () => {
+    const rows = getExternalSymbolsByName(db, 'leftpad');
+    expect(rows.length).toBe(2);
+    expect(rows[0]).toMatchObject({
+      package_name: 'dep-utils',
+      package_version: '2.0.0',
+      symbol_name: 'leftPad',
+      symbol_kind: 'function',
+      dependency_ecosystem: 'npm',
+      source_type: 'declaration',
+      source_ref: '',
+    });
+    expect(rows[0]).toHaveProperty('signature');
+    expect(rows[0]).toHaveProperty('doc_comment');
+  });
+
+  it('should return filtered external symbol name matches and respect limit', () => {
+    const rows = searchExternalSymbolsByName(db, 'pad', 1);
+    expect(rows.length).toBe(1);
+    expect(rows[0]?.symbol_name).toBe('leftPad');
+    expect(rows[0]).toHaveProperty('package_name');
+    expect(rows[0]).toHaveProperty('package_version');
+    expect(rows[0]).toHaveProperty('dependency_ecosystem');
+    expect(rows[0]).toHaveProperty('source_type');
+    expect(rows[0]).toHaveProperty('source_ref');
+  });
+
+  it('should order exact external symbol matches by ecosystem and package and preserve source metadata', () => {
+    insertExternalSymbol(
+      db,
+      'zeta-tools',
+      '0.9.0',
+      'leftPad',
+      'function',
+      'def leftPad(value: str) -> str;',
+      null,
+      'pypi',
+      'manifest',
+      'requirements.txt',
+    );
+
+    const rows = getExternalSymbolsByName(db, 'leftPad');
+    expect(rows.map((row) => `${row.dependency_ecosystem}:${row.package_name}`)).toEqual([
+      'npm:dep-utils',
+      'npm:left-pad',
+      'pypi:zeta-tools',
+    ]);
+    expect(rows[2]).toMatchObject({
+      dependency_ecosystem: 'pypi',
+      source_type: 'manifest',
+      source_ref: 'requirements.txt',
+    });
+  });
+
+  it('should return an empty array when an exact external symbol name is not found', () => {
+    expect(getExternalSymbolsByName(db, 'doesNotExist')).toEqual([]);
+  });
+
+  it('should perform case-insensitive filtered external symbol search', () => {
+    const rows = searchExternalSymbolsByName(db, 'PAD');
+    expect(rows.length).toBe(2);
+    expect(rows.map((row) => row.symbol_name)).toEqual(['leftPad', 'leftPad']);
+  });
+
+  it('should apply the default limit of 100 for filtered external symbol searches', () => {
+    for (let index = 0; index < 120; index += 1) {
+      insertExternalSymbol(
+        db,
+        `pkg-${index}`,
+        '1.0.0',
+        `padSymbol${index}`,
+        'function',
+        `function padSymbol${index}(): void;`,
+        null,
+      );
+    }
+
+    const rows = searchExternalSymbolsByName(db, 'pad');
+    expect(rows.length).toBe(100);
+    expect(rows.every((row) => row.symbol_name.toLowerCase().includes('pad'))).toBe(true);
+  });
+
+  it('should return empty arrays when external_symbols table is unavailable', () => {
+    const noExternalDb = new Database(':memory:');
+    noExternalDb.exec(`
+      CREATE TABLE files (id INTEGER PRIMARY KEY, path TEXT NOT NULL, branch TEXT NOT NULL, language TEXT NOT NULL);
+      CREATE TABLE symbols (
+        id INTEGER PRIMARY KEY,
+        file_id INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        start_line INTEGER NOT NULL,
+        end_line INTEGER NOT NULL
+      );
+    `);
+
+    expect(getExternalSymbolsByName(noExternalDb, 'leftPad')).toEqual([]);
+    expect(searchExternalSymbolsByName(noExternalDb, 'left')).toEqual([]);
+    noExternalDb.close();
   });
 });
 

@@ -23,10 +23,10 @@ import * as fs from 'node:fs';
 function usage(): never {
   console.error(
     `Usage:
-  lore index --root <dir> --db <path> [--embedding-model <id>] [--history] [--history-depth <n>] [--history-all]
+  lore index --root <dir> --db <path> [--embedding-model <id>] [--index-deps] [--history] [--history-depth <n>] [--history-all]
                          Index a codebase into a knowledge-base SQLite file
   lore mcp --db <path>                          Start the KB MCP server (stdio transport)
-  lore refresh --db <path> --root <dir> [--history] [--history-depth <n>] [--history-all]  Run an incremental index update and exit
+  lore refresh --db <path> --root <dir> [--index-deps] [--history] [--history-depth <n>] [--history-all]  Run an incremental index update and exit
   lore refresh --db <path> --root <dir> --watch Watch for file changes and refresh automatically
   lore refresh --db <path> --root <dir> --poll  Poll for file changes and refresh automatically
   lore hooks --db <path> --root <dir> [--history] [--history-depth <n>] [--history-all]
@@ -38,6 +38,7 @@ Options:
   --root <dir>             Root directory to index (required for index, refresh)
   --db <path>              Path to a Lore knowledge-base SQLite file (required for index, mcp, refresh)
   --embedding-model <id>   Embedding model identifier (default: Qwen/Qwen3-Embedding-4B)
+  --index-deps             Enable dependency API indexing (disabled by default)
   --history                Enable git history ingestion
   --history-depth <n>      Limit commit ingestion to the most recent N commits
   --history-all            Traverse all refs (branches/tags) for history ingestion
@@ -95,6 +96,7 @@ async function main(): Promise<void> {
       return;
     }
     const embeddingModel = flag(args, '--embedding-model');
+    const indexDependencies = args.includes('--index-deps');
     const historyEnabled = args.includes('--history');
     const historyAll = args.includes('--history-all');
     const historyDepthRaw = flag(args, '--history-depth');
@@ -161,6 +163,7 @@ async function main(): Promise<void> {
 
     const shouldEnableHistory = historyEnabled || historyAll || historyDepth !== undefined;
     const options = {
+      indexDependencies,
       ...(embeddingModel && { embeddingModel }),
       ...(shouldEnableHistory && {
         history: {
@@ -179,7 +182,7 @@ async function main(): Promise<void> {
         ...(extensions && { extensions }),
       },
       undefined,
-      Object.keys(options).length > 0 ? options : undefined,
+      options,
     );
     await builder.build();
   } else if (subcommand === 'mcp') {
@@ -242,6 +245,7 @@ async function main(): Promise<void> {
 
     const watchMode = args.includes('--watch');
     const pollMode = args.includes('--poll');
+    const indexDependencies = args.includes('--index-deps');
 
     const historyEnabled = args.includes('--history');
     const historyAll = args.includes('--history-all');
@@ -267,12 +271,14 @@ async function main(): Promise<void> {
       : false;
 
     const walkerConfig = { rootDir };
+    const refreshOptions = {
+      indexDependencies,
+      ...(shouldEnableHistory && { history: historyOption }),
+    };
 
     if (watchMode) {
       const { FileWatcher } = await import('./indexer/watcher.js');
-      const watcher = new FileWatcher(dbPath, walkerConfig, {
-        history: historyOption,
-      });
+      const watcher = new FileWatcher(dbPath, walkerConfig, refreshOptions);
       watcher.start();
       process.stderr.write(
         JSON.stringify({ level: 'info', source: 'cli', message: 'watch mode started', rootDir }) + '\n',
@@ -282,9 +288,7 @@ async function main(): Promise<void> {
       process.on('SIGTERM', () => { watcher.stop(); process.exit(0); });
     } else if (pollMode) {
       const { FilePoller } = await import('./indexer/poller.js');
-      const poller = new FilePoller(dbPath, walkerConfig, {
-        history: historyOption,
-      });
+      const poller = new FilePoller(dbPath, walkerConfig, refreshOptions);
       poller.start();
       process.stderr.write(
         JSON.stringify({ level: 'info', source: 'cli', message: 'poll mode started', rootDir }) + '\n',
@@ -295,9 +299,7 @@ async function main(): Promise<void> {
     } else {
       // Manual refresh: full build if DB doesn't exist yet, otherwise incremental update
       const { IndexBuilder } = await import('./indexer/index.js');
-      const builder = new IndexBuilder(dbPath, walkerConfig, undefined, {
-        ...(shouldEnableHistory && { history: historyOption }),
-      });
+      const builder = new IndexBuilder(dbPath, walkerConfig, undefined, refreshOptions);
 
       const dbExists = fs.existsSync(dbPath);
       if (dbExists) {

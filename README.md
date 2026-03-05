@@ -43,14 +43,14 @@ flowchart LR
     DB[(SQL DB)]
 
     subgraph MCP Server
-        LOOKUP[lore_lookup]
-        SEARCH[lore_search]
-        GRAPH[lore_graph]
-        SNIPPET[lore_snippet]
-        BLAME[lore_blame]
-        HISTORY[lore_history]
-        METRICS[lore_metrics]
-        WRITEBACK[lore_writeback]
+        LOOKUP[kb_lookup]
+        SEARCH[kb_search]
+        GRAPH[kb_graph]
+        SNIPPET[kb_snippet]
+        BLAME[kb_blame]
+        HISTORY[kb_history]
+        METRICS[kb_metrics]
+        WRITEBACK[kb_writeback]
     end
 
     subgraph MCP_CLIENTS[MCP Clients — Agents]
@@ -204,7 +204,7 @@ await new IndexBuilder(
 Build or update a knowledge base.
 
 ```bash
-npx @jafreck/lore index --root <dir> --db <path> [--embedding-model <id>] [--history] [--history-depth <n>] [--history-all] [--include <glob>] [--exclude <glob>] [--language <lang>]
+npx @jafreck/lore index --root <dir> --db <path> [--embedding-model <id>] [--index-deps] [--history] [--history-depth <n>] [--history-all] [--include <glob>] [--exclude <glob>] [--language <lang>]
 ```
 
 Key flags:
@@ -212,6 +212,7 @@ Key flags:
 - `--root <dir>` required source root
 - `--db <path>` required SQLite output path
 - `--embedding-model <id>` embedding model identifier
+- `--index-deps` opt-in dependency API indexing from direct dependency declaration files
 - `--history` enable git history ingestion
 - `--history-depth <n>` cap number of ingested commits
 - `--history-all` traverse all refs (branches/tags)
@@ -219,14 +220,32 @@ Key flags:
 - `--exclude` repeatable glob exclude filter
 - `--language` repeatable language filter (mapped to extensions)
 
+Dependency API indexing is disabled by default and only runs when `--index-deps`
+is provided (or `indexDependencies: true` in programmatic options). When
+enabled, Lore indexes declaration-level public API surface from direct
+dependencies across supported ecosystems:
+
+- TypeScript/JavaScript: exported declarations from `.d.ts` files in direct npm
+  dependencies declared in root `package.json` (`dependencies`,
+  `devDependencies`, `peerDependencies`)
+- Python: stubbed/public declarations from direct dependencies via `.pyi` and
+  `py.typed` package metadata
+- Go: exported declarations from direct module requirements declared in root
+  `go.mod`
+- Rust: `pub` declaration surface from crates declared directly in root
+  `Cargo.toml`
+
+For all ecosystems, Lore excludes implementation bodies and does not crawl
+transitive dependency trees.
+
 ### lore refresh
 
 Incremental refresh flow for an existing index.
 
 ```bash
-npx @jafreck/lore refresh --db <path> --root <dir> [--history] [--history-depth <n>] [--history-all]
-npx @jafreck/lore refresh --db <path> --root <dir> --watch [--history]
-npx @jafreck/lore refresh --db <path> --root <dir> --poll [--history]
+npx @jafreck/lore refresh --db <path> --root <dir> [--index-deps] [--history] [--history-depth <n>] [--history-all]
+npx @jafreck/lore refresh --db <path> --root <dir> --watch [--index-deps] [--history]
+npx @jafreck/lore refresh --db <path> --root <dir> --poll [--index-deps] [--history]
 ```
 
 Modes:
@@ -285,15 +304,15 @@ gracefully degrades to structural search.
 
 | Tool | Purpose |
 |------|---------|
-| `lore_lookup` | Find symbols by name or files by path (optional branch filter) |
-| `lore_search` | Structural BM25, semantic vector, or fused RRF search |
-| `lore_graph` | Query call/import/module/inheritance edges; call edges include `callee_coverage_percent` |
-| `lore_snippet` | Return source snippets by file path and line range |
-| `lore_blame` | Return git blame metadata for a line or line range |
-| `lore_history` | Query history by file, commit, author, ref, or recency |
-| `lore_metrics` | Return aggregate index metrics plus coverage/staleness fields (`coverage_available`, `coverage_commit`, `current_commit`, `commits_behind`, `stale`, global coverage totals) |
-| `lore_coverage` | Return symbol-level coverage, uncovered lines, and staleness metadata for the latest coverage run |
-| `lore_writeback` | Persist symbol summaries into `symbol_summaries` |
+| `kb_lookup` | Find symbols by name or files by path (optional branch filter), including external dependency API symbols from `external_symbols` in symbol lookups |
+| `kb_search` | Structural BM25, semantic vector, or fused RRF search; structural symbol queries also include external dependency API name matches from `external_symbols` |
+| `kb_graph` | Query call/import/module/inheritance edges; call edges include `callee_coverage_percent` |
+| `kb_snippet` | Return source snippets by file path and line range |
+| `kb_blame` | Return git blame metadata for a line or line range |
+| `kb_history` | Query history by file, commit, author, ref, or recency |
+| `kb_metrics` | Return aggregate index metrics plus coverage/staleness fields (`coverage_available`, `coverage_commit`, `current_commit`, `commits_behind`, `stale`, global coverage totals) |
+| `kb_coverage` | Return symbol-level coverage, uncovered lines, and staleness metadata for the latest coverage run |
+| `kb_writeback` | Persist symbol summaries into `symbol_summaries` |
 
 ### MCP config example
 
@@ -310,7 +329,7 @@ gracefully degrades to structural search.
 
 ## Git history indexing
 
-Lore can ingest full git history and expose it through `lore_history`.
+Lore can ingest full git history and expose it through `kb_history`.
 
 ### Indexed history tables
 
@@ -318,7 +337,7 @@ Lore can ingest full git history and expose it through `lore_history`.
 - `commit_files`: per-commit touched paths with change type and diff stats
 - `commit_refs`: refs currently pointing at commits (`branch`/`tag`/`other`)
 
-### lore_history modes
+### kb_history modes
 
 - `recent`: newest commits
 - `file`: commits that touched a path
@@ -328,7 +347,7 @@ Lore can ingest full git history and expose it through `lore_history`.
 
 ## Blame queries
 
-Use `lore_blame` for line-level attribution.
+Use `kb_blame` for line-level attribution.
 
 Examples:
 
