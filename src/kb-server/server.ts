@@ -171,6 +171,17 @@ export function createKbMcpServer(
         .optional()
         .describe('Search mode (default: structural).'),
       limit: z.number().optional().describe('Max results (default 20).'),
+      path_prefix: z.string().optional().describe('Optional source file path prefix filter for symbol results.'),
+      language: z.string().optional().describe('Optional source language filter for symbol results.'),
+      kind: z.string().optional().describe('Optional symbol kind filter for symbol results.'),
+      doc_path_prefix: z
+        .string()
+        .optional()
+        .describe('Optional documentation path prefix filter for semantic/fused doc-section results.'),
+      doc_kind: z
+        .string()
+        .optional()
+        .describe('Optional documentation kind filter for semantic/fused doc-section results.'),
       branch: z.string().optional().describe('Optional branch to filter results. Query-time retrieval uses SQLite-only persisted data.'),
     },
     async (args) => ({

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import Database from 'better-sqlite3';
 import { createRequire } from 'node:module';
-import { handler, type SearchArgs, type SearchResult, type SearchObservation, type SearchObserver } from '../../../src/kb-server/tools/search.js';
+import { handler, toolDef, type SearchArgs, type SearchResult, type SearchObservation, type SearchObserver } from '../../../src/kb-server/tools/search.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -177,6 +177,24 @@ function insertDocSectionEmbedding(
   ).run(sectionId, JSON.stringify(embedding));
 }
 
+describe('search toolDef', () => {
+  it('should expose optional symbol and doc filter fields in input schema', () => {
+    const props = toolDef.inputSchema.properties as Record<string, { type?: string; description?: string }>;
+
+    expect(props.path_prefix?.type).toBe('string');
+    expect(props.path_prefix?.description).toContain('source file path prefix');
+    expect(props.language?.type).toBe('string');
+    expect(props.language?.description).toContain('source language filter');
+    expect(props.kind?.type).toBe('string');
+    expect(props.kind?.description).toContain('symbol kind filter');
+    expect(props.doc_path_prefix?.type).toBe('string');
+    expect(props.doc_path_prefix?.description).toContain('documentation path prefix filter');
+    expect(props.doc_kind?.type).toBe('string');
+    expect(props.doc_kind?.description).toContain('documentation kind filter');
+    expect(toolDef.inputSchema.required).toEqual(['query']);
+  });
+});
+
 // ─── handler (structural mode) ────────────────────────────────────────────────
 
 describe('search handler – structural mode', () => {
@@ -273,6 +291,21 @@ describe('search handler – structural mode', () => {
   it('should return empty results for an unmatched query', async () => {
     const result = await handler(db, { query: 'zzz_no_match_zzz', mode: 'structural' });
     expect(result.results).toEqual([]);
+  });
+
+  it('should accept optional filter arguments without breaking structural search', async () => {
+    const args: SearchArgs = {
+      query: 'parseConfig',
+      mode: 'structural',
+      path_prefix: 'src/',
+      language: 'typescript',
+      kind: 'function',
+      doc_path_prefix: 'docs/',
+      doc_kind: 'guide',
+    };
+    const result = await handler(db, args);
+    expect(result.mode_used).toBe('structural');
+    expect(result.results.length).toBeGreaterThan(0);
   });
 });
 
