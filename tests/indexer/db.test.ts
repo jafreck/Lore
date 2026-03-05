@@ -2,13 +2,13 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import Database from 'better-sqlite3';
 import {
   openDb,
-  setKbMeta,
-  getKbMeta,
+  setLoreMeta,
+  getLoreMeta,
   createVec0Tables,
-  KB_META_INDEX_CHECKPOINT,
-  KB_META_LAST_HEAD_SHA,
-  KB_META_COVERAGE_LAST_SOURCE_PATH,
-  KB_META_COVERAGE_LAST_SOURCE_MTIME,
+  LORE_META_INDEX_CHECKPOINT,
+  LORE_META_LAST_HEAD_SHA,
+  LORE_META_COVERAGE_LAST_SOURCE_PATH,
+  LORE_META_COVERAGE_LAST_SOURCE_MTIME,
 } from '../../src/indexer/db.js';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -64,7 +64,7 @@ describe('openDb', () => {
     ).not.toThrow();
   });
 
-  it('should create the symbols, kb_meta, and other required tables', () => {
+  it('should create the symbols, lore_meta, and other required tables', () => {
     db = openDb(dbPath);
     const tables = (
       db
@@ -74,7 +74,7 @@ describe('openDb', () => {
     expect(tables).toContain('files');
     expect(tables).toContain('symbols');
     expect(tables).toContain('external_symbols');
-    expect(tables).toContain('kb_meta');
+    expect(tables).toContain('lore_meta');
     expect(tables).toContain('test_mappings');
     expect(tables).toContain('commit_refs');
     expect(tables).toContain('coverage_runs');
@@ -487,7 +487,7 @@ describe('openDb', () => {
   });
 });
 
-describe('setKbMeta / getKbMeta', () => {
+describe('setLoreMeta / getLoreMeta', () => {
   let dbPath: string;
   let db: Database.Database;
 
@@ -506,25 +506,25 @@ describe('setKbMeta / getKbMeta', () => {
   });
 
   it('should write and read a key-value pair', () => {
-    setKbMeta(db, 'schema_version', '1');
-    expect(getKbMeta(db, 'schema_version')).toBe('1');
+    setLoreMeta(db, 'schema_version', '1');
+    expect(getLoreMeta(db, 'schema_version')).toBe('1');
   });
 
   it('should return undefined for a missing key', () => {
-    expect(getKbMeta(db, 'nonexistent_key')).toBeUndefined();
+    expect(getLoreMeta(db, 'nonexistent_key')).toBeUndefined();
   });
 
   it('should overwrite an existing key', () => {
-    setKbMeta(db, 'model', 'v1');
-    setKbMeta(db, 'model', 'v2');
-    expect(getKbMeta(db, 'model')).toBe('v2');
+    setLoreMeta(db, 'model', 'v1');
+    setLoreMeta(db, 'model', 'v2');
+    expect(getLoreMeta(db, 'model')).toBe('v2');
   });
 
-  it('should export expected kb_meta key constants', () => {
-    expect(KB_META_INDEX_CHECKPOINT).toBe('index_checkpoint');
-    expect(KB_META_LAST_HEAD_SHA).toBe('last_known_head_sha');
-    expect(KB_META_COVERAGE_LAST_SOURCE_PATH).toBe('coverage_last_source_path');
-    expect(KB_META_COVERAGE_LAST_SOURCE_MTIME).toBe('coverage_last_source_mtime');
+  it('should export expected lore_meta key constants', () => {
+    expect(LORE_META_INDEX_CHECKPOINT).toBe('index_checkpoint');
+    expect(LORE_META_LAST_HEAD_SHA).toBe('last_known_head_sha');
+    expect(LORE_META_COVERAGE_LAST_SOURCE_PATH).toBe('coverage_last_source_path');
+    expect(LORE_META_COVERAGE_LAST_SOURCE_MTIME).toBe('coverage_last_source_mtime');
   });
 });
 
@@ -557,8 +557,8 @@ describe('createVec0Tables', () => {
 
     expect(tables).toContain('symbol_embeddings');
     expect(tables).toContain('symbol_semantic_embeddings');
+    expect(getLoreMeta(db, 'embedding_dims')).toBe('4');
     expect(tables).toContain('commit_embeddings');
-    expect(getKbMeta(db, 'embedding_dims')).toBe('4');
   });
 
   it('should be idempotent when called repeatedly with the same dimensions', () => {
@@ -569,6 +569,6 @@ describe('createVec0Tables', () => {
       .prepare("SELECT name FROM sqlite_master WHERE type IN ('table', 'virtual table') AND name = 'commit_embeddings'")
       .get() as { name: string } | undefined;
     expect(table?.name).toBe('commit_embeddings');
-    expect(getKbMeta(db, 'embedding_dims')).toBe('4');
+    expect(getLoreMeta(db, 'embedding_dims')).toBe('4');
   });
 });

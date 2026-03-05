@@ -82,7 +82,7 @@ function readDocsPaths(dbPath: string): string[] {
 
 function readKbMeta(dbPath: string, key: string): string | undefined {
   const db = new Database(dbPath, { readonly: true });
-  const row = db.prepare('SELECT value FROM kb_meta WHERE key = ?').get(key) as
+  const row = db.prepare('SELECT value FROM lore_meta WHERE key = ?').get(key) as
     | { value: string }
     | undefined;
   db.close();

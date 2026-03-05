@@ -150,7 +150,7 @@ CREATE TABLE IF NOT EXISTS symbol_metrics (
 CREATE INDEX IF NOT EXISTS idx_symbol_metrics_cyclomatic ON symbol_metrics(cyclomatic);
 
 -- Key-value store for knowledge-base metadata (schema version, embedding model, etc.).
-CREATE TABLE IF NOT EXISTS kb_meta (
+CREATE TABLE IF NOT EXISTS lore_meta (
   key   TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
@@ -344,21 +344,21 @@ function hasTableColumn(db: Database.Database, table: string, column: string): b
   return rows.some((row) => row.name === column);
 }
 
-// ─── kb_meta helpers ──────────────────────────────────────────────────────────
+// ─── lore_meta helpers ──────────────────────────────────────────────────────────
 
-export const KB_META_INDEX_CHECKPOINT = 'index_checkpoint';
-export const KB_META_LAST_HEAD_SHA = 'last_known_head_sha';
-export const KB_META_COVERAGE_LAST_SOURCE_PATH = 'coverage_last_source_path';
-export const KB_META_COVERAGE_LAST_SOURCE_MTIME = 'coverage_last_source_mtime';
+export const LORE_META_INDEX_CHECKPOINT = 'index_checkpoint';
+export const LORE_META_LAST_HEAD_SHA = 'last_known_head_sha';
+export const LORE_META_COVERAGE_LAST_SOURCE_PATH = 'coverage_last_source_path';
+export const LORE_META_COVERAGE_LAST_SOURCE_MTIME = 'coverage_last_source_mtime';
 
-/** Write (or overwrite) a key-value pair in `kb_meta`. */
-export function setKbMeta(db: Database.Database, key: string, value: string): void {
-  db.prepare('INSERT OR REPLACE INTO kb_meta (key, value) VALUES (?, ?)').run(key, value);
+/** Write (or overwrite) a key-value pair in `lore_meta`. */
+export function setLoreMeta(db: Database.Database, key: string, value: string): void {
+  db.prepare('INSERT OR REPLACE INTO lore_meta (key, value) VALUES (?, ?)').run(key, value);
 }
 
-/** Read a value from `kb_meta`; returns `undefined` if the key is absent. */
-export function getKbMeta(db: Database.Database, key: string): string | undefined {
-  const row = db.prepare('SELECT value FROM kb_meta WHERE key = ?').get(key) as
+/** Read a value from `lore_meta`; returns `undefined` if the key is absent. */
+export function getLoreMeta(db: Database.Database, key: string): string | undefined {
+  const row = db.prepare('SELECT value FROM lore_meta WHERE key = ?').get(key) as
     | { value: string }
     | undefined;
   return row?.value;
@@ -370,7 +370,7 @@ export function getKbMeta(db: Database.Database, key: string): string | undefine
  * Loads the sqlite-vec extension and creates the `symbol_embeddings`,
  * `symbol_semantic_embeddings`, and `commit_embeddings` vec0 virtual tables
  * with the given dimension.
- * Also stores `embedding_dims` in `kb_meta` for validation on reopen.
+ * Also stores `embedding_dims` in `lore_meta` for validation on reopen.
  *
  * This function is idempotent: it is safe to call multiple times with the
  * same `dims` value.
@@ -396,5 +396,5 @@ export function createVec0Tables(db: Database.Database, dims: number): void {
     );
   `);
 
-  setKbMeta(db, 'embedding_dims', String(dims));
+  setLoreMeta(db, 'embedding_dims', String(dims));
 }

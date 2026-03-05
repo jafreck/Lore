@@ -29,7 +29,7 @@ function usage(): never {
     `Usage:
   lore index --root <dir> --db <path> [--embedding-model <id>] [--index-deps] [--history] [--history-depth <n>] [--history-all]
                          Index a codebase into a knowledge-base SQLite file
-  lore mcp --db <path>                          Start the KB MCP server (stdio transport)
+  lore mcp --db <path>                          Start the Lore MCP server (stdio transport)
   lore refresh --db <path> --root <dir> [--index-deps] [--history] [--history-depth <n>] [--history-all]  Run an incremental index update and exit
   lore refresh --db <path> --root <dir> --watch Watch for file changes and refresh automatically
   lore refresh --db <path> --root <dir> --poll  Poll for file changes and refresh automatically
@@ -267,9 +267,9 @@ async function main(): Promise<void> {
       '@modelcontextprotocol/sdk/server/stdio.js'
     );
 
-    const { openReadOnly } = await import('./kb-server/db.js');
-    const { createKbMcpServer } = await import('./kb-server/server.js');
-    const { getKbMeta } = await import('./indexer/db.js');
+    const { openReadOnly } = await import('./lore-server/db.js');
+    const { createLoreMcpServer } = await import('./lore-server/server.js');
+    const { getLoreMeta } = await import('./indexer/db.js');
     const {
       SentenceTransformersProvider,
     } = await import('./indexer/embedder.js');
@@ -278,7 +278,7 @@ async function main(): Promise<void> {
 
     // Build optional embedder from model recorded at index time.
     let embedder: import('./indexer/embedder.js').EmbeddingProvider | undefined;
-    const modelName = getKbMeta(db, 'embedding_model') as string | undefined;
+    const modelName = getLoreMeta(db, 'embedding_model') as string | undefined;
     if (modelName) {
       const provider = new SentenceTransformersProvider(modelName);
       try {
@@ -293,7 +293,7 @@ async function main(): Promise<void> {
       }
     }
 
-    const server = createKbMcpServer(db, dbPath, embedder);
+    const server = createLoreMcpServer(db, dbPath, embedder);
 
     const transport = new StdioServerTransport();
     await server.connect(transport);

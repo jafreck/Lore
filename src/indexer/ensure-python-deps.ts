@@ -5,7 +5,7 @@
  * embedding generation (`sentence-transformers`, `torch`).  If missing,
  * attempts an automatic `pip install` before the first embedding run.
  *
- * This is only used when `kbIndex.embeddings.enabled` is `true` in the
+ * This is only used when `loreIndex.embeddings.enabled` is `true` in the
  * migration config.
  */
 
