@@ -259,9 +259,22 @@ export function createKbMcpServer(
   server.tool(
     metrics.toolDef.name,
     metrics.toolDef.description,
-    {},
-    async (_args) => ({
-      content: [{ type: 'text', text: JSON.stringify(metrics.handler(db, {})) }],
+    {
+      mode: z
+        .enum(metrics.toolDef.inputSchema.properties.mode.enum)
+        .optional()
+        .describe(metrics.toolDef.inputSchema.properties.mode.description),
+      limit: z
+        .number()
+        .optional()
+        .describe(metrics.toolDef.inputSchema.properties.limit.description),
+      min_cyclomatic: z
+        .number()
+        .optional()
+        .describe(metrics.toolDef.inputSchema.properties.min_cyclomatic.description),
+    },
+    async (args: metrics.MetricsArgs = {}) => ({
+      content: [{ type: 'text', text: JSON.stringify(metrics.handler(db, args)) }],
     }),
   );
 
