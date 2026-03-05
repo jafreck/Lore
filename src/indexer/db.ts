@@ -88,6 +88,21 @@ CREATE TABLE IF NOT EXISTS external_deps (
   UNIQUE(file_id, package)
 );
 
+-- Symbols extracted from direct dependency declarations and public API surfaces.
+CREATE TABLE IF NOT EXISTS external_symbols (
+  id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+  dependency_ecosystem TEXT    NOT NULL DEFAULT 'npm',
+  source_type          TEXT    NOT NULL DEFAULT 'declaration',
+  source_ref           TEXT    NOT NULL DEFAULT '',
+  package_name         TEXT    NOT NULL,
+  package_version      TEXT,
+  symbol_name          TEXT    NOT NULL,
+  symbol_kind          TEXT    NOT NULL,
+  signature            TEXT    NOT NULL DEFAULT '',
+  doc_comment          TEXT,
+  UNIQUE(dependency_ecosystem, package_name, package_version, symbol_name, symbol_kind, signature)
+);
+
 -- Logical modules grouping related files (e.g. Rust crates, Python packages).
 CREATE TABLE IF NOT EXISTS modules (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -251,6 +266,9 @@ CREATE INDEX IF NOT EXISTS idx_coverage_files_path ON coverage_files(file_path);
 CREATE INDEX IF NOT EXISTS idx_coverage_lines_path_line ON coverage_lines(file_path, line_number);
 CREATE INDEX IF NOT EXISTS idx_docs_branch_kind ON docs(branch, kind);
 CREATE INDEX IF NOT EXISTS idx_doc_sections_doc_id ON doc_sections(doc_id);
+CREATE INDEX IF NOT EXISTS idx_external_symbols_dependency_ecosystem ON external_symbols(dependency_ecosystem);
+CREATE INDEX IF NOT EXISTS idx_external_symbols_package_name ON external_symbols(package_name);
+CREATE INDEX IF NOT EXISTS idx_external_symbols_symbol_name ON external_symbols(symbol_name);
 `;
 
 // ─── Public API ───────────────────────────────────────────────────────────────

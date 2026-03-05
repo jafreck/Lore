@@ -1,0 +1,61 @@
+{
+  "issueNumber": 76,
+  "version": 1,
+  "currentPhase": 5,
+  "currentTask": null,
+  "completedPhases": [
+    1,
+    2,
+    3,
+    4
+  ],
+  "completedTasks": [
+    "session-001",
+    "session-002",
+    "session-003"
+  ],
+  "failedTasks": [],
+  "blockedTasks": [],
+  "phaseOutputs": {
+    "1": "/Users/jacobfreck/.cadre/worktrees/issue-76/.cadre/issues/76/scout-report.md",
+    "2": "/Users/jacobfreck/.cadre/worktrees/issue-76/.cadre/issues/76/implementation-plan.md",
+    "3": "/Users/jacobfreck/.cadre/worktrees/issue-76/.cadre/issues/76/implementation-plan.md",
+    "4": "/Users/jacobfreck/.cadre/worktrees/issue-76/.cadre/issues/76/integration-report.md"
+  },
+  "gateResults": {
+    "1": {
+      "status": "warn",
+      "errors": [],
+      "warnings": [
+        "49 ambiguities found in analysis.md (threshold: 5)"
+      ]
+    },
+    "2": {
+      "status": "pass",
+      "warnings": [],
+      "errors": []
+    },
+    "3": {
+      "status": "pass",
+      "warnings": [],
+      "errors": []
+    },
+    "4": {
+      "status": "pass",
+      "warnings": [],
+      "errors": []
+    }
+  },
+  "subTasks": {},
+  "tokenUsage": {
+    "total": 0,
+    "byPhase": {},
+    "byAgent": {}
+  },
+  "worktreePath": "/Users/jacobfreck/.cadre/worktrees/issue-76",
+  "branchName": "cadre/issue-76",
+  "baseCommit": "25cf0f9d675c36e936538a0fe1be23e9861a9bc7",
+  "startedAt": "2026-03-05T01:15:28.479Z",
+  "lastCheckpoint": "2026-03-05T02:03:30.475Z",
+  "resumeCount": 0
+}

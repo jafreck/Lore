@@ -96,6 +96,41 @@ function querySymbolNamesForFile(dbPath: string, filePath: string, branch: strin
   return rows.map((r) => r.name);
 }
 
+function queryExternalSymbolsForPackage(
+  dbPath: string,
+  packageName: string,
+): Array<{ symbol_name: string; symbol_kind: string; signature: string; doc_comment: string | null; package_version: string | null }> {
+  const db = new Database(dbPath, { readonly: true });
+  const rows = db.prepare(
+    `SELECT symbol_name, symbol_kind, signature, doc_comment, package_version
+     FROM external_symbols
+     WHERE package_name = ?
+     ORDER BY symbol_name`,
+  ).all(packageName) as Array<{
+    symbol_name: string;
+    symbol_kind: string;
+    signature: string;
+    doc_comment: string | null;
+    package_version: string | null;
+  }>;
+  db.close();
+  return rows;
+}
+
+function querySymbolCountByName(dbPath: string, symbolName: string): number {
+  const db = new Database(dbPath, { readonly: true });
+  const row = db.prepare('SELECT COUNT(*) AS count FROM symbols WHERE name = ?').get(symbolName) as { count: number };
+  db.close();
+  return row.count;
+}
+
+function queryExternalSymbolCount(dbPath: string): number {
+  const db = new Database(dbPath, { readonly: true });
+  const row = db.prepare('SELECT COUNT(*) AS count FROM external_symbols').get() as { count: number };
+  db.close();
+  return row.count;
+}
+
 function queryRoutesForFile(
   dbPath: string,
   filePath: string,
@@ -191,6 +226,222 @@ function queryDocScopedNotes(
   db.close();
   return rows;
 }
+describe('IndexBuilder — dependency indexing options', () => {
+  let srcDir: string;
+  let dbPath: string;
+
+  beforeEach(() => {
+    srcDir = createTmpSrcDir();
+    dbPath = tmpDbPath();
+  });
+
+  afterEach(() => {
+    try { rmSync(srcDir, { recursive: true, force: true }); } catch { /* ignore */ }
+    const dbDir = join(dbPath, '..');
+    try { rmSync(dbDir, { recursive: true, force: true }); } catch { /* ignore */ }
+  });
+
+  it('should index project symbols when indexDependencies is omitted', async () => {
+    const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
+    await builder.build();
+
+    expect(querySymbolNamesForFile(dbPath, join(srcDir, 'hello.ts'), 'main')).toContain('hello');
+    expect(queryExternalSymbolCount(dbPath)).toBe(0);
+  });
+
+  it('should still build and ingest history when indexDependencies is enabled', async () => {
+    const branch = createGitRepoWithCommit(srcDir);
+    const builder = new IndexBuilder(
+      dbPath,
+      { rootDir: srcDir },
+      undefined,
+      { history: true, indexDependencies: true },
+    );
+    await builder.build();
+
+    expect(querySymbolNamesForFile(dbPath, join(srcDir, 'hello.ts'), branch)).toContain('hello');
+    expect(queryCommitCount(dbPath)).toBeGreaterThan(0);
+  });
+
+  it('should index only direct dependency declaration exports into external_symbols', async () => {
+    writeFileSync(
+      join(srcDir, 'package.json'),
+      JSON.stringify({
+        name: 'fixture-app',
+        version: '1.0.0',
+        dependencies: {
+          'dep-one': '^1.0.0',
+        },
+      }),
+    );
+
+    const depOneDir = join(srcDir, 'node_modules', 'dep-one');
+    const transitiveDir = join(depOneDir, 'node_modules', 'dep-transitive');
+    mkdirSync(depOneDir, { recursive: true });
+    mkdirSync(transitiveDir, { recursive: true });
+
+    writeFileSync(
+      join(depOneDir, 'package.json'),
+      JSON.stringify({ name: 'dep-one', version: '1.2.3' }),
+    );
+    writeFileSync(
+      join(depOneDir, 'index.d.ts'),
+      `
+      /** Direct dependency public API */
+      export declare function depPublic(input: string): string;
+      export function depImplementation(input: string): string { return input; }
+      declare function depPrivate(): void;
+      `,
+    );
+
+    writeFileSync(
+      join(transitiveDir, 'package.json'),
+      JSON.stringify({ name: 'dep-transitive', version: '9.9.9' }),
+    );
+    writeFileSync(
+      join(transitiveDir, 'index.d.ts'),
+      'export declare function transitiveFn(): void;',
+    );
+
+    const builder = new IndexBuilder(
+      dbPath,
+      { rootDir: srcDir, branch: 'main' },
+      undefined,
+      { indexDependencies: true },
+    );
+    await builder.build();
+
+    expect(querySymbolNamesForFile(dbPath, join(srcDir, 'hello.ts'), 'main')).toContain('hello');
+    expect(queryExternalSymbolsForPackage(dbPath, 'dep-one')).toEqual([
+      {
+        symbol_name: 'depPublic',
+        symbol_kind: 'function',
+        signature: 'function depPublic(input: string): string;',
+        doc_comment: '/** Direct dependency public API */',
+        package_version: '1.2.3',
+      },
+    ]);
+    expect(queryExternalSymbolsForPackage(dbPath, 'dep-transitive')).toEqual([]);
+    expect(querySymbolCountByName(dbPath, 'depPublic')).toBe(0);
+  });
+
+  it('should keep declaration-only class, interface, and type exports while excluding implementation bodies', async () => {
+    writeFileSync(
+      join(srcDir, 'package.json'),
+      JSON.stringify({
+        name: 'fixture-app',
+        version: '1.0.0',
+        dependencies: {
+          'dep-shapes': '^3.0.0',
+        },
+      }),
+    );
+
+    const depDir = join(srcDir, 'node_modules', 'dep-shapes');
+    mkdirSync(depDir, { recursive: true });
+    writeFileSync(
+      join(depDir, 'package.json'),
+      JSON.stringify({ name: 'dep-shapes', version: '3.1.4' }),
+    );
+    writeFileSync(
+      join(depDir, 'index.d.ts'),
+      `
+      export declare class DepClass {
+        run(): void;
+      }
+      export interface DepContract {
+        value: string;
+      }
+      export type DepAlias = string | number;
+      export function depRuntimeImplementation(): string { return "runtime"; }
+      `,
+    );
+
+    const builder = new IndexBuilder(
+      dbPath,
+      { rootDir: srcDir, branch: 'main' },
+      undefined,
+      { indexDependencies: true },
+    );
+    await builder.build();
+
+    const symbols = queryExternalSymbolsForPackage(dbPath, 'dep-shapes');
+    expect(symbols.map((symbol) => symbol.symbol_name)).toEqual(['DepAlias', 'DepClass', 'DepContract']);
+    expect(symbols.map((symbol) => symbol.symbol_kind)).toEqual(['type', 'class', 'interface']);
+    expect(symbols.find((symbol) => symbol.symbol_name === 'depRuntimeImplementation')).toBeUndefined();
+  });
+
+  it('should fall back to declared dependency version when installed package metadata is missing', async () => {
+    writeFileSync(
+      join(srcDir, 'package.json'),
+      JSON.stringify({
+        name: 'fixture-app',
+        version: '1.0.0',
+        dependencies: {
+          'dep-without-package-json': '^2.5.0',
+        },
+      }),
+    );
+
+    const depDir = join(srcDir, 'node_modules', 'dep-without-package-json');
+    mkdirSync(depDir, { recursive: true });
+    writeFileSync(depDir + '/index.d.ts', 'export declare function depFn(): string;');
+
+    const builder = new IndexBuilder(
+      dbPath,
+      { rootDir: srcDir, branch: 'main' },
+      undefined,
+      { indexDependencies: true },
+    );
+    await builder.build();
+
+    expect(queryExternalSymbolsForPackage(dbPath, 'dep-without-package-json')).toEqual([
+      {
+        symbol_name: 'depFn',
+        symbol_kind: 'function',
+        signature: 'function depFn(): string;',
+        doc_comment: null,
+        package_version: '^2.5.0',
+      },
+    ]);
+  });
+
+  it('should clear external symbols when dependency indexing is turned off for a subsequent build', async () => {
+    writeFileSync(
+      join(srcDir, 'package.json'),
+      JSON.stringify({
+        name: 'fixture-app',
+        version: '1.0.0',
+        dependencies: {
+          'dep-one': '^1.0.0',
+        },
+      }),
+    );
+    const depDir = join(srcDir, 'node_modules', 'dep-one');
+    mkdirSync(depDir, { recursive: true });
+    writeFileSync(join(depDir, 'package.json'), JSON.stringify({ name: 'dep-one', version: '1.2.3' }));
+    writeFileSync(join(depDir, 'index.d.ts'), 'export declare function depPublic(): void;');
+
+    const builderWithDeps = new IndexBuilder(
+      dbPath,
+      { rootDir: srcDir, branch: 'main' },
+      undefined,
+      { indexDependencies: true },
+    );
+    await builderWithDeps.build();
+    expect(queryExternalSymbolCount(dbPath)).toBe(1);
+
+    const builderWithoutDeps = new IndexBuilder(
+      dbPath,
+      { rootDir: srcDir, branch: 'main' },
+      undefined,
+      { indexDependencies: false },
+    );
+    await builderWithoutDeps.build();
+
+    expect(queryExternalSymbolCount(dbPath)).toBe(0);
+  });
+});
 
 describe('IndexBuilder — branch support in build()', () => {
   let srcDir: string;

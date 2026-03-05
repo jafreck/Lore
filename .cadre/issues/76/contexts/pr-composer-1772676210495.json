@@ -1,0 +1,50 @@
+{
+  "agent": "pr-composer",
+  "issueNumber": 76,
+  "projectName": "lore",
+  "repository": "jafreck/Lore",
+  "worktreePath": "/Users/jacobfreck/.cadre/worktrees/issue-76",
+  "phase": 5,
+  "config": {
+    "commands": {
+      "install": "npm install",
+      "build": "npm run build",
+      "test": "npx vitest run"
+    }
+  },
+  "inputFiles": [
+    "/Users/jacobfreck/.cadre/worktrees/issue-76/.cadre/issues/76/analysis.md",
+    "/Users/jacobfreck/.cadre/worktrees/issue-76/.cadre/issues/76/implementation-plan.md",
+    "/Users/jacobfreck/.cadre/worktrees/issue-76/.cadre/issues/76/integration-report.md",
+    "/Users/jacobfreck/.cadre/worktrees/issue-76/.cadre/issues/76/full-diff.patch"
+  ],
+  "outputPath": "/Users/jacobfreck/.cadre/worktrees/issue-76/.cadre/issues/76/pr-content.md",
+  "payload": {
+    "issueTitle": "Ingest repo documentation (README, ADRs, design docs) into the knowledge base",
+    "issueBody": "# Problem\n\nLore currently indexes **only source code** — the walker filters to known programming-language extensions (`EXT_TO_LANG` in `walker.ts`), so `.md`, `.rst`, `.adoc`, and other documentation files are completely invisible to the index.\n\nThis means an LLM using Lore can discover *what code exists* (symbols, call graphs, imports) but not:\n- **Why** the system is designed the way it is\n- What the team's conventions and architectural principles are\n- What high-level components are supposed to do\n- What decisions were made and why (ADRs)\n\nREADMEs, `ARCHITECTURE.md`, ADRs, and design docs are exactly where teams encode this knowledge. The existing `kb_architecture` tool's path-prefix grouping is a structural proxy, not semantic understanding.\n\n# Proposed solution\n\n## 1. Doc discovery & ingestion stage\n\nAdd a new indexer stage alongside the existing walk → parse → extract pipeline:\n\n- **Walk for docs**: discover `*.md`, `*.rst`, `*.adoc`, `*.txt` files with sensible defaults (`README*`, `docs/**`, `**/ADR-*.md`, `ARCHITECTURE.md`, `CONTRIBUTING.md`, `DESIGN.md`) and configurable globs.\n- **New `docs` table**:\n  ```sql\n  CREATE TABLE IF NOT EXISTS docs (\n    id          INTEGER PRIMARY KEY AUTOINCREMENT,\n    path        TEXT    NOT NULL,\n    branch      TEXT    NOT NULL DEFAULT '',\n    title       TEXT,           -- extracted from first heading\n    kind        TEXT,           -- 'readme', 'adr', 'architecture', 'design', 'guide', 'changelog', etc.\n    content     TEXT    NOT NULL,\n    last_hash   TEXT,\n    indexed_at  INTEGER NOT NULL DEFAULT (unixepoch()),\n    UNIQUE(path, branch)\n  );\n  ```\n- **Section extraction**: parse markdown into sections by heading hierarchy, storing them as chunks with heading paths (e.g. `\"## Auth > ### Token refresh\"`). This enables LLMs to retrieve specific architectural context rather than entire files.\n- **Auto-classify `kind`**: based on filename patterns (`README*` → readme, `adr-*`/`ADR-*` → adr, `ARCHITECTURE*` → architecture, etc.)\n\n## 2. Embed doc sections for semantic retrieval\n\nReuse the existing `Embedder` infrastructure to embed each doc section into a new `doc_embeddings` vec0 table. This means `kb_search` could return relevant architecture/design doc sections alongside code symbols — giving the LLM the \"why\" alongside the \"what.\"\n\n## 3. New MCP tool: `kb_docs`\n\nExpose a `kb_docs` tool that lets agents:\n- List all indexed docs (optionally filtered by `kind`)\n- Retrieve full content or specific sections by path\n- Semantic search across docs specifically (vs. code)\n\n## 4. Enrich `kb_architecture` with doc context\n\nWhen assembling the architecture view, join against the `docs` table to attach any doc content that lives inside each component's directory (e.g. a `src/auth/README.md` annotates the `src/auth` component).\n\n## 5. Auto-seed `notes` from docs\n\nOn build, parse key docs (README, ARCHITECTURE.md) and auto-populate `notes` with key entries like:\n- `architecture/overview` ← from ARCHITECTURE.md or top-level README\n- `architecture/adr/<name>` ← from each ADR\n- `project/vision` ← from README intro section\n\nUse `source_hash` so the existing staleness tracking flags when the underlying doc changes.\n\n## 6. Config integration\n\nAdd a `docs` section to the lore config:\n```json\n{\n  \"docs\": {\n    \"include\": [\"README*\", \"docs/**/*.md\", \"**/ADR-*.md\"],\n    \"exclude\": [\"node_modules/**\"],\n    \"auto_notes\": true\n  }\n}\n```\n\n# Scope of work\n\nMuch of the infrastructure already exists (embedding, vector search, staleness tracking, MCP tool registration). The main new work:\n\n1. A doc walker + markdown parser stage in the indexer (~200 lines)\n2. DDL for the `docs` table + FTS index\n3. A `kb_docs` MCP tool\n4. Wiring `kb_search` to include doc results in fused search\n5. Enriching `kb_architecture` output with per-component doc context\n6. Auto-seeding `notes` from key repo docs"
+  },
+  "outputSchema": {
+    "type": "object",
+    "properties": {
+      "title": {
+        "type": "string"
+      },
+      "body": {
+        "type": "string"
+      },
+      "labels": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "required": [
+      "title",
+      "body",
+      "labels"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+  }
+}

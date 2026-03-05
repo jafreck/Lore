@@ -263,7 +263,7 @@ or disappears (`doc_missing`).
 Build or update a knowledge base.
 
 ```bash
-npx @jafreck/lore index --root <dir> --db <path> [--embedding-model <id>] [--history] [--history-depth <n>] [--history-all] [--include <glob>] [--exclude <glob>] [--language <lang>] [--docs-include <glob>] [--docs-exclude <glob>] [--docs-extension <ext>] [--docs-auto-notes|--no-docs-auto-notes]
+npx @jafreck/lore index --root <dir> --db <path> [--embedding-model <id>] [--index-deps] [--history] [--history-depth <n>] [--history-all] [--include <glob>] [--exclude <glob>] [--language <lang>] [--docs-include <glob>] [--docs-exclude <glob>] [--docs-extension <ext>] [--docs-auto-notes|--no-docs-auto-notes]
 ```
 
 Key flags:
@@ -271,6 +271,7 @@ Key flags:
 - `--root <dir>` required source root
 - `--db <path>` required SQLite output path
 - `--embedding-model <id>` embedding model identifier
+- `--index-deps` opt-in dependency API indexing from direct dependency declaration files
 - `--history` enable git history ingestion
 - `--history-depth <n>` cap number of ingested commits
 - `--history-all` traverse all refs (branches/tags)
@@ -283,14 +284,32 @@ Key flags:
 - `--docs-auto-notes` enable seeded doc-note upserts (default)
 - `--no-docs-auto-notes` disable seeded doc-note upserts
 
+Dependency API indexing is disabled by default and only runs when `--index-deps`
+is provided (or `indexDependencies: true` in programmatic options). When
+enabled, Lore indexes declaration-level public API surface from direct
+dependencies across supported ecosystems:
+
+- TypeScript/JavaScript: exported declarations from `.d.ts` files in direct npm
+  dependencies declared in root `package.json` (`dependencies`,
+  `devDependencies`, `peerDependencies`)
+- Python: stubbed/public declarations from direct dependencies via `.pyi` and
+  `py.typed` package metadata
+- Go: exported declarations from direct module requirements declared in root
+  `go.mod`
+- Rust: `pub` declaration surface from crates declared directly in root
+  `Cargo.toml`
+
+For all ecosystems, Lore excludes implementation bodies and does not crawl
+transitive dependency trees.
+
 ### lore refresh
 
 Incremental refresh flow for an existing index.
 
 ```bash
-npx @jafreck/lore refresh --db <path> --root <dir> [--history] [--history-depth <n>] [--history-all] [--docs-include <glob>] [--docs-exclude <glob>] [--docs-extension <ext>] [--docs-auto-notes|--no-docs-auto-notes]
-npx @jafreck/lore refresh --db <path> --root <dir> --watch [--history] [--docs-include <glob>] [--docs-exclude <glob>] [--docs-extension <ext>]
-npx @jafreck/lore refresh --db <path> --root <dir> --poll [--history] [--docs-include <glob>] [--docs-exclude <glob>] [--docs-extension <ext>]
+npx @jafreck/lore refresh --db <path> --root <dir> [--index-deps] [--history] [--history-depth <n>] [--history-all] [--docs-include <glob>] [--docs-exclude <glob>] [--docs-extension <ext>] [--docs-auto-notes|--no-docs-auto-notes]
+npx @jafreck/lore refresh --db <path> --root <dir> --watch [--index-deps] [--history] [--docs-include <glob>] [--docs-exclude <glob>] [--docs-extension <ext>]
+npx @jafreck/lore refresh --db <path> --root <dir> --poll [--index-deps] [--history] [--docs-include <glob>] [--docs-exclude <glob>] [--docs-extension <ext>]
 ```
 
 Modes:
@@ -352,8 +371,8 @@ hits. Use `kb_docs` for deterministic docs listing/fetch/search operations.
 
 | Tool | Purpose |
 |------|---------|
-| `kb_lookup` | Find symbols by name or files by path (optional branch filter) |
-| `kb_search` | Structural BM25 symbol search, plus docs-aware semantic/fused retrieval |
+| `kb_lookup` | Find symbols by name or files by path (optional branch filter), including external dependency API symbols from `external_symbols` in symbol lookups |
+| `kb_search` | Structural BM25, semantic vector, or fused RRF search; semantic/fused modes can include docs section hits, and structural symbol queries include external dependency API name matches from `external_symbols` |
 | `kb_docs` | List indexed docs, fetch full docs with optional sections, or search doc sections |
 | `kb_graph` | Query call/import/module/inheritance edges; call edges include `callee_coverage_percent` |
 | `kb_snippet` | Return source snippets by file path and line range |

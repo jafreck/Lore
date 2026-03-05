@@ -113,6 +113,84 @@ export function listSymbols(db: Database.Database, limit = 100, branch?: string)
     .all(limit) as SymbolRow[];
 }
 
+export interface ExternalSymbolRow {
+  id: number;
+  dependency_ecosystem: string;
+  source_type: string;
+  source_ref: string;
+  package_name: string;
+  package_version: string | null;
+  symbol_name: string;
+  symbol_kind: string;
+  signature: string;
+  doc_comment: string | null;
+}
+
+function hasExternalSymbolsTable(db: Database.Database): boolean {
+  const row = db
+    .prepare("SELECT 1 AS ok FROM sqlite_master WHERE type = 'table' AND name = 'external_symbols' LIMIT 1")
+    .get() as { ok: number } | undefined;
+  return row?.ok === 1;
+}
+
+/** Fetch external symbols whose exported name exactly matches (case-insensitive). */
+export function getExternalSymbolsByName(
+  db: Database.Database,
+  name: string,
+): ExternalSymbolRow[] {
+  if (!hasExternalSymbolsTable(db)) {
+    return [];
+  }
+
+  return db
+    .prepare(
+      `SELECT id,
+              dependency_ecosystem,
+              source_type,
+              source_ref,
+              package_name,
+              package_version,
+              symbol_name,
+              symbol_kind,
+              signature,
+              doc_comment
+         FROM external_symbols
+         WHERE symbol_name = ? COLLATE NOCASE
+         ORDER BY dependency_ecosystem ASC, package_name ASC, package_version ASC, symbol_kind ASC, signature ASC`,
+    )
+    .all(name) as ExternalSymbolRow[];
+}
+
+/** Fetch external symbols whose exported name contains the query fragment. */
+export function searchExternalSymbolsByName(
+  db: Database.Database,
+  nameQuery: string,
+  limit = 100,
+): ExternalSymbolRow[] {
+  if (!hasExternalSymbolsTable(db)) {
+    return [];
+  }
+
+  return db
+    .prepare(
+      `SELECT id,
+              dependency_ecosystem,
+              source_type,
+              source_ref,
+              package_name,
+              package_version,
+              symbol_name,
+              symbol_kind,
+              signature,
+              doc_comment
+         FROM external_symbols
+         WHERE symbol_name LIKE ? COLLATE NOCASE
+         ORDER BY dependency_ecosystem ASC, package_name ASC, package_version ASC, symbol_kind ASC, signature ASC
+         LIMIT ?`,
+    )
+    .all(`%${nameQuery}%`, limit) as ExternalSymbolRow[];
+}
+
 // ─── File helpers ─────────────────────────────────────────────────────────────
 
 export interface FileRow {

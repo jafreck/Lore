@@ -18,6 +18,7 @@ flowchart LR
         PARSE[ParserPool<br/>tree-sitter grammars]
         EXTRACT[Extractors<br/>symbols · imports · call refs]
         RESOLVE[ImportResolver<br/>internal ↔ external]
+        DEPAPI[Dependency API Indexer<br/>direct deps · TS/Py/Go/Rust declarations]
         CALLGRAPH[Call-Graph Builder<br/>callee resolution · topo sort]
         DOCINGEST[Docs Ingest<br/>discover · classify · chunk]
         DOCNOTES[Doc Note Seeding<br/>README · architecture · ADR]
@@ -30,6 +31,7 @@ flowchart LR
         FILES[(files)]
         SYM[(symbols · symbols_fts)]
         IMP[(file_imports · external_deps)]
+        EXT[(external_symbols)]
         REFS[(symbol_refs)]
         DOCS[(docs · doc_sections)]
         NOTES[(notes)]
@@ -69,6 +71,7 @@ flowchart LR
 
     SRC --> WALK --> PARSE --> EXTRACT
     EXTRACT --> RESOLVE --> IMP
+    RESOLVE --> DEPAPI --> EXT
     EXTRACT --> CALLGRAPH --> REFS
     EXTRACT --> FILES & SYM
     DOCSRC --> DOCINGEST --> DOCS
@@ -78,7 +81,7 @@ flowchart LR
     EMBED -.->|optional| VEC
     GIT --> GITHIST --> HIST
 
-    FILES & SYM & IMP & REFS & DOCS & NOTES & COV & VEC & HIST & META --- LOOKUP & SEARCH & DOCS_TOOL & GRAPH & SNIPPET & BLAME & HISTORY & METRICS & KB_COVERAGE & WRITEBACK
+    FILES & SYM & IMP & EXT & REFS & DOCS & NOTES & COV & VEC & HIST & META --- LOOKUP & SEARCH & DOCS_TOOL & GRAPH & SNIPPET & BLAME & HISTORY & METRICS & KB_COVERAGE & WRITEBACK
 
     LOOKUP & SEARCH & DOCS_TOOL & GRAPH & SNIPPET & BLAME & HISTORY & METRICS & KB_COVERAGE & WRITEBACK <--> LLM_AGENTS
 
@@ -93,6 +96,7 @@ flowchart LR
 | Parse | `parser.ts` | Lazily creates one tree-sitter `Parser` per language, caches for reuse |
 | Extract | `extractors/*` | Language-specific visitors that pull symbols, imports, and call refs from the AST |
 | Resolve | `resolver.ts` | Classifies each raw import as internal (resolved to a file ID) or external (third-party / stdlib) |
+| Dependency APIs | `index.ts` dependency API pass | Optional (`--index-deps`) declaration-only indexing from direct dependencies across npm (`.d.ts`), Python (`.pyi` / `py.typed`), Go (direct `go.mod` requirements), and Rust (direct `Cargo.toml` crates); excludes transitive dependencies and implementation bodies |
 | Call-Graph | `call-graph.ts` | Matches raw callee names in `symbol_refs` to concrete symbol IDs; supports topo sort and cycle detection |
 | Docs ingest | `docs.ts` + `IndexBuilder` | Discovers docs from default/configured globs, infers kind/title, persists docs plus retrievable sections/chunks, and optionally seeds doc-scoped notes |
 | Coverage | `coverage.ts` | Parses LCOV/Cobertura reports, normalizes per-file/per-line hit data, and persists a run linked to commit SHA/source mtime |
@@ -112,6 +116,7 @@ When docs auto-notes are enabled (default), `IndexBuilder` seeds/updates notes f
 | Files | `files` | Indexed source files with path, branch, language, hash |
 | Symbols | `symbols`, `symbols_fts` | Named code symbols + FTS5 full-text index |
 | Imports | `file_imports`, `external_deps` | Import declarations resolved to file IDs or external packages |
+| Dependency APIs | `external_symbols` | Exported/public declarations from direct dependency APIs across npm, Python, Go, and Rust (ecosystem/source/package/version + symbol metadata), stored separately from in-repo symbols |
 | Call refs | `symbol_refs` | Call-site edges from caller symbol to callee symbol |
 | Docs | `docs`, `doc_sections` | Indexed docs keyed by `(path, branch)` plus chunked sections with heading metadata |
 | Notes | `notes` | User/system notes keyed by `(key, scope)`; doc-scoped notes use `source_hash` to track staleness against `docs.content_hash` |
@@ -124,8 +129,8 @@ When docs auto-notes are enabled (default), `IndexBuilder` seeds/updates notes f
 
 | Tool | Purpose |
 |------|---------|
-| `kb_lookup` | Find symbols by name or files by path (optional branch filter) |
-| `kb_search` | Structural BM25 symbol search, plus docs-aware semantic/fused retrieval (`doc_section` hits) |
+| `kb_lookup` | Find symbols by name or files by path (optional branch filter), including external API symbol matches from `external_symbols` |
+| `kb_search` | Structural BM25, semantic vector, or fused RRF search; semantic/fused modes can return docs section hits and structural results are augmented by external symbol-name matches from `external_symbols` |
 | `kb_docs` | List indexed docs, fetch full docs with optional sections, or search indexed sections |
 | `kb_graph` | Query call, import, module, or inheritance edges (`call` edges include `callee_coverage_percent`) |
 | `kb_snippet` | Return source snippets by file path and line range |
@@ -135,3 +140,13 @@ When docs auto-notes are enabled (default), `IndexBuilder` seeds/updates notes f
 | `kb_coverage` | Return symbol-level coverage, uncovered lines, and staleness metadata for the latest coverage run |
 | `kb_notes_read` / `kb_notes_write` | Persist notes and read note freshness metadata (`source_hash_mismatch`, `doc_missing`, etc.) |
 | `kb_writeback` | Persist symbol summaries into `symbol_summaries` |
+
+External symbol retrieval flow:
+1. Dependency API indexing is opt-in and reads declaration surfaces from direct dependencies only:
+   - npm: top-level `package.json` direct deps (`dependencies` / `devDependencies` / `peerDependencies`)
+   - Python: direct requirements from project dependency manifests, indexed via `.pyi` / `py.typed` declaration sources
+   - Go: direct `require` entries from root `go.mod`
+   - Rust: direct dependency entries from root `Cargo.toml`
+2. Exported dependency declarations are persisted to `external_symbols` with package/version metadata.
+3. Transitive dependencies are excluded in all ecosystems; Lore indexes only the direct boundary.
+4. MCP retrieval paths include `external_symbols` for symbol-facing queries so dependency APIs can be returned alongside in-repo symbols in `kb_lookup` and structural `kb_search`.

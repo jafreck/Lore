@@ -10,6 +10,7 @@
 
 import * as fs from 'node:fs';
 import * as crypto from 'node:crypto';
+import * as path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import {
   openDb,
@@ -32,7 +33,13 @@ import { ingestGitHistory } from './git-history.js';
 import { ParserPool } from './parser.js';
 import { ImportResolver } from './resolver.js';
 import { buildCallGraph } from './call-graph.js';
-import type { ExtractionResult, RawCallRef, RawImport, RawSymbol } from './extractors/types.js';
+import {
+  type ExtractionResult,
+  type RawCallRef,
+  type RawImport,
+  type RawSymbol,
+  isPublicDeclarationSurfaceSymbol,
+} from './extractors/types.js';
 import { CExtractor } from './extractors/c.js';
 import { RustExtractor } from './extractors/rust.js';
 import { PythonExtractor } from './extractors/python.js';
@@ -124,6 +131,7 @@ interface IndexBuilderOptions {
   history?: boolean | { depth?: number; all?: boolean };
   embeddingModel?: string;
   docsAutoNotes?: boolean;
+  indexDependencies?: boolean;
 }
 
 // ─── IndexBuilder ─────────────────────────────────────────────────────────────
@@ -144,6 +152,7 @@ export class IndexBuilder {
   private readonly resolver: ImportResolver;
   private readonly embedder: EmbeddingProvider | null;
   private readonly history: boolean | { depth?: number; all?: boolean };
+  private readonly indexDependencies: boolean;
   private readonly embeddingModel: string;
   private readonly docsAutoNotes: boolean;
 
@@ -173,6 +182,7 @@ export class IndexBuilder {
 
     this.history = opts.history ?? false;
     this.docsAutoNotes = opts.docsAutoNotes ?? true;
+    this.indexDependencies = opts.indexDependencies ?? false;
   }
 
   // ─── Public API ──────────────────────────────────────────────────────────
@@ -207,6 +217,7 @@ export class IndexBuilder {
       })();
       this.saveBuildCheckpoint(db, branch, files.length, files.length);
       this.resolveImports(db, branch);
+      this.indexDependencyDeclarations(db);
       refreshTestMappings(db, branch);
       buildCallGraph(db);
       this.saveLastKnownHead(db);
@@ -283,6 +294,7 @@ export class IndexBuilder {
       })();
 
       this.resolveImports(db, branch);
+      this.indexDependencyDeclarations(db);
       refreshTestMappings(db, branch);
       if (this.history) {
         const historyOptions =
@@ -657,6 +669,49 @@ export class IndexBuilder {
     }
   }
 
+  private indexDependencyDeclarations(db: Database.Database): void {
+    db.prepare('DELETE FROM external_symbols').run();
+    if (!this.indexDependencies) return;
+
+    const directDependencies = this.loadDirectDependencies();
+    if (directDependencies.size === 0) return;
+    const extractor = EXTRACTORS.typescript;
+    if (!extractor) return;
+
+    const insertExternalSymbol = db.prepare(
+      `INSERT OR IGNORE INTO external_symbols
+         (package_name, package_version, symbol_name, symbol_kind, signature, doc_comment)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    );
+
+    for (const [packageName, declaredVersion] of directDependencies) {
+      const packageDir = path.join(this.walkerConfig.rootDir, 'node_modules', packageName);
+      if (!fs.existsSync(packageDir) || !fs.statSync(packageDir).isDirectory()) continue;
+
+      const packageVersion = this.readInstalledPackageVersion(packageDir) ?? declaredVersion ?? null;
+      const declarationFiles = this.collectDeclarationFiles(packageDir);
+
+      for (const declarationFile of declarationFiles) {
+        const source = fs.readFileSync(declarationFile, 'utf8');
+        const tree = this.pool.parse('typescript', source);
+        if (!tree) continue;
+
+        const result: ExtractionResult = extractor.extract(tree, source, declarationFile);
+        for (const symbol of result.symbols) {
+          if (!this.shouldIndexDependencySymbol(symbol)) continue;
+          insertExternalSymbol.run(
+            packageName,
+            packageVersion,
+            symbol.name,
+            symbol.kind,
+            symbol.signature,
+            symbol.docComment ?? null,
+          );
+        }
+      }
+    }
+  }
+
   private resolveBranch(): string {
     if (this.walkerConfig.branch) return this.walkerConfig.branch;
     return this.readGitValue(['rev-parse', '--abbrev-ref', 'HEAD']) ?? 'HEAD';
@@ -684,6 +739,93 @@ export class IndexBuilder {
     } catch {
       return undefined;
     }
+  }
+
+  private loadDirectDependencies(): Map<string, string | undefined> {
+    const packageJsonPath = path.join(this.walkerConfig.rootDir, 'package.json');
+    if (!fs.existsSync(packageJsonPath)) return new Map();
+
+    const raw = fs.readFileSync(packageJsonPath, 'utf8');
+    const pkg = JSON.parse(raw) as {
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+      peerDependencies?: Record<string, string>;
+    };
+    const deps = new Map<string, string | undefined>();
+    for (const section of [pkg.dependencies, pkg.devDependencies, pkg.peerDependencies]) {
+      if (!section) continue;
+      for (const [name, version] of Object.entries(section)) {
+        if (!deps.has(name)) deps.set(name, version);
+      }
+    }
+    return deps;
+  }
+
+  private readInstalledPackageVersion(packageDir: string): string | undefined {
+    const packageJsonPath = path.join(packageDir, 'package.json');
+    if (!fs.existsSync(packageJsonPath)) return undefined;
+
+    const raw = fs.readFileSync(packageJsonPath, 'utf8');
+    const pkg = JSON.parse(raw) as { version?: string };
+    return pkg.version;
+  }
+
+  private collectDeclarationFiles(packageDir: string): string[] {
+    const declarations: string[] = [];
+    const stack: string[] = [packageDir];
+
+    while (stack.length > 0) {
+      const currentDir = stack.pop();
+      if (!currentDir) continue;
+
+      const entries = fs.readdirSync(currentDir, { withFileTypes: true });
+      for (const entry of entries) {
+        if (entry.name === 'node_modules') continue;
+
+        const fullPath = path.join(currentDir, entry.name);
+        if (entry.isDirectory()) {
+          stack.push(fullPath);
+          continue;
+        }
+
+        if (entry.isFile() && fullPath.endsWith('.d.ts')) {
+          declarations.push(fullPath);
+        }
+      }
+    }
+
+    return declarations;
+  }
+
+  private shouldIndexDependencySymbol(symbol: RawSymbol): boolean {
+    if (!isPublicDeclarationSurfaceSymbol(symbol)) return false;
+    if (symbol.declarationSurface) return true;
+    return !this.hasImplementationBody(symbol);
+  }
+
+  private hasImplementationBody(symbol: RawSymbol): boolean {
+    const node = symbol.astNode;
+    if (!node) return false;
+
+    if (
+      node.type === 'arrow_function' ||
+      node.type === 'function_expression' ||
+      node.type === 'generator_function'
+    ) {
+      return true;
+    }
+
+    if (
+      node.type === 'class_declaration' ||
+      node.type === 'interface_declaration' ||
+      node.type === 'type_alias_declaration'
+    ) {
+      return false;
+    }
+
+    const bodyNode = node.childForFieldName('body');
+    if (!bodyNode) return false;
+    return bodyNode.namedChildCount > 0 || bodyNode.text.trim() !== '';
   }
 
   private loadBuildCheckpoint(db: Database.Database, branch: string, totalFiles: number): number {
