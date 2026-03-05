@@ -577,7 +577,6 @@ describe('createLoreMcpServer', () => {
     expect(schemaDescription(searchSchema.branch)).toContain('Query-time retrieval uses SQLite-only persisted data');
   });
 
-  it('should register lore_blame schema with extended modes while preserving legacy line/range payloads', () => {
   it('should route lore_history tool calls through history.handler with embedder', async () => {
     const db = new Database(':memory:');
     const embedder: EmbeddingProvider = {
