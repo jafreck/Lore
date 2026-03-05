@@ -2,6 +2,9 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import Database from 'better-sqlite3';
 import { z } from 'zod';
 import * as docs from '../../src/kb-server/tools/docs.js';
+import * as lookup from '../../src/kb-server/tools/lookup.js';
+import * as graph from '../../src/kb-server/tools/graph.js';
+import type { EmbeddingProvider } from '../../src/indexer/embedder.js';
 import * as history from '../../src/kb-server/tools/history.js';
 import type { EmbeddingProvider } from '../../src/indexer/embedder.js';
 import * as annotations from '../../src/kb-server/tools/annotations.js';
@@ -55,6 +58,16 @@ import { createKbMcpServer, type KbServerOptions } from '../../src/kb-server/ser
 
 function schemaDescription(schema: { description?: string; _def?: { description?: string } }): string {
   return schema.description ?? schema._def?.description ?? '';
+}
+
+function createStubEmbedder(): EmbeddingProvider {
+  return {
+    modelName: 'test-embedder',
+    dims: 3,
+    init: vi.fn(async () => {}),
+    dispose: vi.fn(async () => {}),
+    embed: vi.fn(async () => [[0.9, 0.1, 0.0]]),
+  };
 }
 
 function getToolCall(name: string): unknown[] {
@@ -161,12 +174,26 @@ describe('createKbMcpServer', () => {
     const graphToolCall = mockTool.mock.calls.find((call) => call[0] === 'kb_graph');
     expect(graphToolCall).toBeDefined();
 
-    const graphSchema = graphToolCall?.[2] as { kind: { safeParse: (v: unknown) => { success: boolean } } };
+    const graphSchema = graphToolCall?.[2] as {
+      kind: { safeParse: (v: unknown) => { success: boolean } };
+      mode: { safeParse: (v: unknown) => { success: boolean } };
+      query_vector: { safeParse: (v: unknown) => { success: boolean } };
+      semantic_limit: { safeParse: (v: unknown) => { success: boolean } };
+      semantic_max_distance: { safeParse: (v: unknown) => { success: boolean } };
+    };
     expect(graphSchema.kind.safeParse('call').success).toBe(true);
     expect(graphSchema.kind.safeParse('import').success).toBe(true);
     expect(graphSchema.kind.safeParse('module').success).toBe(true);
     expect(graphSchema.kind.safeParse('inheritance').success).toBe(true);
     expect(graphSchema.kind.safeParse('invalid-kind').success).toBe(false);
+    expect(graphSchema.mode.safeParse('structural').success).toBe(true);
+    expect(graphSchema.mode.safeParse('semantic').success).toBe(true);
+    expect(graphSchema.mode.safeParse('invalid-mode').success).toBe(false);
+    expect(graphSchema.query_vector.safeParse([0.1, 0.2]).success).toBe(true);
+    expect(graphSchema.query_vector.safeParse(['0.1']).success).toBe(false);
+    expect(graphSchema.semantic_limit.safeParse(10).success).toBe(true);
+    expect(graphSchema.semantic_limit.safeParse('10').success).toBe(false);
+    expect(graphSchema.semantic_max_distance.safeParse(0.4).success).toBe(true);
   });
 
   it('should register kb_coverage with expected schema fields', () => {
@@ -215,6 +242,7 @@ describe('createKbMcpServer', () => {
       action: { safeParse: (v: unknown) => { success: boolean } };
       path: { safeParse: (v: unknown) => { success: boolean } };
       query: { safeParse: (v: unknown) => { success: boolean } };
+      mode: { safeParse: (v: unknown) => { success: boolean } };
       section_index: { safeParse: (v: unknown) => { success: boolean } };
       include_sections: { safeParse: (v: unknown) => { success: boolean } };
       kinds: { safeParse: (v: unknown) => { success: boolean } };
@@ -224,6 +252,10 @@ describe('createKbMcpServer', () => {
     expect(docsSchema.action.safeParse('search').success).toBe(true);
     expect(docsSchema.path.safeParse('README.md').success).toBe(true);
     expect(docsSchema.query.safeParse('install').success).toBe(true);
+    expect(docsSchema.mode.safeParse('text').success).toBe(true);
+    expect(docsSchema.mode.safeParse('semantic').success).toBe(true);
+    expect(docsSchema.mode.safeParse('fused').success).toBe(true);
+    expect(docsSchema.mode.safeParse('invalid').success).toBe(false);
     expect(docsSchema.section_index.safeParse(1).success).toBe(true);
     expect(docsSchema.include_sections.safeParse(true).success).toBe(true);
     expect(docsSchema.kinds.safeParse(['readme', 'guide']).success).toBe(true);
@@ -232,10 +264,11 @@ describe('createKbMcpServer', () => {
 
   it('should route kb_docs tool calls through docs.handler', async () => {
     const db = new Database(':memory:');
+    const embedder = createStubEmbedder();
     const docsResult = { action: 'list', docs: [], count: 0 };
-    const docsHandlerSpy = vi.spyOn(docs, 'handler').mockReturnValue(docsResult);
+    const docsHandlerSpy = vi.spyOn(docs, 'handler').mockResolvedValue(docsResult);
 
-    createKbMcpServer(db, '/tmp/test.db');
+    createKbMcpServer(db, '/tmp/test.db', embedder);
 
     const docsToolCall = mockTool.mock.calls.find((call) => call[0] === 'kb_docs');
     expect(docsToolCall).toBeDefined();
@@ -246,10 +279,23 @@ describe('createKbMcpServer', () => {
     const args = { action: 'list', limit: 5 };
     const response = await docsCallback(args);
 
-    expect(docsHandlerSpy).toHaveBeenCalledWith(db, args);
+    expect(docsHandlerSpy).toHaveBeenCalledWith(db, args, embedder);
     expect(response).toEqual({
       content: [{ type: 'text', text: JSON.stringify(docsResult) }],
     });
+  });
+
+  it('should reject kb_docs tool calls when docs.handler fails', async () => {
+    const db = new Database(':memory:');
+    const docsHandlerSpy = vi.spyOn(docs, 'handler').mockRejectedValue(new Error('docs failed'));
+    createKbMcpServer(db, '/tmp/test.db');
+
+    const docsToolCall = mockTool.mock.calls.find((call) => call[0] === 'kb_docs');
+    expect(docsToolCall).toBeDefined();
+    const docsCallback = docsToolCall?.[3] as (args: unknown) => Promise<unknown>;
+
+    await expect(docsCallback({ action: 'search', query: 'architecture' })).rejects.toThrow('docs failed');
+    expect(docsHandlerSpy).toHaveBeenCalledWith(db, { action: 'search', query: 'architecture' }, undefined);
   });
 
   it('should route kb_annotations tool calls through annotations.handler', async () => {
@@ -520,14 +566,91 @@ describe('createKbMcpServer', () => {
     });
   });
 
-  it('should describe kb_lookup query as including persisted enrichment metadata', () => {
+  it('should register kb_lookup semantic mode schema and describe query metadata', () => {
     const db = new Database(':memory:');
     createKbMcpServer(db, '/tmp/test.db');
 
     const lookupToolCall = mockTool.mock.calls.find((call) => call[0] === 'kb_lookup');
     expect(lookupToolCall).toBeDefined();
-    const lookupSchema = lookupToolCall?.[2] as { query: { description?: string; _def?: { description?: string } } };
+    const lookupSchema = lookupToolCall?.[2] as {
+      query: { description?: string; _def?: { description?: string } };
+      mode: { safeParse: (v: unknown) => { success: boolean } };
+      branch: { safeParse: (v: unknown) => { success: boolean } };
+    };
     expect(schemaDescription(lookupSchema.query)).toContain('persisted enrichment metadata');
+    expect(lookupSchema.mode.safeParse('exact').success).toBe(true);
+    expect(lookupSchema.mode.safeParse('semantic').success).toBe(true);
+    expect(lookupSchema.mode.safeParse('fused').success).toBe(true);
+    expect(lookupSchema.mode.safeParse('invalid').success).toBe(false);
+    expect(lookupSchema.branch.safeParse('main').success).toBe(true);
+  });
+
+  it('should route kb_lookup tool calls through lookup.handler with embedder', async () => {
+    const db = new Database(':memory:');
+    const embedder = createStubEmbedder();
+    const lookupResult = { results: [], mode_used: 'exact' };
+    const lookupHandlerSpy = vi.spyOn(lookup, 'handler').mockResolvedValue(lookupResult);
+
+    createKbMcpServer(db, '/tmp/test.db', embedder);
+
+    const lookupToolCall = mockTool.mock.calls.find((call) => call[0] === 'kb_lookup');
+    expect(lookupToolCall).toBeDefined();
+
+    const lookupCallback = lookupToolCall?.[3] as (args: unknown) => Promise<{
+      content: Array<{ type: string; text: string }>;
+    }>;
+    const args = { kind: 'symbol', query: 'parseConfig', mode: 'semantic' };
+    const response = await lookupCallback(args);
+
+    expect(lookupHandlerSpy).toHaveBeenCalledWith(db, args, embedder);
+    expect(response).toEqual({
+      content: [{ type: 'text', text: JSON.stringify(lookupResult) }],
+    });
+  });
+
+  it('should reject kb_lookup tool calls when lookup.handler fails', async () => {
+    const db = new Database(':memory:');
+    const lookupHandlerSpy = vi.spyOn(lookup, 'handler').mockRejectedValue(new Error('lookup failed'));
+    createKbMcpServer(db, '/tmp/test.db');
+
+    const lookupToolCall = mockTool.mock.calls.find((call) => call[0] === 'kb_lookup');
+    expect(lookupToolCall).toBeDefined();
+    const lookupCallback = lookupToolCall?.[3] as (args: unknown) => Promise<unknown>;
+
+    await expect(lookupCallback({ kind: 'symbol', query: 'Parser' })).rejects.toThrow('lookup failed');
+    expect(lookupHandlerSpy).toHaveBeenCalledWith(
+      db,
+      { kind: 'symbol', query: 'Parser' },
+      undefined,
+    );
+  });
+
+  it('should route kb_graph tool calls through graph.handler with semantic args', async () => {
+    const db = new Database(':memory:');
+    const graphResult = { edges: [], semantic_nodes: [], mode_used: 'semantic' };
+    const graphHandlerSpy = vi.spyOn(graph, 'handler').mockReturnValue(graphResult);
+
+    createKbMcpServer(db, '/tmp/test.db');
+
+    const graphToolCall = mockTool.mock.calls.find((call) => call[0] === 'kb_graph');
+    expect(graphToolCall).toBeDefined();
+
+    const graphCallback = graphToolCall?.[3] as (args: unknown) => Promise<{
+      content: Array<{ type: string; text: string }>;
+    }>;
+    const args = {
+      kind: 'call',
+      mode: 'semantic',
+      query_vector: [0.1, 0.2, 0.3],
+      semantic_limit: 5,
+      semantic_max_distance: 0.4,
+    };
+    const response = await graphCallback(args);
+
+    expect(graphHandlerSpy).toHaveBeenCalledWith(db, args);
+    expect(response).toEqual({
+      content: [{ type: 'text', text: JSON.stringify(graphResult) }],
+    });
   });
 
   it('should register kb_lookup with optional match/filter/pagination fields', () => {

@@ -1,8 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import Database from 'better-sqlite3';
+import { createRequire } from 'node:module';
 import { handler, toolDef, type GraphArgs, type GraphEdge } from '../../../src/kb-server/tools/graph.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const esmRequire = createRequire(import.meta.url);
 
 function createTestDb(): Database.Database {
   const db = new Database(':memory:');
@@ -140,6 +143,22 @@ function insertInheritanceEdge(
   ).run(sourceSymbolId, targetSymbolId, targetSymbolName);
 }
 
+function loadSymbolEmbeddings(db: Database.Database, dims: number): void {
+  const sqliteVec = esmRequire('sqlite-vec') as { load(db: Database.Database): void };
+  sqliteVec.load(db);
+  db.exec(`
+    CREATE VIRTUAL TABLE symbol_embeddings USING vec0(
+      embedding FLOAT[${dims}]
+    );
+  `);
+}
+
+function insertSymbolEmbedding(db: Database.Database, symbolId: number, embedding: number[]): void {
+  db.prepare(
+    'INSERT OR REPLACE INTO symbol_embeddings(rowid, embedding) VALUES (CAST(? AS INTEGER), json(?))',
+  ).run(symbolId, JSON.stringify(embedding));
+}
+
 // ─── handler (kind=call) ──────────────────────────────────────────────────────
 
 describe('kb_graph toolDef', () => {
@@ -150,6 +169,13 @@ describe('kb_graph toolDef', () => {
       'module',
       'inheritance',
     ]);
+  });
+
+  it('should expose semantic mode controls in the input schema', () => {
+    expect(toolDef.inputSchema.properties.mode.enum).toEqual(['structural', 'semantic']);
+    expect(toolDef.inputSchema.properties.query_vector.type).toBe('array');
+    expect(toolDef.inputSchema.properties.semantic_limit.type).toBe('number');
+    expect(toolDef.inputSchema.properties.semantic_max_distance.type).toBe('number');
   });
 });
 
@@ -373,5 +399,126 @@ describe('graph handler – kind=inheritance', () => {
   it('should return empty inheritance edges when branch does not match', () => {
     const result = handler(db, { kind: 'inheritance', branch: 'nonexistent' });
     expect(result.edges).toEqual([]);
+  });
+});
+
+describe('graph handler – semantic mode', () => {
+  let db: Database.Database;
+  let mainParseId: number;
+  let mainRenderId: number;
+  let featParseId: number;
+
+  beforeEach(() => {
+    db = createTestDb();
+    const mainFileId = insertFile(db, 'src/main.ts', 'main');
+    const featFileId = insertFile(db, 'src/feat.ts', 'feat');
+
+    mainParseId = insertSymbol(db, mainFileId, 'parseConfig');
+    mainRenderId = insertSymbol(db, mainFileId, 'renderPage');
+    featParseId = insertSymbol(db, featFileId, 'parseConfigFeat');
+    const featRenderId = insertSymbol(db, featFileId, 'renderFeat');
+
+    insertCallEdge(db, mainParseId, mainRenderId, 'renderPage');
+    insertCallEdge(db, featParseId, featRenderId, 'renderFeat');
+
+    const mainModuleId = insertModule(db, 'core');
+    const featModuleId = insertModule(db, 'feature-core');
+    mapFileToModule(db, mainFileId, mainModuleId);
+    mapFileToModule(db, featFileId, featModuleId);
+  });
+
+  it('should fall back to structural mode when semantic mode is missing query_vector', () => {
+    const result = handler(db, { kind: 'call', mode: 'semantic', branch: 'main' });
+    expect(result.mode_used).toBe('structural (fallback: missing query_vector)');
+    expect(result.semantic_nodes).toEqual([]);
+    expect(result.edges).toHaveLength(1);
+  });
+
+  it('should fall back to structural mode when embeddings table is unavailable', () => {
+    const result = handler(db, { kind: 'call', mode: 'semantic', query_vector: [1, 0, 0], branch: 'main' });
+    expect(result.mode_used).toBe('structural (fallback: no embeddings)');
+    expect(result.semantic_nodes).toEqual([]);
+    expect(result.edges).toHaveLength(1);
+  });
+
+  it('should return branch-scoped semantic symbol and module nodes when embeddings are available', () => {
+    loadSymbolEmbeddings(db, 3);
+    insertSymbolEmbedding(db, mainParseId, [1.0, 0.0, 0.0]);
+    insertSymbolEmbedding(db, mainRenderId, [0.9, 0.1, 0.0]);
+    insertSymbolEmbedding(db, featParseId, [0.0, 1.0, 0.0]);
+
+    const result = handler(db, {
+      kind: 'call',
+      mode: 'semantic',
+      query_vector: [1.0, 0.0, 0.0],
+      branch: 'main',
+      semantic_limit: 10,
+    });
+
+    expect(result.mode_used).toBe('semantic');
+    expect(result.edges).toHaveLength(1);
+    const semanticNodes = result.semantic_nodes ?? [];
+    const symbolNodes = semanticNodes.filter((node) => node.node_type === 'symbol');
+    const moduleNodes = semanticNodes.filter((node) => node.node_type === 'module');
+
+    expect(symbolNodes.map((node) => node.branch)).toEqual(['main', 'main']);
+    expect(symbolNodes.map((node) => node.name)).toEqual(['parseConfig', 'renderPage']);
+    expect(symbolNodes[0].score).toBeLessThanOrEqual(symbolNodes[1].score);
+    expect(moduleNodes).toHaveLength(1);
+    expect(moduleNodes[0]).toMatchObject({
+      node_type: 'module',
+      name: 'core',
+      branch: 'main',
+      kind: 'package',
+    });
+    expect(moduleNodes[0].score).toBe(symbolNodes[0].score);
+  });
+
+  it('should clamp semantic_limit values below 1 to a single semantic symbol result', () => {
+    loadSymbolEmbeddings(db, 3);
+    insertSymbolEmbedding(db, mainParseId, [1.0, 0.0, 0.0]);
+    insertSymbolEmbedding(db, mainRenderId, [0.9, 0.1, 0.0]);
+    insertSymbolEmbedding(db, featParseId, [0.0, 1.0, 0.0]);
+
+    const result = handler(db, {
+      kind: 'call',
+      mode: 'semantic',
+      query_vector: [1.0, 0.0, 0.0],
+      branch: 'main',
+      semantic_limit: 0,
+    });
+
+    expect(result.mode_used).toBe('semantic');
+    const semanticNodes = result.semantic_nodes ?? [];
+    const symbolNodes = semanticNodes.filter((node) => node.node_type === 'symbol');
+    const moduleNodes = semanticNodes.filter((node) => node.node_type === 'module');
+    expect(symbolNodes).toHaveLength(1);
+    expect(symbolNodes[0].name).toBe('parseConfig');
+    expect(moduleNodes).toHaveLength(1);
+    expect(moduleNodes[0].name).toBe('core');
+  });
+
+  it('should filter semantic nodes by semantic_max_distance threshold', () => {
+    loadSymbolEmbeddings(db, 3);
+    insertSymbolEmbedding(db, mainParseId, [1.0, 0.0, 0.0]);
+    insertSymbolEmbedding(db, mainRenderId, [0.9, 0.1, 0.0]);
+
+    const result = handler(db, {
+      kind: 'call',
+      mode: 'semantic',
+      query_vector: [1.0, 0.0, 0.0],
+      branch: 'main',
+      semantic_limit: 10,
+      semantic_max_distance: 0.001,
+    });
+
+    expect(result.mode_used).toBe('semantic');
+    const semanticNodes = result.semantic_nodes ?? [];
+    const symbolNodes = semanticNodes.filter((node) => node.node_type === 'symbol');
+    const moduleNodes = semanticNodes.filter((node) => node.node_type === 'module');
+    expect(symbolNodes).toHaveLength(1);
+    expect(symbolNodes[0].name).toBe('parseConfig');
+    expect(moduleNodes).toHaveLength(1);
+    expect(moduleNodes[0].name).toBe('core');
   });
 });

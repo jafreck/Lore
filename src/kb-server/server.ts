@@ -140,6 +140,10 @@ export function createKbMcpServer(
     {
       kind: z.enum(['symbol', 'file']).describe('Whether to look up a symbol or a file.'),
       query: z.string().describe('Symbol name or file path to look up (includes persisted enrichment metadata when available).'),
+      mode: z
+        .enum(['exact', 'semantic', 'fused'])
+        .optional()
+        .describe('For kind="symbol", retrieval mode (default: exact).'),
       branch: z.string().optional().describe('Optional branch to filter results.'),
       match_mode: z
         .enum(['exact', 'prefix', 'contains'])
@@ -152,7 +156,7 @@ export function createKbMcpServer(
       offset: z.number().int().nonnegative().optional().describe('For kind="symbol" with empty query: rows to skip before returning results.'),
     },
     async (args) => ({
-      content: [{ type: 'text', text: JSON.stringify(lookup.handler(db, args)) }],
+      content: [{ type: 'text', text: JSON.stringify(await lookup.handler(db, args, embedder)) }],
     }),
   );
 
@@ -167,6 +171,22 @@ export function createKbMcpServer(
       source_id: z.number().optional().describe('Filter edges by source node id.'),
       limit: z.number().optional().describe('Max edges to return (default 200).'),
       branch: z.string().optional().describe('Optional branch to filter edges.'),
+      mode: z
+        .enum(['structural', 'semantic'])
+        .optional()
+        .describe('Query mode (default: structural).'),
+      query_vector: z
+        .array(z.number())
+        .optional()
+        .describe('Embedding vector for semantic mode related-node retrieval.'),
+      semantic_limit: z
+        .number()
+        .optional()
+        .describe('Semantic related-node cap (default: min(limit, 20)).'),
+      semantic_max_distance: z
+        .number()
+        .optional()
+        .describe('Optional max embedding distance threshold for semantic nodes.'),
     },
     async (args) => ({
       content: [{ type: 'text', text: JSON.stringify(graph.handler(db, args)) }],
@@ -212,6 +232,10 @@ export function createKbMcpServer(
         .describe('Docs operation mode: list docs, get a doc by path, or search sections.'),
       path: z.string().optional().describe('Optional doc path filter (required for exact get).'),
       query: z.string().optional().describe('Search query text for action="search".'),
+      mode: z
+        .enum(['text', 'semantic', 'fused'])
+        .optional()
+        .describe('For action="search", retrieval mode (default: text).'),
       kind: z.string().optional().describe('Optional single doc kind filter.'),
       kinds: z.array(z.string()).optional().describe('Optional doc kind filter list.'),
       include_sections: z
@@ -223,7 +247,7 @@ export function createKbMcpServer(
       branch: z.string().optional().describe('Optional branch to filter docs.'),
     },
     async (args) => ({
-      content: [{ type: 'text', text: JSON.stringify(docs.handler(db, args)) }],
+      content: [{ type: 'text', text: JSON.stringify(await docs.handler(db, args, embedder)) }],
     }),
   );
 
