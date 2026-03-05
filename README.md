@@ -162,7 +162,7 @@ await builder.build();
 | `lore_graph` | Query call/import/module/inheritance edges; call edges include `callee_coverage_percent` |
 | `lore_snippet` | Return source snippets by file path and line range |
 | `lore_test_map` | Return mapped test files (with confidence) for a given source file path |
-| `lore_blame` | Return git blame metadata for a line or line range |
+| `lore_blame` | Query blame, line-range history, or ownership aggregates with optional symbol targeting, commit-context enrichment, and risk signals |
 | `lore_history` | Query commit history by file, commit, author, ref, or recency |
 | `lore_commit_stats` | Git commit analytics: cadence, size, churn, top authors, message patterns, schedule heatmaps, branch activity |
 | `lore_metrics` | Aggregate index metrics plus coverage/staleness fields |
@@ -206,7 +206,13 @@ await builder.build();
 { "path": "/repo/src/index.ts", "line": 120 }
 { "path": "/repo/src/index.ts", "start_line": 120, "end_line": 140 }
 { "path": "/repo/src/index.ts", "line": 120, "ref": "main" }
+{ "symbol": "handleAuth", "path": "/repo/src/auth.ts", "branch": "main" }
+{ "mode": "history", "symbol": "handleAuth", "path": "/repo/src/auth.ts", "ref": "main" }
+{ "mode": "ownership", "path": "/repo/src", "scope": "directory", "ref": "main" }
 ```
+
+Legacy line and line-range requests remain fully supported; `mode` defaults to `"blame"` when omitted.  
+History and ownership responses include commit context (`commits`, `history[*].commit_context` with message/files/refs) and `risk` indicators (`recency`, `author_dispersion`, `churn`, `overall`), and symbol-targeted requests return `resolved_symbol`.
 
 ## Data ingestion
 

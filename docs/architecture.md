@@ -140,12 +140,17 @@ When docs auto-notes are enabled (default), `IndexBuilder` seeds/updates notes f
 | `kb_docs` | List indexed docs, fetch full docs with optional sections, or search indexed sections |
 | `kb_graph` | Query call, import, module, or inheritance edges (`call` edges include `callee_coverage_percent`) |
 | `kb_snippet` | Return source snippets by file path and line range |
-| `kb_blame` | Return git blame metadata for a line or line range |
+| `kb_blame` | Query blame (`mode: "blame"`), line-range evolution (`mode: "history"`), or ownership aggregates (`mode: "ownership"`), including symbol-targeted range resolution |
 | `kb_history` | Query history by file, commit, author, ref, or recency |
 | `kb_metrics` | Return aggregate index metrics plus global coverage totals and staleness metadata (`coverage_commit`, `current_commit`, `commits_behind`, `stale`) |
 | `kb_coverage` | Return symbol-level coverage, uncovered lines, and staleness metadata for the latest coverage run |
 | `kb_notes_read` / `kb_notes_write` | Persist notes and read note freshness metadata (`source_hash_mismatch`, `doc_missing`, etc.) |
 | `kb_writeback` | Persist symbol summaries into `symbol_summaries` |
+
+`kb_blame` response enrichment:
+- Supports legacy `line`/`start_line`/`end_line` requests and symbol-driven targeting (`symbol` + optional `path`/`branch`), returning `resolved_symbol` when symbol resolution is used.
+- History and ownership modes include enriched commit context (`commits` and per-entry `commit_context`) with commit message details, touched files, and refs/tags.
+- All modes return risk indicators derived from recency, author dispersion, and churn (`risk.recency`, `risk.author_dispersion`, `risk.churn`, `risk.overall`).
 
 External symbol retrieval flow:
 1. Dependency API indexing is opt-in and reads declaration surfaces from direct dependencies only:

@@ -56,6 +56,41 @@ export interface SymbolRow {
   definition_path?: string | null;
 }
 
+export interface SymbolRangeLookupOptions {
+  path?: string;
+  branch?: string;
+}
+
+export interface SymbolRangeMatch {
+  symbol_id: number;
+  symbol_name: string;
+  symbol_kind: string;
+  file_id: number;
+  file_path: string;
+  branch: string;
+  start_line: number;
+  end_line: number;
+}
+
+export type SymbolRangeResolution =
+  | {
+    outcome: 'resolved';
+    match: SymbolRangeMatch;
+  }
+  | {
+    outcome: 'missing';
+    symbol: string;
+    path?: string;
+    branch?: string;
+  }
+  | {
+    outcome: 'ambiguous';
+    symbol: string;
+    path?: string;
+    branch?: string;
+    candidates: SymbolRangeMatch[];
+  };
+
 function hasSymbolMetricsTable(db: Database.Database): boolean {
   const row = db
     .prepare("SELECT 1 AS ok FROM sqlite_master WHERE type = 'table' AND name = 'symbol_metrics' LIMIT 1")
@@ -94,6 +129,76 @@ export function getSymbolsByName(db: Database.Database, name: string, branch?: s
         : 'SELECT * FROM symbols WHERE name = ? COLLATE NOCASE'
     )
     .all(name) as SymbolRow[];
+}
+
+/** List symbol range candidates with optional path/branch filters for disambiguation. */
+export function listSymbolRangesByName(
+  db: Database.Database,
+  name: string,
+  options: SymbolRangeLookupOptions = {},
+): SymbolRangeMatch[] {
+  const where = ['s.name = ? COLLATE NOCASE'];
+  const params: Array<string | number> = [name];
+
+  if (options.path !== undefined) {
+    where.push('f.path = ?');
+    params.push(options.path);
+  }
+  if (options.branch !== undefined) {
+    where.push('f.branch = ?');
+    params.push(options.branch);
+  }
+
+  return db
+    .prepare(
+      `SELECT s.id AS symbol_id,
+              s.name AS symbol_name,
+              s.kind AS symbol_kind,
+              s.file_id,
+              f.path AS file_path,
+              f.branch,
+              s.start_line,
+              s.end_line
+         FROM symbols s
+         JOIN files f ON f.id = s.file_id
+        WHERE ${where.join(' AND ')}
+        ORDER BY f.path ASC, f.branch ASC, s.start_line ASC, s.end_line ASC, s.id ASC`,
+    )
+    .all(...params) as SymbolRangeMatch[];
+}
+
+/**
+ * Resolve a symbol name to a concrete file and line range.
+ * Returns deterministic ambiguity details instead of selecting an arbitrary match.
+ */
+export function resolveSymbolRangeByName(
+  db: Database.Database,
+  name: string,
+  options: SymbolRangeLookupOptions = {},
+): SymbolRangeResolution {
+  const candidates = listSymbolRangesByName(db, name, options);
+  if (candidates.length === 1) {
+    const match = candidates[0];
+    if (!match) {
+      throw new Error('Expected a single symbol range candidate.');
+    }
+    return { outcome: 'resolved', match };
+  }
+  if (candidates.length === 0) {
+    return {
+      outcome: 'missing',
+      symbol: name,
+      path: options.path,
+      branch: options.branch,
+    };
+  }
+  return {
+    outcome: 'ambiguous',
+    symbol: name,
+    path: options.path,
+    branch: options.branch,
+    candidates,
+  };
 }
 
 /** Return all symbols, optionally limited to `limit` rows. */
@@ -247,6 +352,37 @@ export function listFiles(db: Database.Database, limit = 100, branch?: string): 
     return db.prepare('SELECT * FROM files WHERE branch = ? LIMIT ?').all(branch, limit) as FileRow[];
   }
   return db.prepare('SELECT * FROM files LIMIT ?').all(limit) as FileRow[];
+}
+
+/** Return indexed files matching an exact path or directory prefix. */
+export function listFilesByPathPrefix(
+  db: Database.Database,
+  pathPrefix: string,
+  branch?: string,
+  limit = 1000,
+): FileRow[] {
+  const trimmed = pathPrefix.trim();
+  if (!trimmed) return [];
+  const normalized = trimmed.endsWith('/') && trimmed.length > 1 ? trimmed.slice(0, -1) : trimmed;
+  const likePattern = normalized === '/' ? '/%' : `${normalized}/%`;
+  if (branch !== undefined) {
+    return db
+      .prepare(
+        `SELECT * FROM files
+         WHERE branch = ? AND (path = ? OR path LIKE ?)
+         ORDER BY path ASC, branch ASC
+         LIMIT ?`,
+      )
+      .all(branch, normalized, likePattern, limit) as FileRow[];
+  }
+  return db
+    .prepare(
+      `SELECT * FROM files
+       WHERE path = ? OR path LIKE ?
+       ORDER BY path ASC, branch ASC
+       LIMIT ?`,
+    )
+    .all(normalized, likePattern, limit) as FileRow[];
 }
 
 // ─── Documentation helpers ─────────────────────────────────────────────────────
