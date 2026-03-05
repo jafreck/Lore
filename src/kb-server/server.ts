@@ -45,6 +45,10 @@ import * as graph from './tools/graph.js';
 import * as search from './tools/search.js';
 import type { SearchObserver } from './tools/search.js';
 import * as docs from './tools/docs.js';
+import * as annotations from './tools/annotations.js';
+import * as routes from './tools/routes.js';
+import * as notes from './tools/notes.js';
+import * as architecture from './tools/architecture.js';
 import * as testMap from './tools/test-map.js';
 import * as snippet from './tools/snippet.js';
 import * as blame from './tools/blame.js';
@@ -141,6 +145,15 @@ export function createKbMcpServer(
         .optional()
         .describe('For kind="symbol", retrieval mode (default: exact).'),
       branch: z.string().optional().describe('Optional branch to filter results.'),
+      match_mode: z
+        .enum(['exact', 'prefix', 'contains'])
+        .optional()
+        .describe('For kind="symbol": symbol-name match mode (default "exact").'),
+      symbol_kind: z.string().optional().describe('For kind="symbol": optional symbol kind filter.'),
+      path_prefix: z.string().optional().describe('For kind="symbol": optional indexed file-path prefix filter.'),
+      language: z.string().optional().describe('For kind="symbol": optional indexed file language filter.'),
+      limit: z.number().int().nonnegative().optional().describe('For kind="symbol" with empty query: maximum rows to return.'),
+      offset: z.number().int().nonnegative().optional().describe('For kind="symbol" with empty query: rows to skip before returning results.'),
     },
     async (args) => ({
       content: [{ type: 'text', text: JSON.stringify(await lookup.handler(db, args, embedder)) }],
@@ -191,6 +204,17 @@ export function createKbMcpServer(
         .optional()
         .describe('Search mode (default: structural).'),
       limit: z.number().optional().describe('Max results (default 20).'),
+      path_prefix: z.string().optional().describe('Optional source file path prefix filter for symbol results.'),
+      language: z.string().optional().describe('Optional source language filter for symbol results.'),
+      kind: z.string().optional().describe('Optional symbol kind filter for symbol results.'),
+      doc_path_prefix: z
+        .string()
+        .optional()
+        .describe('Optional documentation path prefix filter for semantic/fused doc-section results.'),
+      doc_kind: z
+        .string()
+        .optional()
+        .describe('Optional documentation kind filter for semantic/fused doc-section results.'),
       branch: z.string().optional().describe('Optional branch to filter results. Query-time retrieval uses SQLite-only persisted data.'),
     },
     async (args) => ({
@@ -224,6 +248,86 @@ export function createKbMcpServer(
     },
     async (args) => ({
       content: [{ type: 'text', text: JSON.stringify(await docs.handler(db, args, embedder)) }],
+    }),
+  );
+
+  // ── kb_annotations ─────────────────────────────────────────────────────────
+  server.tool(
+    annotations.toolDef.name,
+    annotations.toolDef.description,
+    {
+      kind: z
+        .enum(['TODO', 'FIXME', 'HACK', 'XXX', 'NOTE', 'BUG', 'OPTIMIZE'])
+        .describe('Annotation kind/tag to filter by.'),
+      path: z.string().optional().describe('Optional exact file path filter.'),
+      limit: z.number().optional().describe('Maximum number of results to return (default 20).'),
+    },
+    async (args) => ({
+      content: [{ type: 'text', text: JSON.stringify(annotations.handler(db, args)) }],
+    }),
+  );
+
+  // ── kb_routes ──────────────────────────────────────────────────────────────
+  server.tool(
+    routes.toolDef.name,
+    routes.toolDef.description,
+    {
+      method: z.string().optional().describe('Optional HTTP method filter (for example GET, POST).'),
+      path_prefix: z.string().optional().describe('Optional route path prefix filter.'),
+      framework: z.string().optional().describe('Optional framework filter (for example express, fastapi, gin).'),
+    },
+    async (args) => ({
+      content: [{ type: 'text', text: JSON.stringify(routes.handler(db, args)) }],
+    }),
+  );
+
+  // ── kb_notes_write ─────────────────────────────────────────────────────────
+  server.tool(
+    notes.writeToolDef.name,
+    notes.writeToolDef.description,
+    {
+      key: z.string().describe('Topic identifier, e.g. "architecture/overview".'),
+      scope: z
+        .string()
+        .optional()
+        .describe('Optional scope (default "global"), e.g. file:<path>, module:<name>.'),
+      content: z.string().describe('The note text.'),
+      model: z.string().optional().describe('Model identifier that authored the note.'),
+      source_hash: z.string().optional().describe('Optional source hash used for staleness detection.'),
+    },
+    async (args) => ({
+      content: [{ type: 'text', text: JSON.stringify(notes.writeHandler(dbPath, args)) }],
+    }),
+  );
+
+  // ── kb_notes_read ──────────────────────────────────────────────────────────
+  server.tool(
+    notes.readToolDef.name,
+    notes.readToolDef.description,
+    {
+      key: z.string().optional().describe('Exact key match.'),
+      key_prefix: z.string().optional().describe('Prefix match (e.g. "architecture/").'),
+      scope: z.string().optional().describe('Optional scope filter.'),
+      limit: z.number().optional().describe('Max notes to return (default 20, max 200).'),
+    },
+    async (args) => ({
+      content: [{ type: 'text', text: JSON.stringify(notes.readHandler(db, args)) }],
+    }),
+  );
+
+  // ── kb_architecture ────────────────────────────────────────────────────────
+  server.tool(
+    architecture.toolDef.name,
+    architecture.toolDef.description,
+    {
+      depth: z
+        .number()
+        .optional()
+        .describe('Optional path depth used to group files into components (default 2).'),
+      branch: z.string().optional().describe('Optional branch name to filter architecture output.'),
+    },
+    async (args) => ({
+      content: [{ type: 'text', text: JSON.stringify(architecture.handler(db, args)) }],
     }),
   );
 
@@ -299,12 +403,24 @@ export function createKbMcpServer(
     blame.toolDef.name,
     blame.toolDef.description,
     {
-      path: z.string().describe('Absolute file path as stored in the index.'),
+      path: z.string().optional().describe('Absolute file path as stored in the index.'),
       line: z.number().optional().describe('Single line to blame (1-based).'),
       start_line: z.number().optional().describe('Range start line (1-based).'),
       end_line: z.number().optional().describe('Range end line (1-based).'),
       ref: z.string().optional().describe('Git ref to blame against (default HEAD).'),
       branch: z.string().optional().describe('Optional branch to disambiguate indexed file path.'),
+      mode: z
+        .enum(['blame', 'history', 'ownership'])
+        .optional()
+        .describe('Query mode (default: "blame").'),
+      symbol: z
+        .string()
+        .optional()
+        .describe('Optional symbol name to resolve to an indexed file + line range.'),
+      scope: z
+        .enum(['file', 'directory'])
+        .optional()
+        .describe('Ownership mode scope. If omitted, inferred from `path`.'),
     },
     async (args) => ({
       content: [{ type: 'text', text: JSON.stringify(blame.handler(db, args)) }],
@@ -334,13 +450,13 @@ export function createKbMcpServer(
     history.toolDef.description,
     {
       mode: z
-        .enum(['file', 'commit', 'author', 'ref', 'recent'])
-        .describe('Query mode: file, commit, author, ref, or recent.'),
-      query: z.string().optional().describe('File path, commit SHA, author name/email, or ref.'),
+        .enum(['file', 'commit', 'author', 'ref', 'semantic', 'recent'])
+        .describe('Query mode: file, commit, author, ref, semantic, or recent.'),
+      query: z.string().optional().describe('File path, commit SHA, author name/email, ref, or semantic query text.'),
       limit: z.number().optional().describe('Max results (default 20, max 200).'),
     },
     async (args) => ({
-      content: [{ type: 'text', text: JSON.stringify(history.handler(db, args)) }],
+      content: [{ type: 'text', text: JSON.stringify(await history.handler(db, args, embedder)) }],
     }),
   );
 

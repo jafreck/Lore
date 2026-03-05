@@ -10,11 +10,12 @@ import { buildCallGraph } from '../../src/indexer/call-graph.js';
 import type { EmbeddingProvider } from '../../src/indexer/embedder.js';
 
 const esmRequire = createRequire(import.meta.url);
+const HELLO_SOURCE = 'export function hello(): string { return "hi"; }\n';
 
 /** Create a temp directory containing a minimal TypeScript source file. */
 function createTmpSrcDir(): string {
   const dir = mkdtempSync(join(tmpdir(), 'lore-index-test-src-'));
-  writeFileSync(join(dir, 'hello.ts'), 'export function hello(): string { return "hi"; }\n');
+  writeFileSync(join(dir, 'hello.ts'), HELLO_SOURCE);
   return dir;
 }
 
@@ -52,6 +53,15 @@ function queryFilesWithBranch(dbPath: string, branch: string): { path: string; b
   return rows;
 }
 
+function queryFileSourceForBranch(dbPath: string, filePath: string, branch: string): string | undefined {
+  const db = new Database(dbPath, { readonly: true });
+  const row = db.prepare('SELECT source FROM files WHERE path = ? AND branch = ?').get(filePath, branch) as
+    | { source: string }
+    | undefined;
+  db.close();
+  return row?.source;
+}
+
 function queryStructuralEmbeddingCount(dbPath: string): number {
   const db = new Database(dbPath, { readonly: true });
   (esmRequire('sqlite-vec') as { load(database: Database.Database): void }).load(db);
@@ -70,6 +80,21 @@ function queryStructuralEmbeddingCount(dbPath: string): number {
 function queryCommitCount(dbPath: string): number {
   const db = new Database(dbPath, { readonly: true });
   const row = db.prepare('SELECT COUNT(*) as count FROM commits').get() as { count: number };
+  db.close();
+  return row.count;
+}
+
+function queryCommitEmbeddingCount(dbPath: string): number {
+  const db = new Database(dbPath, { readonly: true });
+  (esmRequire('sqlite-vec') as { load(database: Database.Database): void }).load(db);
+  const hasTable = db
+    .prepare("SELECT name FROM sqlite_master WHERE type IN ('table', 'virtual table') AND name = 'commit_embeddings'")
+    .get() as { name: string } | undefined;
+  if (!hasTable) {
+    db.close();
+    return 0;
+  }
+  const row = db.prepare('SELECT COUNT(*) AS count FROM commit_embeddings').get() as { count: number };
   db.close();
   return row.count;
 }
@@ -262,6 +287,68 @@ describe('IndexBuilder — dependency indexing options', () => {
 
     expect(querySymbolNamesForFile(dbPath, join(srcDir, 'hello.ts'), branch)).toContain('hello');
     expect(queryCommitCount(dbPath)).toBeGreaterThan(0);
+    expect(queryCommitEmbeddingCount(dbPath)).toBe(0);
+  });
+
+  it('should persist commit embeddings during build when history and an embedder are enabled', async () => {
+    createGitRepoWithCommit(srcDir);
+
+    const embedder: EmbeddingProvider = {
+      modelName: 'test-embedder',
+      dims: 3,
+      async init(): Promise<void> {},
+      async embed(texts: string[]): Promise<number[][]> {
+        return texts.map((_, i) => [i + 1, i + 2, i + 3]);
+      },
+      async dispose(): Promise<void> {},
+    };
+
+    const builder = new IndexBuilder(
+      dbPath,
+      { rootDir: srcDir, branch: 'main' },
+      embedder,
+      { history: true },
+    );
+    await builder.build();
+
+    expect(queryCommitCount(dbPath)).toBeGreaterThan(0);
+    expect(queryCommitEmbeddingCount(dbPath)).toBe(queryCommitCount(dbPath));
+  });
+
+  it('should skip commit embeddings for empty commit messages during build', async () => {
+    runGit(srcDir, ['init']);
+    runGit(srcDir, ['config', 'user.name', 'Test User']);
+    runGit(srcDir, ['config', 'user.email', 'test@example.com']);
+    runGit(srcDir, ['add', 'hello.ts']);
+    runGit(srcDir, ['commit', '--allow-empty-message', '-m', '']);
+
+    const embedder: EmbeddingProvider = {
+      modelName: 'test-embedder',
+      dims: 3,
+      async init(): Promise<void> {},
+      async embed(texts: string[]): Promise<number[][]> {
+        return texts.map((_, i) => [i + 1, i + 2, i + 3]);
+      },
+      async dispose(): Promise<void> {},
+    };
+
+    const builder = new IndexBuilder(
+      dbPath,
+      { rootDir: srcDir, branch: 'main' },
+      embedder,
+      { history: true },
+    );
+    await builder.build();
+
+    const db = new Database(dbPath, { readonly: true });
+    const nonEmptyCommitMessages = db.prepare(
+      'SELECT COUNT(*) AS count FROM commits WHERE length(trim(message)) > 0',
+    ).get() as { count: number };
+    db.close();
+
+    expect(queryCommitCount(dbPath)).toBeGreaterThan(0);
+    expect(nonEmptyCommitMessages.count).toBe(0);
+    expect(queryCommitEmbeddingCount(dbPath)).toBe(0);
   });
 
   it('should index only direct dependency declaration exports into external_symbols', async () => {
@@ -487,6 +574,39 @@ describe('IndexBuilder — branch support in build()', () => {
     const files = queryFilesWithBranch(dbPath, 'feat/new-thing');
     expect(files.length).toBeGreaterThan(0);
     files.forEach(f => expect(f.branch).toBe('feat/new-thing'));
+  });
+
+  it('should persist indexed file source content during build', async () => {
+    const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
+    await builder.build();
+    expect(queryFileSourceForBranch(dbPath, join(srcDir, 'hello.ts'), 'main')).toBe(HELLO_SOURCE);
+  });
+
+  it('should refresh persisted file source when build reprocesses a changed file', async () => {
+    const filePath = join(srcDir, 'hello.ts');
+    const updatedSource = 'export function hello(): string { return "updated"; }\n';
+    const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
+
+    await builder.build();
+    expect(queryFileSourceForBranch(dbPath, filePath, 'main')).toBe(HELLO_SOURCE);
+
+    writeFileSync(filePath, updatedSource);
+    const db = new Database(dbPath);
+    db.prepare(
+      "INSERT OR REPLACE INTO kb_meta (key, value) VALUES ('index_checkpoint', ?)",
+    ).run(
+      JSON.stringify({
+        branch: 'main',
+        rootDir: srcDir,
+        totalFiles: 1,
+        nextFileIndex: 0,
+        updatedAt: Math.floor(Date.now() / 1000),
+      }),
+    );
+    db.close();
+
+    await builder.build();
+    expect(queryFileSourceForBranch(dbPath, filePath, 'main')).toBe(updatedSource);
   });
 
   it('should allow indexing the same source under different branches', async () => {
@@ -780,28 +900,35 @@ describe('IndexBuilder — branch support in update()', () => {
   });
 
   it('should update files under the configured branch', async () => {
-    writeFileSync(srcFile, 'export function updated(): void {}\n');
+    const updatedSource = 'export function updated(): void {}\n';
+    writeFileSync(srcFile, updatedSource);
     const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
     await builder.update([srcFile]);
 
     const files = queryFilesWithBranch(dbPath, 'main');
     expect(files.length).toBeGreaterThan(0);
     files.forEach(f => expect(f.branch).toBe('main'));
+    expect(queryFileSourceForBranch(dbPath, srcFile, 'main')).toBe(updatedSource);
   });
 
   it('should not affect files under a different branch on update', async () => {
     // Build under a second branch
     const builder2 = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'dev' });
     await builder2.build();
+    const devSourceBeforeMainUpdate = queryFileSourceForBranch(dbPath, srcFile, 'dev');
+    expect(devSourceBeforeMainUpdate).toBe(HELLO_SOURCE);
 
     // Modify and update under 'main' only
-    writeFileSync(srcFile, 'export function modifiedForMain(): void {}\n');
+    const mainUpdatedSource = 'export function modifiedForMain(): void {}\n';
+    writeFileSync(srcFile, mainUpdatedSource);
     const builderMain = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
     await builderMain.update([srcFile]);
 
     // 'dev' branch files should still be present
     const devFiles = queryFilesWithBranch(dbPath, 'dev');
     expect(devFiles.length).toBeGreaterThan(0);
+    expect(queryFileSourceForBranch(dbPath, srcFile, 'main')).toBe(mainUpdatedSource);
+    expect(queryFileSourceForBranch(dbPath, srcFile, 'dev')).toBe(devSourceBeforeMainUpdate);
   });
 
   it('should default branch to "HEAD" when not specified during update()', async () => {
@@ -830,6 +957,7 @@ describe('IndexBuilder — branch support in update()', () => {
     await builder.update([srcFile]);
 
     expect(queryCommitCount(dbPath)).toBeGreaterThan(0);
+    expect(queryCommitEmbeddingCount(dbPath)).toBe(0);
   });
 
   it('should respect history options during update() when history is configured as an object', async () => {
@@ -849,6 +977,39 @@ describe('IndexBuilder — branch support in update()', () => {
     await builder.update([srcFile]);
 
     expect(queryCommitCount(dbPath)).toBe(1);
+  });
+
+  it('should persist commit embeddings during update() when history and an embedder are enabled', async () => {
+    runGit(srcDir, ['init']);
+    runGit(srcDir, ['config', 'user.name', 'Test User']);
+    runGit(srcDir, ['config', 'user.email', 'test@example.com']);
+    runGit(srcDir, ['add', 'hello.ts']);
+    runGit(srcDir, ['commit', '-m', 'initial commit']);
+
+    writeFileSync(srcFile, 'export function updatedWithHistoryEmbeddings(): void {}\n');
+    runGit(srcDir, ['add', 'hello.ts']);
+    runGit(srcDir, ['commit', '-m', 'second commit']);
+
+    const embedder: EmbeddingProvider = {
+      modelName: 'test-embedder',
+      dims: 3,
+      async init(): Promise<void> {},
+      async embed(texts: string[]): Promise<number[][]> {
+        return texts.map((_, i) => [i + 1, i + 2, i + 3]);
+      },
+      async dispose(): Promise<void> {},
+    };
+
+    const builder = new IndexBuilder(
+      dbPath,
+      { rootDir: srcDir, branch: 'main' },
+      embedder,
+      { history: true },
+    );
+    await builder.update([srcFile]);
+
+    expect(queryCommitCount(dbPath)).toBeGreaterThan(0);
+    expect(queryCommitEmbeddingCount(dbPath)).toBe(queryCommitCount(dbPath));
   });
 
   it('should not persist structural embeddings during update() when embedder is not configured', async () => {

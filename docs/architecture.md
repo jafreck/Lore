@@ -37,7 +37,7 @@ flowchart LR
         DOCS[(docs · doc_sections)]
         NOTES[(notes)]
         COV[(coverage_runs · coverage_files<br/>coverage_lines)]
-        VEC[(symbol_embeddings · symbol_semantic_embeddings<br/>doc_section_embeddings)]
+        VEC[(symbol_embeddings · symbol_semantic_embeddings<br/>doc_section_embeddings · commit_embeddings)]
         HIST[(commits · commit_files<br/>commit_refs)]
         META[(kb_meta · symbol_summaries)]
     end
@@ -127,7 +127,7 @@ When docs auto-notes are enabled (default), `IndexBuilder` seeds/updates notes f
 | Docs | `docs`, `doc_sections` | Indexed docs keyed by `(path, branch)` plus chunked sections with heading metadata |
 | Notes | `notes` | User/system notes keyed by `(key, scope)`; doc-scoped notes use `source_hash` to track staleness against `docs.content_hash` |
 | Coverage | `coverage_runs`, `coverage_files`, `coverage_lines` | Coverage ingestion run metadata plus normalized per-file and per-line hit data |
-| Embeddings | `symbol_embeddings`, `symbol_semantic_embeddings`, `doc_section_embeddings` | vec0 virtual tables for semantic symbol/doc-section retrieval |
+| Embeddings | `symbol_embeddings`, `symbol_semantic_embeddings`, `doc_section_embeddings`, `commit_embeddings` | vec0 virtual tables for semantic symbol/doc-section retrieval and semantic commit-message history retrieval |
 | History | `commits`, `commit_files`, `commit_refs` | Git commit metadata, touched files, and named refs |
 | Metadata | `kb_meta`, `symbol_summaries`, `modules`, `file_modules` | Key-value config, LLM summaries, logical module groupings |
 
@@ -139,13 +139,24 @@ When docs auto-notes are enabled (default), `IndexBuilder` seeds/updates notes f
 | `kb_search` | Structural BM25, semantic vector, or fused RRF search; semantic/fused modes can return docs section hits and structural results are augmented by external symbol-name matches from `external_symbols`; returns persisted LSP-enrichment metadata fields when available |
 | `kb_docs` | List indexed docs, fetch full docs with optional sections, or search indexed sections |
 | `kb_graph` | Query call, import, module, or inheritance edges (`call` edges include `callee_coverage_percent`) |
-| `kb_snippet` | Return source snippets by file path and line range |
-| `kb_blame` | Return git blame metadata for a line or line range |
-| `kb_history` | Query history by file, commit, author, ref, or recency |
+| `kb_snippet` | Return snippets from indexed DB-backed file snapshots by file path + line range or by symbol name; path/symbol resolution is branch-aware and responses include containing-symbol context metadata when available |
+| `kb_blame` | Query blame (`mode: "blame"`), line-range evolution (`mode: "history"`), or ownership aggregates (`mode: "ownership"`), including symbol-targeted range resolution |
+| `kb_history` | Query history by file, commit, author, ref, recency, or semantic commit-message similarity (with graceful fallback to recent mode when vectors are unavailable) |
 | `kb_metrics` | Return aggregate index metrics plus global coverage totals and staleness metadata (`coverage_commit`, `current_commit`, `commits_behind`, `stale`) |
 | `kb_coverage` | Return symbol-level coverage, uncovered lines, and staleness metadata for the latest coverage run |
 | `kb_notes_read` / `kb_notes_write` | Persist notes and read note freshness metadata (`source_hash_mismatch`, `doc_missing`, etc.) |
 | `kb_writeback` | Persist symbol summaries into `symbol_summaries` |
+
+`kb_blame` response enrichment:
+- Supports legacy `line`/`start_line`/`end_line` requests and symbol-driven targeting (`symbol` + optional `path`/`branch`), returning `resolved_symbol` when symbol resolution is used.
+- History and ownership modes include enriched commit context (`commits` and per-entry `commit_context`) with commit message details, touched files, and refs/tags.
+- All modes return risk indicators derived from recency, author dispersion, and churn (`risk.recency`, `risk.author_dispersion`, `risk.churn`, `risk.overall`).
+
+`kb_lookup` request schema highlights:
+
+- `match_mode` (`exact` | `prefix` | `contains`) is available for `kind="symbol"` lookups and defaults to `exact`.
+- `symbol_kind`, `path_prefix`, and `language` are optional symbol filters.
+- `limit` and `offset` are optional pagination inputs for empty-query symbol browsing (defaults: `20` and `0`).
 
 External symbol retrieval flow:
 1. Dependency API indexing is opt-in and reads declaration surfaces from direct dependencies only:

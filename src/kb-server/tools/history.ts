@@ -11,12 +11,15 @@ import {
   listCommitsByFile,
   listCommitsByAuthor,
   listCommitsByRef,
+  hasCommitEmbeddings,
+  listCommitsBySemanticQuery,
   listCommitFiles,
   listCommitRefs,
   type CommitRow,
   type CommitFileRow,
   type CommitRefRow,
 } from '../db.js';
+import type { EmbeddingProvider } from '../../indexer/embedder.js';
 
 // ─── Tool definition ──────────────────────────────────────────────────────────
 
@@ -24,10 +27,11 @@ export const toolDef = {
   name: 'kb_history',
   description:
     'Query git commit history indexed in the knowledge base. ' +
-    'Supports four modes: "file" (commits that touched a file path), ' +
+    'Supports six modes: "file" (commits that touched a file path), ' +
     '"commit" (look up a commit by full or partial SHA), ' +
     '"author" (commits by a given author name or email), ' +
     '"ref" (commits matching branch/tag refs), and ' +
+    '"semantic" (semantic commit-message matching), and ' +
     '"recent" (most recent commits). ' +
     'All modes support an optional `limit` parameter (default 20, max 200).',
   inputSchema: {
@@ -35,7 +39,7 @@ export const toolDef = {
     properties: {
       mode: {
         type: 'string',
-        enum: ['file', 'commit', 'author', 'ref', 'recent'],
+        enum: ['file', 'commit', 'author', 'ref', 'semantic', 'recent'],
         description: 'Query mode.',
       },
       query: {
@@ -44,7 +48,8 @@ export const toolDef = {
           'For mode="file": the file path. ' +
           'For mode="commit": full or partial commit SHA. ' +
           'For mode="author": author name or email substring. ' +
-            'For mode="ref": branch/tag ref name or substring (e.g. refs/heads/main, main, v1.2.0). ' +
+          'For mode="ref": branch/tag ref name or substring (e.g. refs/heads/main, main, v1.2.0). ' +
+          'For mode="semantic": natural-language commit search query. ' +
           'Not required for mode="recent".',
       },
       limit: {
@@ -59,7 +64,7 @@ export const toolDef = {
 // ─── Handler ──────────────────────────────────────────────────────────────────
 
 export interface HistoryArgs {
-  mode: 'file' | 'commit' | 'author' | 'ref' | 'recent';
+  mode: 'file' | 'commit' | 'author' | 'ref' | 'semantic' | 'recent';
   query?: string;
   limit?: number;
 }
@@ -67,6 +72,11 @@ export interface HistoryArgs {
 export interface CommitWithFiles extends CommitRow {
   files?: CommitFileRow[];
   refs?: CommitRefRow[];
+}
+
+export interface CommitEnrichmentOptions {
+  includeFiles?: boolean;
+  includeRefs?: boolean;
 }
 
 export interface HistoryResult {
@@ -83,8 +93,28 @@ function clampLimit(limit?: number): number {
   return Math.min(Math.max(1, Math.floor(limit)), MAX_LIMIT);
 }
 
+/** Enrich commit rows with touched files and refs metadata. */
+export function enrichCommitsWithContext(
+  db: Database.Database,
+  commits: CommitRow[],
+  options: CommitEnrichmentOptions = {},
+): CommitWithFiles[] {
+  const includeFiles = options.includeFiles ?? true;
+  const includeRefs = options.includeRefs ?? true;
+
+  return commits.map((commit) => ({
+    ...commit,
+    ...(includeFiles ? { files: listCommitFiles(db, commit.sha) } : {}),
+    ...(includeRefs ? { refs: listCommitRefs(db, commit.sha) } : {}),
+  }));
+}
+
 /** Handle a kb_history tool invocation against the open read-only database. */
-export function handler(db: Database.Database, args: HistoryArgs): HistoryResult {
+export async function handler(
+  db: Database.Database,
+  args: HistoryArgs,
+  embedder?: EmbeddingProvider,
+): Promise<HistoryResult> {
   const limit = clampLimit(args.limit);
 
   switch (args.mode) {
@@ -105,9 +135,10 @@ export function handler(db: Database.Database, args: HistoryArgs): HistoryResult
       if (!commit) {
         return { mode: 'commit', results: [], count: 0 };
       }
-      const files = listCommitFiles(db, commit.sha);
-      const refs = listCommitRefs(db, commit.sha);
-      const result: CommitWithFiles = { ...commit, files, refs };
+      const [result] = enrichCommitsWithContext(db, [commit]);
+      if (!result) {
+        throw new Error('Failed to enrich commit context.');
+      }
       return { mode: 'commit', results: [result], count: 1 };
     }
 
@@ -123,6 +154,26 @@ export function handler(db: Database.Database, args: HistoryArgs): HistoryResult
       const ref = args.query?.trim() ?? '';
       const rows = listCommitsByRef(db, ref, limit);
       return { mode: 'ref', results: rows, count: rows.length };
+    }
+
+    case 'semantic': {
+      const query = args.query?.trim() ?? '';
+      if (!query || !embedder || !hasCommitEmbeddings(db)) {
+        const rows = listRecentCommits(db, limit);
+        return { mode: 'semantic', results: rows, count: rows.length };
+      }
+      try {
+        const [queryVector] = await embedder.embed([query]);
+        if (!queryVector || queryVector.length === 0) {
+          const rows = listRecentCommits(db, limit);
+          return { mode: 'semantic', results: rows, count: rows.length };
+        }
+        const rows = listCommitsBySemanticQuery(db, queryVector, limit);
+        return { mode: 'semantic', results: rows, count: rows.length };
+      } catch {
+        const rows = listRecentCommits(db, limit);
+        return { mode: 'semantic', results: rows, count: rows.length };
+      }
     }
 
     case 'recent': {

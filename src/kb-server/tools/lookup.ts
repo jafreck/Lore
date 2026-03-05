@@ -44,6 +44,35 @@ export const toolDef = {
         enum: ['exact', 'semantic', 'fused'],
         description: 'For kind="symbol", choose exact, semantic, or fused retrieval mode (default: "exact").',
       },
+      match_mode: {
+        type: 'string',
+        enum: ['exact', 'prefix', 'contains'],
+        description:
+          'For kind="symbol": name matching mode. Defaults to "exact" (case-insensitive).',
+      },
+      symbol_kind: {
+        type: 'string',
+        description:
+          'For kind="symbol": optional symbol kind filter (for example "function" or "class").',
+      },
+      path_prefix: {
+        type: 'string',
+        description: 'For kind="symbol": optional indexed file-path prefix filter.',
+      },
+      language: {
+        type: 'string',
+        description: 'For kind="symbol": optional indexed file language filter.',
+      },
+      limit: {
+        type: 'number',
+        description:
+          'For kind="symbol" with empty query: maximum rows to return (default 20).',
+      },
+      offset: {
+        type: 'number',
+        description:
+          'For kind="symbol" with empty query: rows to skip before returning results (default 0).',
+      },
     },
     required: ['kind', 'query'],
   },
@@ -56,6 +85,12 @@ export interface LookupArgs {
   query: string;
   mode?: 'exact' | 'semantic' | 'fused';
   branch?: string;
+  match_mode?: 'exact' | 'prefix' | 'contains';
+  symbol_kind?: string;
+  path_prefix?: string;
+  language?: string;
+  limit?: number;
+  offset?: number;
 }
 
 export interface LookupResult {
@@ -111,13 +146,40 @@ export async function handler(
   if (args.kind === 'symbol') {
     const query = args.query.trim();
     const mode = args.mode ?? 'exact';
-    if (!query) {
-      return { results: listSymbols(db, SYMBOL_LIMIT, args.branch), mode_used: 'exact' };
-    }
+    const matchMode = args.match_mode ?? 'exact';
+    const symbolLookupOptions = {
+      branch: args.branch,
+      matchMode,
+      kind: args.symbol_kind,
+      pathPrefix: args.path_prefix,
+      language: args.language,
+    };
 
-    const exactInternalRows = getSymbolsByName(db, query, args.branch);
-    const externalRows = getExternalSymbolsByName(db, query);
+    const exactInternalRows: SymbolRow[] = query
+      ? getSymbolsByName(db, query, symbolLookupOptions)
+      : listSymbols(db, {
+        ...symbolLookupOptions,
+        limit: args.limit ?? 20,
+        offset: args.offset ?? 0,
+      });
+
+    const includeExternalRows =
+      !!query
+      && matchMode === 'exact'
+      && args.path_prefix === undefined
+      && args.language === undefined;
+
+    const externalRows = includeExternalRows
+      ? getExternalSymbolsByName(db, query).filter((row) => (
+        args.symbol_kind === undefined || row.symbol_kind === args.symbol_kind
+      ))
+      : [];
+
     const exactRows = [...exactInternalRows, ...externalRows];
+
+    if (!query) {
+      return { results: exactRows, mode_used: 'exact' };
+    }
 
     if (mode === 'exact') {
       return { results: exactRows, mode_used: 'exact' };
@@ -148,11 +210,11 @@ export async function handler(
       results: [...mergeFused(exactInternalRows, semanticRows), ...externalRows],
       mode_used: 'fused',
     };
-  } else {
-    if (args.query.trim()) {
-      const row = getFileByPath(db, args.query, args.branch);
-      return { results: row ? [row] : [] };
-    }
-    return { results: listFiles(db, SYMBOL_LIMIT, args.branch) };
   }
+
+  if (args.query.trim()) {
+    const row = getFileByPath(db, args.query, args.branch);
+    return { results: row ? [row] : [] };
+  }
+  return { results: listFiles(db, SYMBOL_LIMIT, args.branch) };
 }

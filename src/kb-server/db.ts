@@ -56,6 +56,59 @@ export interface SymbolRow {
   definition_path?: string | null;
 }
 
+export interface SymbolRangeLookupOptions {
+  path?: string;
+  branch?: string;
+}
+
+export interface SymbolRangeMatch {
+  symbol_id: number;
+  symbol_name: string;
+  symbol_kind: string;
+  file_id: number;
+  file_path: string;
+  branch: string;
+  start_line: number;
+  end_line: number;
+}
+
+export type SymbolRangeResolution =
+  | {
+    outcome: 'resolved';
+    match: SymbolRangeMatch;
+  }
+  | {
+    outcome: 'missing';
+    symbol: string;
+    path?: string;
+    branch?: string;
+  }
+  | {
+    outcome: 'ambiguous';
+    symbol: string;
+    path?: string;
+    branch?: string;
+    candidates: SymbolRangeMatch[];
+  };
+
+export type SymbolMatchMode = 'exact' | 'prefix' | 'contains';
+
+export interface SymbolLookupOptions {
+  branch?: string;
+  matchMode?: SymbolMatchMode;
+  kind?: string;
+  pathPrefix?: string;
+  language?: string;
+}
+
+export interface ListSymbolsOptions {
+  branch?: string;
+  kind?: string;
+  pathPrefix?: string;
+  language?: string;
+  limit?: number;
+  offset?: number;
+}
 function hasSymbolMetricsTable(db: Database.Database): boolean {
   const row = db
     .prepare("SELECT 1 AS ok FROM sqlite_master WHERE type = 'table' AND name = 'symbol_metrics' LIMIT 1")
@@ -75,46 +128,172 @@ export function getSymbolById(db: Database.Database, id: number): SymbolRow | un
   return db.prepare('SELECT * FROM symbols WHERE id = ?').get(id) as SymbolRow | undefined;
 }
 
-/** Fetch all symbols whose name matches the given string (case-insensitive). */
-export function getSymbolsByName(db: Database.Database, name: string, branch?: string): SymbolRow[] {
-  const includeMetrics = hasSymbolMetricsTable(db);
-  if (branch !== undefined) {
-    return db
-      .prepare(
-        includeMetrics
-          ? 'SELECT s.*, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting FROM symbols s JOIN files f ON s.file_id = f.id LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id WHERE s.name = ? COLLATE NOCASE AND f.branch = ?'
-          : 'SELECT s.* FROM symbols s JOIN files f ON s.file_id = f.id WHERE s.name = ? COLLATE NOCASE AND f.branch = ?'
-      )
-      .all(name, branch) as SymbolRow[];
+function normalizeSymbolLookupOptions(branchOrOptions?: string | SymbolLookupOptions): SymbolLookupOptions {
+  if (typeof branchOrOptions === 'string') {
+    return { branch: branchOrOptions };
   }
-  return db
-    .prepare(
-      includeMetrics
-        ? 'SELECT s.*, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting FROM symbols s LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id WHERE s.name = ? COLLATE NOCASE'
-        : 'SELECT * FROM symbols WHERE name = ? COLLATE NOCASE'
-    )
-    .all(name) as SymbolRow[];
+  return branchOrOptions ?? {};
 }
 
-/** Return all symbols, optionally limited to `limit` rows. */
-export function listSymbols(db: Database.Database, limit = 100, branch?: string): SymbolRow[] {
-  const includeMetrics = hasSymbolMetricsTable(db);
-  if (branch !== undefined) {
-    return db
-      .prepare(
-        includeMetrics
-          ? 'SELECT s.*, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting FROM symbols s JOIN files f ON s.file_id = f.id LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id WHERE f.branch = ? LIMIT ?'
-          : 'SELECT s.* FROM symbols s JOIN files f ON s.file_id = f.id WHERE f.branch = ? LIMIT ?'
-      )
-      .all(branch, limit) as SymbolRow[];
+/** List symbol range candidates with optional path/branch filters for disambiguation. */
+export function listSymbolRangesByName(
+  db: Database.Database,
+  name: string,
+  options: SymbolRangeLookupOptions = {},
+): SymbolRangeMatch[] {
+  const where = ['s.name = ? COLLATE NOCASE'];
+  const params: Array<string | number> = [name];
+
+  if (options.path !== undefined) {
+    where.push('f.path = ?');
+    params.push(options.path);
   }
+  if (options.branch !== undefined) {
+    where.push('f.branch = ?');
+    params.push(options.branch);
+  }
+
   return db
     .prepare(
-      includeMetrics
-        ? 'SELECT s.*, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting FROM symbols s LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id LIMIT ?'
-        : 'SELECT * FROM symbols LIMIT ?'
+      `SELECT s.id AS symbol_id,
+              s.name AS symbol_name,
+              s.kind AS symbol_kind,
+              s.file_id,
+              f.path AS file_path,
+              f.branch,
+              s.start_line,
+              s.end_line
+         FROM symbols s
+         JOIN files f ON f.id = s.file_id
+        WHERE ${where.join(' AND ')}
+        ORDER BY f.path ASC, f.branch ASC, s.start_line ASC, s.end_line ASC, s.id ASC`,
     )
-    .all(limit) as SymbolRow[];
+    .all(...params) as SymbolRangeMatch[];
+}
+
+/**
+ * Resolve a symbol name to a concrete file and line range.
+ * Returns deterministic ambiguity details instead of selecting an arbitrary match.
+ */
+export function resolveSymbolRangeByName(
+  db: Database.Database,
+  name: string,
+  options: SymbolRangeLookupOptions = {},
+): SymbolRangeResolution {
+  const candidates = listSymbolRangesByName(db, name, options);
+  if (candidates.length === 1) {
+    const match = candidates[0];
+    if (!match) {
+      throw new Error('Expected a single symbol range candidate.');
+    }
+    return { outcome: 'resolved', match };
+  }
+  if (candidates.length === 0) {
+    return {
+      outcome: 'missing',
+      symbol: name,
+      path: options.path,
+      branch: options.branch,
+    };
+  }
+  return {
+    outcome: 'ambiguous',
+    symbol: name,
+    path: options.path,
+    branch: options.branch,
+    candidates,
+  };
+}
+
+function buildNameMatch(name: string, mode: SymbolMatchMode): { clause: string; value: string } {
+  if (mode === 'prefix') {
+    return { clause: 's.name LIKE ? COLLATE NOCASE', value: `${name}%` };
+  }
+  if (mode === 'contains') {
+    return { clause: 's.name LIKE ? COLLATE NOCASE', value: `%${name}%` };
+  }
+  return { clause: 's.name = ? COLLATE NOCASE', value: name };
+}
+
+function applySymbolFilters(where: string[], params: Array<string | number>, options: SymbolLookupOptions): void {
+  if (options.branch !== undefined) {
+    where.push('f.branch = ?');
+    params.push(options.branch);
+  }
+  if (options.kind !== undefined) {
+    where.push('s.kind = ?');
+    params.push(options.kind);
+  }
+  if (options.pathPrefix !== undefined) {
+    where.push('f.path LIKE ?');
+    params.push(`${options.pathPrefix}%`);
+  }
+  if (options.language !== undefined) {
+    where.push('f.language = ?');
+    params.push(options.language);
+  }
+}
+
+/** Fetch all symbols whose name matches the given string using the requested match mode. */
+export function getSymbolsByName(db: Database.Database, name: string, branch?: string): SymbolRow[];
+export function getSymbolsByName(db: Database.Database, name: string, options?: SymbolLookupOptions): SymbolRow[];
+export function getSymbolsByName(
+  db: Database.Database,
+  name: string,
+  branchOrOptions?: string | SymbolLookupOptions,
+): SymbolRow[] {
+  const includeMetrics = hasSymbolMetricsTable(db);
+  const options = normalizeSymbolLookupOptions(branchOrOptions);
+  const matchMode = options.matchMode ?? 'exact';
+  const { clause, value } = buildNameMatch(name, matchMode);
+  const where: string[] = [clause];
+  const params: Array<string | number> = [value];
+  applySymbolFilters(where, params, options);
+
+  return db
+    .prepare(
+      `${includeMetrics
+        ? 'SELECT s.*, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting'
+        : 'SELECT s.*'}
+       FROM symbols s
+       JOIN files f ON s.file_id = f.id
+       ${includeMetrics ? 'LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id' : ''}
+       WHERE ${where.join(' AND ')}`,
+    )
+    .all(...params) as SymbolRow[];
+}
+
+/** Return symbols with optional filters and pagination controls. */
+export function listSymbols(db: Database.Database, limit?: number, branch?: string): SymbolRow[];
+export function listSymbols(db: Database.Database, options?: ListSymbolsOptions): SymbolRow[];
+export function listSymbols(
+  db: Database.Database,
+  limitOrOptions: number | ListSymbolsOptions = 100,
+  branch?: string,
+): SymbolRow[] {
+  const includeMetrics = hasSymbolMetricsTable(db);
+  const options: ListSymbolsOptions = typeof limitOrOptions === 'number'
+    ? { limit: limitOrOptions, branch }
+    : (limitOrOptions ?? {});
+  const where: string[] = [];
+  const params: Array<string | number> = [];
+  applySymbolFilters(where, params, options);
+  const limit = options.limit ?? 100;
+  const offset = options.offset ?? 0;
+  params.push(limit, offset);
+
+  return db
+    .prepare(
+      `${includeMetrics
+        ? 'SELECT s.*, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting'
+        : 'SELECT s.*'}
+       FROM symbols s
+       JOIN files f ON s.file_id = f.id
+       ${includeMetrics ? 'LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id' : ''}
+       ${where.length > 0 ? `WHERE ${where.join(' AND ')}` : ''}
+       LIMIT ? OFFSET ?`,
+    )
+    .all(...params) as SymbolRow[];
 }
 
 export interface SemanticSearchSymbolsArgs {
@@ -303,6 +482,37 @@ export function listFiles(db: Database.Database, limit = 100, branch?: string): 
     return db.prepare('SELECT * FROM files WHERE branch = ? LIMIT ?').all(branch, limit) as FileRow[];
   }
   return db.prepare('SELECT * FROM files LIMIT ?').all(limit) as FileRow[];
+}
+
+/** Return indexed files matching an exact path or directory prefix. */
+export function listFilesByPathPrefix(
+  db: Database.Database,
+  pathPrefix: string,
+  branch?: string,
+  limit = 1000,
+): FileRow[] {
+  const trimmed = pathPrefix.trim();
+  if (!trimmed) return [];
+  const normalized = trimmed.endsWith('/') && trimmed.length > 1 ? trimmed.slice(0, -1) : trimmed;
+  const likePattern = normalized === '/' ? '/%' : `${normalized}/%`;
+  if (branch !== undefined) {
+    return db
+      .prepare(
+        `SELECT * FROM files
+         WHERE branch = ? AND (path = ? OR path LIKE ?)
+         ORDER BY path ASC, branch ASC
+         LIMIT ?`,
+      )
+      .all(branch, normalized, likePattern, limit) as FileRow[];
+  }
+  return db
+    .prepare(
+      `SELECT * FROM files
+       WHERE path = ? OR path LIKE ?
+       ORDER BY path ASC, branch ASC
+       LIMIT ?`,
+    )
+    .all(normalized, likePattern, limit) as FileRow[];
 }
 
 // ─── Documentation helpers ─────────────────────────────────────────────────────
@@ -871,6 +1081,15 @@ export interface CommitRefRow {
   ref_type: string;
 }
 
+function hasCommitEmbeddingsTable(db: Database.Database): boolean {
+  const row = db
+    .prepare(
+      "SELECT 1 AS ok FROM sqlite_master WHERE type IN ('table', 'virtual table') AND name = 'commit_embeddings' LIMIT 1",
+    )
+    .get() as { ok: number } | undefined;
+  return row?.ok === 1;
+}
+
 export interface CommitStatsFilters {
   since?: string;
   until?: string;
@@ -1092,6 +1311,45 @@ export function listCommitsByRef(db: Database.Database, refQuery: string, limit 
          LIMIT ?`,
       )
       .all(exact, wildcard, limit) as CommitRow[];
+  } catch {
+    return [];
+  }
+}
+
+/** Whether commit semantic vectors are queryable and contain at least one row. */
+export function hasCommitEmbeddings(db: Database.Database): boolean {
+  if (!hasCommitEmbeddingsTable(db)) {
+    return false;
+  }
+  try {
+    const row = db.prepare('SELECT 1 AS ok FROM commit_embeddings LIMIT 1').get() as { ok: number } | undefined;
+    return row?.ok === 1;
+  } catch {
+    return false;
+  }
+}
+
+/** Return commits ranked by commit-message vector distance (ascending). */
+export function listCommitsBySemanticQuery(
+  db: Database.Database,
+  queryVector: number[],
+  limit = 50,
+): CommitRow[] {
+  if (queryVector.length === 0 || !hasCommitEmbeddings(db)) {
+    return [];
+  }
+
+  try {
+    return db
+      .prepare(
+        `SELECT c.*
+           FROM commit_embeddings ce
+           JOIN commits c ON c.rowid = ce.rowid
+          WHERE ce.embedding MATCH ?
+            AND k = ?
+          ORDER BY distance, c.timestamp DESC, c.sha ASC`,
+      )
+      .all(JSON.stringify(queryVector), limit) as CommitRow[];
   } catch {
     return [];
   }

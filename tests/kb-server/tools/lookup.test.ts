@@ -68,19 +68,24 @@ function createTestDb(includeEnrichmentColumns = false): Database.Database {
   return db;
 }
 
-function insertFile(db: Database.Database, path: string, branch: string): number {
+function insertFile(
+  db: Database.Database,
+  path: string,
+  branch: string,
+  language = 'typescript',
+): number {
   const result = db
     .prepare('INSERT INTO files (path, branch, language) VALUES (?, ?, ?)')
-    .run(path, branch, 'typescript');
+    .run(path, branch, language);
   return result.lastInsertRowid as number;
 }
 
-function insertSymbol(db: Database.Database, fileId: number, name: string): number {
+function insertSymbol(db: Database.Database, fileId: number, name: string, kind = 'function'): number {
   const result = db
     .prepare(
       'INSERT INTO symbols (file_id, name, kind, start_line, end_line) VALUES (?, ?, ?, 1, 10)',
     )
-    .run(fileId, name, 'function');
+    .run(fileId, name, kind);
   return result.lastInsertRowid as number;
 }
 
@@ -192,6 +197,67 @@ describe('lookup handler – kind=symbol', () => {
     expect(result.results.length).toBe(3);
   });
 
+  it('should default to exact matching when match_mode is omitted', async () => {
+    const result = await handler(db, { kind: 'symbol', query: 'parse' });
+    expect(result.results).toEqual([]);
+  });
+
+  it('should support prefix and contains match modes for symbol lookup', async () => {
+    const prefixResult = await handler(db, { kind: 'symbol', query: 'parse', match_mode: 'prefix' });
+    const containsResult = await handler(db, { kind: 'symbol', query: 'config', match_mode: 'contains' });
+
+    expect(prefixResult.results).toHaveLength(2);
+    expect(containsResult.results).toHaveLength(2);
+  });
+
+  it('should include external symbols only for default/exact symbol matches without path or language filters', async () => {
+    insertExternalSymbol(db, 'dep-utils', '2.0.0', 'parseConfig', 'function');
+
+    const prefixResult = await handler(db, { kind: 'symbol', query: 'parseConfig', match_mode: 'prefix' });
+    const containsResult = await handler(db, { kind: 'symbol', query: 'config', match_mode: 'contains' });
+    const pathFilteredResult = await handler(db, { kind: 'symbol', query: 'parseConfig', path_prefix: 'src/' });
+    const languageFilteredResult = await handler(db, { kind: 'symbol', query: 'parseConfig', language: 'typescript' });
+    const exactResult = await handler(db, { kind: 'symbol', query: 'parseConfig', match_mode: 'exact' });
+
+    expect(
+      prefixResult.results.every((row) => !Object.prototype.hasOwnProperty.call(row, 'package_name')),
+    ).toBe(true);
+    expect(
+      containsResult.results.every((row) => !Object.prototype.hasOwnProperty.call(row, 'package_name')),
+    ).toBe(true);
+    expect(
+      pathFilteredResult.results.every((row) => !Object.prototype.hasOwnProperty.call(row, 'package_name')),
+    ).toBe(true);
+    expect(
+      languageFilteredResult.results.every((row) => !Object.prototype.hasOwnProperty.call(row, 'package_name')),
+    ).toBe(true);
+    expect(
+      exactResult.results.some((row) => Object.prototype.hasOwnProperty.call(row, 'package_name')),
+    ).toBe(true);
+  });
+
+  it('should apply symbol kind, path prefix, and language filters', async () => {
+    const tsFileId = insertFile(db, 'src/components/widget.ts', 'main', 'typescript');
+    const pyFileId = insertFile(db, 'src/components/widget.py', 'main', 'python');
+    insertSymbol(db, tsFileId, 'parseConfig', 'class');
+    insertSymbol(db, pyFileId, 'parseConfig', 'class');
+
+    const result = await handler(db, {
+      kind: 'symbol',
+      query: 'parseConfig',
+      symbol_kind: 'class',
+      path_prefix: 'src/components',
+      language: 'typescript',
+    });
+
+    expect(result.results).toHaveLength(1);
+    expect(result.results[0]).toMatchObject({
+      name: 'parseConfig',
+      kind: 'class',
+      file_id: tsFileId,
+    });
+  });
+
   it('should keep external symbol matches when branch filter is provided', async () => {
     insertExternalSymbol(db, 'dep-utils', '2.0.0', 'parseConfig', 'function');
     const result = await handler(db, { kind: 'symbol', query: 'parseConfig', branch: 'main' });
@@ -219,6 +285,14 @@ describe('lookup handler – kind=symbol', () => {
   it('should list symbols when query is empty and no branch filter', async () => {
     const result = await handler(db, { kind: 'symbol', query: '' });
     expect(result.results.length).toBe(3);
+  });
+
+  it('should apply limit and offset when query is empty', async () => {
+    const paged = await handler(db, { kind: 'symbol', query: '', limit: 1, offset: 1 });
+    const outOfRange = await handler(db, { kind: 'symbol', query: '', limit: 10, offset: 99 });
+
+    expect(paged.results).toHaveLength(1);
+    expect(outOfRange.results).toEqual([]);
   });
 
   it('should list symbols filtered by branch when query is empty', async () => {
@@ -445,11 +519,17 @@ describe('lookup handler – kind=file', () => {
 });
 
 describe('lookup toolDef', () => {
-  it('should expose kb_lookup with required kind and query fields', () => {
+  it('should expose kb_lookup with required fields and optional lookup controls', () => {
     expect(toolDef.name).toBe('kb_lookup');
     expect(toolDef.inputSchema.required).toEqual(['kind', 'query']);
     expect(toolDef.inputSchema.properties.kind.enum).toEqual(['symbol', 'file']);
     expect(toolDef.inputSchema.properties.query.type).toBe('string');
     expect(toolDef.inputSchema.properties.mode.enum).toEqual(['exact', 'semantic', 'fused']);
+    expect(toolDef.inputSchema.properties.match_mode.enum).toEqual(['exact', 'prefix', 'contains']);
+    expect(toolDef.inputSchema.properties.symbol_kind.type).toBe('string');
+    expect(toolDef.inputSchema.properties.path_prefix.type).toBe('string');
+    expect(toolDef.inputSchema.properties.language.type).toBe('string');
+    expect(toolDef.inputSchema.properties.limit.type).toBe('number');
+    expect(toolDef.inputSchema.properties.offset.type).toBe('number');
   });
 });
