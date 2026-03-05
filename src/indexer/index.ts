@@ -419,9 +419,9 @@ export class IndexBuilder {
     let fileId: number;
     if (existing) {
       db.prepare(
-        `UPDATE files SET language = ?, size_bytes = ?, last_hash = ?, indexed_at = unixepoch()
-         WHERE id = ?`,
-      ).run(language, sizeBytes, hash, existing.id);
+        `UPDATE files SET language = ?, size_bytes = ?, last_hash = ?, source = ?, indexed_at = unixepoch()
+          WHERE id = ?`,
+      ).run(language, sizeBytes, hash, source, existing.id);
       fileId = existing.id;
       // Remove stale symbols / imports / external deps (also clean up FTS5 index)
       db.prepare(
@@ -434,10 +434,12 @@ export class IndexBuilder {
     } else {
       const info = db
         .prepare(
-          `INSERT INTO files (path, branch, language, size_bytes, last_hash)
-           VALUES (?, ?, ?, ?, ?)`,
+          `INSERT INTO files (path, branch, language, size_bytes, last_hash, source)
+           VALUES (?, ?, ?, ?, ?, ?)`,
         )
-        .run(filePath, branch, language, sizeBytes, hash) as { lastInsertRowid: number | bigint };
+        .run(filePath, branch, language, sizeBytes, hash, source) as {
+          lastInsertRowid: number | bigint;
+        };
       fileId = Number(info.lastInsertRowid);
     }
 

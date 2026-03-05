@@ -9,6 +9,7 @@ import {
   getFileById,
   getFileByPath,
   listFiles,
+  listFilesByPathPrefix,
   listDocs,
   getDocByPath,
   listDocSections,
@@ -17,6 +18,8 @@ import {
   listConfigEntries,
   listTestMappingsBySourcePath,
   getSymbolsByName,
+  listSymbolRangesByName,
+  resolveSymbolRangeByName,
   getExternalSymbolsByName,
   searchExternalSymbolsByName,
   listSymbols,
@@ -230,13 +233,15 @@ function insertSymbol(
   db: Database.Database,
   fileId: number,
   name: string,
-  kind = 'function'
+  kind = 'function',
+  startLine = 1,
+  endLine = 10,
 ): number {
   const result = db
     .prepare(
-      'INSERT INTO symbols (file_id, name, kind, start_line, end_line) VALUES (?, ?, ?, 1, 10)'
+      'INSERT INTO symbols (file_id, name, kind, start_line, end_line) VALUES (?, ?, ?, ?, ?)'
     )
-    .run(fileId, name, kind);
+    .run(fileId, name, kind, startLine, endLine);
   return result.lastInsertRowid as number;
 }
 
@@ -629,6 +634,44 @@ describe('listFiles', () => {
   });
 });
 
+describe('listFilesByPathPrefix', () => {
+  let db: Database.Database;
+
+  beforeEach(() => {
+    db = createTestDb();
+    insertFile(db, 'src/main.ts', 'main');
+    insertFile(db, 'src/utils/helpers.ts', 'main');
+    insertFile(db, 'src/utils/helpers.ts', 'feat');
+    insertFile(db, 'scripts/build.ts', 'main');
+  });
+
+  it('should return exact-path and descendant matches in deterministic order', () => {
+    const rows = listFilesByPathPrefix(db, 'src');
+    expect(rows.map((row) => `${row.path}@${row.branch}`)).toEqual([
+      'src/main.ts@main',
+      'src/utils/helpers.ts@feat',
+      'src/utils/helpers.ts@main',
+    ]);
+  });
+
+  it('should normalize trailing slashes and filter by branch when provided', () => {
+    const rows = listFilesByPathPrefix(db, 'src/', 'main');
+    expect(rows.map((row) => `${row.path}@${row.branch}`)).toEqual([
+      'src/main.ts@main',
+      'src/utils/helpers.ts@main',
+    ]);
+  });
+
+  it('should return an empty array for blank prefixes', () => {
+    expect(listFilesByPathPrefix(db, '   ')).toEqual([]);
+  });
+
+  it('should respect the limit parameter', () => {
+    const rows = listFilesByPathPrefix(db, 'src', undefined, 2);
+    expect(rows).toHaveLength(2);
+  });
+});
+
 describe('documentation helpers', () => {
   let db: Database.Database;
   let readmeMainDocId: number;
@@ -871,12 +914,170 @@ describe('getSymbolsByName', () => {
     expect(rows.length).toBe(1);
   });
 
+  it('should default to exact matching when matchMode is omitted', () => {
+    expect(getSymbolsByName(db, 'parse')).toEqual([]);
+    expect(getSymbolsByName(db, 'parse', { branch: 'main' })).toEqual([]);
+  });
+
+  it('should support prefix match mode', () => {
+    const fileId = insertFile(db, 'src/prefix.ts', 'main');
+    insertSymbol(db, fileId, 'parse');
+    insertSymbol(db, fileId, 'parseHelper');
+
+    const rows = getSymbolsByName(db, 'parse', { matchMode: 'prefix' });
+    expect(rows.map((row) => row.name).sort()).toEqual([
+      'parse',
+      'parseConfig',
+      'parseConfig',
+      'parseHelper',
+    ]);
+  });
+
+  it('should support contains match mode', () => {
+    const fileId = insertFile(db, 'src/contains.ts', 'main');
+    insertSymbol(db, fileId, 'loadConfigValue');
+
+    const rows = getSymbolsByName(db, 'config', { matchMode: 'contains' });
+    expect(rows.map((row) => row.name).sort()).toEqual([
+      'loadConfigValue',
+      'parseConfig',
+      'parseConfig',
+    ]);
+  });
+
+  it('should apply branch, kind, pathPrefix, and language filters from options', () => {
+    const matchingFileId = insertFile(db, 'src/components/widget.ts', 'main', 'typescript');
+    const wrongLanguageFileId = insertFile(db, 'src/components/widget.js', 'main', 'javascript');
+    const wrongPathFileId = insertFile(db, 'lib/components/widget.ts', 'main', 'typescript');
+    const wrongBranchFileId = insertFile(db, 'src/components/widget.ts', 'feat', 'typescript');
+    insertSymbol(db, matchingFileId, 'parseConfig', 'class');
+    insertSymbol(db, wrongLanguageFileId, 'parseConfig', 'class');
+    insertSymbol(db, wrongPathFileId, 'parseConfig', 'class');
+    insertSymbol(db, wrongBranchFileId, 'parseConfig', 'class');
+
+    const rows = getSymbolsByName(db, 'parseConfig', {
+      branch: 'main',
+      kind: 'class',
+      pathPrefix: 'src/',
+      language: 'typescript',
+    });
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      file_id: matchingFileId,
+      name: 'parseConfig',
+      kind: 'class',
+    });
+  });
+
   it('should return empty array when name does not match', () => {
     expect(getSymbolsByName(db, 'nonexistent')).toEqual([]);
   });
 
   it('should return empty array when branch has no matching symbol', () => {
     expect(getSymbolsByName(db, 'parseConfig', 'nonexistent-branch')).toEqual([]);
+  });
+});
+
+describe('resolveSymbolRangeByName', () => {
+  let db: Database.Database;
+
+  beforeEach(() => {
+    db = createTestDb();
+    const sharedMainId = insertFile(db, 'src/shared.ts', 'main');
+    const sharedFeatId = insertFile(db, 'src/shared.ts', 'feat');
+    const otherMainId = insertFile(db, 'src/other.ts', 'main');
+    insertSymbol(db, sharedMainId, 'parseConfig', 'function', 11, 30);
+    insertSymbol(db, sharedFeatId, 'parseConfig', 'function', 15, 40);
+    insertSymbol(db, otherMainId, 'parseConfig', 'function', 5, 8);
+    insertSymbol(db, otherMainId, 'renderPage', 'function', 50, 70);
+  });
+
+  it('should list symbol range candidates in deterministic order', () => {
+    const rows = listSymbolRangesByName(db, 'parseConfig');
+    expect(rows.map((row) => [row.file_path, row.branch, row.start_line, row.end_line])).toEqual([
+      ['src/other.ts', 'main', 5, 8],
+      ['src/shared.ts', 'feat', 15, 40],
+      ['src/shared.ts', 'main', 11, 30],
+    ]);
+  });
+
+  it('should scope symbol range candidates by path with deterministic ordering', () => {
+    const rows = listSymbolRangesByName(db, 'parseConfig', { path: 'src/shared.ts' });
+    expect(rows.map((row) => [row.file_path, row.branch, row.start_line, row.end_line])).toEqual([
+      ['src/shared.ts', 'feat', 15, 40],
+      ['src/shared.ts', 'main', 11, 30],
+    ]);
+  });
+
+  it('should scope symbol range candidates by branch with deterministic ordering', () => {
+    const rows = listSymbolRangesByName(db, 'parseConfig', { branch: 'main' });
+    expect(rows.map((row) => [row.file_path, row.branch, row.start_line, row.end_line])).toEqual([
+      ['src/other.ts', 'main', 5, 8],
+      ['src/shared.ts', 'main', 11, 30],
+    ]);
+  });
+
+  it('should resolve a unique match when path and branch filters are provided', () => {
+    const resolution = resolveSymbolRangeByName(db, 'parseConfig', {
+      path: 'src/shared.ts',
+      branch: 'main',
+    });
+    expect(resolution.outcome).toBe('resolved');
+    if (resolution.outcome !== 'resolved') return;
+    expect(resolution.match).toMatchObject({
+      symbol_name: 'parseConfig',
+      file_path: 'src/shared.ts',
+      branch: 'main',
+      start_line: 11,
+      end_line: 30,
+    });
+  });
+
+  it('should resolve a unique match when only branch filtering is provided', () => {
+    const resolution = resolveSymbolRangeByName(db, 'parseConfig', { branch: 'feat' });
+    expect(resolution.outcome).toBe('resolved');
+    if (resolution.outcome !== 'resolved') return;
+    expect(resolution.match).toMatchObject({
+      file_path: 'src/shared.ts',
+      branch: 'feat',
+      start_line: 15,
+      end_line: 40,
+    });
+  });
+
+  it('should return a missing outcome for unknown symbols', () => {
+    const resolution = resolveSymbolRangeByName(db, 'doesNotExist');
+    expect(resolution).toEqual({
+      outcome: 'missing',
+      symbol: 'doesNotExist',
+      path: undefined,
+      branch: undefined,
+    });
+  });
+
+  it('should return a missing outcome that includes requested scope filters', () => {
+    const resolution = resolveSymbolRangeByName(db, 'doesNotExist', {
+      path: 'src/shared.ts',
+      branch: 'main',
+    });
+    expect(resolution).toEqual({
+      outcome: 'missing',
+      symbol: 'doesNotExist',
+      path: 'src/shared.ts',
+      branch: 'main',
+    });
+  });
+
+  it('should return an ambiguous outcome with deterministic candidates', () => {
+    const resolution = resolveSymbolRangeByName(db, 'parseConfig');
+    expect(resolution.outcome).toBe('ambiguous');
+    if (resolution.outcome !== 'ambiguous') return;
+    expect(resolution.candidates.map((row) => [row.file_path, row.branch, row.start_line, row.end_line])).toEqual([
+      ['src/other.ts', 'main', 5, 8],
+      ['src/shared.ts', 'feat', 15, 40],
+      ['src/shared.ts', 'main', 11, 30],
+    ]);
   });
 });
 
@@ -1116,6 +1317,45 @@ describe('listSymbols', () => {
 
   it('should return empty array when branch has no symbols', () => {
     expect(listSymbols(db, 100, 'nonexistent')).toEqual([]);
+  });
+
+  it('should support options object branch filtering', () => {
+    const rows = listSymbols(db, { branch: 'feat', limit: 10 });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.name).toBe('baz');
+  });
+
+  it('should apply kind, pathPrefix, and language filters from options', () => {
+    const matchingFileId = insertFile(db, 'src/components/widget.ts', 'main', 'typescript');
+    const wrongLanguageFileId = insertFile(db, 'src/components/widget.js', 'main', 'javascript');
+    const wrongPathFileId = insertFile(db, 'lib/components/widget.ts', 'main', 'typescript');
+    insertSymbol(db, matchingFileId, 'widgetController', 'class');
+    insertSymbol(db, wrongLanguageFileId, 'widgetController', 'class');
+    insertSymbol(db, wrongPathFileId, 'widgetController', 'class');
+
+    const rows = listSymbols(db, {
+      kind: 'class',
+      pathPrefix: 'src/',
+      language: 'typescript',
+      limit: 10,
+    });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      file_id: matchingFileId,
+      name: 'widgetController',
+      kind: 'class',
+    });
+  });
+
+  it('should apply limit and offset from options for pagination', () => {
+    const allRows = listSymbols(db, { limit: 10 });
+    const pagedRows = listSymbols(db, { limit: 1, offset: 1 });
+    expect(pagedRows).toHaveLength(1);
+    expect(pagedRows[0]?.id).toBe(allRows[1]?.id);
+  });
+
+  it('should return empty array when offset is beyond available rows', () => {
+    expect(listSymbols(db, { limit: 10, offset: 999 })).toEqual([]);
   });
 });
 
