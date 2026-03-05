@@ -160,7 +160,7 @@ await builder.build();
 | `lore_search` | Structural BM25, semantic vector, or fused RRF search across symbols and doc sections |
 | `lore_docs` | List, fetch, or search indexed documentation with branch, kind, and path filters |
 | `lore_graph` | Query call/import/module/inheritance edges; call edges include `callee_coverage_percent` |
-| `lore_snippet` | Return source snippets by file path and line range |
+| `lore_snippet` | Return snippets from indexed source snapshots by file path + line range or by symbol name; path/symbol resolution is branch-aware and responses include containing-symbol context metadata (name, kind, start/end lines) when available |
 | `lore_test_map` | Return mapped test files (with confidence) for a given source file path |
 | `lore_blame` | Return git blame metadata for a line or line range |
 | `lore_history` | Query commit history by file, commit, author, ref, or recency |
@@ -207,6 +207,24 @@ Example symbol lookup requests:
 { "action": "get", "path": "/repo/docs/architecture.md", "branch": "main", "include_sections": true }
 { "action": "search", "query": "incremental refresh", "kinds": ["guide", "architecture"], "limit": 10 }
 ```
+
+### lore_search filter parameters
+
+`lore_search` supports additional optional filters to narrow symbol and documentation hits:
+
+| Parameter | Applies to | Description |
+|-----------|------------|-------------|
+| `path_prefix` | Symbol results | Restrict symbol hits to files whose source path starts with the prefix |
+| `language` | Symbol results | Restrict symbol hits to indexed file language (for example `typescript`, `python`) |
+| `kind` | Symbol results | Restrict symbol hits to a symbol kind (for example `function`, `class`) |
+| `doc_path_prefix` | Doc-section results | Restrict semantic/fused doc hits to docs whose path starts with the prefix |
+| `doc_kind` | Doc-section results | Restrict semantic/fused doc hits to a documentation kind (for example `readme`, `architecture`) |
+
+Mode behavior:
+
+- `structural`: returns symbol hits only; applies `path_prefix`, `language`, and `kind`.
+- `semantic`: may return symbol and doc-section hits; symbol filters (`path_prefix`, `language`, `kind`) apply to symbol results, while `doc_path_prefix` and `doc_kind` apply to doc-section results before ranking output.
+- `fused`: combines structural and semantic candidates; symbol filters apply to symbol candidates and doc filters apply to semantic doc-section candidates before final fused ranking.
 
 ### lore_history modes
 
