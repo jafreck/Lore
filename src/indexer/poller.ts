@@ -43,7 +43,7 @@ const COVERAGE_REPORT_RELATIVE_PATHS = [
  *
  * @example
  * ```ts
- * const poller = new FilePoller('/path/to/kb.db', { rootDir: '/path/to/src' });
+ * const poller = new FilePoller('/path/to/lore.db', { rootDir: '/path/to/src' });
  * poller.start();
  * // ...later...
  * poller.stop();

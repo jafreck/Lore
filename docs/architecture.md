@@ -28,7 +28,7 @@ flowchart LR
         GITHIST[Git History Ingest<br/>commits · diffs · refs]
     end
 
-    subgraph SQLite KB
+    subgraph SQLite Lore
         FILES[(files)]
         SYM[(symbols · symbols_fts)]
         IMP[(file_imports · external_deps)]
@@ -39,20 +39,20 @@ flowchart LR
         COV[(coverage_runs · coverage_files<br/>coverage_lines)]
         VEC[(symbol_embeddings · symbol_semantic_embeddings<br/>doc_section_embeddings)]
         HIST[(commits · commit_files<br/>commit_refs)]
-        META[(kb_meta · symbol_summaries)]
+        META[(lore_meta · symbol_summaries)]
     end
 
     subgraph MCP Server
-        LOOKUP[kb_lookup]
-        SEARCH[kb_search<br/>BM25 · vector · fused]
-        DOCS_TOOL[kb_docs]
-        GRAPH[kb_graph]
-        SNIPPET[kb_snippet]
-        BLAME[kb_blame]
-        HISTORY[kb_history]
-        METRICS[kb_metrics]
-        KB_COVERAGE[kb_coverage]
-        WRITEBACK[kb_writeback]
+        LOOKUP[lore_lookup]
+        SEARCH[lore_search<br/>BM25 · vector · fused]
+        DOCS_TOOL[lore_docs]
+        GRAPH[lore_graph]
+        SNIPPET[lore_snippet]
+        BLAME[lore_blame]
+        HISTORY[lore_history]
+        METRICS[lore_metrics]
+        LORE_COVERAGE[lore_coverage]
+        WRITEBACK[lore_writeback]
     end
 
     subgraph LLM_AGENTS[Agents]
@@ -86,9 +86,9 @@ flowchart LR
     EMBED -.->|optional| VEC
     GIT --> GITHIST --> HIST
 
-    FILES & SYM & IMP & EXT & REFS & DOCS & NOTES & COV & VEC & HIST & META --- LOOKUP & SEARCH & DOCS_TOOL & GRAPH & SNIPPET & BLAME & HISTORY & METRICS & KB_COVERAGE & WRITEBACK
+    FILES & SYM & IMP & EXT & REFS & DOCS & NOTES & COV & VEC & HIST & META --- LOOKUP & SEARCH & DOCS_TOOL & GRAPH & SNIPPET & BLAME & HISTORY & METRICS & LORE_COVERAGE & WRITEBACK
 
-    LOOKUP & SEARCH & DOCS_TOOL & GRAPH & SNIPPET & BLAME & HISTORY & METRICS & KB_COVERAGE & WRITEBACK <--> LLM_AGENTS
+    LOOKUP & SEARCH & DOCS_TOOL & GRAPH & SNIPPET & BLAME & HISTORY & METRICS & LORE_COVERAGE & WRITEBACK <--> LLM_AGENTS
 
     LLM_AGENTS <--- ENTRY
 ```
@@ -129,30 +129,30 @@ When docs auto-notes are enabled (default), `IndexBuilder` seeds/updates notes f
 | Coverage | `coverage_runs`, `coverage_files`, `coverage_lines` | Coverage ingestion run metadata plus normalized per-file and per-line hit data |
 | Embeddings | `symbol_embeddings`, `symbol_semantic_embeddings`, `doc_section_embeddings` | vec0 virtual tables for semantic symbol/doc-section retrieval |
 | History | `commits`, `commit_files`, `commit_refs` | Git commit metadata, touched files, and named refs |
-| Metadata | `kb_meta`, `symbol_summaries`, `modules`, `file_modules` | Key-value config, LLM summaries, logical module groupings |
+| Metadata | `lore_meta`, `symbol_summaries`, `modules`, `file_modules` | Key-value config, LLM summaries, logical module groupings |
 
 ## MCP tools
 
 | Tool | Purpose |
 |------|---------|
-| `kb_lookup` | Find symbols by name or files by path (optional branch filter), including external API symbol matches from `external_symbols` and persisted LSP-enrichment metadata when available |
-| `kb_search` | Structural BM25, semantic vector, or fused RRF search; semantic/fused modes can return docs section hits and structural results are augmented by external symbol-name matches from `external_symbols`; returns persisted LSP-enrichment metadata fields when available |
-| `kb_docs` | List indexed docs, fetch full docs with optional sections, or search indexed sections |
-| `kb_graph` | Query call, import, module, or inheritance edges (`call` edges include `callee_coverage_percent`) |
-| `kb_snippet` | Return snippets from indexed DB-backed file snapshots by file path + line range or by symbol name; path/symbol resolution is branch-aware and responses include containing-symbol context metadata when available |
-| `kb_blame` | Query blame (`mode: "blame"`), line-range evolution (`mode: "history"`), or ownership aggregates (`mode: "ownership"`), including symbol-targeted range resolution |
-| `kb_history` | Query history by file, commit, author, ref, or recency |
-| `kb_metrics` | Return aggregate index metrics plus global coverage totals and staleness metadata (`coverage_commit`, `current_commit`, `commits_behind`, `stale`) |
-| `kb_coverage` | Return symbol-level coverage, uncovered lines, and staleness metadata for the latest coverage run |
-| `kb_notes_read` / `kb_notes_write` | Persist notes and read note freshness metadata (`source_hash_mismatch`, `doc_missing`, etc.) |
-| `kb_writeback` | Persist symbol summaries into `symbol_summaries` |
+| `lore_lookup` | Find symbols by name or files by path (optional branch filter), including external API symbol matches from `external_symbols` and persisted LSP-enrichment metadata when available |
+| `lore_search` | Structural BM25, semantic vector, or fused RRF search; semantic/fused modes can return docs section hits and structural results are augmented by external symbol-name matches from `external_symbols`; returns persisted LSP-enrichment metadata fields when available |
+| `lore_docs` | List indexed docs, fetch full docs with optional sections, or search indexed sections |
+| `lore_graph` | Query call, import, module, or inheritance edges (`call` edges include `callee_coverage_percent`) |
+| `lore_snippet` | Return snippets from indexed DB-backed file snapshots by file path + line range or by symbol name; path/symbol resolution is branch-aware and responses include containing-symbol context metadata when available |
+| `lore_blame` | Query blame (`mode: "blame"`), line-range evolution (`mode: "history"`), or ownership aggregates (`mode: "ownership"`), including symbol-targeted range resolution |
+| `lore_history` | Query history by file, commit, author, ref, or recency |
+| `lore_metrics` | Return aggregate index metrics plus global coverage totals and staleness metadata (`coverage_commit`, `current_commit`, `commits_behind`, `stale`) |
+| `lore_coverage` | Return symbol-level coverage, uncovered lines, and staleness metadata for the latest coverage run |
+| `lore_notes_read` / `lore_notes_write` | Persist notes and read note freshness metadata (`source_hash_mismatch`, `doc_missing`, etc.) |
+| `lore_writeback` | Persist symbol summaries into `symbol_summaries` |
 
-`kb_blame` response enrichment:
+`lore_blame` response enrichment:
 - Supports legacy `line`/`start_line`/`end_line` requests and symbol-driven targeting (`symbol` + optional `path`/`branch`), returning `resolved_symbol` when symbol resolution is used.
 - History and ownership modes include enriched commit context (`commits` and per-entry `commit_context`) with commit message details, touched files, and refs/tags.
 - All modes return risk indicators derived from recency, author dispersion, and churn (`risk.recency`, `risk.author_dispersion`, `risk.churn`, `risk.overall`).
 
-`kb_lookup` request schema highlights:
+`lore_lookup` request schema highlights:
 
 - `match_mode` (`exact` | `prefix` | `contains`) is available for `kind="symbol"` lookups and defaults to `exact`.
 - `symbol_kind`, `path_prefix`, and `language` are optional symbol filters.
@@ -166,8 +166,8 @@ External symbol retrieval flow:
    - Rust: direct dependency entries from root `Cargo.toml`
 2. Exported dependency declarations are persisted to `external_symbols` with package/version metadata.
 3. Transitive dependencies are excluded in all ecosystems; Lore indexes only the direct boundary.
-4. MCP retrieval paths include `external_symbols` for symbol-facing queries so dependency APIs can be returned alongside in-repo symbols in `kb_lookup` and structural `kb_search`.
+4. MCP retrieval paths include `external_symbols` for symbol-facing queries so dependency APIs can be returned alongside in-repo symbols in `lore_lookup` and structural `lore_search`.
 
 Query-time behavior:
-- LSP servers are index-time only. MCP/KB query handlers do not spawn or call language servers.
-- `kb_lookup` and `kb_search` read persisted enrichment fields directly from SQLite.
+- LSP servers are index-time only. MCP/Lore query handlers do not spawn or call language servers.
+- `lore_lookup` and `lore_search` read persisted enrichment fields directly from SQLite.

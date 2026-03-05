@@ -86,7 +86,7 @@ function queryCommitCount(dbPath: string): number {
 
 function queryKbMetaValue(dbPath: string, key: string): string | undefined {
   const db = new Database(dbPath, { readonly: true });
-  const row = db.prepare('SELECT value FROM kb_meta WHERE key = ?').get(key) as
+  const row = db.prepare('SELECT value FROM lore_meta WHERE key = ?').get(key) as
     | { value: string }
     | undefined;
   db.close();
@@ -516,7 +516,7 @@ describe('IndexBuilder — branch support in build()', () => {
     writeFileSync(filePath, updatedSource);
     const db = new Database(dbPath);
     db.prepare(
-      "INSERT OR REPLACE INTO kb_meta (key, value) VALUES ('index_checkpoint', ?)",
+      "INSERT OR REPLACE INTO lore_meta (key, value) VALUES ('index_checkpoint', ?)",
     ).run(
       JSON.stringify({
         branch: 'main',
@@ -551,10 +551,10 @@ describe('IndexBuilder — branch support in build()', () => {
 
     const db = new Database(dbPath, { readonly: true });
     const checkpointRow = db
-      .prepare("SELECT value FROM kb_meta WHERE key = 'index_checkpoint'")
+      .prepare("SELECT value FROM lore_meta WHERE key = 'index_checkpoint'")
       .get() as { value: string } | undefined;
     const headRow = db
-      .prepare("SELECT value FROM kb_meta WHERE key = 'last_known_head_sha'")
+      .prepare("SELECT value FROM lore_meta WHERE key = 'last_known_head_sha'")
       .get() as { value: string } | undefined;
     db.close();
 
@@ -631,7 +631,7 @@ describe('IndexBuilder — branch support in build()', () => {
     writeFileSync(routeFile, 'function health() { return "ok"; }\napp.get("/status", health);\n');
     const db = new Database(dbPath);
     db.prepare(
-      "INSERT OR REPLACE INTO kb_meta (key, value) VALUES ('index_checkpoint', ?)",
+      "INSERT OR REPLACE INTO lore_meta (key, value) VALUES ('index_checkpoint', ?)",
     ).run(
       JSON.stringify({ branch: 'main', rootDir: srcDir, totalFiles: 2, nextFileIndex: 0, updatedAt: Math.floor(Date.now() / 1000) }),
     );

@@ -5,8 +5,8 @@ import { spawnSync } from 'node:child_process';
 import Database from 'better-sqlite3';
 import { describe, expect, it } from 'vitest';
 import { IndexBuilder } from '../../../src/indexer/index.js';
-import { handler as lookupHandler } from '../../../src/kb-server/tools/lookup.js';
-import { handler as searchHandler } from '../../../src/kb-server/tools/search.js';
+import { handler as lookupHandler } from '../../../src/lore-server/tools/lookup.js';
+import { handler as searchHandler } from '../../../src/lore-server/tools/search.js';
 
 function commandExists(command: string): boolean {
   const checker = process.platform === 'win32' ? 'where' : 'which';
@@ -36,7 +36,7 @@ function createFixtureRoot(prefix: string): string {
 describe('LSP integration', () => {
   it('indexes successfully when configured language server is unavailable and leaves enrichment metadata empty', async () => {
     const rootDir = createFixtureRoot('lore-lsp-missing-server-');
-    const dbPath = join(rootDir, 'kb.db');
+    const dbPath = join(rootDir, 'lore.db');
     try {
       const builder = new IndexBuilder(dbPath, { rootDir }, undefined, {
         lsp: {
@@ -84,7 +84,7 @@ describe('LSP integration', () => {
     'persists LSP-enriched metadata and exposes it through lookup/search query tooling',
     async () => {
       const rootDir = createFixtureRoot('lore-lsp-live-server-');
-      const dbPath = join(rootDir, 'kb.db');
+      const dbPath = join(rootDir, 'lore.db');
       try {
         const builder = new IndexBuilder(dbPath, { rootDir }, undefined, {
           lsp: {

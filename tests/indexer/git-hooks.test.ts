@@ -20,7 +20,7 @@ describe('installGitHooks', () => {
     const result = installGitHooks({
       repoRoot,
       rootDir: repoRoot,
-      dbPath: path.join(repoRoot, 'kb.db'),
+      dbPath: path.join(repoRoot, 'lore.db'),
       includeHistory: false,
     });
 
@@ -44,7 +44,7 @@ describe('installGitHooks', () => {
     installGitHooks({
       repoRoot,
       rootDir: repoRoot,
-      dbPath: path.join(repoRoot, 'kb.db'),
+      dbPath: path.join(repoRoot, 'lore.db'),
       includeHistory: true,
     });
 
@@ -57,7 +57,7 @@ describe('installGitHooks', () => {
     installGitHooks({
       repoRoot,
       rootDir: repoRoot,
-      dbPath: path.join(repoRoot, 'kb.db'),
+      dbPath: path.join(repoRoot, 'lore.db'),
     });
 
     const hookPath = path.join(repoRoot, '.git', 'hooks', 'post-commit');
@@ -70,7 +70,7 @@ describe('installGitHooks', () => {
     installGitHooks({
       repoRoot,
       rootDir: repoRoot,
-      dbPath: path.join(repoRoot, 'kb.db'),
+      dbPath: path.join(repoRoot, 'lore.db'),
       lspEnabled: true,
     });
 
@@ -84,7 +84,7 @@ describe('installGitHooks', () => {
     installGitHooks({
       repoRoot,
       rootDir: repoRoot,
-      dbPath: path.join(repoRoot, 'kb.db'),
+      dbPath: path.join(repoRoot, 'lore.db'),
       lspEnabled: false,
     });
 
@@ -101,7 +101,7 @@ describe('installGitHooks', () => {
     installGitHooks({
       repoRoot,
       rootDir: repoRoot,
-      dbPath: path.join(repoRoot, 'kb.db'),
+      dbPath: path.join(repoRoot, 'lore.db'),
       includeHistory: false,
     });
 

@@ -14,13 +14,13 @@ import * as path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import {
   openDb,
-  setKbMeta,
-  getKbMeta,
+  setLoreMeta,
+  getLoreMeta,
   createVec0Tables,
-  KB_META_INDEX_CHECKPOINT,
-  KB_META_LAST_HEAD_SHA,
-  KB_META_COVERAGE_LAST_SOURCE_PATH,
-  KB_META_COVERAGE_LAST_SOURCE_MTIME,
+  LORE_META_INDEX_CHECKPOINT,
+  LORE_META_LAST_HEAD_SHA,
+  LORE_META_COVERAGE_LAST_SOURCE_PATH,
+  LORE_META_COVERAGE_LAST_SOURCE_MTIME,
 } from './db.js';
 import type { Database } from './db.js';
 import { walkFiles } from './walker.js';
@@ -144,7 +144,7 @@ interface IndexBuilderOptions {
  *
  * @example
  * ```ts
- * const builder = new IndexBuilder('/path/to/kb.db', { rootDir: '/path/to/src' });
+ * const builder = new IndexBuilder('/path/to/lore.db', { rootDir: '/path/to/src' });
  * await builder.build();
  * ```
  */
@@ -387,8 +387,8 @@ export class IndexBuilder {
         commitSha: resolvedCommitSha,
         sourceMtime,
       });
-      setKbMeta(db, KB_META_COVERAGE_LAST_SOURCE_PATH, reportPath);
-      setKbMeta(db, KB_META_COVERAGE_LAST_SOURCE_MTIME, String(sourceMtime));
+      setLoreMeta(db, LORE_META_COVERAGE_LAST_SOURCE_PATH, reportPath);
+      setLoreMeta(db, LORE_META_COVERAGE_LAST_SOURCE_MTIME, String(sourceMtime));
     } finally {
       db.close();
     }
@@ -916,12 +916,12 @@ export class IndexBuilder {
   private saveLastKnownHead(db: Database.Database): void {
     const headSha = this.readGitValue(['rev-parse', 'HEAD']);
     if (headSha) {
-      setKbMeta(db, KB_META_LAST_HEAD_SHA, headSha);
+      setLoreMeta(db, LORE_META_LAST_HEAD_SHA, headSha);
     }
   }
 
   private saveDocsAutoNotesSetting(db: Database.Database): void {
-    setKbMeta(db, 'docs_auto_notes', this.docsAutoNotes ? '1' : '0');
+    setLoreMeta(db, 'docs_auto_notes', this.docsAutoNotes ? '1' : '0');
   }
 
   private readGitValue(args: string[]): string | undefined {
@@ -1025,7 +1025,7 @@ export class IndexBuilder {
   }
 
   private loadBuildCheckpoint(db: Database.Database, branch: string, totalFiles: number): number {
-    const raw = getKbMeta(db, KB_META_INDEX_CHECKPOINT);
+    const raw = getLoreMeta(db, LORE_META_INDEX_CHECKPOINT);
     if (!raw) return 0;
     try {
       const parsed = JSON.parse(raw) as Partial<BuildCheckpoint>;
@@ -1045,21 +1045,21 @@ export class IndexBuilder {
       nextFileIndex,
       updatedAt: Math.floor(Date.now() / 1000),
     };
-    setKbMeta(db, KB_META_INDEX_CHECKPOINT, JSON.stringify(checkpoint));
+    setLoreMeta(db, LORE_META_INDEX_CHECKPOINT, JSON.stringify(checkpoint));
   }
 
   /**
    * Embed structural symbol signatures in batches and persist results to
    * the `symbol_embeddings` vec0 virtual table.
    *
-   * Also stores the embedding model name and dims in `kb_meta` and
+   * Also stores the embedding model name and dims in `lore_meta` and
    * creates the vec0 tables if they don't exist yet.
    */
   private async embedStructural(db: Database.Database): Promise<void> {
     const embedder = this.embedder!;
 
-    setKbMeta(db, 'embedding_model', embedder.modelName);
-    setKbMeta(db, 'embedding_dims', String(embedder.dims));
+    setLoreMeta(db, 'embedding_model', embedder.modelName);
+    setLoreMeta(db, 'embedding_dims', String(embedder.dims));
     createVec0Tables(db, embedder.dims);
 
     // Fetch all symbols that have structural text to embed.

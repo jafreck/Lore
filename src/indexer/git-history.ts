@@ -6,7 +6,7 @@
  */
 
 import { simpleGit } from 'simple-git';
-import { getKbMeta, setKbMeta, type Database } from './db.js';
+import { getLoreMeta, setLoreMeta, type Database } from './db.js';
 
 export interface GitHistoryOptions {
   depth?: number;
@@ -37,7 +37,7 @@ export async function ingestGitHistory(
       ? Math.floor(options.depth)
       : undefined;
   const git = simpleGit(repoRoot);
-  const storedWatermark = getKbMeta(db, GIT_HISTORY_WATERMARK_KEY);
+  const storedWatermark = getLoreMeta(db, GIT_HISTORY_WATERMARK_KEY);
   let watermark: string | undefined;
   if (storedWatermark) {
     try {
@@ -71,7 +71,7 @@ export async function ingestGitHistory(
   const logResult = await git.raw(logArgs);
 
   // Capture heads/tags that currently point to commits so branch/tag metadata
-  // is also available in the KB.
+  // is also available in the Lore.
   let refsRaw = '';
   try {
     refsRaw = await git.raw(['show-ref', '--heads', '--tags']);
@@ -176,6 +176,6 @@ export async function ingestGitHistory(
   })();
 
   if (latestShaInRun) {
-    setKbMeta(db, GIT_HISTORY_WATERMARK_KEY, latestShaInRun);
+    setLoreMeta(db, GIT_HISTORY_WATERMARK_KEY, latestShaInRun);
   }
 }
