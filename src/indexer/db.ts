@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS files (
   language    TEXT    NOT NULL,
   size_bytes  INTEGER NOT NULL DEFAULT 0,
   last_hash   TEXT,
+  source      TEXT    NOT NULL DEFAULT '',
   indexed_at  INTEGER NOT NULL DEFAULT (unixepoch()),
   UNIQUE(path, branch)
 );
@@ -284,6 +285,7 @@ CREATE INDEX IF NOT EXISTS idx_external_symbols_symbol_name ON external_symbols(
 `;
 
 const ENRICHMENT_SCHEMA_MIGRATIONS: Array<{ table: string; column: string; sql: string }> = [
+  { table: 'files', column: 'source', sql: "ALTER TABLE files ADD COLUMN source TEXT NOT NULL DEFAULT ''" },
   { table: 'symbols', column: 'resolved_type_signature', sql: 'ALTER TABLE symbols ADD COLUMN resolved_type_signature TEXT' },
   { table: 'symbols', column: 'resolved_return_type', sql: 'ALTER TABLE symbols ADD COLUMN resolved_return_type TEXT' },
   { table: 'symbols', column: 'definition_uri', sql: 'ALTER TABLE symbols ADD COLUMN definition_uri TEXT' },
