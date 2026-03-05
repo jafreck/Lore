@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import Database from 'better-sqlite3';
 import * as docs from '../../src/kb-server/tools/docs.js';
 import * as search from '../../src/kb-server/tools/search.js';
+import * as metrics from '../../src/kb-server/tools/metrics.js';
 
 const { mockTool } = vi.hoisted(() => ({
   mockTool: vi.fn(),
@@ -178,6 +179,84 @@ describe('createKbMcpServer', () => {
     } finally {
       searchHandlerSpy.mockRestore();
     }
+  });
+
+  it('should register kb_metrics with expected complexity schema fields', () => {
+    const db = new Database(':memory:');
+
+    createKbMcpServer(db, '/tmp/test.db');
+
+    const metricsToolCall = mockTool.mock.calls.find((call) => call[0] === 'kb_metrics');
+    expect(metricsToolCall).toBeDefined();
+
+    const metricsSchema = metricsToolCall?.[2] as {
+      mode: { safeParse: (v: unknown) => { success: boolean } };
+      limit: { safeParse: (v: unknown) => { success: boolean } };
+      min_cyclomatic: { safeParse: (v: unknown) => { success: boolean } };
+    };
+    expect(metricsSchema.mode.safeParse('aggregate').success).toBe(true);
+    expect(metricsSchema.mode.safeParse('complexity').success).toBe(true);
+    expect(metricsSchema.limit.safeParse(10).success).toBe(true);
+    expect(metricsSchema.min_cyclomatic.safeParse(5).success).toBe(true);
+    expect(metricsSchema.mode.safeParse('invalid').success).toBe(false);
+    expect(metricsSchema.limit.safeParse('10').success).toBe(false);
+    expect(metricsSchema.min_cyclomatic.safeParse('5').success).toBe(false);
+  });
+
+  it('should route kb_metrics tool calls through metrics.handler with parsed args', async () => {
+    const db = new Database(':memory:');
+    const metricsResult = { symbols: [] };
+    const metricsHandlerSpy = vi.spyOn(metrics, 'handler').mockReturnValue(metricsResult);
+
+    createKbMcpServer(db, '/tmp/test.db');
+
+    const metricsToolCall = mockTool.mock.calls.find((call) => call[0] === 'kb_metrics');
+    expect(metricsToolCall).toBeDefined();
+
+    const metricsCallback = metricsToolCall?.[3] as (args: unknown) => Promise<{
+      content: Array<{ type: string; text: string }>;
+    }>;
+    const args = { mode: 'complexity', limit: 10, min_cyclomatic: 5 };
+    const response = await metricsCallback(args);
+
+    expect(metricsHandlerSpy).toHaveBeenCalledWith(db, args);
+    expect(response).toEqual({
+      content: [{ type: 'text', text: JSON.stringify(metricsResult) }],
+    });
+  });
+
+  it('should route kb_metrics with no args to aggregate behavior', async () => {
+    const db = new Database(':memory:');
+    const aggregateResult = {
+      symbol_count: 0,
+      file_count: 0,
+      import_edge_count: 0,
+      coverage_available: false,
+      coverage_commit: null,
+      current_commit: null,
+      commits_behind: 0,
+      stale: false,
+      global_lines_found: null,
+      global_lines_hit: null,
+      global_coverage_percent: null,
+      per_branch: [],
+    };
+    const metricsHandlerSpy = vi.spyOn(metrics, 'handler').mockReturnValue(aggregateResult);
+
+    createKbMcpServer(db, '/tmp/test.db');
+
+    const metricsToolCall = mockTool.mock.calls.find((call) => call[0] === 'kb_metrics');
+    expect(metricsToolCall).toBeDefined();
+
+    const metricsCallback = metricsToolCall?.[3] as (args?: unknown) => Promise<{
+      content: Array<{ type: string; text: string }>;
+    }>;
+    const response = await metricsCallback();
+
+    expect(metricsHandlerSpy).toHaveBeenCalledWith(db, {});
+    expect(response).toEqual({
+      content: [{ type: 'text', text: JSON.stringify(aggregateResult) }],
+    });
   });
 
   it('should describe kb_lookup query as including persisted enrichment metadata', () => {
