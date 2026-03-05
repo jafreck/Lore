@@ -15,6 +15,7 @@ import {
   listDocSections,
   searchDocSections,
   semanticSearchDocSections,
+  semanticSearchSymbols,
   listConfigEntries,
   listTestMappingsBySourcePath,
   getSymbolsByName,
@@ -363,6 +364,26 @@ function loadDocSectionEmbeddingsTable(db: Database.Database, dims: number): voi
       embedding FLOAT[${dims}]
     );
   `);
+}
+
+function loadSymbolEmbeddingsTable(db: Database.Database, dims: number): void {
+  const sqliteVec = esmRequire('sqlite-vec') as { load(db: Database.Database): void };
+  sqliteVec.load(db);
+  db.exec(`
+    CREATE VIRTUAL TABLE symbol_embeddings USING vec0(
+      embedding FLOAT[${dims}]
+    );
+  `);
+}
+
+function insertSymbolEmbedding(
+  db: Database.Database,
+  symbolId: number,
+  embedding: number[],
+): void {
+  db.prepare(
+    'INSERT OR REPLACE INTO symbol_embeddings(rowid, embedding) VALUES (CAST(? AS INTEGER), json(?))',
+  ).run(symbolId, JSON.stringify(embedding));
 }
 
 function insertDocSectionEmbedding(
@@ -1004,6 +1025,96 @@ describe('getSymbolsByName', () => {
 
   it('should return empty array when branch has no matching symbol', () => {
     expect(getSymbolsByName(db, 'parseConfig', 'nonexistent-branch')).toEqual([]);
+  });
+});
+
+describe('semanticSearchSymbols', () => {
+  let db: Database.Database;
+  let mainAlphaId: number;
+  let mainBetaId: number;
+  let featGammaId: number;
+
+  beforeEach(() => {
+    db = createTestDb();
+    const mainAFileId = insertFile(db, 'src/a.ts', 'main');
+    const mainBFileId = insertFile(db, 'src/b.ts', 'main');
+    const featFileId = insertFile(db, 'src/c.ts', 'feat');
+
+    mainAlphaId = insertSymbol(db, mainAFileId, 'alpha');
+    mainBetaId = insertSymbol(db, mainBFileId, 'beta');
+    featGammaId = insertSymbol(db, featFileId, 'gamma');
+
+    loadSymbolEmbeddingsTable(db, 3);
+    insertSymbolEmbedding(db, mainAlphaId, [1, 0, 0]);
+    insertSymbolEmbedding(db, mainBetaId, [1, 0, 0]);
+    insertSymbolEmbedding(db, featGammaId, [1, 0, 0]);
+  });
+
+  it('should return an empty list for an empty query vector', () => {
+    expect(semanticSearchSymbols(db, { queryVector: [] })).toEqual([]);
+  });
+
+  it('should filter semantic symbol results by branch with deterministic ordering for equal scores', () => {
+    const rows = semanticSearchSymbols(db, {
+      queryVector: [1, 0, 0],
+      branch: 'main',
+      limit: 10,
+    });
+
+    expect(rows.map((row) => `${row.file_branch}:${row.file_path}:${row.id}`)).toEqual([
+      `main:src/a.ts:${mainAlphaId}`,
+      `main:src/b.ts:${mainBetaId}`,
+    ]);
+  });
+
+  it('should include score metadata and honor the caller-provided limit', () => {
+    const rows = semanticSearchSymbols(db, {
+      queryVector: [1, 0, 0],
+      limit: 1,
+    });
+
+    expect(rows).toHaveLength(1);
+    expect(typeof rows[0]?.id).toBe('number');
+    expect(typeof rows[0]?.file_path).toBe('string');
+    expect(typeof rows[0]?.file_branch).toBe('string');
+    expect(rows[0]).toHaveProperty('score');
+    expect(typeof rows[0]?.score).toBe('number');
+  });
+
+  it('should coerce non-positive limits to at least one semantic row', () => {
+    const rows = semanticSearchSymbols(db, {
+      queryVector: [1, 0, 0],
+      limit: 0,
+    });
+
+    expect(rows).toHaveLength(1);
+  });
+
+  it('should include symbol metric columns when the symbol_metrics table exists', () => {
+    db.exec(`
+      CREATE TABLE symbol_metrics (
+        symbol_id INTEGER PRIMARY KEY REFERENCES symbols(id) ON DELETE CASCADE,
+        line_count INTEGER,
+        param_count INTEGER,
+        cyclomatic INTEGER,
+        max_nesting INTEGER
+      );
+    `);
+    db.prepare(
+      'INSERT INTO symbol_metrics(symbol_id, line_count, param_count, cyclomatic, max_nesting) VALUES (?, ?, ?, ?, ?)',
+    ).run(mainAlphaId, 10, 2, 3, 1);
+
+    const rows = semanticSearchSymbols(db, {
+      queryVector: [1, 0, 0],
+      branch: 'main',
+      limit: 10,
+    });
+    const alpha = rows.find((row) => row.id === mainAlphaId);
+
+    expect(alpha?.line_count).toBe(10);
+    expect(alpha?.param_count).toBe(2);
+    expect(alpha?.cyclomatic).toBe(3);
+    expect(alpha?.max_nesting).toBe(1);
   });
 });
 

@@ -1,8 +1,11 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import Database from 'better-sqlite3';
 import { handler, toolDef } from '../../../src/lore-server/tools/lookup.js';
+import { createRequire } from 'node:module';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const esmRequire = createRequire(import.meta.url);
 
 function createTestDb(includeEnrichmentColumns = false): Database.Database {
   const db = new Database(':memory:');
@@ -107,6 +110,22 @@ function insertExternalSymbol(
   return result.lastInsertRowid as number;
 }
 
+function loadSymbolVectorTable(db: Database.Database, dims: number): void {
+  const sqliteVec = esmRequire('sqlite-vec') as { load(db: Database.Database): void };
+  sqliteVec.load(db);
+  db.exec(`
+    CREATE VIRTUAL TABLE symbol_embeddings USING vec0(
+      embedding FLOAT[${dims}]
+    );
+  `);
+}
+
+function insertSymbolEmbedding(db: Database.Database, symbolId: number, embedding: number[]): void {
+  db.prepare(
+    'INSERT OR REPLACE INTO symbol_embeddings(rowid, embedding) VALUES (CAST(? AS INTEGER), json(?))',
+  ).run(symbolId, JSON.stringify(embedding));
+}
+
 // ─── handler (kind=symbol) ────────────────────────────────────────────────────
 
 describe('lookup handler – kind=symbol', () => {
@@ -122,8 +141,8 @@ describe('lookup handler – kind=symbol', () => {
     insertSymbolMetrics(db, parseConfigId);
   });
 
-  it('should return matching symbols by name', () => {
-    const result = handler(db, { kind: 'symbol', query: 'parseConfig' });
+  it('should return matching symbols by name', async () => {
+    const result = await handler(db, { kind: 'symbol', query: 'parseConfig' });
     expect(result.results.length).toBe(2);
     expect(result.results[0]).toHaveProperty('line_count');
     expect(result.results[0]).toHaveProperty('param_count');
@@ -131,17 +150,17 @@ describe('lookup handler – kind=symbol', () => {
     expect(result.results[0]).toHaveProperty('max_nesting');
   });
 
-  it('should keep internal-only symbol lookup results unchanged when no external matches exist', () => {
-    const result = handler(db, { kind: 'symbol', query: 'parseConfig' });
+  it('should keep internal-only symbol lookup results unchanged when no external matches exist', async () => {
+    const result = await handler(db, { kind: 'symbol', query: 'parseConfig' });
     expect(result.results.length).toBe(2);
     expect(
       result.results.every((row) => !Object.prototype.hasOwnProperty.call(row, 'package_name')),
     ).toBe(true);
   });
 
-  it('should return external-only symbol matches with package metadata', () => {
+  it('should return external-only symbol matches with package metadata', async () => {
     insertExternalSymbol(db, 'left-pad', '1.3.0', 'leftPad', 'function');
-    const result = handler(db, { kind: 'symbol', query: 'leftPad' });
+    const result = await handler(db, { kind: 'symbol', query: 'leftPad' });
     expect(result.results.length).toBe(1);
     expect(result.results[0]).toMatchObject({
       package_name: 'left-pad',
@@ -151,9 +170,9 @@ describe('lookup handler – kind=symbol', () => {
     });
   });
 
-  it('should return mixed internal and external symbol matches for the same query', () => {
+  it('should return mixed internal and external symbol matches for the same query', async () => {
     insertExternalSymbol(db, 'dep-utils', '2.0.0', 'parseConfig', 'function');
-    const result = handler(db, { kind: 'symbol', query: 'parseConfig' });
+    const result = await handler(db, { kind: 'symbol', query: 'parseConfig' });
     expect(result.results.length).toBe(3);
 
     const internalRows = result.results.filter((row) =>
@@ -172,33 +191,33 @@ describe('lookup handler – kind=symbol', () => {
     });
   });
 
-  it('should trim symbol query before matching internal and external symbols', () => {
+  it('should trim symbol query before matching internal and external symbols', async () => {
     insertExternalSymbol(db, 'dep-utils', '2.0.0', 'parseConfig', 'function');
-    const result = handler(db, { kind: 'symbol', query: '  parseConfig  ' });
+    const result = await handler(db, { kind: 'symbol', query: '  parseConfig  ' });
     expect(result.results.length).toBe(3);
   });
 
-  it('should default to exact matching when match_mode is omitted', () => {
-    const result = handler(db, { kind: 'symbol', query: 'parse' });
+  it('should default to exact matching when match_mode is omitted', async () => {
+    const result = await handler(db, { kind: 'symbol', query: 'parse' });
     expect(result.results).toEqual([]);
   });
 
-  it('should support prefix and contains match modes for symbol lookup', () => {
-    const prefixResult = handler(db, { kind: 'symbol', query: 'parse', match_mode: 'prefix' });
-    const containsResult = handler(db, { kind: 'symbol', query: 'config', match_mode: 'contains' });
+  it('should support prefix and contains match modes for symbol lookup', async () => {
+    const prefixResult = await handler(db, { kind: 'symbol', query: 'parse', match_mode: 'prefix' });
+    const containsResult = await handler(db, { kind: 'symbol', query: 'config', match_mode: 'contains' });
 
     expect(prefixResult.results).toHaveLength(2);
     expect(containsResult.results).toHaveLength(2);
   });
 
-  it('should include external symbols only for default/exact symbol matches without path or language filters', () => {
+  it('should include external symbols only for default/exact symbol matches without path or language filters', async () => {
     insertExternalSymbol(db, 'dep-utils', '2.0.0', 'parseConfig', 'function');
 
-    const prefixResult = handler(db, { kind: 'symbol', query: 'parseConfig', match_mode: 'prefix' });
-    const containsResult = handler(db, { kind: 'symbol', query: 'config', match_mode: 'contains' });
-    const pathFilteredResult = handler(db, { kind: 'symbol', query: 'parseConfig', path_prefix: 'src/' });
-    const languageFilteredResult = handler(db, { kind: 'symbol', query: 'parseConfig', language: 'typescript' });
-    const exactResult = handler(db, { kind: 'symbol', query: 'parseConfig', match_mode: 'exact' });
+    const prefixResult = await handler(db, { kind: 'symbol', query: 'parseConfig', match_mode: 'prefix' });
+    const containsResult = await handler(db, { kind: 'symbol', query: 'config', match_mode: 'contains' });
+    const pathFilteredResult = await handler(db, { kind: 'symbol', query: 'parseConfig', path_prefix: 'src/' });
+    const languageFilteredResult = await handler(db, { kind: 'symbol', query: 'parseConfig', language: 'typescript' });
+    const exactResult = await handler(db, { kind: 'symbol', query: 'parseConfig', match_mode: 'exact' });
 
     expect(
       prefixResult.results.every((row) => !Object.prototype.hasOwnProperty.call(row, 'package_name')),
@@ -217,13 +236,13 @@ describe('lookup handler – kind=symbol', () => {
     ).toBe(true);
   });
 
-  it('should apply symbol kind, path prefix, and language filters', () => {
+  it('should apply symbol kind, path prefix, and language filters', async () => {
     const tsFileId = insertFile(db, 'src/components/widget.ts', 'main', 'typescript');
     const pyFileId = insertFile(db, 'src/components/widget.py', 'main', 'python');
     insertSymbol(db, tsFileId, 'parseConfig', 'class');
     insertSymbol(db, pyFileId, 'parseConfig', 'class');
 
-    const result = handler(db, {
+    const result = await handler(db, {
       kind: 'symbol',
       query: 'parseConfig',
       symbol_kind: 'class',
@@ -239,9 +258,9 @@ describe('lookup handler – kind=symbol', () => {
     });
   });
 
-  it('should keep external symbol matches when branch filter is provided', () => {
+  it('should keep external symbol matches when branch filter is provided', async () => {
     insertExternalSymbol(db, 'dep-utils', '2.0.0', 'parseConfig', 'function');
-    const result = handler(db, { kind: 'symbol', query: 'parseConfig', branch: 'main' });
+    const result = await handler(db, { kind: 'symbol', query: 'parseConfig', branch: 'main' });
 
     const internalRows = result.results.filter((row) =>
       Object.prototype.hasOwnProperty.call(row, 'name'),
@@ -258,42 +277,53 @@ describe('lookup handler – kind=symbol', () => {
     });
   });
 
-  it('should filter symbols by branch when branch is provided', () => {
-    const result = handler(db, { kind: 'symbol', query: 'parseConfig', branch: 'main' });
+  it('should filter symbols by branch when branch is provided', async () => {
+    const result = await handler(db, { kind: 'symbol', query: 'parseConfig', branch: 'main' });
     expect(result.results.length).toBe(1);
   });
 
-  it('should list symbols when query is empty and no branch filter', () => {
-    const result = handler(db, { kind: 'symbol', query: '' });
+  it('should list symbols when query is empty and no branch filter', async () => {
+    const result = await handler(db, { kind: 'symbol', query: '' });
     expect(result.results.length).toBe(3);
   });
 
-  it('should apply limit and offset when query is empty', () => {
-    const paged = handler(db, { kind: 'symbol', query: '', limit: 1, offset: 1 });
-    const outOfRange = handler(db, { kind: 'symbol', query: '', limit: 10, offset: 99 });
+  it('should apply limit and offset when query is empty', async () => {
+    const paged = await handler(db, { kind: 'symbol', query: '', limit: 1, offset: 1 });
+    const outOfRange = await handler(db, { kind: 'symbol', query: '', limit: 10, offset: 99 });
 
     expect(paged.results).toHaveLength(1);
     expect(outOfRange.results).toEqual([]);
   });
 
-  it('should list symbols filtered by branch when query is empty', () => {
-    const result = handler(db, { kind: 'symbol', query: '', branch: 'main' });
+  it('should list symbols filtered by branch when query is empty', async () => {
+    const result = await handler(db, { kind: 'symbol', query: '', branch: 'main' });
     expect(result.results.length).toBe(2);
   });
 
-  it('should return empty array when no symbols match the query', () => {
-    const result = handler(db, { kind: 'symbol', query: 'nonexistent' });
+  it('should return empty array when no symbols match the query', async () => {
+    const result = await handler(db, { kind: 'symbol', query: 'nonexistent' });
     expect(result.results).toEqual([]);
   });
 
-  it('should return empty array when branch has no matching symbol', () => {
-    const result = handler(db, { kind: 'symbol', query: 'parseConfig', branch: 'nonexistent' });
+  it('should return empty array when branch has no matching symbol', async () => {
+    const result = await handler(db, { kind: 'symbol', query: 'parseConfig', branch: 'nonexistent' });
     expect(result.results).toEqual([]);
+  });
+
+  it('should signal exact fallback when semantic mode cannot use query embeddings', async () => {
+    const emptyEmbedder = {
+      modelName: 'test-embedder',
+      dims: 3,
+      embed: vi.fn(async () => [[]]),
+    };
+    const result = await handler(db, { kind: 'symbol', query: 'parseConfig', mode: 'semantic' }, emptyEmbedder);
+    expect(result.mode_used).toBe('exact (fallback: no embeddings)');
+    expect(result.results.length).toBe(2);
   });
 });
 
 describe('lookup handler – enrichment metadata projection', () => {
-  it('should return persisted internal and external enrichment metadata when present', () => {
+  it('should return persisted internal and external enrichment metadata when present', async () => {
     const db = createTestDb(true);
     const fileId = insertFile(db, 'src/main.ts', 'main');
     const symbolId = insertSymbol(db, fileId, 'parseConfig');
@@ -322,7 +352,7 @@ describe('lookup handler – enrichment metadata projection', () => {
       externalSymbolId,
     );
 
-    const result = handler(db, { kind: 'symbol', query: 'parseConfig' });
+    const result = await handler(db, { kind: 'symbol', query: 'parseConfig' });
     const internalRow = result.results.find((row) => Object.prototype.hasOwnProperty.call(row, 'name')) as
       | Record<string, unknown>
       | undefined;
@@ -345,6 +375,104 @@ describe('lookup handler – enrichment metadata projection', () => {
   });
 });
 
+describe('lookup handler – semantic symbol modes', () => {
+  let db: Database.Database;
+
+  beforeEach(() => {
+    db = createTestDb();
+    loadSymbolVectorTable(db, 3);
+    const mainId = insertFile(db, 'src/main.ts', 'main');
+    const featId = insertFile(db, 'src/feat.ts', 'feat');
+    const parseMainId = insertSymbol(db, mainId, 'parseConfig');
+    const parseFeatId = insertSymbol(db, featId, 'parseConfig');
+    const loadMainId = insertSymbol(db, mainId, 'loadSettings');
+    insertExternalSymbol(db, 'dep-utils', '2.0.0', 'parseConfig', 'function');
+    insertSymbolEmbedding(db, parseMainId, [0.97, 0.03, 0.0]);
+    insertSymbolEmbedding(db, parseFeatId, [0.95, 0.05, 0.0]);
+    insertSymbolEmbedding(db, loadMainId, [0.93, 0.07, 0.0]);
+  });
+
+  it('should return semantic results with branch filtering and keep external exact matches', async () => {
+    const embedder = {
+      modelName: 'test-embedder',
+      dims: 3,
+      embed: vi.fn(async () => [[0.96, 0.04, 0.0]]),
+    };
+    const result = await handler(
+      db,
+      { kind: 'symbol', query: 'parseConfig', mode: 'semantic', branch: 'main' },
+      embedder,
+    );
+
+    if (result.mode_used === 'semantic') {
+      const internalRows = result.results.filter((row) =>
+        Object.prototype.hasOwnProperty.call(row, 'name'),
+      ) as Array<{ name: string; file_branch?: string }>;
+      const externalRows = result.results.filter((row) =>
+        Object.prototype.hasOwnProperty.call(row, 'package_name'),
+      );
+
+      expect(internalRows.length).toBeGreaterThan(0);
+      expect(internalRows.every((row) => row.file_branch === 'main')).toBe(true);
+      expect(externalRows).toHaveLength(1);
+      return;
+    }
+
+    expect(result.mode_used).toBe('exact (fallback: no embeddings)');
+    expect(result.results).toHaveLength(2);
+  });
+
+  it('should combine exact, semantic-only, and external matches in fused mode', async () => {
+    const embedder = {
+      modelName: 'test-embedder',
+      dims: 3,
+      embed: vi.fn(async () => [[0.96, 0.04, 0.0]]),
+    };
+    const result = await handler(db, { kind: 'symbol', query: 'parseConfig', mode: 'fused' }, embedder);
+
+    if (result.mode_used === 'fused') {
+      const internalNames = result.results
+        .filter((row) => Object.prototype.hasOwnProperty.call(row, 'name'))
+        .map((row) => (row as { name: string }).name);
+      const externalRows = result.results.filter((row) =>
+        Object.prototype.hasOwnProperty.call(row, 'package_name'),
+      );
+
+      expect(internalNames[0]).toBe('parseConfig');
+      expect(internalNames).toContain('loadSettings');
+      expect(externalRows).toHaveLength(1);
+      return;
+    }
+
+    expect(result.mode_used).toBe('exact (fallback: no embeddings)');
+    expect(result.results.length).toBe(3);
+  });
+
+  it('should explicitly signal no-query-time-embedder fallback when semantic mode is requested', async () => {
+    const result = await handler(db, { kind: 'symbol', query: 'parseConfig', mode: 'semantic' });
+    expect(result.mode_used).toBe('exact (fallback: no query-time embedder)');
+    expect(result.results.length).toBe(3);
+  });
+
+  it('should signal exact fallback when semantic embedding generation throws', async () => {
+    const throwingEmbedder = {
+      modelName: 'test-embedder',
+      dims: 3,
+      embed: vi.fn(async () => {
+        throw new Error('embedding failed');
+      }),
+    };
+    const result = await handler(
+      db,
+      { kind: 'symbol', query: 'parseConfig', mode: 'semantic' },
+      throwingEmbedder,
+    );
+    expect(throwingEmbedder.embed).toHaveBeenCalledWith(['parseConfig']);
+    expect(result.mode_used).toBe('exact (fallback: no embeddings)');
+    expect(result.results.length).toBe(3);
+  });
+});
+
 // ─── handler (kind=file) ──────────────────────────────────────────────────────
 
 describe('lookup handler – kind=file', () => {
@@ -357,35 +485,35 @@ describe('lookup handler – kind=file', () => {
     insertFile(db, 'src/other.ts', 'main');
   });
 
-  it('should return a file row when path matches', () => {
-    const result = handler(db, { kind: 'file', query: 'src/main.ts' });
+  it('should return a file row when path matches', async () => {
+    const result = await handler(db, { kind: 'file', query: 'src/main.ts' });
     expect(result.results.length).toBeGreaterThan(0);
     expect(result.results[0]).not.toHaveProperty('cyclomatic');
   });
 
-  it('should filter file by branch when branch is provided', () => {
-    const result = handler(db, { kind: 'file', query: 'src/main.ts', branch: 'feat' });
+  it('should filter file by branch when branch is provided', async () => {
+    const result = await handler(db, { kind: 'file', query: 'src/main.ts', branch: 'feat' });
     expect(result.results.length).toBe(1);
     expect((result.results[0] as { branch: string }).branch).toBe('feat');
   });
 
-  it('should return empty array when file path not found', () => {
-    const result = handler(db, { kind: 'file', query: 'nonexistent.ts' });
+  it('should return empty array when file path not found', async () => {
+    const result = await handler(db, { kind: 'file', query: 'nonexistent.ts' });
     expect(result.results).toEqual([]);
   });
 
-  it('should return empty array when branch does not match', () => {
-    const result = handler(db, { kind: 'file', query: 'src/main.ts', branch: 'nonexistent' });
+  it('should return empty array when branch does not match', async () => {
+    const result = await handler(db, { kind: 'file', query: 'src/main.ts', branch: 'nonexistent' });
     expect(result.results).toEqual([]);
   });
 
-  it('should list files when query is empty', () => {
-    const result = handler(db, { kind: 'file', query: '' });
+  it('should list files when query is empty', async () => {
+    const result = await handler(db, { kind: 'file', query: '' });
     expect(result.results.length).toBe(3);
   });
 
-  it('should list files filtered by branch when query is empty', () => {
-    const result = handler(db, { kind: 'file', query: '', branch: 'main' });
+  it('should list files filtered by branch when query is empty', async () => {
+    const result = await handler(db, { kind: 'file', query: '', branch: 'main' });
     expect(result.results.length).toBe(2);
   });
 });
@@ -396,6 +524,7 @@ describe('lookup toolDef', () => {
     expect(toolDef.inputSchema.required).toEqual(['kind', 'query']);
     expect(toolDef.inputSchema.properties.kind.enum).toEqual(['symbol', 'file']);
     expect(toolDef.inputSchema.properties.query.type).toBe('string');
+    expect(toolDef.inputSchema.properties.mode.enum).toEqual(['exact', 'semantic', 'fused']);
     expect(toolDef.inputSchema.properties.match_mode.enum).toEqual(['exact', 'prefix', 'contains']);
     expect(toolDef.inputSchema.properties.symbol_kind.type).toBe('string');
     expect(toolDef.inputSchema.properties.path_prefix.type).toBe('string');
