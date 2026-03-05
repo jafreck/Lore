@@ -45,6 +45,10 @@ import * as graph from './tools/graph.js';
 import * as search from './tools/search.js';
 import type { SearchObserver } from './tools/search.js';
 import * as docs from './tools/docs.js';
+import * as annotations from './tools/annotations.js';
+import * as routes from './tools/routes.js';
+import * as notes from './tools/notes.js';
+import * as architecture from './tools/architecture.js';
 import * as testMap from './tools/test-map.js';
 import * as snippet from './tools/snippet.js';
 import * as blame from './tools/blame.js';
@@ -200,6 +204,86 @@ export function createKbMcpServer(
     },
     async (args) => ({
       content: [{ type: 'text', text: JSON.stringify(docs.handler(db, args)) }],
+    }),
+  );
+
+  // ── kb_annotations ─────────────────────────────────────────────────────────
+  server.tool(
+    annotations.toolDef.name,
+    annotations.toolDef.description,
+    {
+      kind: z
+        .enum(['TODO', 'FIXME', 'HACK', 'XXX', 'NOTE', 'BUG', 'OPTIMIZE'])
+        .describe('Annotation kind/tag to filter by.'),
+      path: z.string().optional().describe('Optional exact file path filter.'),
+      limit: z.number().optional().describe('Maximum number of results to return (default 20).'),
+    },
+    async (args) => ({
+      content: [{ type: 'text', text: JSON.stringify(annotations.handler(db, args)) }],
+    }),
+  );
+
+  // ── kb_routes ──────────────────────────────────────────────────────────────
+  server.tool(
+    routes.toolDef.name,
+    routes.toolDef.description,
+    {
+      method: z.string().optional().describe('Optional HTTP method filter (for example GET, POST).'),
+      path_prefix: z.string().optional().describe('Optional route path prefix filter.'),
+      framework: z.string().optional().describe('Optional framework filter (for example express, fastapi, gin).'),
+    },
+    async (args) => ({
+      content: [{ type: 'text', text: JSON.stringify(routes.handler(db, args)) }],
+    }),
+  );
+
+  // ── kb_notes_write ─────────────────────────────────────────────────────────
+  server.tool(
+    notes.writeToolDef.name,
+    notes.writeToolDef.description,
+    {
+      key: z.string().describe('Topic identifier, e.g. "architecture/overview".'),
+      scope: z
+        .string()
+        .optional()
+        .describe('Optional scope (default "global"), e.g. file:<path>, module:<name>.'),
+      content: z.string().describe('The note text.'),
+      model: z.string().optional().describe('Model identifier that authored the note.'),
+      source_hash: z.string().optional().describe('Optional source hash used for staleness detection.'),
+    },
+    async (args) => ({
+      content: [{ type: 'text', text: JSON.stringify(notes.writeHandler(dbPath, args)) }],
+    }),
+  );
+
+  // ── kb_notes_read ──────────────────────────────────────────────────────────
+  server.tool(
+    notes.readToolDef.name,
+    notes.readToolDef.description,
+    {
+      key: z.string().optional().describe('Exact key match.'),
+      key_prefix: z.string().optional().describe('Prefix match (e.g. "architecture/").'),
+      scope: z.string().optional().describe('Optional scope filter.'),
+      limit: z.number().optional().describe('Max notes to return (default 20, max 200).'),
+    },
+    async (args) => ({
+      content: [{ type: 'text', text: JSON.stringify(notes.readHandler(db, args)) }],
+    }),
+  );
+
+  // ── kb_architecture ────────────────────────────────────────────────────────
+  server.tool(
+    architecture.toolDef.name,
+    architecture.toolDef.description,
+    {
+      depth: z
+        .number()
+        .optional()
+        .describe('Optional path depth used to group files into components (default 2).'),
+      branch: z.string().optional().describe('Optional branch name to filter architecture output.'),
+    },
+    async (args) => ({
+      content: [{ type: 'text', text: JSON.stringify(architecture.handler(db, args)) }],
     }),
   );
 

@@ -1,6 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import Database from 'better-sqlite3';
 import * as docs from '../../src/kb-server/tools/docs.js';
+import * as annotations from '../../src/kb-server/tools/annotations.js';
+import * as routes from '../../src/kb-server/tools/routes.js';
+import * as notes from '../../src/kb-server/tools/notes.js';
+import * as architecture from '../../src/kb-server/tools/architecture.js';
 
 const { mockTool } = vi.hoisted(() => ({
   mockTool: vi.fn(),
@@ -16,6 +20,12 @@ import { createKbMcpServer, type KbServerOptions } from '../../src/kb-server/ser
 
 function schemaDescription(schema: { description?: string; _def?: { description?: string } }): string {
   return schema.description ?? schema._def?.description ?? '';
+}
+
+function getToolCall(name: string): unknown[] {
+  const toolCall = mockTool.mock.calls.find((call) => call[0] === name);
+  expect(toolCall).toBeDefined();
+  return toolCall!;
 }
 
 describe('createKbMcpServer', () => {
@@ -35,6 +45,77 @@ describe('createKbMcpServer', () => {
     const toolNames = mockTool.mock.calls.map((call) => call[0]);
     expect(toolNames).toContain('kb_search');
     expect(toolNames).toContain('kb_lookup');
+  });
+
+  it('should register newly exposed MCP tools', () => {
+    const db = new Database(':memory:');
+    createKbMcpServer(db, '/tmp/test.db');
+
+    const toolNames = mockTool.mock.calls.map((call) => call[0]);
+    expect(toolNames).toContain('kb_annotations');
+    expect(toolNames).toContain('kb_routes');
+    expect(toolNames).toContain('kb_notes_write');
+    expect(toolNames).toContain('kb_notes_read');
+    expect(toolNames).toContain('kb_architecture');
+  });
+
+  it('should register newly exposed tools with expected schema fields', () => {
+    const db = new Database(':memory:');
+    createKbMcpServer(db, '/tmp/test.db');
+
+    const annotationsSchema = getToolCall('kb_annotations')[2] as {
+      kind: { safeParse: (v: unknown) => { success: boolean } };
+      path: { safeParse: (v: unknown) => { success: boolean } };
+      limit: { safeParse: (v: unknown) => { success: boolean } };
+    };
+    expect(annotationsSchema.kind.safeParse('TODO').success).toBe(true);
+    expect(annotationsSchema.path.safeParse('src/server.ts').success).toBe(true);
+    expect(annotationsSchema.limit.safeParse(10).success).toBe(true);
+    expect(annotationsSchema.kind.safeParse('INVALID').success).toBe(false);
+
+    const routesSchema = getToolCall('kb_routes')[2] as {
+      method: { safeParse: (v: unknown) => { success: boolean } };
+      path_prefix: { safeParse: (v: unknown) => { success: boolean } };
+      framework: { safeParse: (v: unknown) => { success: boolean } };
+    };
+    expect(routesSchema.method.safeParse('GET').success).toBe(true);
+    expect(routesSchema.path_prefix.safeParse('/api').success).toBe(true);
+    expect(routesSchema.framework.safeParse('express').success).toBe(true);
+    expect(routesSchema.method.safeParse(123).success).toBe(false);
+
+    const notesWriteSchema = getToolCall('kb_notes_write')[2] as {
+      key: { safeParse: (v: unknown) => { success: boolean } };
+      scope: { safeParse: (v: unknown) => { success: boolean } };
+      content: { safeParse: (v: unknown) => { success: boolean } };
+      model: { safeParse: (v: unknown) => { success: boolean } };
+      source_hash: { safeParse: (v: unknown) => { success: boolean } };
+    };
+    expect(notesWriteSchema.key.safeParse('architecture/overview').success).toBe(true);
+    expect(notesWriteSchema.scope.safeParse('file:src/index.ts').success).toBe(true);
+    expect(notesWriteSchema.content.safeParse('note').success).toBe(true);
+    expect(notesWriteSchema.model.safeParse('gpt').success).toBe(true);
+    expect(notesWriteSchema.source_hash.safeParse('abc123').success).toBe(true);
+    expect(notesWriteSchema.content.safeParse(42).success).toBe(false);
+
+    const notesReadSchema = getToolCall('kb_notes_read')[2] as {
+      key: { safeParse: (v: unknown) => { success: boolean } };
+      key_prefix: { safeParse: (v: unknown) => { success: boolean } };
+      scope: { safeParse: (v: unknown) => { success: boolean } };
+      limit: { safeParse: (v: unknown) => { success: boolean } };
+    };
+    expect(notesReadSchema.key.safeParse('architecture/overview').success).toBe(true);
+    expect(notesReadSchema.key_prefix.safeParse('architecture/').success).toBe(true);
+    expect(notesReadSchema.scope.safeParse('global').success).toBe(true);
+    expect(notesReadSchema.limit.safeParse(20).success).toBe(true);
+    expect(notesReadSchema.limit.safeParse('20').success).toBe(false);
+
+    const architectureSchema = getToolCall('kb_architecture')[2] as {
+      depth: { safeParse: (v: unknown) => { success: boolean } };
+      branch: { safeParse: (v: unknown) => { success: boolean } };
+    };
+    expect(architectureSchema.depth.safeParse(2).success).toBe(true);
+    expect(architectureSchema.branch.safeParse('main').success).toBe(true);
+    expect(architectureSchema.depth.safeParse('2').success).toBe(false);
   });
 
   it('should register kb_graph kind schema with module and inheritance values', () => {
@@ -134,6 +215,153 @@ describe('createKbMcpServer', () => {
     expect(response).toEqual({
       content: [{ type: 'text', text: JSON.stringify(docsResult) }],
     });
+  });
+
+  it('should route kb_annotations tool calls through annotations.handler', async () => {
+    const db = new Database(':memory:');
+    const annotationsResult = { results: [{ kind: 'TODO', text: 'todo', path: 'src/a.ts', line: 1 }] };
+    const annotationsHandlerSpy = vi.spyOn(annotations, 'handler').mockReturnValue(annotationsResult);
+
+    createKbMcpServer(db, '/tmp/test.db');
+
+    const callback = getToolCall('kb_annotations')[3] as (args: unknown) => Promise<{
+      content: Array<{ type: string; text: string }>;
+    }>;
+    const args = { kind: 'TODO', limit: 5 };
+    const response = await callback(args);
+
+    expect(annotationsHandlerSpy).toHaveBeenCalledWith(db, args);
+    expect(response).toEqual({
+      content: [{ type: 'text', text: JSON.stringify(annotationsResult) }],
+    });
+  });
+
+  it('should route kb_routes tool calls through routes.handler', async () => {
+    const db = new Database(':memory:');
+    const routesResult = { results: [{ method: 'GET', path: '/api/health', framework: 'express' }] };
+    const routesHandlerSpy = vi.spyOn(routes, 'handler').mockReturnValue(routesResult);
+
+    createKbMcpServer(db, '/tmp/test.db');
+
+    const callback = getToolCall('kb_routes')[3] as (args: unknown) => Promise<{
+      content: Array<{ type: string; text: string }>;
+    }>;
+    const args = { method: 'GET', path_prefix: '/api', framework: 'express' };
+    const response = await callback(args);
+
+    expect(routesHandlerSpy).toHaveBeenCalledWith(db, args);
+    expect(response).toEqual({
+      content: [{ type: 'text', text: JSON.stringify(routesResult) }],
+    });
+  });
+
+  it('should route kb_notes_write tool calls through notes.writeHandler', async () => {
+    const db = new Database(':memory:');
+    const notesWriteResult = { ok: true, key: 'architecture/overview', scope: 'global', updated_at: 123 };
+    const notesWriteHandlerSpy = vi.spyOn(notes, 'writeHandler').mockReturnValue(notesWriteResult);
+
+    createKbMcpServer(db, '/tmp/test.db');
+
+    const callback = getToolCall('kb_notes_write')[3] as (args: unknown) => Promise<{
+      content: Array<{ type: string; text: string }>;
+    }>;
+    const args = { key: 'architecture/overview', content: 'note body', model: 'test-model' };
+    const response = await callback(args);
+
+    expect(notesWriteHandlerSpy).toHaveBeenCalledWith('/tmp/test.db', args);
+    expect(response).toEqual({
+      content: [{ type: 'text', text: JSON.stringify(notesWriteResult) }],
+    });
+  });
+
+  it('should route kb_notes_read tool calls through notes.readHandler', async () => {
+    const db = new Database(':memory:');
+    const notesReadResult = { notes: [], count: 0 };
+    const notesReadHandlerSpy = vi.spyOn(notes, 'readHandler').mockReturnValue(notesReadResult);
+
+    createKbMcpServer(db, '/tmp/test.db');
+
+    const callback = getToolCall('kb_notes_read')[3] as (args: unknown) => Promise<{
+      content: Array<{ type: string; text: string }>;
+    }>;
+    const args = { key_prefix: 'architecture/', limit: 5 };
+    const response = await callback(args);
+
+    expect(notesReadHandlerSpy).toHaveBeenCalledWith(db, args);
+    expect(response).toEqual({
+      content: [{ type: 'text', text: JSON.stringify(notesReadResult) }],
+    });
+  });
+
+  it('should route kb_architecture tool calls through architecture.handler', async () => {
+    const db = new Database(':memory:');
+    const architectureResult = {
+      components: [],
+      edges: [],
+      entry_points: [],
+      leaf_nodes: [],
+      external_deps: [],
+    };
+    const architectureHandlerSpy = vi.spyOn(architecture, 'handler').mockReturnValue(architectureResult);
+
+    createKbMcpServer(db, '/tmp/test.db');
+
+    const callback = getToolCall('kb_architecture')[3] as (args: unknown) => Promise<{
+      content: Array<{ type: string; text: string }>;
+    }>;
+    const args = { depth: 3, branch: 'main' };
+    const response = await callback(args);
+
+    expect(architectureHandlerSpy).toHaveBeenCalledWith(db, args);
+    expect(response).toEqual({
+      content: [{ type: 'text', text: JSON.stringify(architectureResult) }],
+    });
+  });
+
+  it('should propagate errors from newly exposed tool handlers', async () => {
+    const db = new Database(':memory:');
+    const callbackArgs = {
+      annotations: { kind: 'TODO' },
+      routes: { method: 'GET' },
+      notesWrite: { key: 'architecture/overview', content: 'note body' },
+      notesRead: { key_prefix: 'architecture/' },
+      architecture: { depth: 2 },
+    };
+    const annotationError = new Error('annotations failed');
+    const routeError = new Error('routes failed');
+    const notesWriteError = new Error('notes write failed');
+    const notesReadError = new Error('notes read failed');
+    const architectureError = new Error('architecture failed');
+
+    vi.spyOn(annotations, 'handler').mockImplementation(() => {
+      throw annotationError;
+    });
+    vi.spyOn(routes, 'handler').mockImplementation(() => {
+      throw routeError;
+    });
+    vi.spyOn(notes, 'writeHandler').mockImplementation(() => {
+      throw notesWriteError;
+    });
+    vi.spyOn(notes, 'readHandler').mockImplementation(() => {
+      throw notesReadError;
+    });
+    vi.spyOn(architecture, 'handler').mockImplementation(() => {
+      throw architectureError;
+    });
+
+    createKbMcpServer(db, '/tmp/test.db');
+
+    const annotationsCallback = getToolCall('kb_annotations')[3] as (args: unknown) => Promise<unknown>;
+    const routesCallback = getToolCall('kb_routes')[3] as (args: unknown) => Promise<unknown>;
+    const notesWriteCallback = getToolCall('kb_notes_write')[3] as (args: unknown) => Promise<unknown>;
+    const notesReadCallback = getToolCall('kb_notes_read')[3] as (args: unknown) => Promise<unknown>;
+    const architectureCallback = getToolCall('kb_architecture')[3] as (args: unknown) => Promise<unknown>;
+
+    await expect(annotationsCallback(callbackArgs.annotations)).rejects.toThrow(annotationError);
+    await expect(routesCallback(callbackArgs.routes)).rejects.toThrow(routeError);
+    await expect(notesWriteCallback(callbackArgs.notesWrite)).rejects.toThrow(notesWriteError);
+    await expect(notesReadCallback(callbackArgs.notesRead)).rejects.toThrow(notesReadError);
+    await expect(architectureCallback(callbackArgs.architecture)).rejects.toThrow(architectureError);
   });
 
   it('should describe kb_lookup query as including persisted enrichment metadata', () => {

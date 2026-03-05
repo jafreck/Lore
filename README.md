@@ -159,6 +159,11 @@ await builder.build();
 | `lore_lookup` | Find symbols by name or files by path, including external dependency API symbols and LSP-resolved metadata when available |
 | `lore_search` | Structural BM25, semantic vector, or fused RRF search across symbols and doc sections |
 | `lore_docs` | List, fetch, or search indexed documentation with branch, kind, and path filters |
+| `lore_annotations` | Return indexed TODO/FIXME/HACK/NOTE-style annotations with optional path and limit filters |
+| `lore_routes` | Query extracted API routes/endpoints with optional method, path prefix, and framework filters |
+| `lore_notes_write` | Upsert agent-authored notes by key and scope, with optional source hash for staleness tracking |
+| `lore_notes_read` | Read notes by exact key or key prefix with scope-aware staleness metadata |
+| `lore_architecture` | Build a component-level architecture view with edges, entry/leaf nodes, and external dependency usage |
 | `lore_graph` | Query call/import/module/inheritance edges; call edges include `callee_coverage_percent` |
 | `lore_snippet` | Return source snippets by file path and line range |
 | `lore_test_map` | Return mapped test files (with confidence) for a given source file path |
