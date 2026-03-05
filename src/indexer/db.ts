@@ -367,8 +367,9 @@ export function getLoreMeta(db: Database.Database, key: string): string | undefi
 // ─── Vec0 virtual tables ──────────────────────────────────────────────────────
 
 /**
- * Loads the sqlite-vec extension and creates the `symbol_embeddings` and
- * `symbol_semantic_embeddings` vec0 virtual tables with the given dimension.
+ * Loads the sqlite-vec extension and creates the `symbol_embeddings`,
+ * `symbol_semantic_embeddings`, and `commit_embeddings` vec0 virtual tables
+ * with the given dimension.
  * Also stores `embedding_dims` in `lore_meta` for validation on reopen.
  *
  * This function is idempotent: it is safe to call multiple times with the
@@ -388,6 +389,9 @@ export function createVec0Tables(db: Database.Database, dims: number): void {
       embedding FLOAT[${dims}]
     );
     CREATE VIRTUAL TABLE IF NOT EXISTS symbol_semantic_embeddings USING vec0(
+      embedding FLOAT[${dims}]
+    );
+    CREATE VIRTUAL TABLE IF NOT EXISTS commit_embeddings USING vec0(
       embedding FLOAT[${dims}]
     );
   `);

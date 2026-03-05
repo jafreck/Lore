@@ -558,5 +558,17 @@ describe('createVec0Tables', () => {
     expect(tables).toContain('symbol_embeddings');
     expect(tables).toContain('symbol_semantic_embeddings');
     expect(getLoreMeta(db, 'embedding_dims')).toBe('4');
+    expect(tables).toContain('commit_embeddings');
+  });
+
+  it('should be idempotent when called repeatedly with the same dimensions', () => {
+    expect(() => createVec0Tables(db, 4)).not.toThrow();
+    expect(() => createVec0Tables(db, 4)).not.toThrow();
+
+    const table = db
+      .prepare("SELECT name FROM sqlite_master WHERE type IN ('table', 'virtual table') AND name = 'commit_embeddings'")
+      .get() as { name: string } | undefined;
+    expect(table?.name).toBe('commit_embeddings');
+    expect(getLoreMeta(db, 'embedding_dims')).toBe('4');
   });
 });

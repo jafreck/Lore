@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import Database from 'better-sqlite3';
 import { z } from 'zod';
 import * as docs from '../../src/lore-server/tools/docs.js';
+import * as history from '../../src/lore-server/tools/history.js';
+import type { EmbeddingProvider } from '../../src/indexer/embedder.js';
 import * as annotations from '../../src/lore-server/tools/annotations.js';
 import * as routes from '../../src/lore-server/tools/routes.js';
 import * as notes from '../../src/lore-server/tools/notes.js';
@@ -573,6 +575,51 @@ describe('createLoreMcpServer', () => {
     expect(searchToolCall).toBeDefined();
     const searchSchema = searchToolCall?.[2] as { branch: { description?: string; _def?: { description?: string } } };
     expect(schemaDescription(searchSchema.branch)).toContain('Query-time retrieval uses SQLite-only persisted data');
+  });
+
+  it('should register lore_blame schema with extended modes while preserving legacy line/range payloads', () => {
+  it('should route lore_history tool calls through history.handler with embedder', async () => {
+    const db = new Database(':memory:');
+    const embedder: EmbeddingProvider = {
+      modelName: 'test-model',
+      get dims() { return 3; },
+      embed: vi.fn(async () => [[1, 0, 0]]),
+      init: vi.fn(async () => {}),
+      dispose: vi.fn(async () => {}),
+    };
+    const historyResult = { mode: 'semantic', results: [], count: 0 };
+    const historyHandlerSpy = vi.spyOn(history, 'handler').mockResolvedValue(historyResult);
+
+    createLoreMcpServer(db, '/tmp/test.db', embedder);
+
+    const historyToolCall = mockTool.mock.calls.find((call) => call[0] === 'lore_history');
+    expect(historyToolCall).toBeDefined();
+
+    const historyCallback = historyToolCall?.[3] as (args: unknown) => Promise<{
+      content: Array<{ type: string; text: string }>;
+    }>;
+    const args = { mode: 'semantic', query: 'cache bug', limit: 5 };
+    const response = await historyCallback(args);
+
+    expect(historyHandlerSpy).toHaveBeenCalledWith(db, args, embedder);
+    expect(response).toEqual({
+      content: [{ type: 'text', text: JSON.stringify(historyResult) }],
+    });
+  });
+
+  it('should register lore_history with semantic mode support', () => {
+    const db = new Database(':memory:');
+    createLoreMcpServer(db, '/tmp/test.db');
+
+    const historyToolCall = mockTool.mock.calls.find((call) => call[0] === 'lore_history');
+    expect(historyToolCall).toBeDefined();
+
+    const historySchema = historyToolCall?.[2] as {
+      mode: { safeParse: (v: unknown) => { success: boolean } };
+    };
+    expect(historySchema.mode.safeParse('file').success).toBe(true);
+    expect(historySchema.mode.safeParse('semantic').success).toBe(true);
+    expect(historySchema.mode.safeParse('invalid').success).toBe(false);
   });
 
   it('should register lore_blame schema with extended modes while preserving legacy line/range payloads', () => {
