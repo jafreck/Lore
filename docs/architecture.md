@@ -17,6 +17,7 @@ flowchart LR
         PARSE[ParserPool<br/>tree-sitter grammars]
         EXTRACT[Extractors<br/>symbols · imports · call refs]
         RESOLVE[ImportResolver<br/>internal ↔ external]
+        DEPAPI[Dependency API Indexer<br/>direct deps · TS/Py/Go/Rust declarations]
         CALLGRAPH[Call-Graph Builder<br/>callee resolution · topo sort]
         COVER[Coverage Ingest<br/>LCOV · Cobertura]
         EMBED[Embedder<br/>sentence-transformers<br/>Python subprocess]
@@ -27,6 +28,7 @@ flowchart LR
         FILES[(files)]
         SYM[(symbols · symbols_fts)]
         IMP[(file_imports · external_deps)]
+        EXT[(external_symbols)]
         REFS[(symbol_refs)]
         COV[(coverage_runs · coverage_files<br/>coverage_lines)]
         VEC[(vec0 embeddings)]
@@ -35,15 +37,15 @@ flowchart LR
     end
 
     subgraph MCP Server
-        LOOKUP[lore_lookup]
-        SEARCH[lore_search<br/>BM25 · vector · fused]
-        GRAPH[lore_graph]
-        SNIPPET[lore_snippet]
-        BLAME[lore_blame]
-        HISTORY[lore_history]
-        METRICS[lore_metrics]
-        KB_COVERAGE[lore_coverage]
-        WRITEBACK[lore_writeback]
+        LOOKUP[kb_lookup]
+        SEARCH[kb_search<br/>BM25 · vector · fused]
+        GRAPH[kb_graph]
+        SNIPPET[kb_snippet]
+        BLAME[kb_blame]
+        HISTORY[kb_history]
+        METRICS[kb_metrics]
+        KB_COVERAGE[kb_coverage]
+        WRITEBACK[kb_writeback]
     end
 
     subgraph LLM_AGENTS[Agents]
@@ -63,6 +65,7 @@ flowchart LR
 
     SRC --> WALK --> PARSE --> EXTRACT
     EXTRACT --> RESOLVE --> IMP
+    RESOLVE --> DEPAPI --> EXT
     EXTRACT --> CALLGRAPH --> REFS
     EXTRACT --> FILES & SYM
     COVER --> COV
@@ -70,7 +73,7 @@ flowchart LR
     EMBED -.->|optional| VEC
     GIT --> GITHIST --> HIST
 
-    FILES & SYM & IMP & REFS & COV & VEC & HIST & META --- LOOKUP & SEARCH & GRAPH & SNIPPET & BLAME & HISTORY & METRICS & KB_COVERAGE & WRITEBACK
+    FILES & SYM & IMP & EXT & REFS & COV & VEC & HIST & META --- LOOKUP & SEARCH & GRAPH & SNIPPET & BLAME & HISTORY & METRICS & KB_COVERAGE & WRITEBACK
 
     LOOKUP & SEARCH & GRAPH & SNIPPET & BLAME & HISTORY & METRICS & KB_COVERAGE & WRITEBACK <--> LLM_AGENTS
 
@@ -85,6 +88,7 @@ flowchart LR
 | Parse | `parser.ts` | Lazily creates one tree-sitter `Parser` per language, caches for reuse |
 | Extract | `extractors/*` | Language-specific visitors that pull symbols, imports, and call refs from the AST |
 | Resolve | `resolver.ts` | Classifies each raw import as internal (resolved to a file ID) or external (third-party / stdlib) |
+| Dependency APIs | `index.ts` dependency API pass | Optional (`--index-deps`) declaration-only indexing from direct dependencies across npm (`.d.ts`), Python (`.pyi` / `py.typed`), Go (direct `go.mod` requirements), and Rust (direct `Cargo.toml` crates); excludes transitive dependencies and implementation bodies |
 | Call-Graph | `call-graph.ts` | Matches raw callee names in `symbol_refs` to concrete symbol IDs; supports topo sort and cycle detection |
 | Coverage | `coverage.ts` | Parses LCOV/Cobertura reports, normalizes per-file/per-line hit data, and persists a run linked to commit SHA/source mtime |
 | Embed | `embedder.ts` | Optional — spawns a Python subprocess running sentence-transformers to produce dense vectors |
@@ -99,6 +103,7 @@ Coverage ingestion accepts reports from auto-detected paths (`coverage/lcov.info
 | Files | `files` | Indexed source files with path, branch, language, hash |
 | Symbols | `symbols`, `symbols_fts` | Named code symbols + FTS5 full-text index |
 | Imports | `file_imports`, `external_deps` | Import declarations resolved to file IDs or external packages |
+| Dependency APIs | `external_symbols` | Exported/public declarations from direct dependency APIs across npm, Python, Go, and Rust (ecosystem/source/package/version + symbol metadata), stored separately from in-repo symbols |
 | Call refs | `symbol_refs` | Call-site edges from caller symbol to callee symbol |
 | Coverage | `coverage_runs`, `coverage_files`, `coverage_lines` | Coverage ingestion run metadata plus normalized per-file and per-line hit data |
 | Embeddings | `symbol_embeddings`, `symbol_semantic_embeddings` | vec0 virtual tables for dense vector search |
@@ -109,12 +114,22 @@ Coverage ingestion accepts reports from auto-detected paths (`coverage/lcov.info
 
 | Tool | Purpose |
 |------|---------|
-| `lore_lookup` | Find symbols by name or files by path (optional branch filter) |
-| `lore_search` | Structural BM25, semantic vector, or fused RRF search |
-| `lore_graph` | Query call, import, module, or inheritance edges (`call` edges include `callee_coverage_percent`) |
-| `lore_snippet` | Return source snippets by file path and line range |
-| `lore_blame` | Return git blame metadata for a line or line range |
-| `lore_history` | Query history by file, commit, author, ref, or recency |
-| `lore_metrics` | Return aggregate index metrics plus global coverage totals and staleness metadata (`coverage_commit`, `current_commit`, `commits_behind`, `stale`) |
-| `lore_coverage` | Return symbol-level coverage, uncovered lines, and staleness metadata for the latest coverage run |
-| `lore_writeback` | Persist symbol summaries into `symbol_summaries` |
+| `kb_lookup` | Find symbols by name or files by path (optional branch filter), including external API symbol matches from `external_symbols` |
+| `kb_search` | Structural BM25, semantic vector, or fused RRF search, with structural results augmented by external symbol-name matches from `external_symbols` |
+| `kb_graph` | Query call, import, module, or inheritance edges (`call` edges include `callee_coverage_percent`) |
+| `kb_snippet` | Return source snippets by file path and line range |
+| `kb_blame` | Return git blame metadata for a line or line range |
+| `kb_history` | Query history by file, commit, author, ref, or recency |
+| `kb_metrics` | Return aggregate index metrics plus global coverage totals and staleness metadata (`coverage_commit`, `current_commit`, `commits_behind`, `stale`) |
+| `kb_coverage` | Return symbol-level coverage, uncovered lines, and staleness metadata for the latest coverage run |
+| `kb_writeback` | Persist symbol summaries into `symbol_summaries` |
+
+External symbol retrieval flow:
+1. Dependency API indexing is opt-in and reads declaration surfaces from direct dependencies only:
+   - npm: top-level `package.json` direct deps (`dependencies` / `devDependencies` / `peerDependencies`)
+   - Python: direct requirements from project dependency manifests, indexed via `.pyi` / `py.typed` declaration sources
+   - Go: direct `require` entries from root `go.mod`
+   - Rust: direct dependency entries from root `Cargo.toml`
+2. Exported dependency declarations are persisted to `external_symbols` with package/version metadata.
+3. Transitive dependencies are excluded in all ecosystems; Lore indexes only the direct boundary.
+4. MCP retrieval paths include `external_symbols` for symbol-facing queries so dependency APIs can be returned alongside in-repo symbols in `kb_lookup` and structural `kb_search`.

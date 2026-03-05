@@ -5,12 +5,18 @@
  */
 
 import type { Database } from '../db.js';
-import { getSymbolsByName, getFileByPath, listSymbols, listFiles } from '../db.js';
+import {
+  getSymbolsByName,
+  getExternalSymbolsByName,
+  getFileByPath,
+  listSymbols,
+  listFiles,
+} from '../db.js';
 
 // ─── Tool definition ──────────────────────────────────────────────────────────
 
 export const toolDef = {
-  name: 'lore_lookup',
+  name: 'kb_lookup',
   description:
     'Look up symbols by name or source files by path in the knowledge-base index. ' +
     'Set `kind` to "symbol" or "file". Returns an array of matching rows.',
@@ -48,8 +54,9 @@ export interface LookupResult {
 /** Resolve a lookup request against the open read-only database. */
 export function handler(db: Database.Database, args: LookupArgs): LookupResult {
   if (args.kind === 'symbol') {
-    const rows = args.query.trim()
-      ? getSymbolsByName(db, args.query, args.branch)
+    const query = args.query.trim();
+    const rows = query
+      ? [...getSymbolsByName(db, query, args.branch), ...getExternalSymbolsByName(db, query)]
       : listSymbols(db, 20, args.branch);
     return { results: rows };
   } else {

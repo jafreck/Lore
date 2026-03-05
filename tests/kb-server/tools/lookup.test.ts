@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import Database from 'better-sqlite3';
-import { handler, type LookupArgs } from '../../../src/kb-server/tools/lookup.js';
+import { handler, toolDef } from '../../../src/kb-server/tools/lookup.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -35,6 +35,18 @@ function createTestDb(): Database.Database {
       cyclomatic   INTEGER NOT NULL,
       max_nesting  INTEGER NOT NULL
     );
+    CREATE TABLE external_symbols (
+      id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+      dependency_ecosystem TEXT    NOT NULL DEFAULT 'npm',
+      source_type          TEXT    NOT NULL DEFAULT 'declaration',
+      source_ref           TEXT    NOT NULL DEFAULT '',
+      package_name         TEXT    NOT NULL,
+      package_version      TEXT,
+      symbol_name          TEXT    NOT NULL,
+      symbol_kind          TEXT    NOT NULL,
+      signature            TEXT    NOT NULL DEFAULT '',
+      doc_comment          TEXT
+    );
   `);
   return db;
 }
@@ -61,6 +73,20 @@ function insertSymbolMetrics(db: Database.Database, symbolId: number): void {
   ).run(symbolId, 20, 3, 8, 4);
 }
 
+function insertExternalSymbol(
+  db: Database.Database,
+  packageName: string,
+  packageVersion: string | null,
+  symbolName: string,
+  symbolKind: string,
+): void {
+  db.prepare(
+    `INSERT INTO external_symbols
+      (package_name, package_version, symbol_name, symbol_kind, signature)
+     VALUES (?, ?, ?, ?, ?)`,
+  ).run(packageName, packageVersion, symbolName, symbolKind, `${symbolKind} ${symbolName}()`);
+}
+
 // ─── handler (kind=symbol) ────────────────────────────────────────────────────
 
 describe('lookup handler – kind=symbol', () => {
@@ -83,6 +109,72 @@ describe('lookup handler – kind=symbol', () => {
     expect(result.results[0]).toHaveProperty('param_count');
     expect(result.results[0]).toHaveProperty('cyclomatic');
     expect(result.results[0]).toHaveProperty('max_nesting');
+  });
+
+  it('should keep internal-only symbol lookup results unchanged when no external matches exist', () => {
+    const result = handler(db, { kind: 'symbol', query: 'parseConfig' });
+    expect(result.results.length).toBe(2);
+    expect(
+      result.results.every((row) => !Object.prototype.hasOwnProperty.call(row, 'package_name')),
+    ).toBe(true);
+  });
+
+  it('should return external-only symbol matches with package metadata', () => {
+    insertExternalSymbol(db, 'left-pad', '1.3.0', 'leftPad', 'function');
+    const result = handler(db, { kind: 'symbol', query: 'leftPad' });
+    expect(result.results.length).toBe(1);
+    expect(result.results[0]).toMatchObject({
+      package_name: 'left-pad',
+      package_version: '1.3.0',
+      symbol_name: 'leftPad',
+      symbol_kind: 'function',
+    });
+  });
+
+  it('should return mixed internal and external symbol matches for the same query', () => {
+    insertExternalSymbol(db, 'dep-utils', '2.0.0', 'parseConfig', 'function');
+    const result = handler(db, { kind: 'symbol', query: 'parseConfig' });
+    expect(result.results.length).toBe(3);
+
+    const internalRows = result.results.filter((row) =>
+      Object.prototype.hasOwnProperty.call(row, 'name'),
+    );
+    const externalRows = result.results.filter((row) =>
+      Object.prototype.hasOwnProperty.call(row, 'package_name'),
+    );
+
+    expect(internalRows.length).toBe(2);
+    expect(externalRows.length).toBe(1);
+    expect(externalRows[0]).toMatchObject({
+      package_name: 'dep-utils',
+      package_version: '2.0.0',
+      symbol_name: 'parseConfig',
+    });
+  });
+
+  it('should trim symbol query before matching internal and external symbols', () => {
+    insertExternalSymbol(db, 'dep-utils', '2.0.0', 'parseConfig', 'function');
+    const result = handler(db, { kind: 'symbol', query: '  parseConfig  ' });
+    expect(result.results.length).toBe(3);
+  });
+
+  it('should keep external symbol matches when branch filter is provided', () => {
+    insertExternalSymbol(db, 'dep-utils', '2.0.0', 'parseConfig', 'function');
+    const result = handler(db, { kind: 'symbol', query: 'parseConfig', branch: 'main' });
+
+    const internalRows = result.results.filter((row) =>
+      Object.prototype.hasOwnProperty.call(row, 'name'),
+    );
+    const externalRows = result.results.filter((row) =>
+      Object.prototype.hasOwnProperty.call(row, 'package_name'),
+    );
+
+    expect(internalRows.length).toBe(1);
+    expect(externalRows).toHaveLength(1);
+    expect(externalRows[0]).toMatchObject({
+      package_name: 'dep-utils',
+      symbol_name: 'parseConfig',
+    });
   });
 
   it('should filter symbols by branch when branch is provided', () => {
@@ -153,5 +245,14 @@ describe('lookup handler – kind=file', () => {
   it('should list files filtered by branch when query is empty', () => {
     const result = handler(db, { kind: 'file', query: '', branch: 'main' });
     expect(result.results.length).toBe(2);
+  });
+});
+
+describe('lookup toolDef', () => {
+  it('should expose kb_lookup with required kind and query fields', () => {
+    expect(toolDef.name).toBe('kb_lookup');
+    expect(toolDef.inputSchema.required).toEqual(['kind', 'query']);
+    expect(toolDef.inputSchema.properties.kind.enum).toEqual(['symbol', 'file']);
+    expect(toolDef.inputSchema.properties.query.type).toBe('string');
   });
 });

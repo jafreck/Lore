@@ -13,7 +13,7 @@ import { getCoveragePercentBySymbolIds } from '../db.js';
 // ─── Tool definition ──────────────────────────────────────────────────────────
 
 export const toolDef = {
-  name: 'lore_graph',
+  name: 'kb_graph',
   description:
     'Query call, import, module, or inheritance graph edges stored in the knowledge-base index. ' +
     'Set `kind` to "call", "import", "module", or "inheritance". ' +

@@ -4,6 +4,7 @@ import {
   walk,
   findFirst,
   nodeSignature,
+  isPublicDeclarationSurfaceSymbol,
 } from '../../../src/indexer/extractors/types.js';
 import { ParserPool } from '../../../src/indexer/parser.js';
 
@@ -106,4 +107,70 @@ describe('nodeSignature', () => {
       expect(sig).not.toContain('{');
     },
   );
+});
+
+describe('isPublicDeclarationSurfaceSymbol', () => {
+  it('should return true when declaration surface is public and declaration-only', () => {
+    expect(
+      isPublicDeclarationSurfaceSymbol({
+        name: 'publicApi',
+        kind: 'function',
+        startLine: 0,
+        endLine: 0,
+        signature: 'function publicApi(): void;',
+        declarationSurface: { isPublic: true, isDeclaration: true },
+      }),
+    ).toBe(true);
+  });
+
+  it('should return false when declaration surface is not publicly visible', () => {
+    expect(
+      isPublicDeclarationSurfaceSymbol({
+        name: 'internalApi',
+        kind: 'function',
+        startLine: 0,
+        endLine: 0,
+        signature: 'function internalApi(): void;',
+        declarationSurface: { isPublic: false, isDeclaration: true },
+      }),
+    ).toBe(false);
+  });
+
+  it('should return false when declaration surface contains implementation details', () => {
+    expect(
+      isPublicDeclarationSurfaceSymbol({
+        name: 'runtimeApi',
+        kind: 'function',
+        startLine: 0,
+        endLine: 0,
+        signature: 'function runtimeApi(): void;',
+        declarationSurface: { isPublic: true, isDeclaration: false },
+      }),
+    ).toBe(false);
+  });
+
+  it('should fall back to isExported when declaration surface metadata is missing', () => {
+    expect(
+      isPublicDeclarationSurfaceSymbol({
+        name: 'legacyExport',
+        kind: 'function',
+        startLine: 0,
+        endLine: 0,
+        signature: 'function legacyExport(): void;',
+        isExported: true,
+      }),
+    ).toBe(true);
+  });
+
+  it('should return false when neither declaration metadata nor export flag marks symbol as public', () => {
+    expect(
+      isPublicDeclarationSurfaceSymbol({
+        name: 'legacyPrivate',
+        kind: 'function',
+        startLine: 0,
+        endLine: 0,
+        signature: 'function legacyPrivate(): void;',
+      }),
+    ).toBe(false);
+  });
 });

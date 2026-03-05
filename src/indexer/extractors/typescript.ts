@@ -49,29 +49,31 @@ export const TYPESCRIPT_COMPLEXITY_NODE_TYPES: ComplexityNodeTypes = {
 // ─── TypeScriptExtractor ──────────────────────────────────────────────────────
 
 export class TypeScriptExtractor implements SymbolExtractor {
-  extract(tree: Parser.Tree, _source: string, _filePath: string): ExtractionResult {
+  extract(tree: Parser.Tree, source: string, filePath: string): ExtractionResult {
     const result = emptyResult();
+    const declarationMode = filePath.endsWith('.d.ts');
 
     for (const node of walk(tree.rootNode)) {
       switch (node.type) {
         case 'function_declaration':
         case 'generator_function_declaration':
-          result.symbols.push(extractNamedDecl(node, 'function'));
+        case 'function_signature':
+          result.symbols.push(extractNamedDecl(node, 'function', source, declarationMode));
           break;
         case 'class_declaration':
-          result.symbols.push(extractNamedDecl(node, 'class'));
+          result.symbols.push(extractNamedDecl(node, 'class', source, declarationMode));
           result.relationships.push(...extractClassInheritance(node));
           break;
         case 'interface_declaration':
-          result.symbols.push(extractNamedDecl(node, 'interface'));
+          result.symbols.push(extractNamedDecl(node, 'interface', source, declarationMode));
           break;
         case 'type_alias_declaration':
-          result.symbols.push(extractNamedDecl(node, 'type'));
+          result.symbols.push(extractNamedDecl(node, 'type', source, declarationMode));
           break;
         case 'lexical_declaration':
         case 'variable_declaration': {
           // Handle: const foo = () => {} or const foo = function() {}
-          const sym = maybeExtractArrowOrFunctionExpr(node);
+          const sym = maybeExtractArrowOrFunctionExpr(node, source, declarationMode);
           if (sym) result.symbols.push(sym);
           break;
         }
@@ -105,20 +107,30 @@ function extractClassInheritance(node: Parser.SyntaxNode): RawRelationship[] {
   ];
 }
 
-function extractNamedDecl(node: Parser.SyntaxNode, kind: string): RawSymbol {
+function extractNamedDecl(
+  node: Parser.SyntaxNode,
+  kind: string,
+  source: string,
+  declarationMode: boolean,
+): RawSymbol {
   const nameNode = node.childForFieldName('name');
+  const docComment = declarationMode ? extractLeadingDocComment(node, source) : undefined;
   return {
     name: nameNode?.text ?? '',
     kind,
     startLine: node.startPosition.row,
     endLine: node.endPosition.row,
     signature: nodeSignature(node),
+    ...(docComment ? { docComment } : {}),
+    ...(declarationMode && isNodeExported(node) ? { isExported: true } : {}),
     astNode: node,
   };
 }
 
 function maybeExtractArrowOrFunctionExpr(
   node: Parser.SyntaxNode,
+  source: string,
+  declarationMode: boolean,
 ): RawSymbol | null {
   // Look for: const/let/var <name> = <arrow_function | function_expression>
   for (const declarator of node.namedChildren) {
@@ -131,17 +143,41 @@ function maybeExtractArrowOrFunctionExpr(
       valueNode.type === 'function_expression' ||
       valueNode.type === 'generator_function'
     ) {
+      const docComment = declarationMode ? extractLeadingDocComment(node, source) : undefined;
       return {
         name: nameNode.text,
         kind: 'function',
         startLine: node.startPosition.row,
         endLine: node.endPosition.row,
         signature: nodeSignature(node),
+        ...(docComment ? { docComment } : {}),
+        ...(declarationMode && isNodeExported(node) ? { isExported: true } : {}),
         astNode: valueNode,
       };
     }
   }
   return null;
+}
+
+function isNodeExported(node: Parser.SyntaxNode): boolean {
+  let current: Parser.SyntaxNode | null = node;
+  while (current) {
+    if (current.type === 'export_statement') return true;
+    if (current.children.some((child) => child.type === 'export')) return true;
+    if (current.text.trimStart().startsWith('export ')) return true;
+    current = current.parent;
+  }
+  return false;
+}
+
+function extractLeadingDocComment(node: Parser.SyntaxNode, source: string): string | undefined {
+  let anchor = node;
+  while (anchor.parent && (anchor.parent.type === 'ambient_declaration' || anchor.parent.type === 'export_statement')) {
+    anchor = anchor.parent;
+  }
+  const beforeNode = source.slice(0, anchor.startIndex);
+  const jsDoc = beforeNode.match(/\/\*\*[\s\S]*?\*\/\s*$/);
+  return jsDoc ? jsDoc[0].trim() : undefined;
 }
 
 function extractImport(node: Parser.SyntaxNode): RawImport {
