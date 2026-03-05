@@ -8,12 +8,12 @@ import {
 const pool = new ParserPool();
 const extractor = new TypeScriptExtractor();
 
-function extractFromSource(source: string) {
+function extractFromSource(source: string, filePath = 'inline.ts') {
   const tree = pool.parse('typescript', source);
   if (!tree) {
     throw new Error('TypeScript grammar is unavailable');
   }
-  return extractor.extract(tree, source, 'inline.ts');
+  return extractor.extract(tree, source, filePath);
 }
 
 describe('TypeScriptExtractor', () => {
@@ -39,6 +39,33 @@ describe('TypeScriptExtractor', () => {
   it('should include the original AST node on extracted symbols', () => {
     const result = extractFromSource('export function hello(name: string) { return name; }');
     expect(result.symbols[0]?.astNode?.type).toBe('function_declaration');
+  });
+
+  it('should mark exported declarations and capture leading JSDoc comments', () => {
+    const result = extractFromSource(`
+      /** Public API docs */
+      export declare function depPublic(input: string): string;
+      declare function depPrivate(): void;
+    `, 'inline.d.ts');
+
+    const publicSymbol = result.symbols.find((symbol) => symbol.name === 'depPublic');
+    const privateSymbol = result.symbols.find((symbol) => symbol.name === 'depPrivate');
+    expect(publicSymbol?.isExported).toBe(true);
+    expect(publicSymbol?.docComment).toContain('Public API docs');
+    expect(privateSymbol?.isExported).toBeUndefined();
+  });
+
+  it('should not mark declarations as exported or attach doc comments for non-declaration files', () => {
+    const result = extractFromSource(`
+      /** Runtime docs should not be captured in non-declaration mode */
+      export function runtimePublic(input: string): string {
+        return input;
+      }
+    `, 'inline.ts');
+
+    const runtimeSymbol = result.symbols.find((symbol) => symbol.name === 'runtimePublic');
+    expect(runtimeSymbol?.isExported).toBeUndefined();
+    expect(runtimeSymbol?.docComment).toBeUndefined();
   });
 });
 

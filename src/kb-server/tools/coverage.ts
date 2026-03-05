@@ -14,7 +14,7 @@ import {
 } from '../db.js';
 
 export const toolDef = {
-  name: 'lore_coverage',
+  name: 'kb_coverage',
   description:
     'Return symbol-level coverage percentages, uncovered lines, and staleness metadata ' +
     'for the latest ingested coverage run.',

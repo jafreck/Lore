@@ -12,7 +12,7 @@ import { getFileByPath } from '../db.js';
 // ─── Tool definition ──────────────────────────────────────────────────────────
 
 export const toolDef = {
-  name: 'lore_snippet',
+  name: 'kb_snippet',
   description:
     'Return the source lines for a given file path (as recorded in the index). ' +
     'Optionally restrict the output to a line range using `start_line` and `end_line` ' +
