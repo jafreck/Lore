@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import Database from 'better-sqlite3';
 import { z } from 'zod';
 import * as docs from '../../src/kb-server/tools/docs.js';
+import * as search from '../../src/kb-server/tools/search.js';
+import * as metrics from '../../src/kb-server/tools/metrics.js';
 
 const {
   mockTool,
@@ -167,6 +169,127 @@ describe('createKbMcpServer', () => {
     });
   });
 
+  it('should route kb_search tool calls through search.handler with filter args and observer', async () => {
+    const db = new Database(':memory:');
+    const observer = vi.fn();
+    const embedder = {
+      modelName: 'mock-embedder',
+      dims: 3,
+      embed: vi.fn(async () => [[0.1, 0.2, 0.3]]),
+      init: vi.fn(async () => {}),
+      dispose: vi.fn(async () => {}),
+    };
+    const searchResult = { results: [], mode_used: 'structural' };
+    const searchHandlerSpy = vi.spyOn(search, 'handler').mockResolvedValue(searchResult);
+
+    try {
+      createKbMcpServer(db, '/tmp/test.db', embedder, { searchObserver: observer });
+
+      const searchToolCall = mockTool.mock.calls.find((call) => call[0] === 'kb_search');
+      expect(searchToolCall).toBeDefined();
+
+      const searchCallback = searchToolCall?.[3] as (args: unknown) => Promise<{
+        content: Array<{ type: string; text: string }>;
+      }>;
+      const args = {
+        query: 'parseConfig',
+        mode: 'semantic',
+        path_prefix: 'src/',
+        language: 'typescript',
+        kind: 'function',
+        doc_path_prefix: 'docs/',
+        doc_kind: 'guide',
+        branch: 'main',
+      };
+      const response = await searchCallback(args);
+
+      expect(searchHandlerSpy).toHaveBeenCalledWith(db, args, embedder, observer);
+      expect(response).toEqual({
+        content: [{ type: 'text', text: JSON.stringify(searchResult) }],
+      });
+    } finally {
+      searchHandlerSpy.mockRestore();
+    }
+  });
+
+  it('should register kb_metrics with expected complexity schema fields', () => {
+    const db = new Database(':memory:');
+
+    createKbMcpServer(db, '/tmp/test.db');
+
+    const metricsToolCall = mockTool.mock.calls.find((call) => call[0] === 'kb_metrics');
+    expect(metricsToolCall).toBeDefined();
+
+    const metricsSchema = metricsToolCall?.[2] as {
+      mode: { safeParse: (v: unknown) => { success: boolean } };
+      limit: { safeParse: (v: unknown) => { success: boolean } };
+      min_cyclomatic: { safeParse: (v: unknown) => { success: boolean } };
+    };
+    expect(metricsSchema.mode.safeParse('aggregate').success).toBe(true);
+    expect(metricsSchema.mode.safeParse('complexity').success).toBe(true);
+    expect(metricsSchema.limit.safeParse(10).success).toBe(true);
+    expect(metricsSchema.min_cyclomatic.safeParse(5).success).toBe(true);
+    expect(metricsSchema.mode.safeParse('invalid').success).toBe(false);
+    expect(metricsSchema.limit.safeParse('10').success).toBe(false);
+    expect(metricsSchema.min_cyclomatic.safeParse('5').success).toBe(false);
+  });
+
+  it('should route kb_metrics tool calls through metrics.handler with parsed args', async () => {
+    const db = new Database(':memory:');
+    const metricsResult = { symbols: [] };
+    const metricsHandlerSpy = vi.spyOn(metrics, 'handler').mockReturnValue(metricsResult);
+
+    createKbMcpServer(db, '/tmp/test.db');
+
+    const metricsToolCall = mockTool.mock.calls.find((call) => call[0] === 'kb_metrics');
+    expect(metricsToolCall).toBeDefined();
+
+    const metricsCallback = metricsToolCall?.[3] as (args: unknown) => Promise<{
+      content: Array<{ type: string; text: string }>;
+    }>;
+    const args = { mode: 'complexity', limit: 10, min_cyclomatic: 5 };
+    const response = await metricsCallback(args);
+
+    expect(metricsHandlerSpy).toHaveBeenCalledWith(db, args);
+    expect(response).toEqual({
+      content: [{ type: 'text', text: JSON.stringify(metricsResult) }],
+    });
+  });
+
+  it('should route kb_metrics with no args to aggregate behavior', async () => {
+    const db = new Database(':memory:');
+    const aggregateResult = {
+      symbol_count: 0,
+      file_count: 0,
+      import_edge_count: 0,
+      coverage_available: false,
+      coverage_commit: null,
+      current_commit: null,
+      commits_behind: 0,
+      stale: false,
+      global_lines_found: null,
+      global_lines_hit: null,
+      global_coverage_percent: null,
+      per_branch: [],
+    };
+    const metricsHandlerSpy = vi.spyOn(metrics, 'handler').mockReturnValue(aggregateResult);
+
+    createKbMcpServer(db, '/tmp/test.db');
+
+    const metricsToolCall = mockTool.mock.calls.find((call) => call[0] === 'kb_metrics');
+    expect(metricsToolCall).toBeDefined();
+
+    const metricsCallback = metricsToolCall?.[3] as (args?: unknown) => Promise<{
+      content: Array<{ type: string; text: string }>;
+    }>;
+    const response = await metricsCallback();
+
+    expect(metricsHandlerSpy).toHaveBeenCalledWith(db, {});
+    expect(response).toEqual({
+      content: [{ type: 'text', text: JSON.stringify(aggregateResult) }],
+    });
+  });
+
   it('should describe kb_lookup query as including persisted enrichment metadata', () => {
     const db = new Database(':memory:');
     createKbMcpServer(db, '/tmp/test.db');
@@ -175,6 +298,43 @@ describe('createKbMcpServer', () => {
     expect(lookupToolCall).toBeDefined();
     const lookupSchema = lookupToolCall?.[2] as { query: { description?: string; _def?: { description?: string } } };
     expect(schemaDescription(lookupSchema.query)).toContain('persisted enrichment metadata');
+  });
+
+  it('should register kb_lookup with optional match/filter/pagination fields', () => {
+    const db = new Database(':memory:');
+    createKbMcpServer(db, '/tmp/test.db');
+
+    const lookupToolCall = mockTool.mock.calls.find((call) => call[0] === 'kb_lookup');
+    expect(lookupToolCall).toBeDefined();
+
+    const lookupSchema = lookupToolCall?.[2] as {
+      kind: { safeParse: (v: unknown) => { success: boolean } };
+      query: { safeParse: (v: unknown) => { success: boolean } };
+      match_mode: { safeParse: (v: unknown) => { success: boolean } };
+      symbol_kind: { safeParse: (v: unknown) => { success: boolean } };
+      path_prefix: { safeParse: (v: unknown) => { success: boolean } };
+      language: { safeParse: (v: unknown) => { success: boolean } };
+      limit: { safeParse: (v: unknown) => { success: boolean } };
+      offset: { safeParse: (v: unknown) => { success: boolean } };
+    };
+
+    expect(lookupSchema.kind.safeParse('symbol').success).toBe(true);
+    expect(lookupSchema.kind.safeParse(undefined).success).toBe(false);
+    expect(lookupSchema.query.safeParse('parseConfig').success).toBe(true);
+    expect(lookupSchema.query.safeParse(undefined).success).toBe(false);
+    expect(lookupSchema.match_mode.safeParse('exact').success).toBe(true);
+    expect(lookupSchema.match_mode.safeParse('prefix').success).toBe(true);
+    expect(lookupSchema.match_mode.safeParse('contains').success).toBe(true);
+    expect(lookupSchema.match_mode.safeParse('fuzzy').success).toBe(false);
+    expect(lookupSchema.symbol_kind.safeParse('function').success).toBe(true);
+    expect(lookupSchema.path_prefix.safeParse('src/').success).toBe(true);
+    expect(lookupSchema.language.safeParse('typescript').success).toBe(true);
+    expect(lookupSchema.limit.safeParse(10).success).toBe(true);
+    expect(lookupSchema.limit.safeParse(-1).success).toBe(false);
+    expect(lookupSchema.limit.safeParse(1.5).success).toBe(false);
+    expect(lookupSchema.offset.safeParse(5).success).toBe(true);
+    expect(lookupSchema.offset.safeParse(-1).success).toBe(false);
+    expect(lookupSchema.offset.safeParse(0.5).success).toBe(false);
   });
 
   it('should describe kb_search branch as SQLite-only query-time retrieval', () => {
@@ -319,4 +479,32 @@ describe('createKbMcpServer', () => {
       });
     },
   );
+
+  it('should register kb_search schema fields for symbol and doc filters', () => {
+    const db = new Database(':memory:');
+    createKbMcpServer(db, '/tmp/test.db');
+
+    const searchToolCall = mockTool.mock.calls.find((call) => call[0] === 'kb_search');
+    expect(searchToolCall).toBeDefined();
+
+    const searchSchema = searchToolCall?.[2] as {
+      path_prefix: { safeParse: (v: unknown) => { success: boolean } };
+      language: { safeParse: (v: unknown) => { success: boolean } };
+      kind: { safeParse: (v: unknown) => { success: boolean } };
+      doc_path_prefix: { safeParse: (v: unknown) => { success: boolean } };
+      doc_kind: { safeParse: (v: unknown) => { success: boolean } };
+    };
+
+    expect(searchSchema.path_prefix.safeParse('src/kb-server').success).toBe(true);
+    expect(searchSchema.language.safeParse('typescript').success).toBe(true);
+    expect(searchSchema.kind.safeParse('function').success).toBe(true);
+    expect(searchSchema.doc_path_prefix.safeParse('docs/').success).toBe(true);
+    expect(searchSchema.doc_kind.safeParse('guide').success).toBe(true);
+
+    expect(searchSchema.path_prefix.safeParse(1).success).toBe(false);
+    expect(searchSchema.language.safeParse(false).success).toBe(false);
+    expect(searchSchema.kind.safeParse({}).success).toBe(false);
+    expect(searchSchema.doc_path_prefix.safeParse([]).success).toBe(false);
+    expect(searchSchema.doc_kind.safeParse(5).success).toBe(false);
+  });
 });

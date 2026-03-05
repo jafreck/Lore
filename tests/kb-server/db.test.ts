@@ -914,6 +914,62 @@ describe('getSymbolsByName', () => {
     expect(rows.length).toBe(1);
   });
 
+  it('should default to exact matching when matchMode is omitted', () => {
+    expect(getSymbolsByName(db, 'parse')).toEqual([]);
+    expect(getSymbolsByName(db, 'parse', { branch: 'main' })).toEqual([]);
+  });
+
+  it('should support prefix match mode', () => {
+    const fileId = insertFile(db, 'src/prefix.ts', 'main');
+    insertSymbol(db, fileId, 'parse');
+    insertSymbol(db, fileId, 'parseHelper');
+
+    const rows = getSymbolsByName(db, 'parse', { matchMode: 'prefix' });
+    expect(rows.map((row) => row.name).sort()).toEqual([
+      'parse',
+      'parseConfig',
+      'parseConfig',
+      'parseHelper',
+    ]);
+  });
+
+  it('should support contains match mode', () => {
+    const fileId = insertFile(db, 'src/contains.ts', 'main');
+    insertSymbol(db, fileId, 'loadConfigValue');
+
+    const rows = getSymbolsByName(db, 'config', { matchMode: 'contains' });
+    expect(rows.map((row) => row.name).sort()).toEqual([
+      'loadConfigValue',
+      'parseConfig',
+      'parseConfig',
+    ]);
+  });
+
+  it('should apply branch, kind, pathPrefix, and language filters from options', () => {
+    const matchingFileId = insertFile(db, 'src/components/widget.ts', 'main', 'typescript');
+    const wrongLanguageFileId = insertFile(db, 'src/components/widget.js', 'main', 'javascript');
+    const wrongPathFileId = insertFile(db, 'lib/components/widget.ts', 'main', 'typescript');
+    const wrongBranchFileId = insertFile(db, 'src/components/widget.ts', 'feat', 'typescript');
+    insertSymbol(db, matchingFileId, 'parseConfig', 'class');
+    insertSymbol(db, wrongLanguageFileId, 'parseConfig', 'class');
+    insertSymbol(db, wrongPathFileId, 'parseConfig', 'class');
+    insertSymbol(db, wrongBranchFileId, 'parseConfig', 'class');
+
+    const rows = getSymbolsByName(db, 'parseConfig', {
+      branch: 'main',
+      kind: 'class',
+      pathPrefix: 'src/',
+      language: 'typescript',
+    });
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      file_id: matchingFileId,
+      name: 'parseConfig',
+      kind: 'class',
+    });
+  });
+
   it('should return empty array when name does not match', () => {
     expect(getSymbolsByName(db, 'nonexistent')).toEqual([]);
   });
@@ -1261,6 +1317,45 @@ describe('listSymbols', () => {
 
   it('should return empty array when branch has no symbols', () => {
     expect(listSymbols(db, 100, 'nonexistent')).toEqual([]);
+  });
+
+  it('should support options object branch filtering', () => {
+    const rows = listSymbols(db, { branch: 'feat', limit: 10 });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.name).toBe('baz');
+  });
+
+  it('should apply kind, pathPrefix, and language filters from options', () => {
+    const matchingFileId = insertFile(db, 'src/components/widget.ts', 'main', 'typescript');
+    const wrongLanguageFileId = insertFile(db, 'src/components/widget.js', 'main', 'javascript');
+    const wrongPathFileId = insertFile(db, 'lib/components/widget.ts', 'main', 'typescript');
+    insertSymbol(db, matchingFileId, 'widgetController', 'class');
+    insertSymbol(db, wrongLanguageFileId, 'widgetController', 'class');
+    insertSymbol(db, wrongPathFileId, 'widgetController', 'class');
+
+    const rows = listSymbols(db, {
+      kind: 'class',
+      pathPrefix: 'src/',
+      language: 'typescript',
+      limit: 10,
+    });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      file_id: matchingFileId,
+      name: 'widgetController',
+      kind: 'class',
+    });
+  });
+
+  it('should apply limit and offset from options for pagination', () => {
+    const allRows = listSymbols(db, { limit: 10 });
+    const pagedRows = listSymbols(db, { limit: 1, offset: 1 });
+    expect(pagedRows).toHaveLength(1);
+    expect(pagedRows[0]?.id).toBe(allRows[1]?.id);
+  });
+
+  it('should return empty array when offset is beyond available rows', () => {
+    expect(listSymbols(db, { limit: 10, offset: 999 })).toEqual([]);
   });
 });
 

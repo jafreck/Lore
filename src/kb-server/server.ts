@@ -137,6 +137,15 @@ export function createKbMcpServer(
       kind: z.enum(['symbol', 'file']).describe('Whether to look up a symbol or a file.'),
       query: z.string().describe('Symbol name or file path to look up (includes persisted enrichment metadata when available).'),
       branch: z.string().optional().describe('Optional branch to filter results.'),
+      match_mode: z
+        .enum(['exact', 'prefix', 'contains'])
+        .optional()
+        .describe('For kind="symbol": symbol-name match mode (default "exact").'),
+      symbol_kind: z.string().optional().describe('For kind="symbol": optional symbol kind filter.'),
+      path_prefix: z.string().optional().describe('For kind="symbol": optional indexed file-path prefix filter.'),
+      language: z.string().optional().describe('For kind="symbol": optional indexed file language filter.'),
+      limit: z.number().int().nonnegative().optional().describe('For kind="symbol" with empty query: maximum rows to return.'),
+      offset: z.number().int().nonnegative().optional().describe('For kind="symbol" with empty query: rows to skip before returning results.'),
     },
     async (args) => ({
       content: [{ type: 'text', text: JSON.stringify(lookup.handler(db, args)) }],
@@ -171,6 +180,17 @@ export function createKbMcpServer(
         .optional()
         .describe('Search mode (default: structural).'),
       limit: z.number().optional().describe('Max results (default 20).'),
+      path_prefix: z.string().optional().describe('Optional source file path prefix filter for symbol results.'),
+      language: z.string().optional().describe('Optional source language filter for symbol results.'),
+      kind: z.string().optional().describe('Optional symbol kind filter for symbol results.'),
+      doc_path_prefix: z
+        .string()
+        .optional()
+        .describe('Optional documentation path prefix filter for semantic/fused doc-section results.'),
+      doc_kind: z
+        .string()
+        .optional()
+        .describe('Optional documentation kind filter for semantic/fused doc-section results.'),
       branch: z.string().optional().describe('Optional branch to filter results. Query-time retrieval uses SQLite-only persisted data.'),
     },
     async (args) => ({
@@ -235,9 +255,22 @@ export function createKbMcpServer(
   server.tool(
     metrics.toolDef.name,
     metrics.toolDef.description,
-    {},
-    async (_args) => ({
-      content: [{ type: 'text', text: JSON.stringify(metrics.handler(db, {})) }],
+    {
+      mode: z
+        .enum(metrics.toolDef.inputSchema.properties.mode.enum)
+        .optional()
+        .describe(metrics.toolDef.inputSchema.properties.mode.description),
+      limit: z
+        .number()
+        .optional()
+        .describe(metrics.toolDef.inputSchema.properties.limit.description),
+      min_cyclomatic: z
+        .number()
+        .optional()
+        .describe(metrics.toolDef.inputSchema.properties.min_cyclomatic.description),
+    },
+    async (args: metrics.MetricsArgs = {}) => ({
+      content: [{ type: 'text', text: JSON.stringify(metrics.handler(db, args)) }],
     }),
   );
 
