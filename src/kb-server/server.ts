@@ -137,6 +137,15 @@ export function createKbMcpServer(
       kind: z.enum(['symbol', 'file']).describe('Whether to look up a symbol or a file.'),
       query: z.string().describe('Symbol name or file path to look up (includes persisted enrichment metadata when available).'),
       branch: z.string().optional().describe('Optional branch to filter results.'),
+      match_mode: z
+        .enum(['exact', 'prefix', 'contains'])
+        .optional()
+        .describe('For kind="symbol": symbol-name match mode (default "exact").'),
+      symbol_kind: z.string().optional().describe('For kind="symbol": optional symbol kind filter.'),
+      path_prefix: z.string().optional().describe('For kind="symbol": optional indexed file-path prefix filter.'),
+      language: z.string().optional().describe('For kind="symbol": optional indexed file language filter.'),
+      limit: z.number().int().nonnegative().optional().describe('For kind="symbol" with empty query: maximum rows to return.'),
+      offset: z.number().int().nonnegative().optional().describe('For kind="symbol" with empty query: rows to skip before returning results.'),
     },
     async (args) => ({
       content: [{ type: 'text', text: JSON.stringify(lookup.handler(db, args)) }],

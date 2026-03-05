@@ -146,6 +146,43 @@ describe('createKbMcpServer', () => {
     expect(schemaDescription(lookupSchema.query)).toContain('persisted enrichment metadata');
   });
 
+  it('should register kb_lookup with optional match/filter/pagination fields', () => {
+    const db = new Database(':memory:');
+    createKbMcpServer(db, '/tmp/test.db');
+
+    const lookupToolCall = mockTool.mock.calls.find((call) => call[0] === 'kb_lookup');
+    expect(lookupToolCall).toBeDefined();
+
+    const lookupSchema = lookupToolCall?.[2] as {
+      kind: { safeParse: (v: unknown) => { success: boolean } };
+      query: { safeParse: (v: unknown) => { success: boolean } };
+      match_mode: { safeParse: (v: unknown) => { success: boolean } };
+      symbol_kind: { safeParse: (v: unknown) => { success: boolean } };
+      path_prefix: { safeParse: (v: unknown) => { success: boolean } };
+      language: { safeParse: (v: unknown) => { success: boolean } };
+      limit: { safeParse: (v: unknown) => { success: boolean } };
+      offset: { safeParse: (v: unknown) => { success: boolean } };
+    };
+
+    expect(lookupSchema.kind.safeParse('symbol').success).toBe(true);
+    expect(lookupSchema.kind.safeParse(undefined).success).toBe(false);
+    expect(lookupSchema.query.safeParse('parseConfig').success).toBe(true);
+    expect(lookupSchema.query.safeParse(undefined).success).toBe(false);
+    expect(lookupSchema.match_mode.safeParse('exact').success).toBe(true);
+    expect(lookupSchema.match_mode.safeParse('prefix').success).toBe(true);
+    expect(lookupSchema.match_mode.safeParse('contains').success).toBe(true);
+    expect(lookupSchema.match_mode.safeParse('fuzzy').success).toBe(false);
+    expect(lookupSchema.symbol_kind.safeParse('function').success).toBe(true);
+    expect(lookupSchema.path_prefix.safeParse('src/').success).toBe(true);
+    expect(lookupSchema.language.safeParse('typescript').success).toBe(true);
+    expect(lookupSchema.limit.safeParse(10).success).toBe(true);
+    expect(lookupSchema.limit.safeParse(-1).success).toBe(false);
+    expect(lookupSchema.limit.safeParse(1.5).success).toBe(false);
+    expect(lookupSchema.offset.safeParse(5).success).toBe(true);
+    expect(lookupSchema.offset.safeParse(-1).success).toBe(false);
+    expect(lookupSchema.offset.safeParse(0.5).success).toBe(false);
+  });
+
   it('should describe kb_search branch as SQLite-only query-time retrieval', () => {
     const db = new Database(':memory:');
     createKbMcpServer(db, '/tmp/test.db');
