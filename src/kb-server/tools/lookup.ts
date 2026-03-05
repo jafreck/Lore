@@ -10,7 +10,7 @@ import { getSymbolsByName, getFileByPath, listSymbols, listFiles } from '../db.j
 // ─── Tool definition ──────────────────────────────────────────────────────────
 
 export const toolDef = {
-  name: 'lore_lookup',
+  name: 'kb_lookup',
   description:
     'Look up symbols by name or source files by path in the knowledge-base index. ' +
     'Set `kind` to "symbol" or "file". Returns an array of matching rows.',

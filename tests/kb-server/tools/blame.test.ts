@@ -36,13 +36,13 @@ function insertFile(db: Database.Database, filePath: string, branch: string): vo
   );
 }
 
-describe('lore_blame toolDef', () => {
+describe('kb_blame toolDef', () => {
   it('should expose the expected MCP tool name', () => {
-    expect(toolDef.name).toBe('lore_blame');
+    expect(toolDef.name).toBe('kb_blame');
   });
 });
 
-describe('lore_blame handler', () => {
+describe('kb_blame handler', () => {
   let db: Database.Database;
   const filePath = '/repo/src/main.ts';
 

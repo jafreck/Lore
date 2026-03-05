@@ -2,8 +2,8 @@
  * @module kb-server/tools/notes
  *
  * MCP tools:
- * - lore_notes_write: upsert notes by (key, scope)
- * - lore_notes_read: retrieve notes with staleness/recency metadata
+ * - kb_notes_write: upsert notes by (key, scope)
+ * - kb_notes_read: retrieve notes with staleness/recency metadata
  */
 
 import Database from 'better-sqlite3';
@@ -14,7 +14,7 @@ const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 200;
 
 export const kbNotesWriteToolDef = {
-  name: 'lore_notes_write',
+  name: 'kb_notes_write',
   description:
     'Upsert an LLM-authored note in the knowledge base by key and scope. ' +
     'Defaults scope to "global" and updates updated_at on existing notes.',
@@ -38,7 +38,7 @@ export const kbNotesWriteToolDef = {
 } as const;
 
 export const kbNotesReadToolDef = {
-  name: 'lore_notes_read',
+  name: 'kb_notes_read',
   description:
     'Read notes by exact key and/or key prefix, optionally filtered by scope. ' +
     'Returns staleness metadata for file-scoped notes and recency metadata for global notes.',
@@ -84,6 +84,11 @@ interface FileRecencyRow {
   indexed_at: number;
 }
 
+interface DocRecencyRow {
+  content_hash: string;
+  indexed_at: number;
+}
+
 export interface NotesReadArgs {
   key?: string;
   key_prefix?: string;
@@ -96,6 +101,7 @@ export interface NoteWithMetadata extends NoteRow {
   stale_reason:
     | 'source_hash_mismatch'
     | 'file_missing'
+    | 'doc_missing'
     | 'indexed_after_note'
     | 'kb_reindexed_since_note'
     | null;
@@ -117,6 +123,17 @@ function normalizeScope(scope?: string): string {
 function clampLimit(limit?: number): number {
   if (limit == null) return DEFAULT_LIMIT;
   return Math.min(Math.max(1, Math.floor(limit)), MAX_LIMIT);
+}
+
+function parseDocScope(scope: string): { path: string; branch: string } | null {
+  if (!scope.startsWith('doc:')) return null;
+  const encoded = scope.slice('doc:'.length);
+  const branchSeparator = encoded.lastIndexOf('@');
+  if (branchSeparator <= 0) return null;
+  return {
+    path: encoded.slice(0, branchSeparator),
+    branch: encoded.slice(branchSeparator + 1),
+  };
 }
 
 export function kbNotesWriteHandler(dbPath: string, args: NotesWriteArgs): NotesWriteResult {
@@ -199,8 +216,34 @@ export function kbNotesReadHandler(db: KbDatabase.Database, args: NotesReadArgs)
      ORDER BY indexed_at DESC
      LIMIT 1`,
   );
+  const getDocRecency = db.prepare(
+    `SELECT content_hash, indexed_at
+     FROM docs
+     WHERE path = ? AND branch = ?
+     ORDER BY indexed_at DESC
+     LIMIT 1`,
+  );
 
   const notes = rows.map((row): NoteWithMetadata => {
+    const docScope = parseDocScope(row.scope);
+    if (docScope) {
+      const docRow = getDocRecency.get(docScope.path, docScope.branch) as DocRecencyRow | undefined;
+      const stale = !docRow || (row.source_hash != null && row.source_hash !== docRow.content_hash);
+      const staleReason: NoteWithMetadata['stale_reason'] = !docRow
+        ? 'doc_missing'
+        : stale
+          ? 'source_hash_mismatch'
+          : null;
+      return {
+        ...row,
+        stale,
+        stale_reason: staleReason,
+        file_last_hash: null,
+        file_indexed_at: null,
+        kb_indexed_at: null,
+      };
+    }
+
     if (row.scope.startsWith('file:')) {
       const filePath = row.scope.slice('file:'.length);
       const fileRow = getFileRecency.get(filePath) as FileRecencyRow | undefined;

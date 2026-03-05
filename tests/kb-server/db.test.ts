@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { createRequire } from 'node:module';
 import { describe, it, expect, beforeEach } from 'vitest';
 import Database from 'better-sqlite3';
 import {
@@ -8,6 +9,11 @@ import {
   getFileById,
   getFileByPath,
   listFiles,
+  listDocs,
+  getDocByPath,
+  listDocSections,
+  searchDocSections,
+  semanticSearchDocSections,
   listConfigEntries,
   listTestMappingsBySourcePath,
   getSymbolsByName,
@@ -28,6 +34,8 @@ import {
   type FileRow,
   type SymbolRow,
 } from '../../src/kb-server/db.js';
+
+const esmRequire = createRequire(import.meta.url);
 
 // Helper: create an in-memory DB with the minimal schema needed for tests.
 function createTestDb(): Database.Database {
@@ -71,6 +79,30 @@ function createTestDb(): Database.Database {
       config_entry_id INTEGER NOT NULL REFERENCES config_entries(id) ON DELETE CASCADE,
       file_id         INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
       line            INTEGER NOT NULL
+    );
+    CREATE TABLE docs (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      path         TEXT    NOT NULL,
+      branch       TEXT    NOT NULL DEFAULT '',
+      kind         TEXT    NOT NULL,
+      title        TEXT    NOT NULL,
+      content      TEXT    NOT NULL,
+      content_hash TEXT    NOT NULL,
+      indexed_at   INTEGER NOT NULL DEFAULT 0,
+      UNIQUE(path, branch)
+    );
+    CREATE TABLE doc_sections (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      doc_id        INTEGER NOT NULL REFERENCES docs(id) ON DELETE CASCADE,
+      section_index INTEGER NOT NULL,
+      title         TEXT    NOT NULL,
+      depth         INTEGER NOT NULL,
+      heading_path  TEXT    NOT NULL,
+      line_start    INTEGER NOT NULL,
+      line_end      INTEGER NOT NULL,
+      content       TEXT    NOT NULL,
+      content_hash  TEXT    NOT NULL,
+      UNIQUE(doc_id, section_index)
     );
   `);
   return db;
@@ -223,6 +255,71 @@ function insertConfigRef(
   db.prepare(
     'INSERT INTO config_entry_refs (config_entry_id, file_id, line) VALUES (?, ?, ?)',
   ).run(configEntryId, fileId, line);
+}
+
+function insertDoc(
+  db: Database.Database,
+  docPath: string,
+  branch: string,
+  kind: string,
+  title: string,
+  content: string,
+): number {
+  const result = db
+    .prepare(
+      `INSERT INTO docs (path, branch, kind, title, content, content_hash, indexed_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .run(docPath, branch, kind, title, content, `${docPath}:${branch}:${kind}`, 1700000000);
+  return result.lastInsertRowid as number;
+}
+
+function insertDocSection(
+  db: Database.Database,
+  docId: number,
+  sectionIndex: number,
+  title: string,
+  headingPath: string[],
+  content: string,
+): number {
+  const result = db
+    .prepare(
+      `INSERT INTO doc_sections
+       (doc_id, section_index, title, depth, heading_path, line_start, line_end, content, content_hash)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .run(
+      docId,
+      sectionIndex,
+      title,
+      Math.max(1, headingPath.length),
+      JSON.stringify(headingPath),
+      sectionIndex + 1,
+      sectionIndex + 2,
+      content,
+      `${docId}:${sectionIndex}`,
+    );
+  return result.lastInsertRowid as number;
+}
+
+function loadDocSectionEmbeddingsTable(db: Database.Database, dims: number): void {
+  const sqliteVec = esmRequire('sqlite-vec') as { load(db: Database.Database): void };
+  sqliteVec.load(db);
+  db.exec(`
+    CREATE VIRTUAL TABLE doc_section_embeddings USING vec0(
+      embedding FLOAT[${dims}]
+    );
+  `);
+}
+
+function insertDocSectionEmbedding(
+  db: Database.Database,
+  sectionId: number,
+  embedding: number[],
+): void {
+  db.prepare(
+    'INSERT OR REPLACE INTO doc_section_embeddings(rowid, embedding) VALUES (CAST(? AS INTEGER), json(?))',
+  ).run(sectionId, JSON.stringify(embedding));
 }
 
 // ─── openReadOnly ──────────────────────────────────────────────────────────────
@@ -483,6 +580,166 @@ describe('listFiles', () => {
   it('should return an empty array when branch has no files', () => {
     const rows = listFiles(db, 100, 'nonexistent');
     expect(rows).toEqual([]);
+  });
+});
+
+describe('documentation helpers', () => {
+  let db: Database.Database;
+  let readmeMainDocId: number;
+  let readmeFeatDocId: number;
+  let architectureDocId: number;
+  let guideDocId: number;
+  let architectureSectionId: number;
+
+  beforeEach(() => {
+    db = createTestDb();
+    readmeMainDocId = insertDoc(db, '/repo/README.md', 'main', 'readme', 'Lore', '# Lore\n## Install');
+    readmeFeatDocId = insertDoc(db, '/repo/README.md', 'feat', 'readme', 'Lore feat', '# Lore\n## Branch');
+    architectureDocId = insertDoc(
+      db,
+      '/repo/docs/architecture.md',
+      'main',
+      'architecture',
+      'Architecture',
+      '# Architecture\n## Overview',
+    );
+    guideDocId = insertDoc(db, '/repo/docs/guide.md', 'main', 'guide', 'Guide', '# Guide\n## Setup');
+
+    insertDocSection(db, readmeMainDocId, 0, 'Lore', ['Lore'], 'Root intro');
+    insertDocSection(db, readmeMainDocId, 1, 'Install', ['Lore', 'Install'], 'Install with npm');
+    insertDocSection(db, readmeFeatDocId, 0, 'Lore', ['Lore'], 'Feature branch readme');
+    architectureSectionId = insertDocSection(
+      db,
+      architectureDocId,
+      0,
+      'Architecture',
+      ['Architecture'],
+      'System overview',
+    );
+    insertDocSection(db, guideDocId, 0, 'Guide', ['Guide'], 'Setup walkthrough');
+  });
+
+  it('listDocs returns deterministically ordered docs and supports kind/branch filters', () => {
+    const allDocs = listDocs(db, { limit: 20 });
+    expect(allDocs.map((row) => `${row.path}@${row.branch}`)).toEqual([
+      '/repo/README.md@feat',
+      '/repo/README.md@main',
+      '/repo/docs/architecture.md@main',
+      '/repo/docs/guide.md@main',
+    ]);
+
+    const filtered = listDocs(db, {
+      branch: 'main',
+      kinds: ['guide', 'architecture'],
+      limit: 20,
+    });
+    expect(filtered.map((row) => `${row.path}:${row.kind}`)).toEqual([
+      '/repo/docs/architecture.md:architecture',
+      '/repo/docs/guide.md:guide',
+    ]);
+
+    expect(listDocs(db, { kind: 'adr' })).toEqual([]);
+  });
+
+  it('should merge, trim, and deduplicate kind filters across kind and kinds args', () => {
+    const mergedKindsDocs = listDocs(db, {
+      kind: ' readme ',
+      kinds: ['guide', 'readme', '  ', 'guide'],
+      limit: 20,
+    });
+    expect(mergedKindsDocs.map((row) => `${row.path}:${row.kind}`)).toEqual([
+      '/repo/README.md:readme',
+      '/repo/README.md:readme',
+      '/repo/docs/guide.md:guide',
+    ]);
+
+    const mergedKindsSections = listDocSections(db, {
+      path: '/repo/README.md',
+      kind: ' readme ',
+      kinds: ['readme', ' guide '],
+      limit: 20,
+    });
+    expect(mergedKindsSections.map((row) => row.section_index)).toEqual([0, 0, 1]);
+
+    const mergedKindsSearch = searchDocSections(db, {
+      query: 'guide',
+      kind: ' guide ',
+      kinds: ['guide', ''],
+      limit: 20,
+    });
+    expect(mergedKindsSearch.map((row) => row.doc_kind)).toEqual(['guide']);
+  });
+
+  it('getDocByPath supports optional branch lookup and empty results', () => {
+    const exact = getDocByPath(db, '/repo/README.md', 'main');
+    expect(exact?.id).toBe(readmeMainDocId);
+    expect(exact?.content).toContain('Install');
+
+    const defaultBranchRow = getDocByPath(db, '/repo/README.md');
+    expect(defaultBranchRow?.branch).toBe('feat');
+    expect(getDocByPath(db, '/repo/missing.md', 'main')).toBeUndefined();
+  });
+
+  it('listDocSections includes heading-path metadata with deterministic ordering and filtering', () => {
+    const allSections = listDocSections(db, { limit: 20 });
+    expect(allSections.map((row) => `${row.doc_path}@${row.doc_branch}#${row.section_index}`)).toEqual([
+      '/repo/README.md@feat#0',
+      '/repo/README.md@main#0',
+      '/repo/README.md@main#1',
+      '/repo/docs/architecture.md@main#0',
+      '/repo/docs/guide.md@main#0',
+    ]);
+    expect(allSections[2]?.heading_path).toBe(JSON.stringify(['Lore', 'Install']));
+
+    const readmeMainSections = listDocSections(db, {
+      path: '/repo/README.md',
+      branch: 'main',
+      kind: 'readme',
+      limit: 20,
+    });
+    expect(readmeMainSections.map((row) => row.section_index)).toEqual([0, 1]);
+    expect(listDocSections(db, { kind: 'adr', limit: 20 })).toEqual([]);
+  });
+
+  it('searchDocSections supports path/branch/kind filtering with deterministic ordering', () => {
+    const results = searchDocSections(db, {
+      query: 'overview',
+      branch: 'main',
+      kinds: ['architecture', 'readme'],
+      limit: 20,
+    });
+    expect(results.map((row) => `${row.doc_path}:${row.title}`)).toEqual([
+      '/repo/docs/architecture.md:Architecture',
+    ]);
+
+    const scoped = searchDocSections(db, {
+      query: 'install',
+      path: '/repo/README.md',
+      branch: 'main',
+      kind: 'readme',
+      limit: 20,
+    });
+    expect(scoped.map((row) => row.section_index)).toEqual([1]);
+    expect(scoped[0]?.heading_path).toBe(JSON.stringify(['Lore', 'Install']));
+    expect(searchDocSections(db, { query: '   ', limit: 20 })).toEqual([]);
+    expect(searchDocSections(db, { query: 'missing', limit: 20 })).toEqual([]);
+  });
+
+  it('semanticSearchDocSections should return an empty list for an empty query vector', () => {
+    expect(semanticSearchDocSections(db, { queryVector: [] })).toEqual([]);
+  });
+
+  it('semanticSearchDocSections should surface vec query errors for non-empty query vectors', () => {
+    loadDocSectionEmbeddingsTable(db, 3);
+    insertDocSectionEmbedding(db, architectureSectionId, [1, 0, 0]);
+    expect(() =>
+      semanticSearchDocSections(db, {
+        queryVector: [1, 0, 0],
+        branch: 'main',
+        kinds: ['readme', 'architecture'],
+        limit: 20,
+      }),
+    ).toThrow();
   });
 });
 

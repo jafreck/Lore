@@ -44,6 +44,11 @@ Options:
   --include <glob>         Glob pattern for files to include (repeatable)
   --exclude <glob>         Glob pattern for paths to exclude (repeatable)
   --language <lang>        Language name to filter by, e.g. typescript (repeatable)
+  --docs-include <glob>    Glob pattern for docs to include (repeatable)
+  --docs-exclude <glob>    Glob pattern for docs to exclude (repeatable)
+  --docs-extension <ext>   Documentation extension to include, e.g. .md (repeatable)
+  --docs-auto-notes        Enable doc-based note seeding during indexing (default)
+  --no-docs-auto-notes     Disable doc-based note seeding during indexing
   --watch                  Enable fs-event watch mode (low-latency, may miss events on some platforms)
   --poll                   Enable polling mode (reliable but higher CPU/IO cost)
   --file <path>            Coverage report path (required for ingest-coverage)
@@ -67,6 +72,18 @@ function flags(args: string[], name: string): string[] {
     if (args[i] === name) results.push(args[i + 1] as string);
   }
   return results;
+}
+
+function docsAutoNotesFlag(args: string[]): boolean {
+  const enable = args.includes('--docs-auto-notes');
+  const disable = args.includes('--no-docs-auto-notes');
+  if (enable && disable) {
+    console.error('Error: --docs-auto-notes and --no-docs-auto-notes cannot be used together.\n');
+    usage();
+  }
+  if (enable) return true;
+  if (disable) return false;
+  return true;
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
@@ -113,6 +130,10 @@ async function main(): Promise<void> {
     const includeGlobs = flags(args, '--include');
     const excludeGlobs = flags(args, '--exclude');
     const languageNames = flags(args, '--language');
+    const docsIncludeGlobs = flags(args, '--docs-include');
+    const docsExcludeGlobs = flags(args, '--docs-exclude');
+    const docsExtensions = flags(args, '--docs-extension');
+    const docsAutoNotes = docsAutoNotesFlag(args);
 
     // Static reverse map: language name → extensions (mirrors EXT_TO_LANG in walker.ts)
     const LANG_TO_EXTS: Record<string, string[]> = {
@@ -161,6 +182,7 @@ async function main(): Promise<void> {
 
     const shouldEnableHistory = historyEnabled || historyAll || historyDepth !== undefined;
     const options = {
+      docsAutoNotes,
       ...(embeddingModel && { embeddingModel }),
       ...(shouldEnableHistory && {
         history: {
@@ -177,9 +199,12 @@ async function main(): Promise<void> {
         ...(includeGlobs.length > 0 && { includeGlobs }),
         ...(excludeGlobs.length > 0 && { excludeGlobs }),
         ...(extensions && { extensions }),
+        ...(docsIncludeGlobs.length > 0 && { docsIncludeGlobs }),
+        ...(docsExcludeGlobs.length > 0 && { docsExcludeGlobs }),
+        ...(docsExtensions.length > 0 && { docsExtensions }),
       },
       undefined,
-      Object.keys(options).length > 0 ? options : undefined,
+      options,
     );
     await builder.build();
   } else if (subcommand === 'mcp') {
@@ -265,8 +290,17 @@ async function main(): Promise<void> {
           ...(historyAll && { all: true }),
         }
       : false;
+    const docsIncludeGlobs = flags(args, '--docs-include');
+    const docsExcludeGlobs = flags(args, '--docs-exclude');
+    const docsExtensions = flags(args, '--docs-extension');
+    const docsAutoNotes = docsAutoNotesFlag(args);
 
-    const walkerConfig = { rootDir };
+    const walkerConfig = {
+      rootDir,
+      ...(docsIncludeGlobs.length > 0 && { docsIncludeGlobs }),
+      ...(docsExcludeGlobs.length > 0 && { docsExcludeGlobs }),
+      ...(docsExtensions.length > 0 && { docsExtensions }),
+    };
 
     if (watchMode) {
       const { FileWatcher } = await import('./indexer/watcher.js');
@@ -296,6 +330,7 @@ async function main(): Promise<void> {
       // Manual refresh: full build if DB doesn't exist yet, otherwise incremental update
       const { IndexBuilder } = await import('./indexer/index.js');
       const builder = new IndexBuilder(dbPath, walkerConfig, undefined, {
+        docsAutoNotes,
         ...(shouldEnableHistory && { history: historyOption }),
       });
 

@@ -8,6 +8,7 @@ Detailed view of Lore's indexing pipeline, storage schema, and MCP tool surface.
 flowchart LR
     subgraph Codebase
         SRC[Source Files]
+        DOCSRC[Documentation Files]
         GIT[Git Repo]
         COVREP[Coverage Reports]
     end
@@ -18,6 +19,8 @@ flowchart LR
         EXTRACT[Extractors<br/>symbols · imports · call refs]
         RESOLVE[ImportResolver<br/>internal ↔ external]
         CALLGRAPH[Call-Graph Builder<br/>callee resolution · topo sort]
+        DOCINGEST[Docs Ingest<br/>discover · classify · chunk]
+        DOCNOTES[Doc Note Seeding<br/>README · architecture · ADR]
         COVER[Coverage Ingest<br/>LCOV · Cobertura]
         EMBED[Embedder<br/>sentence-transformers<br/>Python subprocess]
         GITHIST[Git History Ingest<br/>commits · diffs · refs]
@@ -28,22 +31,25 @@ flowchart LR
         SYM[(symbols · symbols_fts)]
         IMP[(file_imports · external_deps)]
         REFS[(symbol_refs)]
+        DOCS[(docs · doc_sections)]
+        NOTES[(notes)]
         COV[(coverage_runs · coverage_files<br/>coverage_lines)]
-        VEC[(vec0 embeddings)]
+        VEC[(symbol_embeddings · symbol_semantic_embeddings<br/>doc_section_embeddings)]
         HIST[(commits · commit_files<br/>commit_refs)]
         META[(kb_meta · symbol_summaries)]
     end
 
     subgraph MCP Server
-        LOOKUP[lore_lookup]
-        SEARCH[lore_search<br/>BM25 · vector · fused]
-        GRAPH[lore_graph]
-        SNIPPET[lore_snippet]
-        BLAME[lore_blame]
-        HISTORY[lore_history]
-        METRICS[lore_metrics]
-        KB_COVERAGE[lore_coverage]
-        WRITEBACK[lore_writeback]
+        LOOKUP[kb_lookup]
+        SEARCH[kb_search<br/>BM25 · vector · fused]
+        DOCS_TOOL[kb_docs]
+        GRAPH[kb_graph]
+        SNIPPET[kb_snippet]
+        BLAME[kb_blame]
+        HISTORY[kb_history]
+        METRICS[kb_metrics]
+        KB_COVERAGE[kb_coverage]
+        WRITEBACK[kb_writeback]
     end
 
     subgraph LLM_AGENTS[Agents]
@@ -65,14 +71,16 @@ flowchart LR
     EXTRACT --> RESOLVE --> IMP
     EXTRACT --> CALLGRAPH --> REFS
     EXTRACT --> FILES & SYM
+    DOCSRC --> DOCINGEST --> DOCS
+    DOCINGEST --> DOCNOTES --> NOTES
     COVER --> COV
     COVREP --> COVER
     EMBED -.->|optional| VEC
     GIT --> GITHIST --> HIST
 
-    FILES & SYM & IMP & REFS & COV & VEC & HIST & META --- LOOKUP & SEARCH & GRAPH & SNIPPET & BLAME & HISTORY & METRICS & KB_COVERAGE & WRITEBACK
+    FILES & SYM & IMP & REFS & DOCS & NOTES & COV & VEC & HIST & META --- LOOKUP & SEARCH & DOCS_TOOL & GRAPH & SNIPPET & BLAME & HISTORY & METRICS & KB_COVERAGE & WRITEBACK
 
-    LOOKUP & SEARCH & GRAPH & SNIPPET & BLAME & HISTORY & METRICS & KB_COVERAGE & WRITEBACK <--> LLM_AGENTS
+    LOOKUP & SEARCH & DOCS_TOOL & GRAPH & SNIPPET & BLAME & HISTORY & METRICS & KB_COVERAGE & WRITEBACK <--> LLM_AGENTS
 
     LLM_AGENTS <--- ENTRY
 ```
@@ -86,11 +94,16 @@ flowchart LR
 | Extract | `extractors/*` | Language-specific visitors that pull symbols, imports, and call refs from the AST |
 | Resolve | `resolver.ts` | Classifies each raw import as internal (resolved to a file ID) or external (third-party / stdlib) |
 | Call-Graph | `call-graph.ts` | Matches raw callee names in `symbol_refs` to concrete symbol IDs; supports topo sort and cycle detection |
+| Docs ingest | `docs.ts` + `IndexBuilder` | Discovers docs from default/configured globs, infers kind/title, persists docs plus retrievable sections/chunks, and optionally seeds doc-scoped notes |
 | Coverage | `coverage.ts` | Parses LCOV/Cobertura reports, normalizes per-file/per-line hit data, and persists a run linked to commit SHA/source mtime |
 | Embed | `embedder.ts` | Optional — spawns a Python subprocess running sentence-transformers to produce dense vectors |
 | Git History | `git-history.ts` | Ingests commits, per-file diffs, and branch/tag refs via `simple-git` |
 
 Coverage ingestion accepts reports from auto-detected paths (`coverage/lcov.info`, `coverage/cobertura-coverage.xml`, `coverage.xml`) during build/update/refresh, plus manual CLI ingestion from an explicit `--file` and `--format`. LCOV/Cobertura inputs are normalized into a run (`coverage_runs`), per-file totals (`coverage_files`), and per-line hits (`coverage_lines`), which are then consumed by MCP coverage-aware tools.
+
+Documentation ingestion runs during build and update. Defaults cover README variants, `docs/**`, ADR-style paths, and top-level architecture/design/guide/changelog files across `.md`, `.rst`, `.adoc`, and `.txt`. Markdown docs are chunked by heading hierarchy (stored with `heading_path`, line ranges, and content hashes in `doc_sections`), while non-Markdown files are stored as a single retrievable chunk.
+
+When docs auto-notes are enabled (default), `IndexBuilder` seeds/updates notes for README, architecture, and ADR docs with deterministic keys and `doc:<path>@<branch>` scopes. Each seeded note writes `source_hash = docs.content_hash`, which allows staleness checks to tie note freshness directly to indexed doc content.
 
 ## SQLite schema groups
 
@@ -100,8 +113,10 @@ Coverage ingestion accepts reports from auto-detected paths (`coverage/lcov.info
 | Symbols | `symbols`, `symbols_fts` | Named code symbols + FTS5 full-text index |
 | Imports | `file_imports`, `external_deps` | Import declarations resolved to file IDs or external packages |
 | Call refs | `symbol_refs` | Call-site edges from caller symbol to callee symbol |
+| Docs | `docs`, `doc_sections` | Indexed docs keyed by `(path, branch)` plus chunked sections with heading metadata |
+| Notes | `notes` | User/system notes keyed by `(key, scope)`; doc-scoped notes use `source_hash` to track staleness against `docs.content_hash` |
 | Coverage | `coverage_runs`, `coverage_files`, `coverage_lines` | Coverage ingestion run metadata plus normalized per-file and per-line hit data |
-| Embeddings | `symbol_embeddings`, `symbol_semantic_embeddings` | vec0 virtual tables for dense vector search |
+| Embeddings | `symbol_embeddings`, `symbol_semantic_embeddings`, `doc_section_embeddings` | vec0 virtual tables for semantic symbol/doc-section retrieval |
 | History | `commits`, `commit_files`, `commit_refs` | Git commit metadata, touched files, and named refs |
 | Metadata | `kb_meta`, `symbol_summaries`, `modules`, `file_modules` | Key-value config, LLM summaries, logical module groupings |
 
@@ -109,12 +124,14 @@ Coverage ingestion accepts reports from auto-detected paths (`coverage/lcov.info
 
 | Tool | Purpose |
 |------|---------|
-| `lore_lookup` | Find symbols by name or files by path (optional branch filter) |
-| `lore_search` | Structural BM25, semantic vector, or fused RRF search |
-| `lore_graph` | Query call, import, module, or inheritance edges (`call` edges include `callee_coverage_percent`) |
-| `lore_snippet` | Return source snippets by file path and line range |
-| `lore_blame` | Return git blame metadata for a line or line range |
-| `lore_history` | Query history by file, commit, author, ref, or recency |
-| `lore_metrics` | Return aggregate index metrics plus global coverage totals and staleness metadata (`coverage_commit`, `current_commit`, `commits_behind`, `stale`) |
-| `lore_coverage` | Return symbol-level coverage, uncovered lines, and staleness metadata for the latest coverage run |
-| `lore_writeback` | Persist symbol summaries into `symbol_summaries` |
+| `kb_lookup` | Find symbols by name or files by path (optional branch filter) |
+| `kb_search` | Structural BM25 symbol search, plus docs-aware semantic/fused retrieval (`doc_section` hits) |
+| `kb_docs` | List indexed docs, fetch full docs with optional sections, or search indexed sections |
+| `kb_graph` | Query call, import, module, or inheritance edges (`call` edges include `callee_coverage_percent`) |
+| `kb_snippet` | Return source snippets by file path and line range |
+| `kb_blame` | Return git blame metadata for a line or line range |
+| `kb_history` | Query history by file, commit, author, ref, or recency |
+| `kb_metrics` | Return aggregate index metrics plus global coverage totals and staleness metadata (`coverage_commit`, `current_commit`, `commits_behind`, `stale`) |
+| `kb_coverage` | Return symbol-level coverage, uncovered lines, and staleness metadata for the latest coverage run |
+| `kb_notes_read` / `kb_notes_write` | Persist notes and read note freshness metadata (`source_hash_mismatch`, `doc_missing`, etc.) |
+| `kb_writeback` | Persist symbol summaries into `symbol_summaries` |

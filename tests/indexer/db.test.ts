@@ -80,6 +80,56 @@ describe('openDb', () => {
     expect(tables).toContain('coverage_runs');
     expect(tables).toContain('coverage_files');
     expect(tables).toContain('coverage_lines');
+    expect(tables).toContain('docs');
+    expect(tables).toContain('doc_sections');
+  });
+
+  it('should create docs and doc_sections with expected unique constraints', () => {
+    db = openDb(dbPath);
+    const docsTable = db
+      .prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='docs'")
+      .get() as { sql: string } | undefined;
+    const sectionsTable = db
+      .prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='doc_sections'")
+      .get() as { sql: string } | undefined;
+
+    expect(docsTable?.sql).toContain('UNIQUE(path, branch)');
+    expect(sectionsTable?.sql).toContain('UNIQUE(doc_id, section_index)');
+
+    const insertDoc = db.prepare(
+      `INSERT INTO docs (path, branch, kind, title, content, content_hash)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    );
+    const docInfo = insertDoc.run('README.md', 'main', 'readme', 'Readme', '# Readme', 'hash-1');
+    const docId = Number(docInfo.lastInsertRowid);
+    expect(() =>
+      insertDoc.run('README.md', 'main', 'readme', 'Readme', '# Readme', 'hash-1'),
+    ).toThrow();
+
+    const insertSection = db.prepare(
+      `INSERT INTO doc_sections (
+         doc_id, section_index, title, depth, heading_path, line_start, line_end, content, content_hash
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    );
+    insertSection.run(docId, 0, 'Readme', 1, '["Readme"]', 1, 3, '# Readme', 'chunk-hash-1');
+    expect(() =>
+      insertSection.run(docId, 0, 'Readme', 1, '["Readme"]', 1, 3, '# Readme', 'chunk-hash-1'),
+    ).toThrow();
+    expect(() =>
+      insertSection.run(docId, 1, 'Intro', 2, '["Readme","Intro"]', 4, 6, 'Intro', 'chunk-hash-2'),
+    ).not.toThrow();
+  });
+
+  it('should create docs retrieval indexes during bootstrap', () => {
+    db = openDb(dbPath);
+    const indexes = (
+      db
+        .prepare("SELECT name FROM sqlite_master WHERE type='index'")
+        .all() as { name: string }[]
+    ).map((row) => row.name);
+
+    expect(indexes).toContain('idx_docs_branch_kind');
+    expect(indexes).toContain('idx_doc_sections_doc_id');
   });
 
   it('should create test_mappings with expected columns and unique pair constraint', () => {

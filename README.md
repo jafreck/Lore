@@ -13,8 +13,9 @@ without re-reading it from scratch.
 
 - Parses source files and extracts symbols, imports, and call refs
 - Resolves internal vs external imports and builds call/import graph edges
+- Discovers and indexes documentation (`.md`, `.rst`, `.adoc`, `.txt`) with inferred kinds/titles
 - Stores everything in a normalized SQL schema with optional vector search
-- Enables RAG-style retrieval with semantic/fused search
+- Enables RAG-style retrieval with semantic/fused search across symbols and doc sections
 - Indexes git history (commits, touched files, refs/branches/tags)
 - Supports line-level git blame through MCP
 - Supports automatic refresh via watch mode, poll mode, and git hooks
@@ -43,14 +44,14 @@ flowchart LR
     DB[(SQL DB)]
 
     subgraph MCP Server
-        LOOKUP[lore_lookup]
-        SEARCH[lore_search]
-        GRAPH[lore_graph]
-        SNIPPET[lore_snippet]
-        BLAME[lore_blame]
-        HISTORY[lore_history]
-        METRICS[lore_metrics]
-        WRITEBACK[lore_writeback]
+        LOOKUP[kb_lookup]
+        SEARCH[kb_search]
+        GRAPH[kb_graph]
+        SNIPPET[kb_snippet]
+        BLAME[kb_blame]
+        HISTORY[kb_history]
+        METRICS[kb_metrics]
+        WRITEBACK[kb_writeback]
     end
 
     subgraph MCP_CLIENTS[MCP Clients — Agents]
@@ -197,6 +198,64 @@ await new IndexBuilder(
 ).build();
 ```
 
+### Documentation indexing
+
+Documentation ingestion runs during both `index` and `refresh` flows. By default,
+Lore scans:
+
+- `README*` variants
+- `docs/**/*.{md,rst,adoc,txt}`
+- ADR-style paths (`**/{adr,adrs,ADR,ADRS}/**/*` and `**/{ADR,adr}-*`)
+- top-level architecture/design/overview/changelog/guide files
+
+Default docs extensions are `.md`, `.rst`, `.adoc`, and `.txt`.
+
+CLI docs discovery controls are available on `index` and one-shot `refresh`:
+
+- `--docs-include <glob>` repeatable docs include filter
+- `--docs-exclude <glob>` repeatable docs exclude filter
+- `--docs-extension <ext>` repeatable docs extension filter (for example `.md`)
+- `--docs-auto-notes` / `--no-docs-auto-notes` toggle seeded doc-note upserts (enabled by default)
+
+```bash
+npx @jafreck/lore index --root ./my-project --db ./kb.db \
+  --docs-include 'docs/**/*' \
+  --docs-exclude '**/docs/private/**' \
+  --docs-extension .md \
+  --no-docs-auto-notes
+
+npx @jafreck/lore refresh --db ./kb.db --root ./my-project \
+  --docs-include 'handbook/**/*' \
+  --docs-extension .rst \
+  --docs-auto-notes
+```
+
+To customize docs discovery programmatically, pass docs-specific walker options:
+
+```ts
+import { IndexBuilder } from '@jafreck/lore';
+
+await new IndexBuilder('./kb.db', {
+  rootDir: './my-project',
+  docsIncludeGlobs: ['**/README*', 'handbook/**/*.rst'],
+  docsExcludeGlobs: ['**/docs/private/**'],
+  docsExtensions: ['.md', '.rst'],
+}).build();
+```
+
+Indexed docs are stored per `(path, branch)` in `docs`, with retrievable chunks
+in `doc_sections` (Markdown sections are heading-based and include heading-path
+metadata). When embeddings are enabled, section vectors are stored in
+`doc_section_embeddings`.
+
+When docs auto-notes are enabled, Lore also seeds `notes` rows for README,
+architecture, and ADR docs using deterministic keys (for example
+`docs/readme`, `docs/architecture`, `docs/adr/<slug>`). Seeded notes are
+scoped as `doc:<absolute-path>@<branch>`, and each note `source_hash` is set to
+the source doc's `content_hash`. `kb_notes_read` uses this linkage to report
+doc-scoped notes as stale when the backing doc changes (`source_hash_mismatch`)
+or disappears (`doc_missing`).
+
 ## CLI reference
 
 ### lore index
@@ -204,7 +263,7 @@ await new IndexBuilder(
 Build or update a knowledge base.
 
 ```bash
-npx @jafreck/lore index --root <dir> --db <path> [--embedding-model <id>] [--history] [--history-depth <n>] [--history-all] [--include <glob>] [--exclude <glob>] [--language <lang>]
+npx @jafreck/lore index --root <dir> --db <path> [--embedding-model <id>] [--history] [--history-depth <n>] [--history-all] [--include <glob>] [--exclude <glob>] [--language <lang>] [--docs-include <glob>] [--docs-exclude <glob>] [--docs-extension <ext>] [--docs-auto-notes|--no-docs-auto-notes]
 ```
 
 Key flags:
@@ -218,22 +277,27 @@ Key flags:
 - `--include` repeatable glob include filter
 - `--exclude` repeatable glob exclude filter
 - `--language` repeatable language filter (mapped to extensions)
+- `--docs-include` repeatable docs include filter
+- `--docs-exclude` repeatable docs exclude filter
+- `--docs-extension` repeatable docs extension filter
+- `--docs-auto-notes` enable seeded doc-note upserts (default)
+- `--no-docs-auto-notes` disable seeded doc-note upserts
 
 ### lore refresh
 
 Incremental refresh flow for an existing index.
 
 ```bash
-npx @jafreck/lore refresh --db <path> --root <dir> [--history] [--history-depth <n>] [--history-all]
-npx @jafreck/lore refresh --db <path> --root <dir> --watch [--history]
-npx @jafreck/lore refresh --db <path> --root <dir> --poll [--history]
+npx @jafreck/lore refresh --db <path> --root <dir> [--history] [--history-depth <n>] [--history-all] [--docs-include <glob>] [--docs-exclude <glob>] [--docs-extension <ext>] [--docs-auto-notes|--no-docs-auto-notes]
+npx @jafreck/lore refresh --db <path> --root <dir> --watch [--history] [--docs-include <glob>] [--docs-exclude <glob>] [--docs-extension <ext>]
+npx @jafreck/lore refresh --db <path> --root <dir> --poll [--history] [--docs-include <glob>] [--docs-exclude <glob>] [--docs-extension <ext>]
 ```
 
 Modes:
 
-- Manual: one-shot incremental refresh and exit
-- Watch: filesystem event driven (`fs.watch`), low latency
-- Poll: periodic mtime diffing, most reliable across filesystems
+- Manual: one-shot incremental refresh and exit (supports docs auto-notes toggle)
+- Watch: filesystem event driven (`fs.watch`), low latency (supports docs discovery filters)
+- Poll: periodic mtime diffing, most reliable across filesystems (supports docs discovery filters)
 
 Coverage reports are auto-detected during build/update/refresh from known paths (`coverage/lcov.info`, `coverage/cobertura-coverage.xml`, `coverage.xml`) and only ingested when newer than the last stored coverage run.
 
@@ -281,19 +345,23 @@ npx @jafreck/lore mcp --db <path>
 If the embedding model cannot initialize at runtime, semantic/fused search
 gracefully degrades to structural search.
 
+`kb_search` semantic/fused modes can return both symbol and documentation-section
+hits. Use `kb_docs` for deterministic docs listing/fetch/search operations.
+
 ## MCP tools
 
 | Tool | Purpose |
 |------|---------|
-| `lore_lookup` | Find symbols by name or files by path (optional branch filter) |
-| `lore_search` | Structural BM25, semantic vector, or fused RRF search |
-| `lore_graph` | Query call/import/module/inheritance edges; call edges include `callee_coverage_percent` |
-| `lore_snippet` | Return source snippets by file path and line range |
-| `lore_blame` | Return git blame metadata for a line or line range |
-| `lore_history` | Query history by file, commit, author, ref, or recency |
-| `lore_metrics` | Return aggregate index metrics plus coverage/staleness fields (`coverage_available`, `coverage_commit`, `current_commit`, `commits_behind`, `stale`, global coverage totals) |
-| `lore_coverage` | Return symbol-level coverage, uncovered lines, and staleness metadata for the latest coverage run |
-| `lore_writeback` | Persist symbol summaries into `symbol_summaries` |
+| `kb_lookup` | Find symbols by name or files by path (optional branch filter) |
+| `kb_search` | Structural BM25 symbol search, plus docs-aware semantic/fused retrieval |
+| `kb_docs` | List indexed docs, fetch full docs with optional sections, or search doc sections |
+| `kb_graph` | Query call/import/module/inheritance edges; call edges include `callee_coverage_percent` |
+| `kb_snippet` | Return source snippets by file path and line range |
+| `kb_blame` | Return git blame metadata for a line or line range |
+| `kb_history` | Query history by file, commit, author, ref, or recency |
+| `kb_metrics` | Return aggregate index metrics plus coverage/staleness fields (`coverage_available`, `coverage_commit`, `current_commit`, `commits_behind`, `stale`, global coverage totals) |
+| `kb_coverage` | Return symbol-level coverage, uncovered lines, and staleness metadata for the latest coverage run |
+| `kb_writeback` | Persist symbol summaries into `symbol_summaries` |
 
 ### MCP config example
 
@@ -308,9 +376,19 @@ gracefully degrades to structural search.
 }
 ```
 
+### kb_docs examples
+
+`path` values should match indexed file paths (typically absolute paths).
+
+```json
+{ "action": "list", "branch": "main", "kinds": ["readme", "architecture"] }
+{ "action": "get", "path": "/repo/docs/architecture.md", "branch": "main", "include_sections": true }
+{ "action": "search", "query": "incremental refresh", "kinds": ["guide", "architecture"], "limit": 10 }
+```
+
 ## Git history indexing
 
-Lore can ingest full git history and expose it through `lore_history`.
+Lore can ingest full git history and expose it through `kb_history`.
 
 ### Indexed history tables
 
@@ -318,7 +396,7 @@ Lore can ingest full git history and expose it through `lore_history`.
 - `commit_files`: per-commit touched paths with change type and diff stats
 - `commit_refs`: refs currently pointing at commits (`branch`/`tag`/`other`)
 
-### lore_history modes
+### kb_history modes
 
 - `recent`: newest commits
 - `file`: commits that touched a path
@@ -328,7 +406,7 @@ Lore can ingest full git history and expose it through `lore_history`.
 
 ## Blame queries
 
-Use `lore_blame` for line-level attribution.
+Use `kb_blame` for line-level attribution.
 
 Examples:
 

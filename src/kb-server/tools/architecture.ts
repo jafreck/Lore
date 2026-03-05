@@ -7,7 +7,7 @@
 import type { Database } from '../db.js';
 
 export const toolDef = {
-  name: 'lore_architecture',
+  name: 'kb_architecture',
   description:
     'Return an architecture overview grouped by path prefix, including component summaries, ' +
     'inter-component edges, entry points, leaf nodes, and external dependency usage.',
@@ -38,6 +38,7 @@ export interface ArchitectureComponent {
   file_count: number;
   symbol_count: number;
   module_count: number;
+  docs_context: ArchitectureDocContext[];
 }
 
 export interface ArchitectureEdge {
@@ -59,6 +60,13 @@ export interface ArchitectureExternalDep {
   file_count: number;
 }
 
+export interface ArchitectureDocContext {
+  path: string;
+  kind: string;
+  title: string;
+  indexed_at: number;
+}
+
 export interface ArchitectureResult {
   components: ArchitectureComponent[];
   edges: ArchitectureEdge[];
@@ -73,6 +81,13 @@ function toComponent(path: string, depth: number): string {
     return '.';
   }
   return parts.slice(0, depth).join('/');
+}
+
+function hasDocsTable(db: Database.Database): boolean {
+  const row = db
+    .prepare("SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = 'docs' LIMIT 1")
+    .get() as { present: number } | undefined;
+  return row?.present === 1;
 }
 
 export function handler(db: Database.Database, args: ArchitectureArgs): ArchitectureResult {
@@ -129,7 +144,44 @@ export function handler(db: Database.Database, args: ArchitectureArgs): Architec
       file_count: 1,
       symbol_count: row.symbol_count,
       module_count: row.module_count,
+      docs_context: [],
     });
+  }
+
+  if (hasDocsTable(db)) {
+    const docRows = (
+      args.branch !== undefined
+        ? db
+            .prepare(
+              `SELECT path, branch, kind, title, indexed_at
+                 FROM docs
+                WHERE branch = ?
+                ORDER BY path ASC, id ASC`,
+            )
+            .all(args.branch)
+        : db
+            .prepare(
+              `SELECT path, branch, kind, title, indexed_at
+                 FROM docs
+                ORDER BY path ASC, id ASC`,
+            )
+            .all()
+    ) as Array<{ path: string; branch: string; kind: string; title: string; indexed_at: number }>;
+
+    for (const doc of docRows) {
+      const component = toComponent(doc.path, depth);
+      const key = `${doc.branch}\u0000${component}`;
+      const target = componentsMap.get(key);
+      if (!target) {
+        continue;
+      }
+      target.docs_context.push({
+        path: doc.path,
+        kind: doc.kind,
+        title: doc.title,
+        indexed_at: doc.indexed_at,
+      });
+    }
   }
 
   const importRows = (

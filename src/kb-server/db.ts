@@ -149,6 +149,286 @@ export function listFiles(db: Database.Database, limit = 100, branch?: string): 
   return db.prepare('SELECT * FROM files LIMIT ?').all(limit) as FileRow[];
 }
 
+// ─── Documentation helpers ─────────────────────────────────────────────────────
+
+export interface DocRow {
+  id: number;
+  path: string;
+  branch: string;
+  kind: string;
+  title: string;
+  content: string;
+  content_hash: string;
+  indexed_at: number;
+}
+
+export interface ListDocsArgs {
+  branch?: string;
+  kind?: string;
+  kinds?: string[];
+  limit?: number;
+}
+
+export interface DocSectionRow {
+  id: number;
+  doc_id: number;
+  doc_path: string;
+  doc_branch: string;
+  doc_kind: string;
+  doc_title: string;
+  section_index: number;
+  title: string;
+  depth: number;
+  heading_path: string;
+  line_start: number;
+  line_end: number;
+  content: string;
+  content_hash: string;
+}
+
+export interface ListDocSectionsArgs {
+  path?: string;
+  branch?: string;
+  kind?: string;
+  kinds?: string[];
+  limit?: number;
+}
+
+export interface SearchDocSectionsArgs extends ListDocSectionsArgs {
+  query: string;
+}
+
+export interface SemanticSearchDocSectionsArgs extends ListDocSectionsArgs {
+  queryVector: number[];
+}
+
+export interface SemanticDocSectionRow extends DocSectionRow {
+  score: number;
+}
+
+function normalizeDocKinds(kind?: string, kinds?: string[]): string[] {
+  const merged = [
+    ...(kind ? [kind] : []),
+    ...(kinds ?? []),
+  ]
+    .map((value) => value.trim())
+    .filter((value): value is string => value.length > 0);
+  return [...new Set(merged)];
+}
+
+/** List indexed docs with optional branch/kind filtering. */
+export function listDocs(db: Database.Database, args: ListDocsArgs = {}): DocRow[] {
+  const where: string[] = [];
+  const params: Array<string | number> = [];
+
+  if (args.branch !== undefined) {
+    where.push('branch = ?');
+    params.push(args.branch);
+  }
+
+  const kinds = normalizeDocKinds(args.kind, args.kinds);
+  if (kinds.length > 0) {
+    where.push(`kind IN (${kinds.map(() => '?').join(', ')})`);
+    params.push(...kinds);
+  }
+
+  const whereSql = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
+  const limit = args.limit ?? 100;
+
+  return db.prepare(
+    `SELECT id, path, branch, kind, title, content, content_hash, indexed_at
+       FROM docs
+       ${whereSql}
+      ORDER BY path ASC, branch ASC, id ASC
+      LIMIT ?`,
+  ).all(...params, limit) as DocRow[];
+}
+
+/** Fetch one indexed doc by path, optionally narrowed to a branch. */
+export function getDocByPath(db: Database.Database, path: string, branch?: string): DocRow | undefined {
+  if (branch !== undefined) {
+    return db
+      .prepare(
+        `SELECT id, path, branch, kind, title, content, content_hash, indexed_at
+           FROM docs
+          WHERE path = ? AND branch = ?`,
+      )
+      .get(path, branch) as DocRow | undefined;
+  }
+
+  return db
+    .prepare(
+      `SELECT id, path, branch, kind, title, content, content_hash, indexed_at
+         FROM docs
+        WHERE path = ?
+        ORDER BY branch ASC, id ASC
+        LIMIT 1`,
+    )
+    .get(path) as DocRow | undefined;
+}
+
+/** List stored document sections/chunks with heading-path metadata and optional filters. */
+export function listDocSections(
+  db: Database.Database,
+  args: ListDocSectionsArgs = {},
+): DocSectionRow[] {
+  const where: string[] = [];
+  const params: Array<string | number> = [];
+
+  if (args.path !== undefined) {
+    where.push('d.path = ?');
+    params.push(args.path);
+  }
+  if (args.branch !== undefined) {
+    where.push('d.branch = ?');
+    params.push(args.branch);
+  }
+
+  const kinds = normalizeDocKinds(args.kind, args.kinds);
+  if (kinds.length > 0) {
+    where.push(`d.kind IN (${kinds.map(() => '?').join(', ')})`);
+    params.push(...kinds);
+  }
+
+  const whereSql = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
+  const limit = args.limit ?? 100;
+
+  return db
+    .prepare(
+      `SELECT ds.id,
+              ds.doc_id,
+              d.path AS doc_path,
+              d.branch AS doc_branch,
+              d.kind AS doc_kind,
+              d.title AS doc_title,
+              ds.section_index,
+              ds.title,
+              ds.depth,
+              ds.heading_path,
+              ds.line_start,
+              ds.line_end,
+              ds.content,
+              ds.content_hash
+         FROM doc_sections ds
+         JOIN docs d ON d.id = ds.doc_id
+         ${whereSql}
+         ORDER BY d.path ASC, d.branch ASC, ds.section_index ASC, ds.id ASC
+         LIMIT ?`,
+    )
+    .all(...params, limit) as DocSectionRow[];
+}
+
+/** Search document sections/chunks by text with optional path/branch/kind filtering. */
+export function searchDocSections(
+  db: Database.Database,
+  args: SearchDocSectionsArgs,
+): DocSectionRow[] {
+  const query = args.query.trim();
+  if (!query) return [];
+
+  const where: string[] = [
+    '(ds.title LIKE ? OR ds.content LIKE ? OR ds.heading_path LIKE ?)',
+  ];
+  const likeQuery = `%${query}%`;
+  const params: Array<string | number> = [likeQuery, likeQuery, likeQuery];
+
+  if (args.path !== undefined) {
+    where.push('d.path = ?');
+    params.push(args.path);
+  }
+  if (args.branch !== undefined) {
+    where.push('d.branch = ?');
+    params.push(args.branch);
+  }
+
+  const kinds = normalizeDocKinds(args.kind, args.kinds);
+  if (kinds.length > 0) {
+    where.push(`d.kind IN (${kinds.map(() => '?').join(', ')})`);
+    params.push(...kinds);
+  }
+
+  const limit = args.limit ?? 20;
+
+  return db
+    .prepare(
+      `SELECT ds.id,
+              ds.doc_id,
+              d.path AS doc_path,
+              d.branch AS doc_branch,
+              d.kind AS doc_kind,
+              d.title AS doc_title,
+              ds.section_index,
+              ds.title,
+              ds.depth,
+              ds.heading_path,
+              ds.line_start,
+              ds.line_end,
+              ds.content,
+              ds.content_hash
+         FROM doc_sections ds
+         JOIN docs d ON d.id = ds.doc_id
+         WHERE ${where.join(' AND ')}
+         ORDER BY d.path ASC, d.branch ASC, ds.section_index ASC, ds.id ASC
+         LIMIT ?`,
+    )
+    .all(...params, limit) as DocSectionRow[];
+}
+
+/** Search document sections/chunks by embedding distance with optional path/branch/kind filtering. */
+export function semanticSearchDocSections(
+  db: Database.Database,
+  args: SemanticSearchDocSectionsArgs,
+): SemanticDocSectionRow[] {
+  if (args.queryVector.length === 0) return [];
+
+  const where: string[] = [];
+  const params: Array<string | number> = [JSON.stringify(args.queryVector)];
+
+  if (args.path !== undefined) {
+    where.push('d.path = ?');
+    params.push(args.path);
+  }
+  if (args.branch !== undefined) {
+    where.push('d.branch = ?');
+    params.push(args.branch);
+  }
+
+  const kinds = normalizeDocKinds(args.kind, args.kinds);
+  if (kinds.length > 0) {
+    where.push(`d.kind IN (${kinds.map(() => '?').join(', ')})`);
+    params.push(...kinds);
+  }
+
+  const whereSql = where.length > 0 ? ` AND ${where.join(' AND ')}` : '';
+  const limit = args.limit ?? 20;
+
+  return db
+    .prepare(
+      `SELECT ds.id,
+              ds.doc_id,
+              d.path AS doc_path,
+              d.branch AS doc_branch,
+              d.kind AS doc_kind,
+              d.title AS doc_title,
+              ds.section_index,
+              ds.title,
+              ds.depth,
+              ds.heading_path,
+              ds.line_start,
+              ds.line_end,
+              ds.content,
+              ds.content_hash,
+              distance AS score
+         FROM doc_section_embeddings dse
+         JOIN doc_sections ds ON ds.id = dse.rowid
+         JOIN docs d ON d.id = ds.doc_id
+        WHERE dse.embedding MATCH ?${whereSql}
+        ORDER BY distance
+        LIMIT ?`,
+    )
+    .all(...params, limit) as SemanticDocSectionRow[];
+}
+
 export interface TestMappingRow {
   test_path: string;
   confidence: string;

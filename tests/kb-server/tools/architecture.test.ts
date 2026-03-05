@@ -48,7 +48,24 @@ function createTestDb(): Database.Database {
       file_id  INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
       package  TEXT    NOT NULL
     );
+    CREATE TABLE docs (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      path         TEXT    NOT NULL,
+      branch       TEXT    NOT NULL DEFAULT '',
+      kind         TEXT    NOT NULL,
+      title        TEXT    NOT NULL,
+      content      TEXT    NOT NULL,
+      content_hash TEXT    NOT NULL,
+      indexed_at   INTEGER NOT NULL DEFAULT 0,
+      UNIQUE(path, branch)
+    );
   `);
+  return db;
+}
+
+function createTestDbWithoutDocs(): Database.Database {
+  const db = createTestDb();
+  db.exec('DROP TABLE docs');
   return db;
 }
 
@@ -91,9 +108,22 @@ function insertExternalDep(db: Database.Database, fileId: number, pkg: string): 
   db.prepare('INSERT INTO external_deps (file_id, package) VALUES (?, ?)').run(fileId, pkg);
 }
 
-describe('lore_architecture toolDef', () => {
+function insertDoc(
+  db: Database.Database,
+  path: string,
+  branch: string,
+  kind: string,
+  title: string,
+): void {
+  db.prepare(
+    `INSERT INTO docs (path, branch, kind, title, content, content_hash, indexed_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  ).run(path, branch, kind, title, `${title} content`, `${path}:${branch}`, Date.now());
+}
+
+describe('kb_architecture toolDef', () => {
   it('should expose optional depth and branch properties', () => {
-    expect(toolDef.name).toBe('lore_architecture');
+    expect(toolDef.name).toBe('kb_architecture');
     expect(toolDef.inputSchema.required).toEqual([]);
     expect(toolDef.inputSchema.properties.depth.type).toBe('number');
     expect(toolDef.inputSchema.properties.branch.type).toBe('string');
@@ -144,6 +174,10 @@ describe('architecture handler', () => {
     insertExternalDep(db, mainCliFileId, 'commander');
     insertExternalDep(db, featAppFileId, 'react');
     insertExternalDep(db, featExtraFileId, 'lodash');
+
+    insertDoc(db, 'src/app/README.md', 'main', 'readme', 'App README');
+    insertDoc(db, 'src/lib/design.md', 'main', 'design', 'Library Design');
+    insertDoc(db, 'src/app/README.md', 'feat', 'readme', 'Feature App README');
   });
 
   it('should return all top-level architecture sections', () => {
@@ -178,6 +212,13 @@ describe('architecture handler', () => {
     expect(mainApp?.file_count).toBe(2);
     expect(mainApp?.symbol_count).toBe(3);
     expect(mainApp?.module_count).toBe(2);
+    expect(mainApp?.docs_context).toEqual([
+      expect.objectContaining({
+        path: 'src/app/README.md',
+        kind: 'readme',
+        title: 'App README',
+      }),
+    ]);
 
     const appToLib = result.edges.find(
       (e) =>
@@ -191,6 +232,15 @@ describe('architecture handler', () => {
       (d) => d.branch === 'main' && d.component === 'src/app' && d.package === 'react',
     );
     expect(mainAppReact?.file_count).toBe(2);
+
+    const featApp = result.components.find((c) => c.branch === 'feat' && c.component === 'src/app');
+    expect(featApp?.docs_context).toEqual([
+      expect.objectContaining({
+        path: 'src/app/README.md',
+        kind: 'readme',
+        title: 'Feature App README',
+      }),
+    ]);
   });
 
   it('should filter output by branch when branch is provided', () => {
@@ -200,6 +250,7 @@ describe('architecture handler', () => {
     expect(result.entry_points.every((n) => n.branch === 'main')).toBe(true);
     expect(result.leaf_nodes.every((n) => n.branch === 'main')).toBe(true);
     expect(result.external_deps.every((d) => d.branch === 'main')).toBe(true);
+    expect(result.components.every((c) => c.docs_context.every((doc) => doc.path.startsWith(c.component)))).toBe(true);
     expect(result.components).toHaveLength(3);
     expect(result.edges).toHaveLength(3);
   });
@@ -209,8 +260,28 @@ describe('architecture handler', () => {
     expect(depthOne.components).toHaveLength(2);
     expect(depthOne.components.map((c) => c.component)).toEqual(['src', 'src']);
     expect(depthOne.edges).toHaveLength(2);
+    depthOne.components.forEach((component) => {
+      expect(component.docs_context.length).toBeGreaterThanOrEqual(1);
+      expect(component.docs_context.every((doc) => doc.path.startsWith('src/'))).toBe(true);
+    });
 
     const clamped = handler(db, { depth: 0.2 });
     expect(clamped.components.map((c) => c.component)).toEqual(['src', 'src']);
+  });
+
+  it('should keep docs context empty when docs table is unavailable', () => {
+    const dbNoDocs = createTestDbWithoutDocs();
+    const moduleId = insertModule(dbNoDocs, 'app');
+    const sourceId = insertFile(dbNoDocs, 'src/app/main.ts', 'main');
+    const depId = insertFile(dbNoDocs, 'src/lib/helper.ts', 'main');
+
+    insertSymbol(dbNoDocs, sourceId, 'run');
+    mapFileToModule(dbNoDocs, sourceId, moduleId);
+    insertImport(dbNoDocs, sourceId, depId);
+    insertExternalDep(dbNoDocs, sourceId, 'react');
+
+    const result = handler(dbNoDocs, {});
+    expect(result.components).toHaveLength(2);
+    expect(result.components.every((component) => component.docs_context.length === 0)).toBe(true);
   });
 });

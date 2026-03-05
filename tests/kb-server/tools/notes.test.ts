@@ -26,8 +26,8 @@ function removeDbFiles(dbPath: string): void {
 
 describe('notes tool exports', () => {
   it('should expose tool definitions and aliases', () => {
-    expect(kbNotesWriteToolDef.name).toBe('lore_notes_write');
-    expect(kbNotesReadToolDef.name).toBe('lore_notes_read');
+    expect(kbNotesWriteToolDef.name).toBe('kb_notes_write');
+    expect(kbNotesReadToolDef.name).toBe('kb_notes_read');
     expect(writeToolDef).toBe(kbNotesWriteToolDef);
     expect(readToolDef).toBe(kbNotesReadToolDef);
   });
@@ -201,6 +201,42 @@ describe('kbNotesReadHandler', () => {
     expect(result.notes[0].stale).toBe(true);
     expect(result.notes[0].stale_reason).toBe('indexed_after_note');
     expect(result.notes[0].file_indexed_at).toBe(50);
+  });
+
+  it('should mark doc-scoped notes stale for source hash mismatch', () => {
+    db.prepare(
+      'INSERT INTO docs (path, branch, kind, title, content, content_hash, indexed_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    ).run('/repo/README.md', 'main', 'readme', 'README', '# README', 'new-doc-hash', 10);
+    db.prepare(
+      'INSERT INTO notes (key, scope, content, model, source_hash, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    ).run('docs/readme', 'doc:/repo/README.md@main', 'seeded', 'system:auto-doc-seed', 'old-doc-hash', 1, 5);
+
+    const result = kbNotesReadHandler(db, { key: 'docs/readme' });
+    expect(result.notes[0].stale).toBe(true);
+    expect(result.notes[0].stale_reason).toBe('source_hash_mismatch');
+  });
+
+  it('should mark doc-scoped notes stale when the referenced doc is missing', () => {
+    db.prepare(
+      'INSERT INTO notes (key, scope, content, model, source_hash, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    ).run('docs/readme', 'doc:/repo/README.md@main', 'seeded', 'system:auto-doc-seed', 'hash', 1, 5);
+
+    const result = kbNotesReadHandler(db, { key: 'docs/readme' });
+    expect(result.notes[0].stale).toBe(true);
+    expect(result.notes[0].stale_reason).toBe('doc_missing');
+  });
+
+  it('should keep doc-scoped notes fresh when source hash matches current doc', () => {
+    db.prepare(
+      'INSERT INTO docs (path, branch, kind, title, content, content_hash, indexed_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    ).run('/repo/README.md', 'main', 'readme', 'README', '# README', 'doc-hash', 10);
+    db.prepare(
+      'INSERT INTO notes (key, scope, content, model, source_hash, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    ).run('docs/readme', 'doc:/repo/README.md@main', 'seeded', 'system:auto-doc-seed', 'doc-hash', 1, 5);
+
+    const result = kbNotesReadHandler(db, { key: 'docs/readme' });
+    expect(result.notes[0].stale).toBe(false);
+    expect(result.notes[0].stale_reason).toBe(null);
   });
 
   it('should include global-note KB recency metadata', () => {

@@ -24,7 +24,10 @@ import {
 import type { Database } from './db.js';
 import { walkFiles } from './walker.js';
 import { detectLanguageForPath } from './walker.js';
+import { walkDocumentationFiles } from './walker.js';
 import type { WalkerConfig } from './walker.js';
+import type { DocumentationFile } from './docs.js';
+import { inferSeededDocNoteKey, buildDocNoteScope } from './docs.js';
 import { ingestGitHistory } from './git-history.js';
 import { ParserPool } from './parser.js';
 import { ImportResolver } from './resolver.js';
@@ -99,12 +102,28 @@ interface FileRow {
   last_hash: string | null;
 }
 
+interface DocumentationRow {
+  id: number;
+  content_hash: string;
+}
+
+interface SeededNoteRow {
+  content: string;
+  source_hash: string | null;
+}
+
 interface BuildCheckpoint {
   branch: string;
   rootDir: string;
   totalFiles: number;
   nextFileIndex: number;
   updatedAt: number;
+}
+
+interface IndexBuilderOptions {
+  history?: boolean | { depth?: number; all?: boolean };
+  embeddingModel?: string;
+  docsAutoNotes?: boolean;
 }
 
 // ─── IndexBuilder ─────────────────────────────────────────────────────────────
@@ -126,12 +145,13 @@ export class IndexBuilder {
   private readonly embedder: EmbeddingProvider | null;
   private readonly history: boolean | { depth?: number; all?: boolean };
   private readonly embeddingModel: string;
+  private readonly docsAutoNotes: boolean;
 
   constructor(
     dbPath: string,
     walkerConfig: WalkerConfig,
     embedder?: EmbeddingProvider,
-    embeddingModelOrOptions?: string | { history?: boolean | { depth?: number; all?: boolean }; embeddingModel?: string },
+    embeddingModelOrOptions?: string | IndexBuilderOptions,
   ) {
     this.dbPath = dbPath;
     this.walkerConfig = walkerConfig;
@@ -152,6 +172,7 @@ export class IndexBuilder {
     }
 
     this.history = opts.history ?? false;
+    this.docsAutoNotes = opts.docsAutoNotes ?? true;
   }
 
   // ─── Public API ──────────────────────────────────────────────────────────
@@ -165,7 +186,9 @@ export class IndexBuilder {
     const db = openDb(this.dbPath);
     const branch = this.resolveBranch();
     try {
+      this.saveDocsAutoNotesSetting(db);
       const files = await walkFiles(this.walkerConfig);
+      const docs = await walkDocumentationFiles(this.walkerConfig);
       const resumeAt = this.loadBuildCheckpoint(db, branch, files.length);
       db.transaction(() => {
         for (let i = resumeAt; i < files.length; i++) {
@@ -174,6 +197,13 @@ export class IndexBuilder {
           this.processFile(db, file.path, file.language, branch);
           this.saveBuildCheckpoint(db, branch, i + 1, files.length);
         }
+        const seenDocPaths = new Set<string>();
+        for (const doc of docs) {
+          seenDocPaths.add(doc.path);
+          this.processDocumentationFile(db, doc, branch);
+          this.upsertSeededDocumentationNote(db, doc, branch);
+        }
+        this.removeStaleDocumentation(db, branch, seenDocPaths);
       })();
       this.saveBuildCheckpoint(db, branch, files.length, files.length);
       this.resolveImports(db, branch);
@@ -183,6 +213,7 @@ export class IndexBuilder {
       if (this.embedder) {
         await this.embedder.init();
         await this.embedStructural(db);
+        await this.embedDocumentation(db);
       }
       if (this.history) {
         const historyOptions =
@@ -204,6 +235,9 @@ export class IndexBuilder {
     const db = openDb(this.dbPath);
     const branch = this.resolveBranch();
     try {
+      this.saveDocsAutoNotesSetting(db);
+      const docs = await walkDocumentationFiles(this.walkerConfig);
+      const docsByPath = new Map(docs.map(doc => [doc.path, doc]));
       db.transaction(() => {
         for (const filePath of changedFiles) {
           // If the file no longer exists, remove it from the DB
@@ -217,25 +251,34 @@ export class IndexBuilder {
               db.prepare('DELETE FROM symbols_fts WHERE rowid IN (SELECT id FROM symbols WHERE file_id = ?)').run(row.id);
               db.prepare('DELETE FROM files WHERE id = ?').run(row.id);
             }
+            this.deleteDocumentationByPath(db, filePath, branch);
             continue;
           }
 
           const language = detectLanguageForPath(filePath, this.walkerConfig);
-          if (!language) continue;
+          if (language) {
+            // Null out resolved_id references pointing to this file before deletion
+            const existingRow = db.prepare('SELECT id FROM files WHERE path = ? AND branch = ?').get(filePath, branch) as
+              | { id: number }
+              | undefined;
+            if (existingRow) {
+              db.prepare('UPDATE file_imports SET resolved_id = NULL WHERE resolved_id = ?').run(existingRow.id);
+              db.prepare('DELETE FROM symbols_fts WHERE rowid IN (SELECT id FROM symbols WHERE file_id = ?)').run(existingRow.id);
+            }
 
-          // Null out resolved_id references pointing to this file before deletion
-          const existingRow = db.prepare('SELECT id FROM files WHERE path = ? AND branch = ?').get(filePath, branch) as
-            | { id: number }
-            | undefined;
-          if (existingRow) {
-            db.prepare('UPDATE file_imports SET resolved_id = NULL WHERE resolved_id = ?').run(existingRow.id);
-            db.prepare('DELETE FROM symbols_fts WHERE rowid IN (SELECT id FROM symbols WHERE file_id = ?)').run(existingRow.id);
+            // Delete existing rows for this file (cascade handles symbols/imports)
+            db.prepare('DELETE FROM files WHERE path = ? AND branch = ?').run(filePath, branch);
+
+            this.processFile(db, filePath, language, branch);
           }
 
-          // Delete existing rows for this file (cascade handles symbols/imports)
-          db.prepare('DELETE FROM files WHERE path = ? AND branch = ?').run(filePath, branch);
-
-          this.processFile(db, filePath, language, branch);
+          const changedDoc = docsByPath.get(filePath);
+          if (changedDoc) {
+            this.processDocumentationFile(db, changedDoc, branch);
+            this.upsertSeededDocumentationNote(db, changedDoc, branch);
+          } else {
+            this.deleteDocumentationByPath(db, filePath, branch);
+          }
         }
       })();
 
@@ -249,6 +292,7 @@ export class IndexBuilder {
       if (this.embedder) {
         await this.embedder.init();
         await this.embedStructural(db);
+        await this.embedDocumentation(db);
       }
       buildCallGraph(db);
       this.saveLastKnownHead(db);
@@ -426,6 +470,147 @@ export class IndexBuilder {
     }
   }
 
+  private processDocumentationFile(
+    db: Database.Database,
+    doc: DocumentationFile,
+    branch: string,
+  ): void {
+    const existing = db.prepare(
+      'SELECT id, content_hash FROM docs WHERE path = ? AND branch = ?',
+    ).get(doc.path, branch) as DocumentationRow | undefined;
+    if (existing?.content_hash === doc.hash) {
+      return;
+    }
+
+    let docId: number;
+    if (existing) {
+      db.prepare(
+        `UPDATE docs
+         SET kind = ?, title = ?, content = ?, content_hash = ?, indexed_at = unixepoch()
+         WHERE id = ?`,
+      ).run(doc.kind, doc.title, doc.content, doc.hash, existing.id);
+      docId = existing.id;
+    } else {
+      const info = db.prepare(
+        `INSERT INTO docs (path, branch, kind, title, content, content_hash)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+      ).run(doc.path, branch, doc.kind, doc.title, doc.content, doc.hash) as {
+        lastInsertRowid: number | bigint;
+      };
+      docId = Number(info.lastInsertRowid);
+    }
+
+    const existingSections = db.prepare(
+      'SELECT id, section_index FROM doc_sections WHERE doc_id = ?',
+    ).all(docId) as Array<{ id: number; section_index: number }>;
+
+    const insertSection = db.prepare(
+      `INSERT INTO doc_sections (
+         doc_id, section_index, title, depth, heading_path, line_start, line_end, content, content_hash
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(doc_id, section_index) DO UPDATE SET
+         title = excluded.title,
+         depth = excluded.depth,
+         heading_path = excluded.heading_path,
+         line_start = excluded.line_start,
+         line_end = excluded.line_end,
+         content = excluded.content,
+         content_hash = excluded.content_hash`,
+    );
+
+    const activeSectionIndexes = new Set<number>();
+    for (const chunk of doc.chunks) {
+      activeSectionIndexes.add(chunk.sectionIndex);
+      insertSection.run(
+        docId,
+        chunk.sectionIndex,
+        chunk.title,
+        chunk.depth,
+        JSON.stringify(chunk.headingPath),
+        chunk.lineStart,
+        chunk.lineEnd,
+        chunk.content,
+        chunk.hash,
+      );
+    }
+
+    const staleSectionIds = existingSections
+      .filter(section => !activeSectionIndexes.has(section.section_index))
+      .map(section => section.id);
+    this.deleteDocSectionEmbeddings(db, staleSectionIds);
+    if (staleSectionIds.length > 0) {
+      db.prepare(
+        `DELETE FROM doc_sections
+         WHERE id IN (${staleSectionIds.map(() => '?').join(', ')})`,
+      ).run(...staleSectionIds);
+    }
+
+  }
+
+  private upsertSeededDocumentationNote(
+    db: Database.Database,
+    doc: DocumentationFile,
+    branch: string,
+  ): void {
+    if (!this.docsAutoNotes) return;
+
+    const key = inferSeededDocNoteKey(doc);
+    if (!key) return;
+
+    const scope = buildDocNoteScope(doc.path, branch);
+    const existing = db.prepare(
+      'SELECT content, source_hash FROM notes WHERE key = ? AND scope = ?',
+    ).get(key, scope) as SeededNoteRow | undefined;
+
+    if (existing?.content === doc.content && existing.source_hash === doc.hash) {
+      return;
+    }
+
+    db.prepare(
+      `INSERT INTO notes (key, scope, content, model, source_hash, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, unixepoch(), unixepoch())
+       ON CONFLICT(key, scope) DO UPDATE SET
+         content = excluded.content,
+         model = excluded.model,
+         source_hash = excluded.source_hash,
+         updated_at = unixepoch()`,
+    ).run(key, scope, doc.content, 'system:auto-doc-seed', doc.hash);
+  }
+
+  private removeStaleDocumentation(db: Database.Database, branch: string, retainedPaths: Set<string>): void {
+    const docs = db.prepare('SELECT id, path FROM docs WHERE branch = ?').all(branch) as Array<{ id: number; path: string }>;
+    for (const doc of docs) {
+      if (!retainedPaths.has(doc.path)) {
+        this.deleteDocumentationById(db, doc.id);
+      }
+    }
+  }
+
+  private deleteDocumentationByPath(db: Database.Database, docPath: string, branch: string): void {
+    const row = db.prepare(
+      'SELECT id FROM docs WHERE path = ? AND branch = ?',
+    ).get(docPath, branch) as { id: number } | undefined;
+    if (!row) return;
+    this.deleteDocumentationById(db, row.id);
+  }
+
+  private deleteDocumentationById(db: Database.Database, docId: number): void {
+    const sectionIds = db.prepare('SELECT id FROM doc_sections WHERE doc_id = ?').all(docId) as Array<{ id: number }>;
+    this.deleteDocSectionEmbeddings(db, sectionIds.map(row => row.id));
+    db.prepare('DELETE FROM docs WHERE id = ?').run(docId);
+  }
+
+  private deleteDocSectionEmbeddings(db: Database.Database, sectionIds: number[]): void {
+    if (sectionIds.length === 0) return;
+    const hasEmbeddingsTable = db.prepare(
+      "SELECT 1 AS present FROM sqlite_master WHERE type IN ('table', 'virtual table') AND name = 'doc_section_embeddings'",
+    ).get() as { present: number } | undefined;
+    if (!hasEmbeddingsTable) return;
+    db.prepare(
+      `DELETE FROM doc_section_embeddings WHERE rowid IN (${sectionIds.map(() => '?').join(', ')})`,
+    ).run(...sectionIds);
+  }
+
   /**
    * Second pass: resolve raw_import strings to file IDs in the
    * `file_imports.resolved_id` column.  Also populates `external_deps` for
@@ -482,6 +667,10 @@ export class IndexBuilder {
     if (headSha) {
       setKbMeta(db, KB_META_LAST_HEAD_SHA, headSha);
     }
+  }
+
+  private saveDocsAutoNotesSetting(db: Database.Database): void {
+    setKbMeta(db, 'docs_auto_notes', this.docsAutoNotes ? '1' : '0');
   }
 
   private readGitValue(args: string[]): string | undefined {
@@ -553,6 +742,42 @@ export class IndexBuilder {
         for (let j = 0; j < batch.length; j++) {
           const sym = batch[j];
           if (sym) insertEmbed.run(sym.id, JSON.stringify(embeddings[j]));
+        }
+      })();
+    }
+  }
+
+  private async embedDocumentation(db: Database.Database): Promise<void> {
+    const embedder = this.embedder!;
+
+    db.exec(`
+      CREATE VIRTUAL TABLE IF NOT EXISTS doc_section_embeddings USING vec0(
+        embedding FLOAT[${embedder.dims}]
+      );
+    `);
+
+    const sections = db.prepare(
+      `SELECT id, title, content
+       FROM doc_sections
+       ORDER BY id`,
+    ).all() as Array<{ id: number; title: string; content: string }>;
+    if (sections.length === 0) return;
+
+    const insertEmbed = db.prepare(
+      'INSERT OR REPLACE INTO doc_section_embeddings(rowid, embedding) VALUES (CAST(? AS INTEGER), json(?))',
+    );
+
+    for (let i = 0; i < sections.length; i += EMBED_BATCH_SIZE) {
+      const batch = sections.slice(i, i + EMBED_BATCH_SIZE);
+      const texts = batch.map(section => section.content || section.title);
+      const embeddings = await embedder.embed(texts);
+
+      db.transaction(() => {
+        for (let j = 0; j < batch.length; j++) {
+          const section = batch[j];
+          if (section) {
+            insertEmbed.run(section.id, JSON.stringify(embeddings[j]));
+          }
         }
       })();
     }
