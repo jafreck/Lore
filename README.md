@@ -6,7 +6,9 @@
 [![Node.js](https://img.shields.io/badge/node-%3E%3D22.0.0-brightgreen)](https://nodejs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9+-blue)](https://www.typescriptlang.org)
 
-**The teammate that has seen it all** Lore is your agent's institutional knowledge over the codebase — it knows what was built, why it changed, and how it all connects. Lore indexes your code and git history into a structured knowledge base that agents query through MCP. It maps symbols, imports, call relationships, and git history — with optional embeddings for semantic search — so agents can reason about your codebase
+**The teammate that has seen it all** 
+
+Lore is your agent's institutional knowledge over the codebase — it knows what was built, why it changed, and how it all connects. Lore indexes your code and git history into a structured knowledge base that agents query through MCP. It maps symbols, imports, call relationships, and git history — with optional embeddings for semantic search — so agents can reason about your codebase
 without re-reading it from scratch.
 
 ## What Lore does
@@ -17,6 +19,7 @@ without re-reading it from scratch.
 - Stores everything in a normalized SQL schema with optional vector search
 - Enables RAG-style retrieval with semantic/fused search across symbols and doc sections
 - Indexes git history (commits, touched files, refs/branches/tags)
+- Enriches symbols with resolved type signatures and definitions via optional index-time LSP integration
 - Supports line-level git blame through MCP
 - Supports automatic refresh via watch mode, poll mode, and git hooks
 
@@ -44,14 +47,14 @@ flowchart LR
     DB[(SQL DB)]
 
     subgraph MCP Server
-        LOOKUP[kb_lookup]
-        SEARCH[kb_search]
-        GRAPH[kb_graph]
-        SNIPPET[kb_snippet]
-        BLAME[kb_blame]
-        HISTORY[kb_history]
-        METRICS[kb_metrics]
-        WRITEBACK[kb_writeback]
+        LOOKUP[lore_lookup]
+        SEARCH[lore_search]
+        GRAPH[lore_graph]
+        SNIPPET[lore_snippet]
+        BLAME[lore_blame]
+        HISTORY[lore_history]
+        METRICS[lore_metrics]
+        WRITEBACK[lore_writeback]
     end
 
     subgraph MCP_CLIENTS[MCP Clients — Agents]
@@ -112,44 +115,6 @@ npm install @jafreck/lore
 
 Note: Lore uses native add-ons (`tree-sitter`, `better-sqlite3`). A working
 C/C++ toolchain is required the first time dependencies are built.
-
-## Publish authentication (npm)
-
-Lore publish operations use `NODE_AUTH_TOKEN` (see `.npmrc`) and never commit
-tokens to the repository.
-
-Local publish flow:
-
-```bash
-export NODE_AUTH_TOKEN=<npm automation token>
-npm publish --access public
-```
-
-CI publish flow:
-
-- Add `NODE_AUTH_TOKEN` as a secret in your CI provider (for GitHub Actions,
-  use a repository or environment secret).
-- Ensure publish jobs expose that secret as the `NODE_AUTH_TOKEN` environment
-  variable before running `npm publish`.
-
-## Release publish workflow (`@jafreck/lore@0.1.0`)
-
-Publishing is automated by `.github/workflows/publish.yml`. Creating a version
-tag (for example, `v0.1.0`) or publishing a GitHub Release triggers the npm
-publish job.
-
-Release steps for `@jafreck/lore@0.1.0`:
-
-1. Ensure `package.json` has `"version": "0.1.0"`.
-2. Push the tag: `git tag v0.1.0 && git push origin v0.1.0` (or publish a
-   GitHub Release for `v0.1.0`).
-3. Confirm the workflow logs show `npm publish --dry-run` output before the
-   live `npm publish` step.
-
-Post-publish verification:
-
-- Check the package metadata: `npm view @jafreck/lore version` returns `0.1.0`.
-- Confirm installability: `npm view @jafreck/lore@0.1.0 name version`.
 
 ## Quick start (CLI)
 
@@ -252,7 +217,7 @@ When docs auto-notes are enabled, Lore also seeds `notes` rows for README,
 architecture, and ADR docs using deterministic keys (for example
 `docs/readme`, `docs/architecture`, `docs/adr/<slug>`). Seeded notes are
 scoped as `doc:<absolute-path>@<branch>`, and each note `source_hash` is set to
-the source doc's `content_hash`. `kb_notes_read` uses this linkage to report
+the source doc's `content_hash`. `lore_notes_read` uses this linkage to report
 doc-scoped notes as stale when the backing doc changes (`source_hash_mismatch`)
 or disappears (`doc_missing`).
 
@@ -316,7 +281,7 @@ time and persist it into SQLite columns:
 - `external_symbols`: `resolved_type_signature`, `resolved_return_type`,
   `definition_uri`, `definition_path`
 
-`kb_lookup` and `kb_search` return these persisted fields when present. Query
+`lore_lookup` and `lore_search` return these persisted fields when present. Query
 handlers stay SQLite-only and never start or call language servers at runtime.
 
 LSP precedence:
@@ -343,7 +308,7 @@ LSP precedence:
 Default server mappings cover all supported Lore extractor languages:
 
 | Language(s) | Default command |
-|-------------|-----------------|
+|-------------|------------------|
 | `c`, `cpp`, `objc` | `clangd` |
 | `rust` | `rust-analyzer` |
 | `python` | `pyright-langserver --stdio` |
@@ -435,23 +400,23 @@ gracefully degrades to structural search.
 Query-time behavior remains SQLite-only for LSP metadata: the MCP server reads
 persisted enrichment fields and does not invoke language servers.
 
-`kb_search` semantic/fused modes can return both symbol and documentation-section
-hits. Use `kb_docs` for deterministic docs listing/fetch/search operations.
+`lore_search` semantic/fused modes can return both symbol and documentation-section
+hits. Use `lore_docs` for deterministic docs listing/fetch/search operations.
 
 ## MCP tools
 
 | Tool | Purpose |
 |------|---------|
-| `kb_lookup` | Find symbols by name or files by path (optional branch filter), including external dependency API symbols from `external_symbols` in symbol lookups and persisted LSP-resolved metadata fields when available |
-| `kb_search` | Structural BM25, semantic vector, or fused RRF search; semantic/fused modes can include docs section hits, structural symbol queries include external dependency API name matches from `external_symbols`, and results include persisted LSP-resolved metadata fields when available |
-| `kb_docs` | List indexed docs, fetch full docs with optional sections, or search doc sections |
-| `kb_graph` | Query call/import/module/inheritance edges; call edges include `callee_coverage_percent` |
-| `kb_snippet` | Return source snippets by file path and line range |
-| `kb_blame` | Return git blame metadata for a line or line range |
-| `kb_history` | Query history by file, commit, author, ref, or recency |
-| `kb_metrics` | Return aggregate index metrics plus coverage/staleness fields (`coverage_available`, `coverage_commit`, `current_commit`, `commits_behind`, `stale`, global coverage totals) |
-| `kb_coverage` | Return symbol-level coverage, uncovered lines, and staleness metadata for the latest coverage run |
-| `kb_writeback` | Persist symbol summaries into `symbol_summaries` |
+| `lore_lookup` | Find symbols by name or files by path (optional branch filter), including external dependency API symbols from `external_symbols` in symbol lookups and persisted LSP-resolved metadata fields when available |
+| `lore_search` | Structural BM25, semantic vector, or fused RRF search; semantic/fused modes can include docs section hits, structural symbol queries include external dependency API name matches from `external_symbols`, and results include persisted LSP-resolved metadata fields when available |
+| `lore_docs` | List indexed docs, fetch full docs with optional sections, or search doc sections |
+| `lore_graph` | Query call/import/module/inheritance edges; call edges include `callee_coverage_percent` |
+| `lore_snippet` | Return source snippets by file path and line range |
+| `lore_blame` | Return git blame metadata for a line or line range |
+| `lore_history` | Query history by file, commit, author, ref, or recency |
+| `lore_metrics` | Return aggregate index metrics plus coverage/staleness fields (`coverage_available`, `coverage_commit`, `current_commit`, `commits_behind`, `stale`, global coverage totals) |
+| `lore_coverage` | Return symbol-level coverage, uncovered lines, and staleness metadata for the latest coverage run |
+| `lore_writeback` | Persist symbol summaries into `symbol_summaries` |
 
 ### MCP config example
 
@@ -466,7 +431,7 @@ hits. Use `kb_docs` for deterministic docs listing/fetch/search operations.
 }
 ```
 
-### kb_docs examples
+### lore_docs examples
 
 `path` values should match indexed file paths (typically absolute paths).
 
@@ -478,7 +443,7 @@ hits. Use `kb_docs` for deterministic docs listing/fetch/search operations.
 
 ## Git history indexing
 
-Lore can ingest full git history and expose it through `kb_history`.
+Lore can ingest full git history and expose it through `lore_history`.
 
 ### Indexed history tables
 
@@ -486,7 +451,7 @@ Lore can ingest full git history and expose it through `kb_history`.
 - `commit_files`: per-commit touched paths with change type and diff stats
 - `commit_refs`: refs currently pointing at commits (`branch`/`tag`/`other`)
 
-### kb_history modes
+### lore_history modes
 
 - `recent`: newest commits
 - `file`: commits that touched a path
@@ -496,7 +461,7 @@ Lore can ingest full git history and expose it through `kb_history`.
 
 ## Blame queries
 
-Use `kb_blame` for line-level attribution.
+Use `lore_blame` for line-level attribution.
 
 Examples:
 
@@ -513,26 +478,6 @@ If you want Lore to stay updated without explicit requests:
 1. Run `lore hooks` once in the repo (git lifecycle updates)
 2. Optionally run `lore refresh --watch` in a background session for near-real-time updates during active editing
 3. Use `--poll` on filesystems where watch events are unreliable
-
-## Benchmarking index performance (500+ file repos)
-
-Use this procedure when you need measurable before/after evidence for indexing changes:
-
-1. Pick a repository with at least 500 source files and note the exact commit SHA you will test.
-2. Capture a baseline timing from the same machine and environment:
-
-```bash
-time npx @jafreck/lore index --root /path/to/repo --db ./kb-baseline.db
-```
-
-3. Apply your change, rebuild Lore, then capture a post-change timing against the same repository commit:
-
-```bash
-npm run build
-time npx @jafreck/lore index --root /path/to/repo --db ./kb-after.db
-```
-
-4. Record both timings (baseline and post-change) in the related GitHub issue or PR under an "Acceptance Evidence" section, including repo name, commit SHA, and command used.
 
 ## Build from source
 
@@ -559,6 +504,64 @@ npm run coverage
 ```
 
 CI enforces a minimum 95% coverage threshold.
+
+## Publish authentication (npm)
+
+Lore publish operations use `NODE_AUTH_TOKEN` (see `.npmrc`) and never commit
+tokens to the repository.
+
+Local publish flow:
+
+```bash
+export NODE_AUTH_TOKEN=<npm automation token>
+npm publish --access public
+```
+
+CI publish flow:
+
+- Add `NODE_AUTH_TOKEN` as a secret in your CI provider (for GitHub Actions,
+  use a repository or environment secret).
+- Ensure publish jobs expose that secret as the `NODE_AUTH_TOKEN` environment
+  variable before running `npm publish`.
+
+## Release publish workflow (`@jafreck/lore@0.1.0`)
+
+Publishing is automated by `.github/workflows/publish.yml`. Creating a version
+tag (for example, `v0.1.0`) or publishing a GitHub Release triggers the npm
+publish job.
+
+Release steps for `@jafreck/lore@0.1.0`:
+
+1. Ensure `package.json` has `"version": "0.1.0"`.
+2. Push the tag: `git tag v0.1.0 && git push origin v0.1.0` (or publish a
+   GitHub Release for `v0.1.0`).
+3. Confirm the workflow logs show `npm publish --dry-run` output before the
+   live `npm publish` step.
+
+Post-publish verification:
+
+- Check the package metadata: `npm view @jafreck/lore version` returns `0.1.0`.
+- Confirm installability: `npm view @jafreck/lore@0.1.0 name version`.
+
+## Benchmarking index performance (500+ file repos)
+
+Use this procedure when you need measurable before/after evidence for indexing changes:
+
+1. Pick a repository with at least 500 source files and note the exact commit SHA you will test.
+2. Capture a baseline timing from the same machine and environment:
+
+```bash
+time npx @jafreck/lore index --root /path/to/repo --db ./kb-baseline.db
+```
+
+3. Apply your change, rebuild Lore, then capture a post-change timing against the same repository commit:
+
+```bash
+npm run build
+time npx @jafreck/lore index --root /path/to/repo --db ./kb-after.db
+```
+
+4. Record both timings (baseline and post-change) in the related GitHub issue or PR under an "Acceptance Evidence" section, including repo name, commit SHA, and command used.
 
 ## License
 
