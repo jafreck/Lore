@@ -10,11 +10,12 @@ import { buildCallGraph } from '../../src/indexer/call-graph.js';
 import type { EmbeddingProvider } from '../../src/indexer/embedder.js';
 
 const esmRequire = createRequire(import.meta.url);
+const HELLO_SOURCE = 'export function hello(): string { return "hi"; }\n';
 
 /** Create a temp directory containing a minimal TypeScript source file. */
 function createTmpSrcDir(): string {
   const dir = mkdtempSync(join(tmpdir(), 'lore-index-test-src-'));
-  writeFileSync(join(dir, 'hello.ts'), 'export function hello(): string { return "hi"; }\n');
+  writeFileSync(join(dir, 'hello.ts'), HELLO_SOURCE);
   return dir;
 }
 
@@ -50,6 +51,15 @@ function queryFilesWithBranch(dbPath: string, branch: string): { path: string; b
   const rows = db.prepare('SELECT path, branch FROM files WHERE branch = ?').all(branch) as { path: string; branch: string }[];
   db.close();
   return rows;
+}
+
+function queryFileSourceForBranch(dbPath: string, filePath: string, branch: string): string | undefined {
+  const db = new Database(dbPath, { readonly: true });
+  const row = db.prepare('SELECT source FROM files WHERE path = ? AND branch = ?').get(filePath, branch) as
+    | { source: string }
+    | undefined;
+  db.close();
+  return row?.source;
 }
 
 function queryStructuralEmbeddingCount(dbPath: string): number {
@@ -566,6 +576,39 @@ describe('IndexBuilder — branch support in build()', () => {
     files.forEach(f => expect(f.branch).toBe('feat/new-thing'));
   });
 
+  it('should persist indexed file source content during build', async () => {
+    const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
+    await builder.build();
+    expect(queryFileSourceForBranch(dbPath, join(srcDir, 'hello.ts'), 'main')).toBe(HELLO_SOURCE);
+  });
+
+  it('should refresh persisted file source when build reprocesses a changed file', async () => {
+    const filePath = join(srcDir, 'hello.ts');
+    const updatedSource = 'export function hello(): string { return "updated"; }\n';
+    const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
+
+    await builder.build();
+    expect(queryFileSourceForBranch(dbPath, filePath, 'main')).toBe(HELLO_SOURCE);
+
+    writeFileSync(filePath, updatedSource);
+    const db = new Database(dbPath);
+    db.prepare(
+      "INSERT OR REPLACE INTO kb_meta (key, value) VALUES ('index_checkpoint', ?)",
+    ).run(
+      JSON.stringify({
+        branch: 'main',
+        rootDir: srcDir,
+        totalFiles: 1,
+        nextFileIndex: 0,
+        updatedAt: Math.floor(Date.now() / 1000),
+      }),
+    );
+    db.close();
+
+    await builder.build();
+    expect(queryFileSourceForBranch(dbPath, filePath, 'main')).toBe(updatedSource);
+  });
+
   it('should allow indexing the same source under different branches', async () => {
     const builder1 = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
     await builder1.build();
@@ -857,28 +900,35 @@ describe('IndexBuilder — branch support in update()', () => {
   });
 
   it('should update files under the configured branch', async () => {
-    writeFileSync(srcFile, 'export function updated(): void {}\n');
+    const updatedSource = 'export function updated(): void {}\n';
+    writeFileSync(srcFile, updatedSource);
     const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
     await builder.update([srcFile]);
 
     const files = queryFilesWithBranch(dbPath, 'main');
     expect(files.length).toBeGreaterThan(0);
     files.forEach(f => expect(f.branch).toBe('main'));
+    expect(queryFileSourceForBranch(dbPath, srcFile, 'main')).toBe(updatedSource);
   });
 
   it('should not affect files under a different branch on update', async () => {
     // Build under a second branch
     const builder2 = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'dev' });
     await builder2.build();
+    const devSourceBeforeMainUpdate = queryFileSourceForBranch(dbPath, srcFile, 'dev');
+    expect(devSourceBeforeMainUpdate).toBe(HELLO_SOURCE);
 
     // Modify and update under 'main' only
-    writeFileSync(srcFile, 'export function modifiedForMain(): void {}\n');
+    const mainUpdatedSource = 'export function modifiedForMain(): void {}\n';
+    writeFileSync(srcFile, mainUpdatedSource);
     const builderMain = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
     await builderMain.update([srcFile]);
 
     // 'dev' branch files should still be present
     const devFiles = queryFilesWithBranch(dbPath, 'dev');
     expect(devFiles.length).toBeGreaterThan(0);
+    expect(queryFileSourceForBranch(dbPath, srcFile, 'main')).toBe(mainUpdatedSource);
+    expect(queryFileSourceForBranch(dbPath, srcFile, 'dev')).toBe(devSourceBeforeMainUpdate);
   });
 
   it('should default branch to "HEAD" when not specified during update()', async () => {

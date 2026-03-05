@@ -69,6 +69,26 @@ export const toolDef = {
         type: 'number',
         description: 'Maximum number of results to return (default 20).',
       },
+      path_prefix: {
+        type: 'string',
+        description: 'Optional source file path prefix filter for symbol results.',
+      },
+      language: {
+        type: 'string',
+        description: 'Optional source language filter for symbol results.',
+      },
+      kind: {
+        type: 'string',
+        description: 'Optional symbol kind filter for symbol results.',
+      },
+      doc_path_prefix: {
+        type: 'string',
+        description: 'Optional documentation path prefix filter for semantic/fused doc-section results.',
+      },
+      doc_kind: {
+        type: 'string',
+        description: 'Optional documentation kind filter for semantic/fused doc-section results.',
+      },
     },
     required: ['query'],
   },
@@ -81,6 +101,11 @@ export interface SearchArgs {
   mode?: 'structural' | 'semantic' | 'fused';
   limit?: number;
   branch?: string;
+  path_prefix?: string;
+  language?: string;
+  kind?: string;
+  doc_path_prefix?: string;
+  doc_kind?: string;
 }
 
 export interface SearchResult {

@@ -37,13 +37,12 @@ describe('openDb', () => {
     expect(existsSync(dbPath)).toBe(true);
   });
 
-  it('should create the files table with a branch column', () => {
+  it('should create the files table with branch and source columns', () => {
     db = openDb(dbPath);
-    const row = db
-      .prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='files'")
-      .get() as { sql: string } | undefined;
-    expect(row).toBeDefined();
-    expect(row!.sql).toContain('branch');
+    const columns = (db.pragma('table_info(files)') as Array<{ name: string }>).map(
+      (column) => column.name,
+    );
+    expect(columns).toEqual(expect.arrayContaining(['branch', 'source']));
   });
 
   it('should enforce UNIQUE(path, branch) constraint on files table', () => {
@@ -422,6 +421,8 @@ describe('openDb', () => {
         indexed_at INTEGER NOT NULL DEFAULT (unixepoch()),
         UNIQUE(path, branch)
       );
+      INSERT INTO files (path, branch, language, size_bytes, last_hash, indexed_at)
+      VALUES ('src/legacy.ts', 'main', 'typescript', 0, 'legacy-hash', unixepoch());
       CREATE TABLE symbols (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
@@ -455,6 +456,9 @@ describe('openDb', () => {
     legacyDb.close();
 
     db = openDb(dbPath);
+    const fileColumns = (db.pragma('table_info(files)') as Array<{ name: string }>).map(
+      (column) => column.name,
+    );
     const symbolColumns = (db.pragma('table_info(symbols)') as Array<{ name: string }>).map(
       (column) => column.name,
     );
@@ -465,6 +469,11 @@ describe('openDb', () => {
       (column) => column.name,
     );
 
+    const legacyFileSource = db
+      .prepare("SELECT source FROM files WHERE path = 'src/legacy.ts' AND branch = 'main'")
+      .get() as { source: string } | undefined;
+
+    expect(fileColumns).toContain('source');
     expect(symbolColumns).toEqual(
       expect.arrayContaining(['resolved_type_signature', 'resolved_return_type', 'definition_uri', 'definition_path']),
     );
@@ -474,6 +483,7 @@ describe('openDb', () => {
     expect(externalColumns).toEqual(
       expect.arrayContaining(['resolved_type_signature', 'resolved_return_type', 'definition_uri', 'definition_path']),
     );
+    expect(legacyFileSource?.source).toBe('');
   });
 });
 
