@@ -8,7 +8,7 @@
  */
 
 import type { Database } from '../db.js';
-import { getCoveragePercentBySymbolIds } from '../db.js';
+import { getCoveragePercentBySymbolIds, semanticSearchSymbols } from '../db.js';
 
 // ─── Tool definition ──────────────────────────────────────────────────────────
 
@@ -17,7 +17,7 @@ export const toolDef = {
   description:
     'Query call, import, module, or inheritance graph edges stored in the knowledge-base index. ' +
     'Set `kind` to "call", "import", "module", or "inheritance". ' +
-    'Optionally filter by a source node id.',
+    'Optionally set mode="semantic" with query_vector to retrieve semantically related symbol/module nodes alongside edges.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -41,6 +41,24 @@ export const toolDef = {
         type: 'string',
         description: 'Optional branch name to filter edges by source branch.',
       },
+      mode: {
+        type: 'string',
+        enum: ['structural', 'semantic'],
+        description: 'Query mode. "structural" (default) returns edges only; "semantic" also returns related nodes.',
+      },
+      query_vector: {
+        type: 'array',
+        items: { type: 'number' },
+        description: 'Embedding vector used by semantic mode to find related nodes.',
+      },
+      semantic_limit: {
+        type: 'number',
+        description: 'Maximum semantic related nodes to evaluate (default min(limit, 20)).',
+      },
+      semantic_max_distance: {
+        type: 'number',
+        description: 'Optional maximum embedding distance threshold for semantic matches.',
+      },
     },
     required: ['kind'],
   },
@@ -48,11 +66,17 @@ export const toolDef = {
 
 // ─── Handler ──────────────────────────────────────────────────────────────────
 
+type GraphKind = 'call' | 'import' | 'module' | 'inheritance';
+
 export interface GraphArgs {
-  kind: 'call' | 'import' | 'module' | 'inheritance';
+  kind: GraphKind;
   source_id?: number;
   limit?: number;
   branch?: string;
+  mode?: 'structural' | 'semantic';
+  query_vector?: number[];
+  semantic_limit?: number;
+  semantic_max_distance?: number;
 }
 
 export interface GraphEdge {
@@ -66,12 +90,42 @@ export interface GraphEdge {
 
 export interface GraphResult {
   edges: GraphEdge[];
+  mode_used: string;
+  semantic_nodes?: GraphSemanticNode[];
 }
 
-/** Return adjacency-list edges from the call graph or import graph. */
-export function handler(db: Database.Database, args: GraphArgs): GraphResult {
-  const limit = args.limit ?? 200;
+export interface GraphSemanticNode {
+  node_type: 'symbol' | 'module';
+  id: number;
+  name: string;
+  branch: string;
+  score: number;
+  kind: string;
+  file_path?: string;
+}
 
+interface ModuleMappingRow {
+  symbol_id: number;
+  module_id: number;
+  module_name: string;
+  module_kind: string;
+  source_branch: string;
+}
+
+function hasVirtualTable(db: Database.Database, name: string): boolean {
+  const row = db
+    .prepare(
+      "SELECT 1 AS present FROM sqlite_master WHERE type IN ('table', 'virtual table') AND name = ? LIMIT 1",
+    )
+    .get(name) as { present: number } | undefined;
+  return row?.present === 1;
+}
+
+function getStructuralEdges(
+  db: Database.Database,
+  args: GraphArgs,
+  limit: number,
+): GraphEdge[] {
   if (args.kind === 'call') {
     // Symbol-level: symbol_refs rows
     const hasFilter = args.source_id !== undefined;
@@ -112,7 +166,7 @@ export function handler(db: Database.Database, args: GraphArgs): GraphResult {
         edge.target_id !== null ? (coverageBySymbolId.get(edge.target_id) ?? null) : null,
     }));
 
-    return { edges: edgesWithCoverage };
+    return edgesWithCoverage;
   } else if (args.kind === 'import') {
     // File-level: file_imports rows
     const hasFilter = args.source_id !== undefined;
@@ -144,7 +198,7 @@ export function handler(db: Database.Database, args: GraphArgs): GraphResult {
       : (args.branch !== undefined ? [args.branch, limit] : [limit]);
     const edges = db.prepare(sql).all(...edgeParams) as GraphEdge[];
 
-    return { edges };
+    return edges;
   } else if (args.kind === 'module') {
     // Module-level: inferred from file_imports + file_modules
     const hasFilter = args.source_id !== undefined;
@@ -186,7 +240,7 @@ export function handler(db: Database.Database, args: GraphArgs): GraphResult {
       : (args.branch !== undefined ? [args.branch, limit] : [limit]);
     const edges = db.prepare(sql).all(...edgeParams) as GraphEdge[];
 
-    return { edges };
+    return edges;
   } else {
     // Symbol-level inheritance edges (e.g., class extends)
     const hasFilter = args.source_id !== undefined;
@@ -221,6 +275,112 @@ export function handler(db: Database.Database, args: GraphArgs): GraphResult {
       : (args.branch !== undefined ? [args.branch, limit] : [limit]);
     const edges = db.prepare(sql).all(...edgeParams) as GraphEdge[];
 
-    return { edges };
+    return edges;
   }
+}
+
+function getSemanticModuleMappings(
+  db: Database.Database,
+  symbolIds: number[],
+): ModuleMappingRow[] {
+  if (symbolIds.length === 0) {
+    return [];
+  }
+
+  const placeholders = symbolIds.map(() => '?').join(', ');
+  return db.prepare(
+    `SELECT s.id AS symbol_id,
+            m.id AS module_id,
+            m.name AS module_name,
+            m.kind AS module_kind,
+            f.branch AS source_branch
+       FROM symbols s
+       JOIN files f ON f.id = s.file_id
+       JOIN file_modules fm ON fm.file_id = f.id
+       JOIN modules m ON m.id = fm.module_id
+      WHERE s.id IN (${placeholders})`,
+  ).all(...symbolIds) as ModuleMappingRow[];
+}
+
+/** Return adjacency-list edges from the call graph or import graph. */
+export function handler(db: Database.Database, args: GraphArgs): GraphResult {
+  const limit = args.limit ?? 200;
+  const edges = getStructuralEdges(db, args, limit);
+  const mode = args.mode ?? 'structural';
+
+  if (mode !== 'semantic') {
+    return { edges, mode_used: 'structural' };
+  }
+
+  const queryVector = args.query_vector;
+  if (!queryVector || queryVector.length === 0) {
+    return {
+      edges,
+      semantic_nodes: [],
+      mode_used: 'structural (fallback: missing query_vector)',
+    };
+  }
+
+  if (!hasVirtualTable(db, 'symbol_embeddings')) {
+    return {
+      edges,
+      semantic_nodes: [],
+      mode_used: 'structural (fallback: no embeddings)',
+    };
+  }
+
+  const semanticLimit = Math.max(1, Math.floor(args.semantic_limit ?? Math.min(limit, 20)));
+  const maxDistance = args.semantic_max_distance;
+  const symbolRows = semanticSearchSymbols(db, {
+    queryVector,
+    branch: args.branch,
+    limit: semanticLimit,
+  });
+  const filteredSymbols = maxDistance === undefined
+    ? symbolRows
+    : symbolRows.filter((row) => row.score <= maxDistance);
+
+  const symbolNodes: GraphSemanticNode[] = filteredSymbols.map((row) => ({
+    node_type: 'symbol',
+    id: row.id,
+    name: row.name,
+    branch: row.file_branch,
+    score: row.score,
+    kind: row.kind,
+    file_path: row.file_path,
+  }));
+
+  const scoreBySymbolId = new Map(filteredSymbols.map((row) => [row.id, row.score]));
+  const moduleNodesByKey = new Map<string, GraphSemanticNode>();
+  const moduleMappings = getSemanticModuleMappings(db, Array.from(scoreBySymbolId.keys()));
+  for (const mapping of moduleMappings) {
+    const symbolScore = scoreBySymbolId.get(mapping.symbol_id);
+    if (symbolScore === undefined) {
+      continue;
+    }
+    const moduleKey = `${mapping.module_id}:${mapping.source_branch}`;
+    const existing = moduleNodesByKey.get(moduleKey);
+    if (!existing || symbolScore < existing.score) {
+      moduleNodesByKey.set(moduleKey, {
+        node_type: 'module',
+        id: mapping.module_id,
+        name: mapping.module_name,
+        branch: mapping.source_branch,
+        score: symbolScore,
+        kind: mapping.module_kind,
+      });
+    }
+  }
+
+  const moduleNodes = Array.from(moduleNodesByKey.values()).sort((a, b) =>
+    a.score - b.score
+    || a.branch.localeCompare(b.branch)
+    || a.name.localeCompare(b.name)
+    || a.id - b.id);
+
+  return {
+    edges,
+    semantic_nodes: [...symbolNodes, ...moduleNodes],
+    mode_used: 'semantic',
+  };
 }
