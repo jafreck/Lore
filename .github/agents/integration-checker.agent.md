@@ -1,0 +1,1 @@
+/Users/jacobfreck/.cadre/agents-cache-copilot/integration-checker.agent.md

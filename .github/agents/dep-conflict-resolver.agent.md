@@ -1,0 +1,1 @@
+/Users/jacobfreck/.cadre/agents-cache-copilot/dep-conflict-resolver.agent.md

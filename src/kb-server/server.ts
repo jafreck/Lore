@@ -10,6 +10,7 @@
  *   kb_lookup    — symbol / file lookup
  *   kb_graph     — call / import graph queries
  *   kb_search    — structural, semantic, and fused search
+ *   kb_docs      — indexed documentation list/get/search
  *   kb_test_map  — source-file to mapped-test lookup
  *   kb_snippet   — source-code snippet extraction
  *   kb_blame     — git blame metadata for file lines
@@ -43,6 +44,7 @@ import * as lookup from './tools/lookup.js';
 import * as graph from './tools/graph.js';
 import * as search from './tools/search.js';
 import type { SearchObserver } from './tools/search.js';
+import * as docs from './tools/docs.js';
 import * as testMap from './tools/test-map.js';
 import * as snippet from './tools/snippet.js';
 import * as blame from './tools/blame.js';
@@ -173,6 +175,31 @@ export function createKbMcpServer(
     },
     async (args) => ({
       content: [{ type: 'text', text: JSON.stringify(await search.handler(db, args, embedder, options?.searchObserver)) }],
+    }),
+  );
+
+  // ── kb_docs ────────────────────────────────────────────────────────────────
+  server.tool(
+    docs.toolDef.name,
+    docs.toolDef.description,
+    {
+      action: z
+        .enum(['list', 'get', 'search'])
+        .describe('Docs operation mode: list docs, get a doc by path, or search sections.'),
+      path: z.string().optional().describe('Optional doc path filter (required for exact get).'),
+      query: z.string().optional().describe('Search query text for action="search".'),
+      kind: z.string().optional().describe('Optional single doc kind filter.'),
+      kinds: z.array(z.string()).optional().describe('Optional doc kind filter list.'),
+      include_sections: z
+        .boolean()
+        .optional()
+        .describe('For action="get", include section/chunk rows (default true).'),
+      section_index: z.number().int().optional().describe('Optional section index filter.'),
+      limit: z.number().optional().describe('Max rows to return (defaults depend on action).'),
+      branch: z.string().optional().describe('Optional branch to filter docs.'),
+    },
+    async (args) => ({
+      content: [{ type: 'text', text: JSON.stringify(docs.handler(db, args)) }],
     }),
   );
 

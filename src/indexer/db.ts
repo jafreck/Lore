@@ -155,6 +155,34 @@ CREATE TABLE IF NOT EXISTS notes (
   UNIQUE(key, scope)
 );
 
+-- Indexed documentation files.
+CREATE TABLE IF NOT EXISTS docs (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  path         TEXT    NOT NULL,
+  branch       TEXT    NOT NULL DEFAULT '',
+  kind         TEXT    NOT NULL,
+  title        TEXT    NOT NULL,
+  content      TEXT    NOT NULL,
+  content_hash TEXT    NOT NULL,
+  indexed_at   INTEGER NOT NULL DEFAULT (unixepoch()),
+  UNIQUE(path, branch)
+);
+
+-- Heading-based documentation chunks.
+CREATE TABLE IF NOT EXISTS doc_sections (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  doc_id        INTEGER NOT NULL REFERENCES docs(id) ON DELETE CASCADE,
+  section_index INTEGER NOT NULL,
+  title         TEXT    NOT NULL,
+  depth         INTEGER NOT NULL,
+  heading_path  TEXT    NOT NULL,
+  line_start    INTEGER NOT NULL,
+  line_end      INTEGER NOT NULL,
+  content       TEXT    NOT NULL,
+  content_hash  TEXT    NOT NULL,
+  UNIQUE(doc_id, section_index)
+);
+
 -- Full-text search index over symbol names, signatures, and kinds (BM25 via FTS5).
 CREATE VIRTUAL TABLE IF NOT EXISTS symbols_fts USING fts5(
   name, signature, kind
@@ -236,6 +264,8 @@ CREATE INDEX IF NOT EXISTS idx_annotations_file_id ON annotations(file_id);
 CREATE INDEX IF NOT EXISTS idx_coverage_runs_ingested_at ON coverage_runs(ingested_at);
 CREATE INDEX IF NOT EXISTS idx_coverage_files_path ON coverage_files(file_path);
 CREATE INDEX IF NOT EXISTS idx_coverage_lines_path_line ON coverage_lines(file_path, line_number);
+CREATE INDEX IF NOT EXISTS idx_docs_branch_kind ON docs(branch, kind);
+CREATE INDEX IF NOT EXISTS idx_doc_sections_doc_id ON doc_sections(doc_id);
 CREATE INDEX IF NOT EXISTS idx_external_symbols_dependency_ecosystem ON external_symbols(dependency_ecosystem);
 CREATE INDEX IF NOT EXISTS idx_external_symbols_package_name ON external_symbols(package_name);
 CREATE INDEX IF NOT EXISTS idx_external_symbols_symbol_name ON external_symbols(symbol_name);

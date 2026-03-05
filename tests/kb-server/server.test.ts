@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import Database from 'better-sqlite3';
+import * as docs from '../../src/kb-server/tools/docs.js';
 
 const { mockTool } = vi.hoisted(() => ({
   mockTool: vi.fn(),
@@ -80,5 +81,54 @@ describe('createKbMcpServer', () => {
     expect(testMapSchema.source_path.safeParse('src/main.ts').success).toBe(true);
     expect(testMapSchema.branch.safeParse('feat').success).toBe(true);
     expect(testMapSchema.source_path.safeParse(42).success).toBe(false);
+  });
+
+  it('should register kb_docs with list/get/search schema fields', () => {
+    const db = new Database(':memory:');
+
+    createKbMcpServer(db, '/tmp/test.db');
+
+    const docsToolCall = mockTool.mock.calls.find((call) => call[0] === 'kb_docs');
+    expect(docsToolCall).toBeDefined();
+
+    const docsSchema = docsToolCall?.[2] as {
+      action: { safeParse: (v: unknown) => { success: boolean } };
+      path: { safeParse: (v: unknown) => { success: boolean } };
+      query: { safeParse: (v: unknown) => { success: boolean } };
+      section_index: { safeParse: (v: unknown) => { success: boolean } };
+      include_sections: { safeParse: (v: unknown) => { success: boolean } };
+      kinds: { safeParse: (v: unknown) => { success: boolean } };
+    };
+    expect(docsSchema.action.safeParse('list').success).toBe(true);
+    expect(docsSchema.action.safeParse('get').success).toBe(true);
+    expect(docsSchema.action.safeParse('search').success).toBe(true);
+    expect(docsSchema.path.safeParse('README.md').success).toBe(true);
+    expect(docsSchema.query.safeParse('install').success).toBe(true);
+    expect(docsSchema.section_index.safeParse(1).success).toBe(true);
+    expect(docsSchema.include_sections.safeParse(true).success).toBe(true);
+    expect(docsSchema.kinds.safeParse(['readme', 'guide']).success).toBe(true);
+    expect(docsSchema.action.safeParse('invalid').success).toBe(false);
+  });
+
+  it('should route kb_docs tool calls through docs.handler', async () => {
+    const db = new Database(':memory:');
+    const docsResult = { action: 'list', docs: [], count: 0 };
+    const docsHandlerSpy = vi.spyOn(docs, 'handler').mockReturnValue(docsResult);
+
+    createKbMcpServer(db, '/tmp/test.db');
+
+    const docsToolCall = mockTool.mock.calls.find((call) => call[0] === 'kb_docs');
+    expect(docsToolCall).toBeDefined();
+
+    const docsCallback = docsToolCall?.[3] as (args: unknown) => Promise<{
+      content: Array<{ type: string; text: string }>;
+    }>;
+    const args = { action: 'list', limit: 5 };
+    const response = await docsCallback(args);
+
+    expect(docsHandlerSpy).toHaveBeenCalledWith(db, args);
+    expect(response).toEqual({
+      content: [{ type: 'text', text: JSON.stringify(docsResult) }],
+    });
   });
 });

@@ -14,6 +14,7 @@
 
 import type { Database } from '../db.js';
 import type { EmbeddingProvider } from '../../indexer/embedder.js';
+import { semanticSearchDocSections } from '../db.js';
 
 // ─── Observability ────────────────────────────────────────────────────────────
 
@@ -83,18 +84,40 @@ export interface SearchArgs {
 }
 
 export interface SearchResult {
-  results: Array<{
-    symbol_id: number;
-    name: string;
-    kind: string;
-    file_path: string;
-    start_line: number;
-    end_line: number;
-    score: number;
-    branch: string;
-  }>;
+  results: SearchResultItem[];
   mode_used: string;
 }
+
+export interface SearchSymbolResult {
+  result_type: 'symbol';
+  symbol_id: number;
+  name: string;
+  kind: string;
+  file_path: string;
+  start_line: number;
+  end_line: number;
+  score: number;
+  branch: string;
+}
+
+export interface SearchDocSectionResult {
+  result_type: 'doc_section';
+  doc_section_id: number;
+  doc_id: number;
+  doc_kind: string;
+  doc_title: string;
+  section_index: number;
+  heading_path: string;
+  name: string;
+  kind: string;
+  file_path: string;
+  start_line: number;
+  end_line: number;
+  score: number;
+  branch: string;
+}
+
+export type SearchResultItem = SearchSymbolResult | SearchDocSectionResult;
 
 /**
  * Sanitise a user-provided query string for FTS5 MATCH.
@@ -115,11 +138,12 @@ function structuralSearch(
   query: string,
   limit: number,
   branch?: string,
-): SearchResult['results'] {
+): SearchSymbolResult[] {
   const safeQuery = sanitizeFts5Query(query);
   const branchClause = branch !== undefined ? ' AND f.branch = ?' : '';
   try {
-    const sql = `SELECT s.id AS symbol_id, s.name, s.kind, f.path AS file_path,
+    const sql = `SELECT 'symbol' AS result_type,
+                s.id AS symbol_id, s.name, s.kind, f.path AS file_path,
                 s.start_line, s.end_line,
                 bm25(symbols_fts) AS score,
                 f.branch AS branch
@@ -128,23 +152,103 @@ function structuralSearch(
            JOIN files   f ON f.id   = s.file_id
           WHERE symbols_fts MATCH ?${branchClause}
           ORDER BY score
-          LIMIT ?`;
+           LIMIT ?`;
     const params = branch !== undefined ? [safeQuery, branch, limit] : [safeQuery, limit];
-    const rows = db.prepare(sql).all(...params) as SearchResult['results'];
+    const rows = db.prepare(sql).all(...params) as SearchSymbolResult[];
     return rows;
   } catch {
     // FTS5 parse error — fall back to LIKE-based search.
     const likeQuery = `%${query}%`;
-    const sql = `SELECT s.id AS symbol_id, s.name, s.kind, f.path AS file_path,
+    const sql = `SELECT 'symbol' AS result_type,
+                s.id AS symbol_id, s.name, s.kind, f.path AS file_path,
                 s.start_line, s.end_line,
                 0.0 AS score,
                 f.branch AS branch
            FROM symbols s
            JOIN files f ON f.id = s.file_id
           WHERE s.name LIKE ?${branchClause}
-          LIMIT ?`;
+           LIMIT ?`;
     const params = branch !== undefined ? [likeQuery, branch, limit] : [likeQuery, limit];
-    return db.prepare(sql).all(...params) as SearchResult['results'];
+    return db.prepare(sql).all(...params) as SearchSymbolResult[];
+  }
+}
+
+function hasVirtualTable(db: Database.Database, name: string): boolean {
+  const row = db
+    .prepare(
+      "SELECT 1 AS present FROM sqlite_master WHERE type IN ('table', 'virtual table') AND name = ? LIMIT 1",
+    )
+    .get(name) as { present: number } | undefined;
+  return row?.present === 1;
+}
+
+function semanticSymbolSearch(
+  db: Database.Database,
+  queryVector: number[],
+  limit: number,
+  branch?: string,
+): SearchSymbolResult[] {
+  if (!hasVirtualTable(db, 'symbol_embeddings')) {
+    return [];
+  }
+
+  const branchClause = branch !== undefined ? ' AND f.branch = ?' : '';
+  const sql = `SELECT 'symbol' AS result_type,
+              s.id AS symbol_id, s.name, s.kind, f.path AS file_path,
+              s.start_line, s.end_line,
+              distance AS score,
+              f.branch AS branch
+         FROM symbol_embeddings
+         JOIN symbols s ON s.rowid = symbol_embeddings.rowid
+         JOIN files   f ON f.id   = s.file_id
+        WHERE embedding MATCH ?${branchClause}
+        ORDER BY distance
+        LIMIT ?`;
+  const params = branch !== undefined
+    ? [JSON.stringify(queryVector), branch, limit]
+    : [JSON.stringify(queryVector), limit];
+
+  try {
+    return db.prepare(sql).all(...params) as SearchSymbolResult[];
+  } catch {
+    return [];
+  }
+}
+
+function semanticDocSectionSearch(
+  db: Database.Database,
+  queryVector: number[],
+  limit: number,
+  branch?: string,
+): SearchDocSectionResult[] {
+  if (!hasVirtualTable(db, 'doc_section_embeddings')) {
+    return [];
+  }
+
+  try {
+    const rows = semanticSearchDocSections(db, {
+      queryVector,
+      branch,
+      limit,
+    });
+    return rows.map((row) => ({
+      result_type: 'doc_section',
+      doc_section_id: row.id,
+      doc_id: row.doc_id,
+      doc_kind: row.doc_kind,
+      doc_title: row.doc_title,
+      section_index: row.section_index,
+      heading_path: row.heading_path,
+      name: row.title || row.doc_title,
+      kind: 'doc_section',
+      file_path: row.doc_path,
+      start_line: row.line_start,
+      end_line: row.line_end,
+      score: row.score,
+      branch: row.doc_branch,
+    }));
+  } catch {
+    return [];
   }
 }
 
@@ -158,26 +262,16 @@ async function semanticSearch(
   limit: number,
   embedder: EmbeddingProvider,
   branch?: string,
-): Promise<SearchResult['results'] | null> {
+): Promise<SearchResultItem[] | null> {
   try {
     const [queryVec] = await embedder.embed([query]);
     if (!queryVec) return null;
 
-    const branchClause = branch !== undefined ? ' AND f.branch = ?' : '';
-    const sql = `SELECT s.id AS symbol_id, s.name, s.kind, f.path AS file_path,
-                s.start_line, s.end_line,
-                distance AS score,
-                f.branch AS branch
-           FROM symbol_embeddings
-           JOIN symbols s ON s.rowid = symbol_embeddings.rowid
-           JOIN files   f ON f.id   = s.file_id
-          WHERE embedding MATCH ?${branchClause}
-          ORDER BY distance
-          LIMIT ?`;
-    const params = branch !== undefined
-      ? [JSON.stringify(queryVec), branch, limit]
-      : [JSON.stringify(queryVec), limit];
-    const rows = db.prepare(sql).all(...params) as SearchResult['results'];
+    const symbolRows = semanticSymbolSearch(db, queryVec, limit, branch);
+    const docRows = semanticDocSectionSearch(db, queryVec, limit, branch);
+    const rows = [...symbolRows, ...docRows]
+      .sort((a, b) => a.score - b.score)
+      .slice(0, limit);
 
     return rows.length > 0 ? rows : null;
   } catch {
@@ -192,21 +286,25 @@ async function semanticSearch(
  * Higher score → better rank.
  */
 function rrfFuse(
-  structural: SearchResult['results'],
-  semantic: SearchResult['results'] | null,
+  structural: SearchSymbolResult[],
+  semantic: SearchResultItem[] | null,
   limit: number,
-): SearchResult['results'] {
+): SearchResultItem[] {
   const k = 60;
-  const scores = new Map<number, { item: SearchResult['results'][number]; score: number }>();
+  const scores = new Map<string, { item: SearchResultItem; score: number }>();
 
-  const addList = (list: SearchResult['results']): void => {
+  const resultKey = (item: SearchResultItem): string =>
+    item.result_type === 'symbol' ? `symbol:${item.symbol_id}` : `doc:${item.doc_section_id}`;
+
+  const addList = (list: SearchResultItem[]): void => {
     list.forEach((item, idx) => {
-      const existing = scores.get(item.symbol_id);
+      const key = resultKey(item);
+      const existing = scores.get(key);
       const contrib = 1 / (k + idx + 1);
       if (existing) {
         existing.score += contrib;
       } else {
-        scores.set(item.symbol_id, { item, score: contrib });
+        scores.set(key, { item, score: contrib });
       }
     });
   };

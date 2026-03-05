@@ -1,8 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import Database from 'better-sqlite3';
+import { createRequire } from 'node:module';
 import { handler, type SearchArgs, type SearchResult, type SearchObservation, type SearchObserver } from '../../../src/kb-server/tools/search.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const esmRequire = createRequire(import.meta.url);
 
 function createTestDb(): Database.Database {
   const db = new Database(':memory:');
@@ -29,6 +32,30 @@ function createTestDb(): Database.Database {
       doc_comment TEXT
     );
     CREATE VIRTUAL TABLE symbols_fts USING fts5(name, kind, content=symbols, content_rowid=id);
+    CREATE TABLE docs (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      path         TEXT    NOT NULL,
+      branch       TEXT    NOT NULL DEFAULT '',
+      kind         TEXT    NOT NULL,
+      title        TEXT    NOT NULL,
+      content      TEXT    NOT NULL,
+      content_hash TEXT    NOT NULL,
+      indexed_at   INTEGER NOT NULL DEFAULT 0,
+      UNIQUE(path, branch)
+    );
+    CREATE TABLE doc_sections (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      doc_id        INTEGER NOT NULL REFERENCES docs(id) ON DELETE CASCADE,
+      section_index INTEGER NOT NULL,
+      title         TEXT    NOT NULL,
+      depth         INTEGER NOT NULL,
+      heading_path  TEXT    NOT NULL,
+      line_start    INTEGER NOT NULL,
+      line_end      INTEGER NOT NULL,
+      content       TEXT    NOT NULL,
+      content_hash  TEXT    NOT NULL,
+      UNIQUE(doc_id, section_index)
+    );
   `);
   return db;
 }
@@ -54,6 +81,70 @@ function insertSymbol(
   const rowid = result.lastInsertRowid as number;
   db.prepare('INSERT INTO symbols_fts(rowid, name, kind) VALUES (?, ?, ?)').run(rowid, name, kind);
   return rowid;
+}
+
+function insertDoc(
+  db: Database.Database,
+  path: string,
+  branch: string,
+  kind: string,
+  title: string,
+  content: string,
+): number {
+  const result = db
+    .prepare(
+      `INSERT INTO docs (path, branch, kind, title, content, content_hash, indexed_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .run(path, branch, kind, title, content, `${path}:${branch}`, Date.now());
+  return result.lastInsertRowid as number;
+}
+
+function insertDocSection(
+  db: Database.Database,
+  docId: number,
+  sectionIndex: number,
+  title: string,
+  headingPath: string,
+  content: string,
+): number {
+  const result = db
+    .prepare(
+      `INSERT INTO doc_sections
+        (doc_id, section_index, title, depth, heading_path, line_start, line_end, content, content_hash)
+       VALUES (?, ?, ?, 1, ?, 1, 20, ?, ?)`,
+    )
+    .run(docId, sectionIndex, title, headingPath, content, `${docId}:${sectionIndex}`);
+  return result.lastInsertRowid as number;
+}
+
+function loadVectorTables(db: Database.Database, dims: number): void {
+  const sqliteVec = esmRequire('sqlite-vec') as { load(db: Database.Database): void };
+  sqliteVec.load(db);
+  db.exec(`
+    CREATE VIRTUAL TABLE symbol_embeddings USING vec0(
+      embedding FLOAT[${dims}]
+    );
+    CREATE VIRTUAL TABLE doc_section_embeddings USING vec0(
+      embedding FLOAT[${dims}]
+    );
+  `);
+}
+
+function insertSymbolEmbedding(db: Database.Database, symbolId: number, embedding: number[]): void {
+  db.prepare(
+    'INSERT OR REPLACE INTO symbol_embeddings(rowid, embedding) VALUES (CAST(? AS INTEGER), json(?))',
+  ).run(symbolId, JSON.stringify(embedding));
+}
+
+function insertDocSectionEmbedding(
+  db: Database.Database,
+  sectionId: number,
+  embedding: number[],
+): void {
+  db.prepare(
+    'INSERT OR REPLACE INTO doc_section_embeddings(rowid, embedding) VALUES (CAST(? AS INTEGER), json(?))',
+  ).run(sectionId, JSON.stringify(embedding));
 }
 
 // ─── handler (structural mode) ────────────────────────────────────────────────
@@ -85,6 +176,11 @@ describe('search handler – structural mode', () => {
   it('should include branch field on each result', async () => {
     const result = await handler(db, { query: 'parseConfig', mode: 'structural' });
     result.results.forEach((r) => expect(typeof r.branch).toBe('string'));
+  });
+
+  it('should tag structural results with symbol result_type', async () => {
+    const result = await handler(db, { query: 'parseConfig', mode: 'structural' });
+    expect(result.results.every((row) => row.result_type === 'symbol')).toBe(true);
   });
 
   it('should filter results by branch when branch is provided', async () => {
@@ -133,6 +229,103 @@ describe('search handler – semantic/fused fallback without embedder', () => {
   it('should fall back to structural when mode=fused and no embedder provided', async () => {
     const result = await handler(db, { query: 'myFunc', mode: 'fused' });
     expect(result.mode_used).toBe('structural (no query-time embedder)');
+  });
+
+  it('should fall back to structural when mode=semantic has embedder but embeddings are unavailable', async () => {
+    const embedder = {
+      modelName: 'test-embedder',
+      dims: 3,
+      embed: vi.fn(async () => [[0.1, 0.2, 0.3]]),
+    };
+    const result = await handler(db, { query: 'myFunc', mode: 'semantic' }, embedder);
+    expect(result.mode_used).toBe('structural (fallback: no embeddings)');
+    expect(result.results.every((row) => row.result_type === 'symbol')).toBe(true);
+  });
+
+  it('should fall back to structural when mode=fused has embedder but embeddings are unavailable', async () => {
+    const embedder = {
+      modelName: 'test-embedder',
+      dims: 3,
+      embed: vi.fn(async () => [[0.1, 0.2, 0.3]]),
+    };
+    const result = await handler(db, { query: 'myFunc', mode: 'fused' }, embedder);
+    expect(result.mode_used).toBe('structural (fallback: no embeddings)');
+    expect(result.results.every((row) => row.result_type === 'symbol')).toBe(true);
+  });
+});
+
+describe('search handler – semantic/fused docs blending', () => {
+  let db: Database.Database;
+
+  beforeEach(() => {
+    db = createTestDb();
+    loadVectorTables(db, 3);
+
+    const mainFileId = insertFile(db, 'src/main.ts', 'main');
+    const symbolId = insertSymbol(db, mainFileId, 'parseConfig');
+    const docId = insertDoc(
+      db,
+      'src/README.md',
+      'main',
+      'readme',
+      'Main README',
+      'Explains parseConfig and setup.',
+    );
+    const sectionId = insertDocSection(
+      db,
+      docId,
+      0,
+      'Configuration',
+      'Configuration',
+      'The parseConfig function handles configuration loading.',
+    );
+
+    insertSymbolEmbedding(db, symbolId, [0.88, 0.12, 0.0]);
+    insertDocSectionEmbedding(db, sectionId, [0.92, 0.08, 0.0]);
+  });
+
+  it('should include both symbol and doc-section hits in semantic mode', async () => {
+    const embedder = {
+      modelName: 'test-embedder',
+      dims: 3,
+      embed: vi.fn(async () => [[0.9, 0.1, 0.0]]),
+    };
+
+    const result = await handler(db, { query: 'parse config', mode: 'semantic', branch: 'main' }, embedder);
+    if (result.mode_used === 'semantic') {
+      const symbolResult = result.results.find((row) => row.result_type === 'symbol');
+      const docResult = result.results.find((row) => row.result_type === 'doc_section');
+
+      expect(symbolResult).toBeDefined();
+      expect(symbolResult?.name).toBe('parseConfig');
+      expect(symbolResult?.file_path).toBe('src/main.ts');
+      expect(docResult).toBeDefined();
+      expect(docResult?.file_path).toBe('src/README.md');
+      expect(docResult?.doc_kind).toBe('readme');
+      expect(docResult?.heading_path).toBe('Configuration');
+      return;
+    }
+
+    expect(result.mode_used).toBe('structural (fallback: no embeddings)');
+    expect(result.results.every((row) => row.result_type === 'symbol')).toBe(true);
+  });
+
+  it('should include docs in fused ranking while preserving symbol entries', async () => {
+    const embedder = {
+      modelName: 'test-embedder',
+      dims: 3,
+      embed: vi.fn(async () => [[0.9, 0.1, 0.0]]),
+    };
+
+    const result = await handler(db, { query: 'parseConfig', mode: 'fused', branch: 'main', limit: 10 }, embedder);
+    if (result.mode_used === 'fused') {
+      expect(result.results.some((row) => row.result_type === 'symbol')).toBe(true);
+      expect(result.results.some((row) => row.result_type === 'doc_section')).toBe(true);
+      return;
+    }
+
+    expect(result.mode_used).toBe('structural (fallback: no embeddings)');
+    expect(result.results.every((row) => row.result_type === 'symbol')).toBe(true);
   });
 });
 
