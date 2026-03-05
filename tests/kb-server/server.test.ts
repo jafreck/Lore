@@ -2,14 +2,11 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import Database from 'better-sqlite3';
 import { z } from 'zod';
 import * as docs from '../../src/kb-server/tools/docs.js';
-<<<<<<< HEAD
 import * as annotations from '../../src/kb-server/tools/annotations.js';
 import * as routes from '../../src/kb-server/tools/routes.js';
 import * as notes from '../../src/kb-server/tools/notes.js';
 import * as architecture from '../../src/kb-server/tools/architecture.js';
-=======
 import * as search from '../../src/kb-server/tools/search.js';
->>>>>>> origin/main
 import * as metrics from '../../src/kb-server/tools/metrics.js';
 
 const {
@@ -253,7 +250,6 @@ describe('createKbMcpServer', () => {
     });
   });
 
-<<<<<<< HEAD
   it('should route kb_annotations tool calls through annotations.handler', async () => {
     const db = new Database(':memory:');
     const annotationsResult = { results: [{ kind: 'TODO', text: 'todo', path: 'src/a.ts', line: 1 }] };
