@@ -1,6 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import Database from 'better-sqlite3';
-import { handler, toolDef, type HistoryArgs } from '../../../src/kb-server/tools/history.js';
+import {
+  handler,
+  toolDef,
+  enrichCommitsWithContext,
+  type HistoryArgs,
+} from '../../../src/kb-server/tools/history.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -98,6 +103,82 @@ describe('toolDef', () => {
   });
 });
 
+describe('enrichCommitsWithContext', () => {
+  let db: Database.Database;
+
+  beforeEach(() => {
+    db = createTestDb();
+    insertCommit(db, 'ctx-sha', 'Alice', 'alice@example.com', 1700000001, 'context commit');
+    insertCommitFile(db, 'ctx-sha', 'src/foo.ts', 'modified');
+    insertCommitRef(db, 'ctx-sha', 'refs/heads/main', 'branch');
+  });
+
+  it('should include commit files and refs by default', () => {
+    const baseCommit = handler(db, { mode: 'recent' }).results[0];
+    const enriched = enrichCommitsWithContext(db, [baseCommit]);
+
+    expect(enriched).toHaveLength(1);
+    expect(enriched[0]?.files).toEqual([
+      expect.objectContaining({
+        commit_sha: 'ctx-sha',
+        file_path: 'src/foo.ts',
+      }),
+    ]);
+    expect(enriched[0]?.refs).toEqual([
+      expect.objectContaining({
+        commit_sha: 'ctx-sha',
+        ref_name: 'refs/heads/main',
+      }),
+    ]);
+  });
+
+  it('should allow callers to disable files and refs enrichment', () => {
+    const baseCommit = handler(db, { mode: 'recent' }).results[0];
+    const enriched = enrichCommitsWithContext(db, [baseCommit], {
+      includeFiles: false,
+      includeRefs: false,
+    });
+
+    expect(enriched[0]?.files).toBeUndefined();
+    expect(enriched[0]?.refs).toBeUndefined();
+  });
+
+  it('should allow callers to disable only file enrichment', () => {
+    const baseCommit = handler(db, { mode: 'recent' }).results[0];
+    const enriched = enrichCommitsWithContext(db, [baseCommit], {
+      includeFiles: false,
+    });
+
+    expect(enriched[0]?.files).toBeUndefined();
+    expect(enriched[0]?.refs).toEqual([
+      expect.objectContaining({
+        commit_sha: 'ctx-sha',
+        ref_name: 'refs/heads/main',
+      }),
+    ]);
+  });
+
+  it('should allow callers to disable only ref enrichment', () => {
+    const baseCommit = handler(db, { mode: 'recent' }).results[0];
+    const enriched = enrichCommitsWithContext(db, [baseCommit], {
+      includeRefs: false,
+    });
+
+    expect(enriched[0]?.files).toEqual([
+      expect.objectContaining({
+        commit_sha: 'ctx-sha',
+        file_path: 'src/foo.ts',
+      }),
+    ]);
+    expect(enriched[0]?.refs).toBeUndefined();
+  });
+
+  it('should return an empty array when no commits are provided', () => {
+    const enriched = enrichCommitsWithContext(db, []);
+    expect(enriched).toEqual([]);
+  });
+});
+
 // ─── handler – recent mode ────────────────────────────────────────────────────
 
 describe('handler – recent mode', () => {
@@ -158,6 +239,15 @@ describe('handler – recent mode', () => {
     const result = handler(emptyDb, { mode: 'recent' });
     expect(result.count).toBe(0);
     emptyDb.close();
+  });
+
+  it('should preserve recent mode shape without automatic commit enrichment', () => {
+    insertCommitFile(db, 'sha2', 'src/recent.ts');
+    insertCommitRef(db, 'sha2', 'refs/heads/main');
+    const result = handler(db, { mode: 'recent' });
+
+    expect(result.results[0]?.files).toBeUndefined();
+    expect(result.results[0]?.refs).toBeUndefined();
   });
 });
 
@@ -244,6 +334,12 @@ describe('handler – commit mode', () => {
   it('should find the commit by partial SHA prefix', () => {
     const result = handler(db, { mode: 'commit', query: 'abcdef' });
     expect(result.count).toBe(1);
+  });
+
+  it('should trim commit query whitespace before lookup', () => {
+    const result = handler(db, { mode: 'commit', query: '  abcdef123456  ' });
+    expect(result.count).toBe(1);
+    expect(result.results[0]?.sha).toBe('abcdef123456');
   });
 
   it('should attach commit_files to the result', () => {

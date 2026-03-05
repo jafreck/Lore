@@ -295,12 +295,24 @@ export function createKbMcpServer(
     blame.toolDef.name,
     blame.toolDef.description,
     {
-      path: z.string().describe('Absolute file path as stored in the index.'),
+      path: z.string().optional().describe('Absolute file path as stored in the index.'),
       line: z.number().optional().describe('Single line to blame (1-based).'),
       start_line: z.number().optional().describe('Range start line (1-based).'),
       end_line: z.number().optional().describe('Range end line (1-based).'),
       ref: z.string().optional().describe('Git ref to blame against (default HEAD).'),
       branch: z.string().optional().describe('Optional branch to disambiguate indexed file path.'),
+      mode: z
+        .enum(['blame', 'history', 'ownership'])
+        .optional()
+        .describe('Query mode (default: "blame").'),
+      symbol: z
+        .string()
+        .optional()
+        .describe('Optional symbol name to resolve to an indexed file + line range.'),
+      scope: z
+        .enum(['file', 'directory'])
+        .optional()
+        .describe('Ownership mode scope. If omitted, inferred from `path`.'),
     },
     async (args) => ({
       content: [{ type: 'text', text: JSON.stringify(blame.handler(db, args)) }],

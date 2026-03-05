@@ -69,6 +69,11 @@ export interface CommitWithFiles extends CommitRow {
   refs?: CommitRefRow[];
 }
 
+export interface CommitEnrichmentOptions {
+  includeFiles?: boolean;
+  includeRefs?: boolean;
+}
+
 export interface HistoryResult {
   mode: string;
   results: CommitWithFiles[];
@@ -81,6 +86,22 @@ const MAX_LIMIT = 200;
 function clampLimit(limit?: number): number {
   if (limit == null) return DEFAULT_LIMIT;
   return Math.min(Math.max(1, Math.floor(limit)), MAX_LIMIT);
+}
+
+/** Enrich commit rows with touched files and refs metadata. */
+export function enrichCommitsWithContext(
+  db: Database.Database,
+  commits: CommitRow[],
+  options: CommitEnrichmentOptions = {},
+): CommitWithFiles[] {
+  const includeFiles = options.includeFiles ?? true;
+  const includeRefs = options.includeRefs ?? true;
+
+  return commits.map((commit) => ({
+    ...commit,
+    ...(includeFiles ? { files: listCommitFiles(db, commit.sha) } : {}),
+    ...(includeRefs ? { refs: listCommitRefs(db, commit.sha) } : {}),
+  }));
 }
 
 /** Handle a kb_history tool invocation against the open read-only database. */
@@ -105,9 +126,10 @@ export function handler(db: Database.Database, args: HistoryArgs): HistoryResult
       if (!commit) {
         return { mode: 'commit', results: [], count: 0 };
       }
-      const files = listCommitFiles(db, commit.sha);
-      const refs = listCommitRefs(db, commit.sha);
-      const result: CommitWithFiles = { ...commit, files, refs };
+      const [result] = enrichCommitsWithContext(db, [commit]);
+      if (!result) {
+        throw new Error('Failed to enrich commit context.');
+      }
       return { mode: 'commit', results: [result], count: 1 };
     }
 
