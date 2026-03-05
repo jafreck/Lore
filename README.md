@@ -160,7 +160,7 @@ await builder.build();
 | `lore_search` | Structural BM25, semantic vector, or fused RRF search across symbols and doc sections |
 | `lore_docs` | List, fetch, or search indexed documentation with branch, kind, and path filters |
 | `lore_graph` | Query call/import/module/inheritance edges; call edges include `callee_coverage_percent` |
-| `lore_snippet` | Return source snippets by file path and line range |
+| `lore_snippet` | Return snippets from indexed source snapshots by file path + line range or by symbol name; path/symbol resolution is branch-aware and responses include containing-symbol context metadata (name, kind, start/end lines) when available |
 | `lore_test_map` | Return mapped test files (with confidence) for a given source file path |
 | `lore_blame` | Return git blame metadata for a line or line range |
 | `lore_history` | Query commit history by file, commit, author, ref, or recency |

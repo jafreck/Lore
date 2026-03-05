@@ -139,7 +139,7 @@ When docs auto-notes are enabled (default), `IndexBuilder` seeds/updates notes f
 | `kb_search` | Structural BM25, semantic vector, or fused RRF search; semantic/fused modes can return docs section hits and structural results are augmented by external symbol-name matches from `external_symbols`; returns persisted LSP-enrichment metadata fields when available |
 | `kb_docs` | List indexed docs, fetch full docs with optional sections, or search indexed sections |
 | `kb_graph` | Query call, import, module, or inheritance edges (`call` edges include `callee_coverage_percent`) |
-| `kb_snippet` | Return source snippets by file path and line range |
+| `kb_snippet` | Return snippets from indexed DB-backed file snapshots by file path + line range or by symbol name; path/symbol resolution is branch-aware and responses include containing-symbol context metadata when available |
 | `kb_blame` | Return git blame metadata for a line or line range |
 | `kb_history` | Query history by file, commit, author, ref, or recency |
 | `kb_metrics` | Return aggregate index metrics plus global coverage totals and staleness metadata (`coverage_commit`, `current_commit`, `commits_behind`, `stale`) |
