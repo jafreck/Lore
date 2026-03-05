@@ -196,6 +196,10 @@ describe('openDb', () => {
         'symbol_kind',
         'signature',
         'doc_comment',
+        'resolved_type_signature',
+        'resolved_return_type',
+        'definition_uri',
+        'definition_path',
       ]),
     );
 
@@ -207,8 +211,90 @@ describe('openDb', () => {
         'idx_external_symbols_dependency_ecosystem',
         'idx_external_symbols_package_name',
         'idx_external_symbols_symbol_name',
+        'idx_external_symbols_definition_path',
       ]),
     );
+  });
+
+  it('should create enrichment metadata columns and indexes for symbols and symbol_refs', () => {
+    db = openDb(dbPath);
+
+    const symbolColumns = db.pragma('table_info(symbols)') as Array<{ name: string }>;
+    expect(symbolColumns.map((column) => column.name)).toEqual(
+      expect.arrayContaining([
+        'resolved_type_signature',
+        'resolved_return_type',
+        'definition_uri',
+        'definition_path',
+      ]),
+    );
+
+    const refColumns = db.pragma('table_info(symbol_refs)') as Array<{ name: string }>;
+    expect(refColumns.map((column) => column.name)).toEqual(
+      expect.arrayContaining([
+        'resolved_type_signature',
+        'resolved_return_type',
+        'definition_uri',
+        'definition_path',
+      ]),
+    );
+
+    const symbolIndexes = (
+      db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='symbols'").all() as Array<{ name: string }>
+    ).map((row) => row.name);
+    const refIndexes = (
+      db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='symbol_refs'").all() as Array<{ name: string }>
+    ).map((row) => row.name);
+    expect(symbolIndexes).toContain('idx_symbols_definition_path');
+    expect(refIndexes).toContain('idx_symbol_refs_definition_path');
+  });
+
+  it('should default enrichment metadata fields to NULL when omitted', () => {
+    db = openDb(dbPath);
+    const fileRow = db.prepare(
+      "INSERT INTO files (path, branch, language) VALUES ('src/a.ts', 'main', 'typescript')",
+    ).run() as { lastInsertRowid: number | bigint };
+    const symbolRow = db.prepare(
+      `INSERT INTO symbols (file_id, name, kind, start_line, end_line, signature, doc_comment)
+       VALUES (?, 'alpha', 'function', 0, 1, 'function alpha(): string', '/** docs */')`,
+    ).run(fileRow.lastInsertRowid) as { lastInsertRowid: number | bigint };
+    db.prepare(
+      "INSERT INTO symbol_refs (caller_id, callee_name, call_line) VALUES (?, 'beta', 4)",
+    ).run(symbolRow.lastInsertRowid);
+
+    const symbol = db.prepare(
+      `SELECT resolved_type_signature, resolved_return_type, definition_uri, definition_path
+       FROM symbols
+       WHERE id = ?`,
+    ).get(symbolRow.lastInsertRowid) as {
+      resolved_type_signature: string | null;
+      resolved_return_type: string | null;
+      definition_uri: string | null;
+      definition_path: string | null;
+    };
+    const ref = db.prepare(
+      `SELECT resolved_type_signature, resolved_return_type, definition_uri, definition_path
+       FROM symbol_refs
+       WHERE caller_id = ?`,
+    ).get(symbolRow.lastInsertRowid) as {
+      resolved_type_signature: string | null;
+      resolved_return_type: string | null;
+      definition_uri: string | null;
+      definition_path: string | null;
+    };
+
+    expect(symbol).toEqual({
+      resolved_type_signature: null,
+      resolved_return_type: null,
+      definition_uri: null,
+      definition_path: null,
+    });
+    expect(ref).toEqual({
+      resolved_type_signature: null,
+      resolved_return_type: null,
+      definition_uri: null,
+      definition_path: null,
+    });
   });
 
   it('should apply default metadata values for external_symbols when omitted', () => {
@@ -321,6 +407,73 @@ describe('openDb', () => {
     db.close();
     db = openDb(dbPath);
     expect(db).toBeDefined();
+  });
+
+  it('should migrate legacy databases by adding enrichment metadata columns', () => {
+    const legacyDb = new Database(dbPath);
+    legacyDb.exec(`
+      CREATE TABLE files (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        path TEXT NOT NULL,
+        branch TEXT NOT NULL DEFAULT '',
+        language TEXT NOT NULL,
+        size_bytes INTEGER NOT NULL DEFAULT 0,
+        last_hash TEXT,
+        indexed_at INTEGER NOT NULL DEFAULT (unixepoch()),
+        UNIQUE(path, branch)
+      );
+      CREATE TABLE symbols (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        start_line INTEGER NOT NULL,
+        end_line INTEGER NOT NULL,
+        signature TEXT,
+        doc_comment TEXT
+      );
+      CREATE TABLE symbol_refs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        caller_id INTEGER NOT NULL REFERENCES symbols(id) ON DELETE CASCADE,
+        callee_id INTEGER REFERENCES symbols(id),
+        callee_name TEXT NOT NULL,
+        call_line INTEGER NOT NULL
+      );
+      CREATE TABLE external_symbols (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        dependency_ecosystem TEXT NOT NULL DEFAULT 'npm',
+        source_type TEXT NOT NULL DEFAULT 'declaration',
+        source_ref TEXT NOT NULL DEFAULT '',
+        package_name TEXT NOT NULL,
+        package_version TEXT,
+        symbol_name TEXT NOT NULL,
+        symbol_kind TEXT NOT NULL,
+        signature TEXT NOT NULL DEFAULT '',
+        doc_comment TEXT
+      );
+    `);
+    legacyDb.close();
+
+    db = openDb(dbPath);
+    const symbolColumns = (db.pragma('table_info(symbols)') as Array<{ name: string }>).map(
+      (column) => column.name,
+    );
+    const refColumns = (db.pragma('table_info(symbol_refs)') as Array<{ name: string }>).map(
+      (column) => column.name,
+    );
+    const externalColumns = (db.pragma('table_info(external_symbols)') as Array<{ name: string }>).map(
+      (column) => column.name,
+    );
+
+    expect(symbolColumns).toEqual(
+      expect.arrayContaining(['resolved_type_signature', 'resolved_return_type', 'definition_uri', 'definition_path']),
+    );
+    expect(refColumns).toEqual(
+      expect.arrayContaining(['resolved_type_signature', 'resolved_return_type', 'definition_uri', 'definition_path']),
+    );
+    expect(externalColumns).toEqual(
+      expect.arrayContaining(['resolved_type_signature', 'resolved_return_type', 'definition_uri', 'definition_path']),
+    );
   });
 });
 

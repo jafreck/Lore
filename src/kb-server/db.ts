@@ -50,6 +50,10 @@ export interface SymbolRow {
   param_count: number | null;
   cyclomatic: number | null;
   max_nesting: number | null;
+  resolved_type_signature?: string | null;
+  resolved_return_type?: string | null;
+  definition_uri?: string | null;
+  definition_path?: string | null;
 }
 
 function hasSymbolMetricsTable(db: Database.Database): boolean {
@@ -124,6 +128,10 @@ export interface ExternalSymbolRow {
   symbol_kind: string;
   signature: string;
   doc_comment: string | null;
+  resolved_type_signature: string | null;
+  resolved_return_type: string | null;
+  definition_uri: string | null;
+  definition_path: string | null;
 }
 
 function hasExternalSymbolsTable(db: Database.Database): boolean {
@@ -131,6 +139,36 @@ function hasExternalSymbolsTable(db: Database.Database): boolean {
     .prepare("SELECT 1 AS ok FROM sqlite_master WHERE type = 'table' AND name = 'external_symbols' LIMIT 1")
     .get() as { ok: number } | undefined;
   return row?.ok === 1;
+}
+
+function getTableColumns(db: Database.Database, table: string): Set<string> {
+  try {
+    const rows = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+    return new Set(rows.map((row) => row.name));
+  } catch {
+    return new Set<string>();
+  }
+}
+
+function externalSymbolSelectColumns(db: Database.Database): string {
+  const columns = getTableColumns(db, 'external_symbols');
+  const enrichmentColumn = (name: string): string => (
+    columns.has(name) ? name : `NULL AS ${name}`
+  );
+  return `id,
+          dependency_ecosystem,
+          source_type,
+          source_ref,
+          package_name,
+          package_version,
+          symbol_name,
+          symbol_kind,
+          signature,
+          doc_comment,
+          ${enrichmentColumn('resolved_type_signature')},
+          ${enrichmentColumn('resolved_return_type')},
+          ${enrichmentColumn('definition_uri')},
+          ${enrichmentColumn('definition_path')}`;
 }
 
 /** Fetch external symbols whose exported name exactly matches (case-insensitive). */
@@ -142,18 +180,10 @@ export function getExternalSymbolsByName(
     return [];
   }
 
+  const selectColumns = externalSymbolSelectColumns(db);
   return db
     .prepare(
-      `SELECT id,
-              dependency_ecosystem,
-              source_type,
-              source_ref,
-              package_name,
-              package_version,
-              symbol_name,
-              symbol_kind,
-              signature,
-              doc_comment
+      `SELECT ${selectColumns}
          FROM external_symbols
          WHERE symbol_name = ? COLLATE NOCASE
          ORDER BY dependency_ecosystem ASC, package_name ASC, package_version ASC, symbol_kind ASC, signature ASC`,
@@ -171,18 +201,10 @@ export function searchExternalSymbolsByName(
     return [];
   }
 
+  const selectColumns = externalSymbolSelectColumns(db);
   return db
     .prepare(
-      `SELECT id,
-              dependency_ecosystem,
-              source_type,
-              source_ref,
-              package_name,
-              package_version,
-              symbol_name,
-              symbol_kind,
-              signature,
-              doc_comment
+      `SELECT ${selectColumns}
          FROM external_symbols
          WHERE symbol_name LIKE ? COLLATE NOCASE
          ORDER BY dependency_ecosystem ASC, package_name ASC, package_version ASC, symbol_kind ASC, signature ASC

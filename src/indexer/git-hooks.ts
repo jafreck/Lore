@@ -13,6 +13,7 @@ export interface InstallGitHooksOptions {
   rootDir: string;
   dbPath: string;
   includeHistory?: boolean;
+  lspEnabled?: boolean;
 }
 
 const HOOK_NAMES = ['post-commit', 'post-merge', 'post-checkout', 'post-rewrite'] as const;
@@ -21,7 +22,12 @@ function shellEscapeSingle(value: string): string {
   return `'${value.replace(/'/g, `'"'"'`)}'`;
 }
 
-function makeHookScript(rootDir: string, dbPath: string, includeHistory: boolean): string {
+function makeHookScript(
+  rootDir: string,
+  dbPath: string,
+  includeHistory: boolean,
+  lspEnabled: boolean | undefined,
+): string {
   const cmd = [
     'npx',
     '@jafreck/lore',
@@ -31,6 +37,7 @@ function makeHookScript(rootDir: string, dbPath: string, includeHistory: boolean
     '--db',
     shellEscapeSingle(dbPath),
     ...(includeHistory ? ['--history'] : []),
+    ...(lspEnabled === true ? ['--lsp'] : lspEnabled === false ? ['--no-lsp'] : []),
   ].join(' ');
 
   return [
@@ -57,7 +64,12 @@ export function installGitHooks(options: InstallGitHooksOptions): { installed: s
 
   const loreBlock = [
     '# --- lore auto-refresh (start) ---',
-    makeHookScript(options.rootDir, options.dbPath, options.includeHistory ?? false).trimEnd(),
+    makeHookScript(
+      options.rootDir,
+      options.dbPath,
+      options.includeHistory ?? false,
+      options.lspEnabled,
+    ).trimEnd(),
     '# --- lore auto-refresh (end) ---',
     '',
   ].join('\n');

@@ -263,7 +263,7 @@ or disappears (`doc_missing`).
 Build or update a knowledge base.
 
 ```bash
-npx @jafreck/lore index --root <dir> --db <path> [--embedding-model <id>] [--index-deps] [--history] [--history-depth <n>] [--history-all] [--include <glob>] [--exclude <glob>] [--language <lang>] [--docs-include <glob>] [--docs-exclude <glob>] [--docs-extension <ext>] [--docs-auto-notes|--no-docs-auto-notes]
+npx @jafreck/lore index --root <dir> --db <path> [--embedding-model <id>] [--index-deps] [--history] [--history-depth <n>] [--history-all] [--include <glob>] [--exclude <glob>] [--language <lang>] [--docs-include <glob>] [--docs-exclude <glob>] [--docs-extension <ext>] [--docs-auto-notes|--no-docs-auto-notes] [--lsp] [--no-lsp]
 ```
 
 Key flags:
@@ -283,6 +283,8 @@ Key flags:
 - `--docs-extension` repeatable docs extension filter
 - `--docs-auto-notes` enable seeded doc-note upserts (default)
 - `--no-docs-auto-notes` disable seeded doc-note upserts
+- `--lsp` force-enable index-time LSP enrichment
+- `--no-lsp` force-disable index-time LSP enrichment
 
 Dependency API indexing is disabled by default and only runs when `--index-deps`
 is provided (or `indexDependencies: true` in programmatic options). When
@@ -302,14 +304,79 @@ dependencies across supported ecosystems:
 For all ecosystems, Lore excludes implementation bodies and does not crawl
 transitive dependency trees.
 
+### Index-time LSP enrichment
+
+Lore can enrich indexed symbols/call refs with resolved type metadata at index
+time and persist it into SQLite columns:
+
+- `symbols`: `resolved_type_signature`, `resolved_return_type`,
+  `definition_uri`, `definition_path`
+- `symbol_refs`: `resolved_type_signature`, `resolved_return_type`,
+  `definition_uri`, `definition_path`
+- `external_symbols`: `resolved_type_signature`, `resolved_return_type`,
+  `definition_uri`, `definition_path`
+
+`kb_lookup` and `kb_search` return these persisted fields when present. Query
+handlers stay SQLite-only and never start or call language servers at runtime.
+
+LSP precedence:
+
+1. Explicit CLI flags (`--lsp` / `--no-lsp`)
+2. `.lore.config` `lsp.enabled`
+3. Built-in default (`false`)
+
+`.lore.config` schema:
+
+```json
+{
+  "lsp": {
+    "enabled": true,
+    "timeoutMs": 5000,
+    "servers": {
+      "typescript": { "command": "typescript-language-server", "args": ["--stdio"] },
+      "python": { "command": "pyright-langserver", "args": ["--stdio"] }
+    }
+  }
+}
+```
+
+Default server mappings cover all supported Lore extractor languages:
+
+| Language(s) | Default command |
+|-------------|-----------------|
+| `c`, `cpp`, `objc` | `clangd` |
+| `rust` | `rust-analyzer` |
+| `python` | `pyright-langserver --stdio` |
+| `typescript`, `javascript` | `typescript-language-server --stdio` |
+| `go` | `gopls` |
+| `java` | `jdtls` |
+| `csharp` | `csharp-ls` |
+| `ruby` | `solargraph stdio` |
+| `php` | `intelephense --stdio` |
+| `swift` | `sourcekit-lsp` |
+| `kotlin` | `kotlin-language-server` |
+| `scala` | `metals` |
+| `lua` | `lua-language-server` |
+| `bash` | `bash-language-server start` |
+| `elixir` | `elixir-ls` |
+| `zig` | `zls` |
+| `dart` | `dart language-server --protocol=lsp` |
+| `ocaml` | `ocamllsp` |
+| `haskell` | `haskell-language-server-wrapper --lsp` |
+| `julia` | `julia --startup-file=no --history-file=no --quiet --eval "using LanguageServer, SymbolServer; runserver()"` |
+| `elm` | `elm-language-server` |
+
+Install whichever language servers you need on `PATH`; unavailable servers are
+auto-detected and skipped without failing indexing.
+
 ### lore refresh
 
 Incremental refresh flow for an existing index.
 
 ```bash
-npx @jafreck/lore refresh --db <path> --root <dir> [--index-deps] [--history] [--history-depth <n>] [--history-all] [--docs-include <glob>] [--docs-exclude <glob>] [--docs-extension <ext>] [--docs-auto-notes|--no-docs-auto-notes]
-npx @jafreck/lore refresh --db <path> --root <dir> --watch [--index-deps] [--history] [--docs-include <glob>] [--docs-exclude <glob>] [--docs-extension <ext>]
-npx @jafreck/lore refresh --db <path> --root <dir> --poll [--index-deps] [--history] [--docs-include <glob>] [--docs-exclude <glob>] [--docs-extension <ext>]
+npx @jafreck/lore refresh --db <path> --root <dir> [--index-deps] [--history] [--history-depth <n>] [--history-all] [--docs-include <glob>] [--docs-exclude <glob>] [--docs-extension <ext>] [--docs-auto-notes|--no-docs-auto-notes] [--lsp] [--no-lsp]
+npx @jafreck/lore refresh --db <path> --root <dir> --watch [--index-deps] [--history] [--docs-include <glob>] [--docs-exclude <glob>] [--docs-extension <ext>] [--lsp] [--no-lsp]
+npx @jafreck/lore refresh --db <path> --root <dir> --poll [--index-deps] [--history] [--docs-include <glob>] [--docs-exclude <glob>] [--docs-extension <ext>] [--lsp] [--no-lsp]
 ```
 
 Modes:
@@ -332,6 +399,8 @@ Install repo-local git hooks that trigger Lore refresh automatically on:
 ```bash
 npx @jafreck/lore hooks --root <repo> --db <path>
 npx @jafreck/lore hooks --root <repo> --db <path> --history
+npx @jafreck/lore hooks --root <repo> --db <path> --lsp
+npx @jafreck/lore hooks --root <repo> --db <path> --no-lsp
 ```
 
 Note: for `lore hooks`, any history-related flag currently enables history in
@@ -363,6 +432,8 @@ npx @jafreck/lore mcp --db <path>
 
 If the embedding model cannot initialize at runtime, semantic/fused search
 gracefully degrades to structural search.
+Query-time behavior remains SQLite-only for LSP metadata: the MCP server reads
+persisted enrichment fields and does not invoke language servers.
 
 `kb_search` semantic/fused modes can return both symbol and documentation-section
 hits. Use `kb_docs` for deterministic docs listing/fetch/search operations.
@@ -371,8 +442,8 @@ hits. Use `kb_docs` for deterministic docs listing/fetch/search operations.
 
 | Tool | Purpose |
 |------|---------|
-| `kb_lookup` | Find symbols by name or files by path (optional branch filter), including external dependency API symbols from `external_symbols` in symbol lookups |
-| `kb_search` | Structural BM25, semantic vector, or fused RRF search; semantic/fused modes can include docs section hits, and structural symbol queries include external dependency API name matches from `external_symbols` |
+| `kb_lookup` | Find symbols by name or files by path (optional branch filter), including external dependency API symbols from `external_symbols` in symbol lookups and persisted LSP-resolved metadata fields when available |
+| `kb_search` | Structural BM25, semantic vector, or fused RRF search; semantic/fused modes can include docs section hits, structural symbol queries include external dependency API name matches from `external_symbols`, and results include persisted LSP-resolved metadata fields when available |
 | `kb_docs` | List indexed docs, fetch full docs with optional sections, or search doc sections |
 | `kb_graph` | Query call/import/module/inheritance edges; call edges include `callee_coverage_percent` |
 | `kb_snippet` | Return source snippets by file path and line range |

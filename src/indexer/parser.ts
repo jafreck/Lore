@@ -26,7 +26,7 @@ const PARSER_CHUNK_SIZE = 4096;
  * Maps a language identifier (as returned by the file walker) to the npm
  * package name that exports the corresponding tree-sitter grammar.
  */
-const LANG_PACKAGES: Record<string, string> = {
+export const LANG_PACKAGES: Record<string, string> = {
   c:          'tree-sitter-c',
   rust:       'tree-sitter-rust',
   python:     'tree-sitter-python',
@@ -52,6 +52,11 @@ const LANG_PACKAGES: Record<string, string> = {
   elm:        'tree-sitter-elm',
   objc:       'tree-sitter-objc',
 };
+
+/** Sorted list of all extractor languages with parser package mappings. */
+export const SUPPORTED_PARSER_LANGUAGES: readonly string[] = Object.freeze(
+  Object.keys(LANG_PACKAGES).sort(),
+);
 
 // ─── ParserPool ───────────────────────────────────────────────────────────────
 

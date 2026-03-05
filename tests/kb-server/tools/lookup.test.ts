@@ -4,9 +4,23 @@ import { handler, toolDef } from '../../../src/kb-server/tools/lookup.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function createTestDb(): Database.Database {
+function createTestDb(includeEnrichmentColumns = false): Database.Database {
   const db = new Database(':memory:');
   db.pragma('foreign_keys = ON');
+  const symbolEnrichmentColumns = includeEnrichmentColumns
+    ? `,
+       resolved_type_signature TEXT,
+       resolved_return_type    TEXT,
+       definition_uri          TEXT,
+       definition_path         TEXT`
+    : '';
+  const externalEnrichmentColumns = includeEnrichmentColumns
+    ? `,
+       resolved_type_signature TEXT,
+       resolved_return_type    TEXT,
+       definition_uri          TEXT,
+       definition_path         TEXT`
+    : '';
   db.exec(`
     CREATE TABLE files (
       id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -26,7 +40,7 @@ function createTestDb(): Database.Database {
       start_line  INTEGER NOT NULL DEFAULT 1,
       end_line    INTEGER NOT NULL DEFAULT 10,
       signature   TEXT,
-      doc_comment TEXT
+      doc_comment TEXT${symbolEnrichmentColumns}
     );
     CREATE TABLE symbol_metrics (
       symbol_id    INTEGER PRIMARY KEY REFERENCES symbols(id) ON DELETE CASCADE,
@@ -45,7 +59,7 @@ function createTestDb(): Database.Database {
       symbol_name          TEXT    NOT NULL,
       symbol_kind          TEXT    NOT NULL,
       signature            TEXT    NOT NULL DEFAULT '',
-      doc_comment          TEXT
+      doc_comment          TEXT${externalEnrichmentColumns}
     );
   `);
   return db;
@@ -79,12 +93,13 @@ function insertExternalSymbol(
   packageVersion: string | null,
   symbolName: string,
   symbolKind: string,
-): void {
-  db.prepare(
+): number {
+  const result = db.prepare(
     `INSERT INTO external_symbols
       (package_name, package_version, symbol_name, symbol_kind, signature)
      VALUES (?, ?, ?, ?, ?)`,
   ).run(packageName, packageVersion, symbolName, symbolKind, `${symbolKind} ${symbolName}()`);
+  return result.lastInsertRowid as number;
 }
 
 // ─── handler (kind=symbol) ────────────────────────────────────────────────────
@@ -200,6 +215,59 @@ describe('lookup handler – kind=symbol', () => {
   it('should return empty array when branch has no matching symbol', () => {
     const result = handler(db, { kind: 'symbol', query: 'parseConfig', branch: 'nonexistent' });
     expect(result.results).toEqual([]);
+  });
+});
+
+describe('lookup handler – enrichment metadata projection', () => {
+  it('should return persisted internal and external enrichment metadata when present', () => {
+    const db = createTestDb(true);
+    const fileId = insertFile(db, 'src/main.ts', 'main');
+    const symbolId = insertSymbol(db, fileId, 'parseConfig');
+    db.prepare(
+      `UPDATE symbols
+       SET resolved_type_signature = ?, resolved_return_type = ?, definition_uri = ?, definition_path = ?
+       WHERE id = ?`,
+    ).run(
+      'function parseConfig(input: string): ParseResult',
+      'ParseResult',
+      'file:///repo/src/parser.ts',
+      '/repo/src/parser.ts',
+      symbolId,
+    );
+
+    const externalSymbolId = insertExternalSymbol(db, 'dep-utils', '2.0.0', 'parseConfig', 'function');
+    db.prepare(
+      `UPDATE external_symbols
+       SET resolved_type_signature = ?, resolved_return_type = ?, definition_uri = ?, definition_path = ?
+       WHERE id = ?`,
+    ).run(
+      'function parseConfig(input: string): ParseResult',
+      'ParseResult',
+      'file:///deps/dep-utils/index.d.ts',
+      '/deps/dep-utils/index.d.ts',
+      externalSymbolId,
+    );
+
+    const result = handler(db, { kind: 'symbol', query: 'parseConfig' });
+    const internalRow = result.results.find((row) => Object.prototype.hasOwnProperty.call(row, 'name')) as
+      | Record<string, unknown>
+      | undefined;
+    const externalRow = result.results.find((row) => Object.prototype.hasOwnProperty.call(row, 'package_name')) as
+      | Record<string, unknown>
+      | undefined;
+
+    expect(internalRow).toMatchObject({
+      resolved_type_signature: 'function parseConfig(input: string): ParseResult',
+      resolved_return_type: 'ParseResult',
+      definition_uri: 'file:///repo/src/parser.ts',
+      definition_path: '/repo/src/parser.ts',
+    });
+    expect(externalRow).toMatchObject({
+      resolved_type_signature: 'function parseConfig(input: string): ParseResult',
+      resolved_return_type: 'ParseResult',
+      definition_uri: 'file:///deps/dep-utils/index.d.ts',
+      definition_path: '/deps/dep-utils/index.d.ts',
+    });
   });
 });
 

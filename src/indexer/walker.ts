@@ -113,6 +113,11 @@ export const EXT_TO_LANG: Record<string, string> = {
   '.mm':   'objc',
 };
 
+/** Sorted list of all distinct extractor languages supported by the walker. */
+export const SUPPORTED_WALKER_LANGUAGES: readonly string[] = Object.freeze(
+  [...new Set(Object.values(EXT_TO_LANG))].sort(),
+);
+
 // Paths always excluded unless the caller overrides them.
 const DEFAULT_EXCLUDES = [
   '**/node_modules/**',
