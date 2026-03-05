@@ -29,31 +29,36 @@ without re-reading it from scratch.
 flowchart LR
     subgraph Codebase
         SRC[Source Files]
+        DOCS[Documentation<br/>md · rst · adoc · txt]
         GIT[Git Repo]
         COV[Coverage Reports]
     end
 
     subgraph Lore Indexer
-        WALK[Walker]
-        PARSE[Parser]
-        EXTRACT[Extractors<br/>symbols · imports · call refs]
-        RESOLVE[Import Resolver<br/>internal ↔ external]
-        CALLGRAPH[Call-Graph Builder]
-        EMBED[Embedder]
+        WALK[Walker] --> PARSE[Parser] --> EXTRACT[Extractors<br/>symbols · imports · call refs]
+        EXTRACT --> RESOLVE[Import Resolver<br/>internal ↔ external]
+        EXTRACT --> CALLGRAPH[Call-Graph Builder]
+        EXTRACT -.-> LSPENRICH[LSP Enrichment<br/>type signatures · definition locations]
+        DOCSINGEST[Docs Ingest<br/>sections · headings · notes]
         GITHIST[Git History Ingest<br/>commits · diffs · refs]
         COVINGEST[Coverage Ingest<br/>lcov · cobertura]
     end
 
     DB[(SQL DB)]
+    EMBED([Embedding Model])
 
     subgraph MCP Server
         LOOKUP[lore_lookup]
         SEARCH[lore_search]
+        DOCS_TOOL[lore_docs]
         GRAPH[lore_graph]
+        TESTMAP[lore_test_map]
         SNIPPET[lore_snippet]
         BLAME[lore_blame]
         HISTORY[lore_history]
+        COMMITSTATS[lore_commit_stats]
         METRICS[lore_metrics]
+        COVERAGE[lore_coverage]
         WRITEBACK[lore_writeback]
     end
 
@@ -65,25 +70,31 @@ flowchart LR
         CLAUDE_CODE ~~~ COPILOT ~~~ CURSOR ~~~ CUSTOM
     end
 
-    SRC --> WALK --> PARSE --> EXTRACT
-    EXTRACT --> RESOLVE & CALLGRAPH
-    EXTRACT & RESOLVE & CALLGRAPH --> DB
-    EMBED -.->|optional| DB
+    SRC --> WALK
+    DOCS --> DOCSINGEST --> DB
     GIT --> GITHIST --> DB
     COV --> COVINGEST --> DB
 
-    DB --- LOOKUP & SEARCH & GRAPH & SNIPPET & BLAME & HISTORY & METRICS & WRITEBACK
+    RESOLVE & CALLGRAPH --> DB
+    LSPENRICH -.->|optional| DB
+    RESOLVE -.->|optional| EMBED
+    EMBED -.-> DB
 
-    LOOKUP & SEARCH & GRAPH & SNIPPET & BLAME & HISTORY & METRICS & WRITEBACK <--> MCP_CLIENTS
+    DB --- LOOKUP & SEARCH & DOCS_TOOL & GRAPH & TESTMAP & SNIPPET & BLAME & HISTORY & COMMITSTATS & METRICS & COVERAGE & WRITEBACK
+    EMBED <-.->|semantic/fused| SEARCH
+
+    LOOKUP & SEARCH & DOCS_TOOL & GRAPH & TESTMAP & SNIPPET & BLAME & HISTORY & COMMITSTATS & METRICS & COVERAGE & WRITEBACK <--> MCP_CLIENTS
 ```
 
 Lore sits between your codebase and any LLM-powered tool. The **indexer**
 pipeline walks source files, parses them into ASTs, and extracts
 symbols/imports/call-refs via language-specific extractors, then resolves
 imports (internal vs external) and builds the call graph. An optional
-**embedder** generates dense vectors for semantic search, and a parallel
-**git history** ingest captures commits, diffs, and refs. Everything is
-persisted to a normalized SQL database. The **MCP server** then exposes that
+**LSP enrichment** pass queries language servers to resolve type signatures
+and jump-to-definition URIs for extracted symbols. An optional **embedder**
+generates dense vectors for semantic search, and a parallel **git history**
+ingest captures commits, diffs, and refs. Everything is persisted to a
+normalized SQL database. The **MCP server** then exposes that
 database as a set of tools that any MCP-compatible client can call to look up
 symbols, search code, traverse call graphs, read snippets, query
 blame/history, and write summaries back.
@@ -141,65 +152,115 @@ const builder = new IndexBuilder(
 await builder.build();
 ```
 
-### Programmatic configuration examples
+## MCP tools
+
+| Tool | Purpose |
+|------|---------|
+| `lore_lookup` | Find symbols by name or files by path, including external dependency API symbols and LSP-resolved metadata when available |
+| `lore_search` | Structural BM25, semantic vector, or fused RRF search across symbols and doc sections |
+| `lore_docs` | List, fetch, or search indexed documentation with branch, kind, and path filters |
+| `lore_graph` | Query call/import/module/inheritance edges; call edges include `callee_coverage_percent` |
+| `lore_snippet` | Return source snippets by file path and line range |
+| `lore_test_map` | Return mapped test files (with confidence) for a given source file path |
+| `lore_blame` | Return git blame metadata for a line or line range |
+| `lore_history` | Query commit history by file, commit, author, ref, or recency |
+| `lore_commit_stats` | Git commit analytics: cadence, size, churn, top authors, message patterns, schedule heatmaps, branch activity |
+| `lore_metrics` | Aggregate index metrics plus coverage/staleness fields |
+| `lore_coverage` | Symbol-level coverage, uncovered lines, and staleness metadata |
+| `lore_writeback` | Persist agent-authored symbol summaries |
+
+### MCP config example
+
+```json
+{
+  "mcpServers": {
+    "lore": {
+      "command": "npx",
+      "args": ["@jafreck/lore", "mcp", "--db", "/path/to/kb.db"]
+    }
+  }
+}
+```
+
+### lore_docs examples
+
+```json
+{ "action": "list", "branch": "main", "kinds": ["readme", "architecture"] }
+{ "action": "get", "path": "/repo/docs/architecture.md", "branch": "main", "include_sections": true }
+{ "action": "search", "query": "incremental refresh", "kinds": ["guide", "architecture"], "limit": 10 }
+```
+
+### lore_history modes
+
+| Mode | Query |
+|------|-------|
+| `recent` | Newest commits |
+| `file` | Commits that touched a path |
+| `commit` | Full/prefix SHA lookup (+files +refs) |
+| `author` | Commits by author/email substring |
+| `ref` | Commits matching branch/tag ref name |
+
+### lore_blame examples
+
+```json
+{ "path": "/repo/src/index.ts", "line": 120 }
+{ "path": "/repo/src/index.ts", "start_line": 120, "end_line": 140 }
+{ "path": "/repo/src/index.ts", "line": 120, "ref": "main" }
+```
+
+## Data ingestion
+
+Lore indexes multiple data sources into a normalized SQLite schema. Each source
+has its own ingestion pipeline and can be enabled independently.
+
+### Source code
+
+The indexer walks source files, parses them into ASTs via tree-sitter, and
+extracts symbols, imports, and call references through language-specific
+extractors. The import resolver classifies each import as internal or external,
+and a call-graph builder creates edges between symbols.
+
+Programmatic example:
 
 ```ts
 import { IndexBuilder } from '@jafreck/lore';
 
-// Index with embedding model + history options
-await new IndexBuilder(
-  './kb.db',
-  {
-    rootDir: './my-project',
-    includeGlobs: ['src/**'],
-    excludeGlobs: ['**/*.gen.ts'],
-    extensions: ['.ts', '.tsx'],
-  },
-  undefined,
-  {
-    embeddingModel: 'Qwen/Qwen3-Embedding-4B',
-    history: { all: true, depth: 2000 },
-  },
-).build();
+await new IndexBuilder('./kb.db', {
+  rootDir: './my-project',
+  includeGlobs: ['src/**'],
+  excludeGlobs: ['**/*.gen.ts'],
+  extensions: ['.ts', '.tsx'],
+}).build();
 ```
 
-### Documentation indexing
+### Documentation
 
-Documentation ingestion runs during both `index` and `refresh` flows. By default,
-Lore scans:
+Lore discovers and indexes documentation files (`.md`, `.rst`, `.adoc`, `.txt`)
+during both `index` and `refresh` flows. By default it scans:
 
 - `README*` variants
 - `docs/**/*.{md,rst,adoc,txt}`
 - ADR-style paths (`**/{adr,adrs,ADR,ADRS}/**/*` and `**/{ADR,adr}-*`)
-- top-level architecture/design/overview/changelog/guide files
+- Top-level architecture/design/overview/changelog/guide files
 
-Default docs extensions are `.md`, `.rst`, `.adoc`, and `.txt`.
+Indexed docs are stored per `(path, branch)` in `docs`, with heading-based
+chunks in `doc_sections`. When embeddings are enabled, section vectors are stored
+in `doc_section_embeddings`.
 
-CLI docs discovery controls are available on `index` and one-shot `refresh`:
+CLI discovery controls:
 
-- `--docs-include <glob>` repeatable docs include filter
-- `--docs-exclude <glob>` repeatable docs exclude filter
-- `--docs-extension <ext>` repeatable docs extension filter (for example `.md`)
-- `--docs-auto-notes` / `--no-docs-auto-notes` toggle seeded doc-note upserts (enabled by default)
+- `--docs-include <glob>` / `--docs-exclude <glob>` — repeatable include/exclude filters
+- `--docs-extension <ext>` — repeatable extension filter (e.g. `.md`)
+- `--docs-auto-notes` / `--no-docs-auto-notes` — toggle seeded doc-note upserts (default: enabled)
 
-```bash
-npx @jafreck/lore index --root ./my-project --db ./kb.db \
-  --docs-include 'docs/**/*' \
-  --docs-exclude '**/docs/private/**' \
-  --docs-extension .md \
-  --no-docs-auto-notes
+When auto-notes are enabled, Lore seeds `notes` rows for README, architecture,
+and ADR docs using deterministic keys. Each note tracks a `source_hash` for
+staleness detection — `lore_notes_read` reports doc-scoped notes as stale when
+the backing document changes or disappears.
 
-npx @jafreck/lore refresh --db ./kb.db --root ./my-project \
-  --docs-include 'handbook/**/*' \
-  --docs-extension .rst \
-  --docs-auto-notes
-```
-
-To customize docs discovery programmatically, pass docs-specific walker options:
+Programmatic example:
 
 ```ts
-import { IndexBuilder } from '@jafreck/lore';
-
 await new IndexBuilder('./kb.db', {
   rootDir: './my-project',
   docsIncludeGlobs: ['**/README*', 'handbook/**/*.rst'],
@@ -208,89 +269,75 @@ await new IndexBuilder('./kb.db', {
 }).build();
 ```
 
-Indexed docs are stored per `(path, branch)` in `docs`, with retrievable chunks
-in `doc_sections` (Markdown sections are heading-based and include heading-path
-metadata). When embeddings are enabled, section vectors are stored in
-`doc_section_embeddings`.
+### Git history
 
-When docs auto-notes are enabled, Lore also seeds `notes` rows for README,
-architecture, and ADR docs using deterministic keys (for example
-`docs/readme`, `docs/architecture`, `docs/adr/<slug>`). Seeded notes are
-scoped as `doc:<absolute-path>@<branch>`, and each note `source_hash` is set to
-the source doc's `content_hash`. `lore_notes_read` uses this linkage to report
-doc-scoped notes as stale when the backing doc changes (`source_hash_mismatch`)
-or disappears (`doc_missing`).
+Lore ingests commits, touched files (with change type and diff stats), and
+refs (branches/tags). Enable with `--history`; use `--history-all` to traverse
+all refs and `--history-depth <n>` to cap the number of commits.
 
-## CLI reference
+Indexed tables:
 
-### lore index
+- `commits` — sha, author, author_email, timestamp, message, parents
+- `commit_files` — per-commit touched paths with change type and diff stats
+- `commit_refs` — refs currently pointing at commits (`branch`/`tag`/`other`)
 
-Build or update a knowledge base.
+Programmatic example:
 
-```bash
-npx @jafreck/lore index --root <dir> --db <path> [--embedding-model <id>] [--index-deps] [--history] [--history-depth <n>] [--history-all] [--include <glob>] [--exclude <glob>] [--language <lang>] [--docs-include <glob>] [--docs-exclude <glob>] [--docs-extension <ext>] [--docs-auto-notes|--no-docs-auto-notes] [--lsp] [--no-lsp]
+```ts
+await new IndexBuilder('./kb.db', {
+  rootDir: './my-project',
+}, undefined, {
+  history: { all: true, depth: 2000 },
+}).build();
 ```
 
-Key flags:
+### Coverage
 
-- `--root <dir>` required source root
-- `--db <path>` required SQLite output path
-- `--embedding-model <id>` embedding model identifier
-- `--index-deps` opt-in dependency API indexing from direct dependency declaration files
-- `--history` enable git history ingestion
-- `--history-depth <n>` cap number of ingested commits
-- `--history-all` traverse all refs (branches/tags)
-- `--include` repeatable glob include filter
-- `--exclude` repeatable glob exclude filter
-- `--language` repeatable language filter (mapped to extensions)
-- `--docs-include` repeatable docs include filter
-- `--docs-exclude` repeatable docs exclude filter
-- `--docs-extension` repeatable docs extension filter
-- `--docs-auto-notes` enable seeded doc-note upserts (default)
-- `--no-docs-auto-notes` disable seeded doc-note upserts
-- `--lsp` force-enable index-time LSP enrichment
-- `--no-lsp` force-disable index-time LSP enrichment
+Coverage reports are auto-detected during build/update/refresh from known paths
+(`coverage/lcov.info`, `coverage/cobertura-coverage.xml`, `coverage.xml`) and
+only ingested when newer than the last stored coverage run.
 
-Dependency API indexing is disabled by default and only runs when `--index-deps`
-is provided (or `indexDependencies: true` in programmatic options). When
-enabled, Lore indexes declaration-level public API surface from direct
-dependencies across supported ecosystems:
+For non-standard report locations, use `lore ingest-coverage`:
 
-- TypeScript/JavaScript: exported declarations from `.d.ts` files in direct npm
-  dependencies declared in root `package.json` (`dependencies`,
-  `devDependencies`, `peerDependencies`)
-- Python: stubbed/public declarations from direct dependencies via `.pyi` and
-  `py.typed` package metadata
-- Go: exported declarations from direct module requirements declared in root
-  `go.mod`
-- Rust: `pub` declaration surface from crates declared directly in root
-  `Cargo.toml`
+```bash
+npx @jafreck/lore ingest-coverage --db ./kb.db --root ./my-project \
+  --file ./custom/coverage.xml --format cobertura
+```
 
-For all ecosystems, Lore excludes implementation bodies and does not crawl
-transitive dependency trees.
+### Embeddings
 
-### Index-time LSP enrichment
+Lore optionally generates dense vector embeddings for semantic search using a
+sentence-transformers model. The embedding model is downloaded and managed
+automatically — specify it with `--embedding-model`:
 
-Lore can enrich indexed symbols/call refs with resolved type metadata at index
-time and persist it into SQLite columns:
+```bash
+npx @jafreck/lore index --root ./my-project --db ./kb.db \
+  --embedding-model 'Qwen/Qwen3-Embedding-4B'
+```
 
-- `symbols`: `resolved_type_signature`, `resolved_return_type`,
-  `definition_uri`, `definition_path`
-- `symbol_refs`: `resolved_type_signature`, `resolved_return_type`,
-  `definition_uri`, `definition_path`
-- `external_symbols`: `resolved_type_signature`, `resolved_return_type`,
-  `definition_uri`, `definition_path`
+At query time, `lore_search` in `semantic` or `fused` mode embeds the query
+and performs cosine similarity against stored vectors. If the model cannot
+initialize, search gracefully degrades to structural BM25.
 
-`lore_lookup` and `lore_search` return these persisted fields when present. Query
-handlers stay SQLite-only and never start or call language servers at runtime.
+### LSP enrichment
+
+Lore can enrich symbols and call refs with resolved type metadata at index time
+by querying language servers via the Language Server Protocol. Enriched columns:
+
+- `resolved_type_signature`, `resolved_return_type`
+- `definition_uri`, `definition_path`
+
+These are persisted in `symbols`, `symbol_refs`, and `external_symbols` tables.
+`lore_lookup` and `lore_search` return them when present. Query handlers stay
+SQLite-only — language servers are never invoked at runtime.
 
 LSP precedence:
 
-1. Explicit CLI flags (`--lsp` / `--no-lsp`)
+1. CLI flags (`--lsp` / `--no-lsp`)
 2. `.lore.config` `lsp.enabled`
 3. Built-in default (`false`)
 
-`.lore.config` schema:
+`.lore.config` example:
 
 ```json
 {
@@ -305,7 +352,7 @@ LSP precedence:
 }
 ```
 
-Default server mappings cover all supported Lore extractor languages:
+Default server mappings cover all supported extractor languages:
 
 | Language(s) | Default command |
 |-------------|------------------|
@@ -334,9 +381,59 @@ Default server mappings cover all supported Lore extractor languages:
 Install whichever language servers you need on `PATH`; unavailable servers are
 auto-detected and skipped without failing indexing.
 
+### Dependency APIs
+
+Lore can index declaration-level public API surface from direct dependencies.
+Enable with `--index-deps` or `indexDependencies: true` programmatically.
+
+Supported ecosystems:
+
+- **TypeScript/JavaScript** — exported declarations from `.d.ts` files in direct npm dependencies
+- **Python** — stubbed/public declarations from direct dependencies via `.pyi` and `py.typed`
+- **Go** — exported declarations from direct module requirements in `go.mod`
+- **Rust** — `pub` declarations from crates in `Cargo.toml`
+
+Implementation bodies are excluded and transitive dependencies are not crawled.
+
+## Keeping the index fresh
+
+The index stays current automatically through three mechanisms:
+
+**Git hooks** — install once with `lore hooks`, and Lore refreshes on every
+`post-commit`, `post-merge`, `post-checkout`, and `post-rewrite`:
+
+```bash
+npx @jafreck/lore hooks --root ./my-project --db ./kb.db --history
+```
+
+**Watch mode** — reacts to filesystem events in real time:
+
+```bash
+npx @jafreck/lore refresh --db ./kb.db --root ./my-project --watch
+```
+
+**Poll mode** — periodic mtime diffing, most reliable across filesystems:
+
+```bash
+npx @jafreck/lore refresh --db ./kb.db --root ./my-project --poll
+```
+
+Each refresh only re-processes files whose content hash has changed, so updates
+are fast even on large repositories.
+
+## CLI reference
+
+### lore index
+
+Build or update a knowledge base.
+
+```bash
+npx @jafreck/lore index --root <dir> --db <path> [--embedding-model <id>] [--index-deps] [--history] [--history-depth <n>] [--history-all] [--include <glob>] [--exclude <glob>] [--language <lang>] [--docs-include <glob>] [--docs-exclude <glob>] [--docs-extension <ext>] [--docs-auto-notes|--no-docs-auto-notes] [--lsp] [--no-lsp]
+```
+
 ### lore refresh
 
-Incremental refresh flow for an existing index.
+Incremental refresh (one-shot, watch, or poll).
 
 ```bash
 npx @jafreck/lore refresh --db <path> --root <dir> [--index-deps] [--history] [--history-depth <n>] [--history-all] [--docs-include <glob>] [--docs-exclude <glob>] [--docs-extension <ext>] [--docs-auto-notes|--no-docs-auto-notes] [--lsp] [--no-lsp]
@@ -344,140 +441,29 @@ npx @jafreck/lore refresh --db <path> --root <dir> --watch [--index-deps] [--his
 npx @jafreck/lore refresh --db <path> --root <dir> --poll [--index-deps] [--history] [--docs-include <glob>] [--docs-exclude <glob>] [--docs-extension <ext>] [--lsp] [--no-lsp]
 ```
 
-Modes:
-
-- Manual: one-shot incremental refresh and exit (supports docs auto-notes toggle)
-- Watch: filesystem event driven (`fs.watch`), low latency (supports docs discovery filters)
-- Poll: periodic mtime diffing, most reliable across filesystems (supports docs discovery filters)
-
-Coverage reports are auto-detected during build/update/refresh from known paths (`coverage/lcov.info`, `coverage/cobertura-coverage.xml`, `coverage.xml`) and only ingested when newer than the last stored coverage run.
-
 ### lore hooks
 
-Install repo-local git hooks that trigger Lore refresh automatically on:
-
-- `post-commit`
-- `post-merge`
-- `post-checkout`
-- `post-rewrite`
+Install repo-local git hooks for automatic refresh.
 
 ```bash
-npx @jafreck/lore hooks --root <repo> --db <path>
-npx @jafreck/lore hooks --root <repo> --db <path> --history
-npx @jafreck/lore hooks --root <repo> --db <path> --lsp
-npx @jafreck/lore hooks --root <repo> --db <path> --no-lsp
+npx @jafreck/lore hooks --root <repo> --db <path> [--history] [--lsp] [--no-lsp]
 ```
-
-Note: for `lore hooks`, any history-related flag currently enables history in
-hook-triggered refreshes.
 
 ### lore ingest-coverage
 
-Manually ingest an explicit coverage report (useful for CI or non-standard report locations).
+Manually ingest a coverage report.
 
 ```bash
 npx @jafreck/lore ingest-coverage --db <path> --root <dir> --file <path> --format <lcov|cobertura> [--commit <sha>]
 ```
 
-Key flags:
-
-- `--db <path>` required SQLite output path
-- `--root <dir>` required repository root used to normalize relative coverage paths
-- `--file <path>` required coverage report file path
-- `--format <lcov|cobertura>` required coverage format
-- `--commit <sha>` optional commit override (defaults to `HEAD`)
-
 ### lore mcp
 
-Start the built-in MCP server over stdio.
+Start the MCP server over stdio.
 
 ```bash
 npx @jafreck/lore mcp --db <path>
 ```
-
-If the embedding model cannot initialize at runtime, semantic/fused search
-gracefully degrades to structural search.
-Query-time behavior remains SQLite-only for LSP metadata: the MCP server reads
-persisted enrichment fields and does not invoke language servers.
-
-`lore_search` semantic/fused modes can return both symbol and documentation-section
-hits. Use `lore_docs` for deterministic docs listing/fetch/search operations.
-
-## MCP tools
-
-| Tool | Purpose |
-|------|---------|
-| `lore_lookup` | Find symbols by name or files by path (optional branch filter), including external dependency API symbols from `external_symbols` in symbol lookups and persisted LSP-resolved metadata fields when available |
-| `lore_search` | Structural BM25, semantic vector, or fused RRF search; semantic/fused modes can include docs section hits, structural symbol queries include external dependency API name matches from `external_symbols`, and results include persisted LSP-resolved metadata fields when available |
-| `lore_docs` | List indexed docs, fetch full docs with optional sections, or search doc sections |
-| `lore_graph` | Query call/import/module/inheritance edges; call edges include `callee_coverage_percent` |
-| `lore_snippet` | Return source snippets by file path and line range |
-| `lore_blame` | Return git blame metadata for a line or line range |
-| `lore_history` | Query history by file, commit, author, ref, or recency |
-| `lore_metrics` | Return aggregate index metrics plus coverage/staleness fields (`coverage_available`, `coverage_commit`, `current_commit`, `commits_behind`, `stale`, global coverage totals) |
-| `lore_coverage` | Return symbol-level coverage, uncovered lines, and staleness metadata for the latest coverage run |
-| `lore_writeback` | Persist symbol summaries into `symbol_summaries` |
-
-### MCP config example
-
-```json
-{
-  "mcpServers": {
-    "lore": {
-      "command": "npx",
-      "args": ["@jafreck/lore", "mcp", "--db", "/path/to/kb.db"]
-    }
-  }
-}
-```
-
-### lore_docs examples
-
-`path` values should match indexed file paths (typically absolute paths).
-
-```json
-{ "action": "list", "branch": "main", "kinds": ["readme", "architecture"] }
-{ "action": "get", "path": "/repo/docs/architecture.md", "branch": "main", "include_sections": true }
-{ "action": "search", "query": "incremental refresh", "kinds": ["guide", "architecture"], "limit": 10 }
-```
-
-## Git history indexing
-
-Lore can ingest full git history and expose it through `lore_history`.
-
-### Indexed history tables
-
-- `commits`: sha, author, author_email, timestamp, message, parents
-- `commit_files`: per-commit touched paths with change type and diff stats
-- `commit_refs`: refs currently pointing at commits (`branch`/`tag`/`other`)
-
-### lore_history modes
-
-- `recent`: newest commits
-- `file`: commits that touched a path
-- `commit`: full/prefix sha lookup (+files +refs)
-- `author`: commits by author/email substring
-- `ref`: commits matching branch/tag ref name substring
-
-## Blame queries
-
-Use `lore_blame` for line-level attribution.
-
-Examples:
-
-```json
-{ "path": "/repo/src/index.ts", "line": 120 }
-{ "path": "/repo/src/index.ts", "start_line": 120, "end_line": 140 }
-{ "path": "/repo/src/index.ts", "line": 120, "ref": "main" }
-```
-
-## Automatic freshness patterns
-
-If you want Lore to stay updated without explicit requests:
-
-1. Run `lore hooks` once in the repo (git lifecycle updates)
-2. Optionally run `lore refresh --watch` in a background session for near-real-time updates during active editing
-3. Use `--poll` on filesystems where watch events are unreliable
 
 ## Build from source
 
