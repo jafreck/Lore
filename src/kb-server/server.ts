@@ -426,13 +426,13 @@ export function createKbMcpServer(
     history.toolDef.description,
     {
       mode: z
-        .enum(['file', 'commit', 'author', 'ref', 'recent'])
-        .describe('Query mode: file, commit, author, ref, or recent.'),
-      query: z.string().optional().describe('File path, commit SHA, author name/email, or ref.'),
+        .enum(['file', 'commit', 'author', 'ref', 'semantic', 'recent'])
+        .describe('Query mode: file, commit, author, ref, semantic, or recent.'),
+      query: z.string().optional().describe('File path, commit SHA, author name/email, ref, or semantic query text.'),
       limit: z.number().optional().describe('Max results (default 20, max 200).'),
     },
     async (args) => ({
-      content: [{ type: 'text', text: JSON.stringify(history.handler(db, args)) }],
+      content: [{ type: 'text', text: JSON.stringify(await history.handler(db, args, embedder)) }],
     }),
   );
 

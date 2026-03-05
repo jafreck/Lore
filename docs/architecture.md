@@ -37,7 +37,7 @@ flowchart LR
         DOCS[(docs · doc_sections)]
         NOTES[(notes)]
         COV[(coverage_runs · coverage_files<br/>coverage_lines)]
-        VEC[(symbol_embeddings · symbol_semantic_embeddings<br/>doc_section_embeddings)]
+        VEC[(symbol_embeddings · symbol_semantic_embeddings<br/>doc_section_embeddings · commit_embeddings)]
         HIST[(commits · commit_files<br/>commit_refs)]
         META[(kb_meta · symbol_summaries)]
     end
@@ -127,7 +127,7 @@ When docs auto-notes are enabled (default), `IndexBuilder` seeds/updates notes f
 | Docs | `docs`, `doc_sections` | Indexed docs keyed by `(path, branch)` plus chunked sections with heading metadata |
 | Notes | `notes` | User/system notes keyed by `(key, scope)`; doc-scoped notes use `source_hash` to track staleness against `docs.content_hash` |
 | Coverage | `coverage_runs`, `coverage_files`, `coverage_lines` | Coverage ingestion run metadata plus normalized per-file and per-line hit data |
-| Embeddings | `symbol_embeddings`, `symbol_semantic_embeddings`, `doc_section_embeddings` | vec0 virtual tables for semantic symbol/doc-section retrieval |
+| Embeddings | `symbol_embeddings`, `symbol_semantic_embeddings`, `doc_section_embeddings`, `commit_embeddings` | vec0 virtual tables for semantic symbol/doc-section retrieval and semantic commit-message history retrieval |
 | History | `commits`, `commit_files`, `commit_refs` | Git commit metadata, touched files, and named refs |
 | Metadata | `kb_meta`, `symbol_summaries`, `modules`, `file_modules` | Key-value config, LLM summaries, logical module groupings |
 
@@ -141,7 +141,7 @@ When docs auto-notes are enabled (default), `IndexBuilder` seeds/updates notes f
 | `kb_graph` | Query call, import, module, or inheritance edges (`call` edges include `callee_coverage_percent`) |
 | `kb_snippet` | Return snippets from indexed DB-backed file snapshots by file path + line range or by symbol name; path/symbol resolution is branch-aware and responses include containing-symbol context metadata when available |
 | `kb_blame` | Query blame (`mode: "blame"`), line-range evolution (`mode: "history"`), or ownership aggregates (`mode: "ownership"`), including symbol-targeted range resolution |
-| `kb_history` | Query history by file, commit, author, ref, or recency |
+| `kb_history` | Query history by file, commit, author, ref, recency, or semantic commit-message similarity (with graceful fallback to recent mode when vectors are unavailable) |
 | `kb_metrics` | Return aggregate index metrics plus global coverage totals and staleness metadata (`coverage_commit`, `current_commit`, `commits_behind`, `stale`) |
 | `kb_coverage` | Return symbol-level coverage, uncovered lines, and staleness metadata for the latest coverage run |
 | `kb_notes_read` / `kb_notes_write` | Persist notes and read note freshness metadata (`source_hash_mismatch`, `doc_missing`, etc.) |
