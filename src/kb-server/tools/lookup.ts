@@ -19,7 +19,7 @@ export const toolDef = {
   name: 'kb_lookup',
   description:
     'Look up symbols by name or source files by path in the knowledge-base index. ' +
-    'Set `kind` to "symbol" or "file". Returns an array of matching rows.',
+    'Set `kind` to "symbol" or "file". Returns an array of matching rows, including persisted enrichment metadata when available.',
   inputSchema: {
     type: 'object',
     properties: {

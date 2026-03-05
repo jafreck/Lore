@@ -39,7 +39,11 @@ CREATE TABLE IF NOT EXISTS symbols (
   start_line  INTEGER NOT NULL,
   end_line    INTEGER NOT NULL,
   signature   TEXT,
-  doc_comment TEXT
+  doc_comment TEXT,
+  resolved_type_signature TEXT,
+  resolved_return_type TEXT,
+  definition_uri TEXT,
+  definition_path TEXT
 );
 
 -- File-linked annotations extracted from comments (e.g. TODO/FIXME/NOTE).
@@ -76,7 +80,11 @@ CREATE TABLE IF NOT EXISTS symbol_refs (
   caller_id   INTEGER NOT NULL REFERENCES symbols(id) ON DELETE CASCADE,
   callee_id   INTEGER REFERENCES symbols(id),
   callee_name TEXT    NOT NULL,
-  call_line   INTEGER NOT NULL
+  call_line   INTEGER NOT NULL,
+  resolved_type_signature TEXT,
+  resolved_return_type TEXT,
+  definition_uri TEXT,
+  definition_path TEXT
 );
 
 -- External (third-party / stdlib) dependencies inferred from imports.
@@ -100,6 +108,10 @@ CREATE TABLE IF NOT EXISTS external_symbols (
   symbol_kind          TEXT    NOT NULL,
   signature            TEXT    NOT NULL DEFAULT '',
   doc_comment          TEXT,
+  resolved_type_signature TEXT,
+  resolved_return_type TEXT,
+  definition_uri       TEXT,
+  definition_path      TEXT,
   UNIQUE(dependency_ecosystem, package_name, package_version, symbol_name, symbol_kind, signature)
 );
 
@@ -271,6 +283,27 @@ CREATE INDEX IF NOT EXISTS idx_external_symbols_package_name ON external_symbols
 CREATE INDEX IF NOT EXISTS idx_external_symbols_symbol_name ON external_symbols(symbol_name);
 `;
 
+const ENRICHMENT_SCHEMA_MIGRATIONS: Array<{ table: string; column: string; sql: string }> = [
+  { table: 'symbols', column: 'resolved_type_signature', sql: 'ALTER TABLE symbols ADD COLUMN resolved_type_signature TEXT' },
+  { table: 'symbols', column: 'resolved_return_type', sql: 'ALTER TABLE symbols ADD COLUMN resolved_return_type TEXT' },
+  { table: 'symbols', column: 'definition_uri', sql: 'ALTER TABLE symbols ADD COLUMN definition_uri TEXT' },
+  { table: 'symbols', column: 'definition_path', sql: 'ALTER TABLE symbols ADD COLUMN definition_path TEXT' },
+  { table: 'symbol_refs', column: 'resolved_type_signature', sql: 'ALTER TABLE symbol_refs ADD COLUMN resolved_type_signature TEXT' },
+  { table: 'symbol_refs', column: 'resolved_return_type', sql: 'ALTER TABLE symbol_refs ADD COLUMN resolved_return_type TEXT' },
+  { table: 'symbol_refs', column: 'definition_uri', sql: 'ALTER TABLE symbol_refs ADD COLUMN definition_uri TEXT' },
+  { table: 'symbol_refs', column: 'definition_path', sql: 'ALTER TABLE symbol_refs ADD COLUMN definition_path TEXT' },
+  { table: 'external_symbols', column: 'resolved_type_signature', sql: 'ALTER TABLE external_symbols ADD COLUMN resolved_type_signature TEXT' },
+  { table: 'external_symbols', column: 'resolved_return_type', sql: 'ALTER TABLE external_symbols ADD COLUMN resolved_return_type TEXT' },
+  { table: 'external_symbols', column: 'definition_uri', sql: 'ALTER TABLE external_symbols ADD COLUMN definition_uri TEXT' },
+  { table: 'external_symbols', column: 'definition_path', sql: 'ALTER TABLE external_symbols ADD COLUMN definition_path TEXT' },
+];
+
+const ENRICHMENT_INDEX_MIGRATIONS = [
+  'CREATE INDEX IF NOT EXISTS idx_symbols_definition_path ON symbols(definition_path)',
+  'CREATE INDEX IF NOT EXISTS idx_symbol_refs_definition_path ON symbol_refs(definition_path)',
+  'CREATE INDEX IF NOT EXISTS idx_external_symbols_definition_path ON external_symbols(definition_path)',
+];
+
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 /**
@@ -288,8 +321,25 @@ export function openDb(path: string): Database.Database {
 
   // Create all tables in a single transaction.
   db.exec(DDL);
+  ensureEnrichmentSchema(db);
 
   return db;
+}
+
+function ensureEnrichmentSchema(db: Database.Database): void {
+  for (const migration of ENRICHMENT_SCHEMA_MIGRATIONS) {
+    if (!hasTableColumn(db, migration.table, migration.column)) {
+      db.exec(migration.sql);
+    }
+  }
+  for (const indexMigration of ENRICHMENT_INDEX_MIGRATIONS) {
+    db.exec(indexMigration);
+  }
+}
+
+function hasTableColumn(db: Database.Database, table: string, column: string): boolean {
+  const rows = db.pragma(`table_info(${table})`) as Array<{ name: string }>;
+  return rows.some((row) => row.name === column);
 }
 
 // ─── kb_meta helpers ──────────────────────────────────────────────────────────

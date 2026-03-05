@@ -53,6 +53,47 @@ describe('installGitHooks', () => {
     expect(content).toContain('--history');
   });
 
+  it('should not include LSP flags when lspEnabled is omitted', () => {
+    installGitHooks({
+      repoRoot,
+      rootDir: repoRoot,
+      dbPath: path.join(repoRoot, 'kb.db'),
+    });
+
+    const hookPath = path.join(repoRoot, '.git', 'hooks', 'post-commit');
+    const content = fs.readFileSync(hookPath, 'utf8');
+    expect(content).not.toContain('--lsp');
+    expect(content).not.toContain('--no-lsp');
+  });
+
+  it('should include --lsp in hook command when requested', () => {
+    installGitHooks({
+      repoRoot,
+      rootDir: repoRoot,
+      dbPath: path.join(repoRoot, 'kb.db'),
+      lspEnabled: true,
+    });
+
+    const hookPath = path.join(repoRoot, '.git', 'hooks', 'post-commit');
+    const content = fs.readFileSync(hookPath, 'utf8');
+    expect(content).toContain('--lsp');
+    expect(content).not.toContain('--no-lsp');
+  });
+
+  it('should include --no-lsp in hook command when requested', () => {
+    installGitHooks({
+      repoRoot,
+      rootDir: repoRoot,
+      dbPath: path.join(repoRoot, 'kb.db'),
+      lspEnabled: false,
+    });
+
+    const hookPath = path.join(repoRoot, '.git', 'hooks', 'post-commit');
+    const content = fs.readFileSync(hookPath, 'utf8');
+    expect(content).toContain('--no-lsp');
+    expect(content).not.toContain('--lsp ');
+  });
+
   it('should preserve existing hook content while adding lore block', () => {
     const hookPath = path.join(repoRoot, '.git', 'hooks', 'post-commit');
     fs.writeFileSync(hookPath, '#!/usr/bin/env sh\necho "custom"\n', 'utf8');

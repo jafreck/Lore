@@ -25,6 +25,8 @@ export interface RawSymbol {
   kind: string;
   /** 0-indexed start line in the source file. */
   startLine: number;
+  /** 0-indexed start character in the source line (best-effort, optional). */
+  startCharacter?: number;
   /** 0-indexed end line in the source file. */
   endLine: number;
   /** Textual signature of the symbol (declaration without body). */
@@ -57,6 +59,8 @@ export interface RawCallRef {
   calleeRaw: string;
   /** 0-indexed line of the call expression. */
   line: number;
+  /** 0-indexed character in the call line (best-effort, optional). */
+  character?: number;
 }
 
 /** An environment-variable reference found in a source file. */

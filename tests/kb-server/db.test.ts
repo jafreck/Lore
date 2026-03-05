@@ -930,6 +930,12 @@ describe('external symbol helpers', () => {
     });
     expect(rows[0]).toHaveProperty('signature');
     expect(rows[0]).toHaveProperty('doc_comment');
+    expect(rows[0]).toMatchObject({
+      resolved_type_signature: null,
+      resolved_return_type: null,
+      definition_uri: null,
+      definition_path: null,
+    });
   });
 
   it('should return filtered external symbol name matches and respect limit', () => {
@@ -941,6 +947,62 @@ describe('external symbol helpers', () => {
     expect(rows[0]).toHaveProperty('dependency_ecosystem');
     expect(rows[0]).toHaveProperty('source_type');
     expect(rows[0]).toHaveProperty('source_ref');
+    expect(rows[0]).toMatchObject({
+      resolved_type_signature: null,
+      resolved_return_type: null,
+      definition_uri: null,
+      definition_path: null,
+    });
+  });
+
+  it('should return persisted enrichment metadata when external symbol columns exist', () => {
+    db.exec(`
+      ALTER TABLE external_symbols ADD COLUMN resolved_type_signature TEXT;
+      ALTER TABLE external_symbols ADD COLUMN resolved_return_type TEXT;
+      ALTER TABLE external_symbols ADD COLUMN definition_uri TEXT;
+      ALTER TABLE external_symbols ADD COLUMN definition_path TEXT;
+    `);
+    const id = insertExternalSymbol(
+      db,
+      'typed-lib',
+      '3.1.0',
+      'render',
+      'function',
+      'function render(): string;',
+      null,
+    );
+    db.prepare(
+      `UPDATE external_symbols
+       SET resolved_type_signature = ?,
+           resolved_return_type = ?,
+           definition_uri = ?,
+           definition_path = ?
+       WHERE id = ?`,
+    ).run(
+      'function render(props: Props): JSX.Element',
+      'JSX.Element',
+      'file:///deps/typed-lib/index.d.ts',
+      '/deps/typed-lib/index.d.ts',
+      id,
+    );
+
+    const exactRows = getExternalSymbolsByName(db, 'render');
+    expect(exactRows).toHaveLength(1);
+    expect(exactRows[0]).toMatchObject({
+      resolved_type_signature: 'function render(props: Props): JSX.Element',
+      resolved_return_type: 'JSX.Element',
+      definition_uri: 'file:///deps/typed-lib/index.d.ts',
+      definition_path: '/deps/typed-lib/index.d.ts',
+    });
+
+    const filteredRows = searchExternalSymbolsByName(db, 'rend');
+    expect(filteredRows).toHaveLength(1);
+    expect(filteredRows[0]).toMatchObject({
+      resolved_type_signature: 'function render(props: Props): JSX.Element',
+      resolved_return_type: 'JSX.Element',
+      definition_uri: 'file:///deps/typed-lib/index.d.ts',
+      definition_path: '/deps/typed-lib/index.d.ts',
+    });
   });
 
   it('should order exact external symbol matches by ecosystem and package and preserve source metadata', () => {

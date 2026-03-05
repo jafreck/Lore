@@ -14,6 +14,10 @@ vi.mock('@modelcontextprotocol/sdk/server/mcp.js', () => ({
 
 import { createKbMcpServer, type KbServerOptions } from '../../src/kb-server/server.js';
 
+function schemaDescription(schema: { description?: string; _def?: { description?: string } }): string {
+  return schema.description ?? schema._def?.description ?? '';
+}
+
 describe('createKbMcpServer', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -130,5 +134,25 @@ describe('createKbMcpServer', () => {
     expect(response).toEqual({
       content: [{ type: 'text', text: JSON.stringify(docsResult) }],
     });
+  });
+
+  it('should describe kb_lookup query as including persisted enrichment metadata', () => {
+    const db = new Database(':memory:');
+    createKbMcpServer(db, '/tmp/test.db');
+
+    const lookupToolCall = mockTool.mock.calls.find((call) => call[0] === 'kb_lookup');
+    expect(lookupToolCall).toBeDefined();
+    const lookupSchema = lookupToolCall?.[2] as { query: { description?: string; _def?: { description?: string } } };
+    expect(schemaDescription(lookupSchema.query)).toContain('persisted enrichment metadata');
+  });
+
+  it('should describe kb_search branch as SQLite-only query-time retrieval', () => {
+    const db = new Database(':memory:');
+    createKbMcpServer(db, '/tmp/test.db');
+
+    const searchToolCall = mockTool.mock.calls.find((call) => call[0] === 'kb_search');
+    expect(searchToolCall).toBeDefined();
+    const searchSchema = searchToolCall?.[2] as { branch: { description?: string; _def?: { description?: string } } };
+    expect(schemaDescription(searchSchema.branch)).toContain('Query-time retrieval uses SQLite-only persisted data');
   });
 });

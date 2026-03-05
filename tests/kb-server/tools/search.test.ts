@@ -7,9 +7,16 @@ import { handler, type SearchArgs, type SearchResult, type SearchObservation, ty
 
 const esmRequire = createRequire(import.meta.url);
 
-function createTestDb(): Database.Database {
+function createTestDb(includeEnrichmentColumns = false): Database.Database {
   const db = new Database(':memory:');
   db.pragma('foreign_keys = ON');
+  const symbolEnrichmentColumns = includeEnrichmentColumns
+    ? `,
+       resolved_type_signature TEXT,
+       resolved_return_type    TEXT,
+       definition_uri          TEXT,
+       definition_path         TEXT`
+    : '';
   db.exec(`
     CREATE TABLE files (
       id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -29,7 +36,7 @@ function createTestDb(): Database.Database {
       start_line  INTEGER NOT NULL DEFAULT 1,
       end_line    INTEGER NOT NULL DEFAULT 10,
       signature   TEXT,
-      doc_comment TEXT
+      doc_comment TEXT${symbolEnrichmentColumns}
     );
     CREATE VIRTUAL TABLE symbols_fts USING fts5(name, kind, content=symbols, content_rowid=id);
     CREATE TABLE docs (
@@ -72,6 +79,12 @@ function insertSymbol(
   fileId: number,
   name: string,
   kind = 'function',
+  enrichment?: {
+    resolvedTypeSignature?: string | null;
+    resolvedReturnType?: string | null;
+    definitionUri?: string | null;
+    definitionPath?: string | null;
+  },
 ): number {
   const result = db
     .prepare(
@@ -80,6 +93,23 @@ function insertSymbol(
     .run(fileId, name, kind);
   const rowid = result.lastInsertRowid as number;
   db.prepare('INSERT INTO symbols_fts(rowid, name, kind) VALUES (?, ?, ?)').run(rowid, name, kind);
+  if (enrichment) {
+    try {
+      db.prepare(
+        `UPDATE symbols
+         SET resolved_type_signature = ?, resolved_return_type = ?, definition_uri = ?, definition_path = ?
+         WHERE id = ?`,
+      ).run(
+        enrichment.resolvedTypeSignature ?? null,
+        enrichment.resolvedReturnType ?? null,
+        enrichment.definitionUri ?? null,
+        enrichment.definitionPath ?? null,
+        rowid,
+      );
+    } catch {
+      // Older fixture schemas intentionally omit enrichment columns.
+    }
+  }
   return rowid;
 }
 
@@ -166,6 +196,43 @@ describe('search handler – structural mode', () => {
     expect(result.mode_used).toBe('structural');
     expect(result.results.length).toBeGreaterThan(0);
     result.results.forEach((r) => expect(r.name).toBe('parseConfig'));
+  });
+
+  it('should expose null enrichment metadata fields when enrichment columns are absent', async () => {
+    const result = await handler(db, { query: 'parseConfig', mode: 'structural' });
+    expect(result.results.length).toBeGreaterThan(0);
+    result.results.forEach((row) => {
+      expect(row.resolved_type_signature).toBeNull();
+      expect(row.resolved_return_type).toBeNull();
+      expect(row.definition_uri).toBeNull();
+      expect(row.definition_path).toBeNull();
+    });
+  });
+
+  it('should include persisted enrichment metadata fields when present', async () => {
+    db = createTestDb(true);
+    const fileId = insertFile(db, 'src/main.ts', 'main');
+    insertSymbol(
+      db,
+      fileId,
+      'parseConfig',
+      'function',
+      {
+        resolvedTypeSignature: 'function parseConfig(input: string): ParseResult',
+        resolvedReturnType: 'ParseResult',
+        definitionUri: 'file:///repo/src/parser.ts',
+        definitionPath: '/repo/src/parser.ts',
+      },
+    );
+
+    const result = await handler(db, { query: 'parseConfig', mode: 'structural' });
+    expect(result.results).toHaveLength(1);
+    expect(result.results[0]).toMatchObject({
+      resolved_type_signature: 'function parseConfig(input: string): ParseResult',
+      resolved_return_type: 'ParseResult',
+      definition_uri: 'file:///repo/src/parser.ts',
+      definition_path: '/repo/src/parser.ts',
+    });
   });
 
   it('should default to structural mode when mode is omitted', async () => {

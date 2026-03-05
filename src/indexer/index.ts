@@ -66,9 +66,11 @@ import { ElmExtractor } from './extractors/elm.js';
 import { ObjcExtractor } from './extractors/objc.js';
 import type { SymbolExtractor } from './extractors/types.js';
 import type { EmbeddingProvider } from './embedder.js';
-import { DEFAULT_EMBEDDING_MODEL } from './embedder.js';
+import { DEFAULT_EMBEDDING_MODEL, buildStructuralEmbeddingText } from './embedder.js';
 import { ingestCoverageReport, type CoverageFormat } from './coverage.js';
 import { refreshTestMappings } from './test-mapper.js';
+import type { EffectiveLspSettings } from './lsp/config.js';
+import { LspEnrichmentCoordinator } from './lsp/enrichment.js';
 
 // ─── Extractor registry ───────────────────────────────────────────────────────
 
@@ -132,6 +134,7 @@ interface IndexBuilderOptions {
   embeddingModel?: string;
   docsAutoNotes?: boolean;
   indexDependencies?: boolean;
+  lsp?: EffectiveLspSettings;
 }
 
 // ─── IndexBuilder ─────────────────────────────────────────────────────────────
@@ -155,6 +158,7 @@ export class IndexBuilder {
   private readonly indexDependencies: boolean;
   private readonly embeddingModel: string;
   private readonly docsAutoNotes: boolean;
+  private readonly lspSettings: EffectiveLspSettings | null;
 
   constructor(
     dbPath: string,
@@ -183,6 +187,7 @@ export class IndexBuilder {
     this.history = opts.history ?? false;
     this.docsAutoNotes = opts.docsAutoNotes ?? true;
     this.indexDependencies = opts.indexDependencies ?? false;
+    this.lspSettings = opts.lsp ?? null;
   }
 
   // ─── Public API ──────────────────────────────────────────────────────────
@@ -195,10 +200,16 @@ export class IndexBuilder {
   async build(): Promise<void> {
     const db = openDb(this.dbPath);
     const branch = this.resolveBranch();
+    const lspCoordinator = this.createLspEnrichmentCoordinator();
     try {
       this.saveDocsAutoNotesSetting(db);
       const files = await walkFiles(this.walkerConfig);
       const docs = await walkDocumentationFiles(this.walkerConfig);
+      if (lspCoordinator) {
+        const languages = new Set(files.map((file) => file.language));
+        if (this.indexDependencies) languages.add('typescript');
+        await lspCoordinator.start(languages);
+      }
       const resumeAt = this.loadBuildCheckpoint(db, branch, files.length);
       db.transaction(() => {
         for (let i = resumeAt; i < files.length; i++) {
@@ -217,7 +228,8 @@ export class IndexBuilder {
       })();
       this.saveBuildCheckpoint(db, branch, files.length, files.length);
       this.resolveImports(db, branch);
-      this.indexDependencyDeclarations(db);
+      await this.indexDependencyDeclarations(db, lspCoordinator);
+      await this.enrichProjectSymbolsAndCallRefs(db, branch, files, lspCoordinator);
       refreshTestMappings(db, branch);
       buildCallGraph(db);
       this.saveLastKnownHead(db);
@@ -232,6 +244,9 @@ export class IndexBuilder {
         await ingestGitHistory(db, this.walkerConfig.rootDir, historyOptions);
       }
     } finally {
+      if (lspCoordinator) {
+        await lspCoordinator.dispose();
+      }
       db.close();
     }
   }
@@ -245,10 +260,23 @@ export class IndexBuilder {
   async update(changedFiles: string[]): Promise<void> {
     const db = openDb(this.dbPath);
     const branch = this.resolveBranch();
+    const lspCoordinator = this.createLspEnrichmentCoordinator();
+    const enrichedFiles: Array<{ path: string; language: string }> = [];
     try {
       this.saveDocsAutoNotesSetting(db);
       const docs = await walkDocumentationFiles(this.walkerConfig);
       const docsByPath = new Map(docs.map(doc => [doc.path, doc]));
+      if (lspCoordinator) {
+        const languages = new Set<string>();
+        for (const filePath of changedFiles) {
+          if (!fs.existsSync(filePath)) continue;
+          const language = detectLanguageForPath(filePath, this.walkerConfig);
+          if (language) languages.add(language);
+        }
+        if (this.indexDependencies) languages.add('typescript');
+        await lspCoordinator.start(languages);
+      }
+
       db.transaction(() => {
         for (const filePath of changedFiles) {
           // If the file no longer exists, remove it from the DB
@@ -268,6 +296,7 @@ export class IndexBuilder {
 
           const language = detectLanguageForPath(filePath, this.walkerConfig);
           if (language) {
+            enrichedFiles.push({ path: filePath, language });
             // Null out resolved_id references pointing to this file before deletion
             const existingRow = db.prepare('SELECT id FROM files WHERE path = ? AND branch = ?').get(filePath, branch) as
               | { id: number }
@@ -294,7 +323,8 @@ export class IndexBuilder {
       })();
 
       this.resolveImports(db, branch);
-      this.indexDependencyDeclarations(db);
+      await this.indexDependencyDeclarations(db, lspCoordinator);
+      await this.enrichProjectSymbolsAndCallRefs(db, branch, enrichedFiles, lspCoordinator);
       refreshTestMappings(db, branch);
       if (this.history) {
         const historyOptions =
@@ -309,6 +339,9 @@ export class IndexBuilder {
       buildCallGraph(db);
       this.saveLastKnownHead(db);
     } finally {
+      if (lspCoordinator) {
+        await lspCoordinator.dispose();
+      }
       db.close();
     }
   }
@@ -441,7 +474,15 @@ export class IndexBuilder {
       ) as { lastInsertRowid: number | bigint };
       const symId = Number(info.lastInsertRowid);
       symbolIdMap.set(sym.name, symId);
-      insertFts.run(symId, sym.name, sym.signature ?? '', sym.kind);
+      insertFts.run(
+        symId,
+        sym.name,
+        buildStructuralEmbeddingText({
+          name: sym.name,
+          signature: sym.signature ?? null,
+        }),
+        sym.kind,
+      );
     }
 
     const insertRoute = db.prepare(
@@ -669,7 +710,10 @@ export class IndexBuilder {
     }
   }
 
-  private indexDependencyDeclarations(db: Database.Database): void {
+  private async indexDependencyDeclarations(
+    db: Database.Database,
+    lspCoordinator: LspEnrichmentCoordinator | null,
+  ): Promise<void> {
     db.prepare('DELETE FROM external_symbols').run();
     if (!this.indexDependencies) return;
 
@@ -680,8 +724,20 @@ export class IndexBuilder {
 
     const insertExternalSymbol = db.prepare(
       `INSERT OR IGNORE INTO external_symbols
-         (package_name, package_version, symbol_name, symbol_kind, signature, doc_comment)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+         (
+           package_name,
+           package_version,
+           source_ref,
+           symbol_name,
+           symbol_kind,
+           signature,
+           doc_comment,
+           resolved_type_signature,
+           resolved_return_type,
+           definition_uri,
+           definition_path
+         )
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
 
     for (const [packageName, declaredVersion] of directDependencies) {
@@ -697,15 +753,153 @@ export class IndexBuilder {
         if (!tree) continue;
 
         const result: ExtractionResult = extractor.extract(tree, source, declarationFile);
-        for (const symbol of result.symbols) {
-          if (!this.shouldIndexDependencySymbol(symbol)) continue;
+        const declarationSymbols = result.symbols.filter((symbol) => this.shouldIndexDependencySymbol(symbol));
+        const enrichmentRows = lspCoordinator
+          ? await lspCoordinator.enrich({
+            filePath: declarationFile,
+            language: 'typescript',
+            source,
+            targets: declarationSymbols.map((symbol) => ({
+              line: symbol.startLine,
+              character: symbol.startCharacter ?? 0,
+            })),
+          })
+          : declarationSymbols.map(() => null);
+
+        for (let i = 0; i < declarationSymbols.length; i++) {
+          const symbol = declarationSymbols[i];
+          if (!symbol) continue;
+          const metadata = enrichmentRows[i];
           insertExternalSymbol.run(
             packageName,
             packageVersion,
+            declarationFile,
             symbol.name,
             symbol.kind,
             symbol.signature,
             symbol.docComment ?? null,
+            metadata?.resolvedTypeSignature ?? null,
+            metadata?.resolvedReturnType ?? null,
+            metadata?.definitionUri ?? null,
+            metadata?.definitionPath ?? null,
+          );
+        }
+      }
+    }
+  }
+
+  private createLspEnrichmentCoordinator(): LspEnrichmentCoordinator | null {
+    if (!this.lspSettings?.enabled) {
+      return null;
+    }
+    return new LspEnrichmentCoordinator(this.lspSettings, this.walkerConfig.rootDir);
+  }
+
+  private async enrichProjectSymbolsAndCallRefs(
+    db: Database.Database,
+    branch: string,
+    files: Array<{ path: string; language: string }>,
+    lspCoordinator: LspEnrichmentCoordinator | null,
+  ): Promise<void> {
+    if (!lspCoordinator || files.length === 0) return;
+
+    const selectSymbols = db.prepare(
+      `SELECT s.id, s.name, s.signature, s.start_line
+       FROM symbols s
+       JOIN files f ON f.id = s.file_id
+       WHERE f.path = ? AND f.branch = ?
+       ORDER BY s.id`,
+    );
+    const selectCallRefs = db.prepare(
+      `SELECT sr.id, sr.call_line
+       FROM symbol_refs sr
+       JOIN symbols s ON s.id = sr.caller_id
+       JOIN files f ON f.id = s.file_id
+       WHERE f.path = ? AND f.branch = ?
+       ORDER BY sr.id`,
+    );
+    const updateSymbol = db.prepare(
+      `UPDATE symbols
+       SET resolved_type_signature = ?, resolved_return_type = ?, definition_uri = ?, definition_path = ?
+       WHERE id = ?`,
+    );
+    const updateSymbolFts = db.prepare(
+      'UPDATE symbols_fts SET signature = ? WHERE rowid = ?',
+    );
+    const updateCallRef = db.prepare(
+      `UPDATE symbol_refs
+       SET resolved_type_signature = ?, resolved_return_type = ?, definition_uri = ?, definition_path = ?
+       WHERE id = ?`,
+    );
+
+    for (const file of files) {
+      if (!file || !fs.existsSync(file.path)) continue;
+      let source: string;
+      try {
+        source = fs.readFileSync(file.path, 'utf8');
+      } catch {
+        continue;
+      }
+
+      const symbols = selectSymbols.all(file.path, branch) as Array<{
+        id: number;
+        name: string;
+        signature: string | null;
+        start_line: number;
+      }>;
+      if (symbols.length > 0) {
+        const symbolMetadata = await lspCoordinator.enrich({
+          filePath: file.path,
+          language: file.language,
+          source,
+          targets: symbols.map((symbol) => ({ line: symbol.start_line, character: 0 })),
+        });
+        for (let i = 0; i < symbols.length; i++) {
+          const symbol = symbols[i];
+          if (!symbol) continue;
+          const metadata = symbolMetadata[i];
+          if (!metadata) continue;
+          updateSymbol.run(
+            metadata.resolvedTypeSignature,
+            metadata.resolvedReturnType,
+            metadata.definitionUri,
+            metadata.definitionPath,
+            symbol.id,
+          );
+          updateSymbolFts.run(
+            buildStructuralEmbeddingText({
+              name: symbol.name,
+              signature: symbol.signature,
+              resolvedTypeSignature: metadata.resolvedTypeSignature,
+              resolvedReturnType: metadata.resolvedReturnType,
+            }),
+            symbol.id,
+          );
+        }
+      }
+
+      const callRefs = selectCallRefs.all(file.path, branch) as Array<{
+        id: number;
+        call_line: number;
+      }>;
+      if (callRefs.length > 0) {
+        const callRefMetadata = await lspCoordinator.enrich({
+          filePath: file.path,
+          language: file.language,
+          source,
+          targets: callRefs.map((callRef) => ({ line: callRef.call_line, character: 0 })),
+        });
+        for (let i = 0; i < callRefs.length; i++) {
+          const callRef = callRefs[i];
+          if (!callRef) continue;
+          const metadata = callRefMetadata[i];
+          if (!metadata) continue;
+          updateCallRef.run(
+            metadata.resolvedTypeSignature,
+            metadata.resolvedReturnType,
+            metadata.definitionUri,
+            metadata.definitionPath,
+            callRef.id,
           );
         }
       }
@@ -866,10 +1060,22 @@ export class IndexBuilder {
     setKbMeta(db, 'embedding_dims', String(embedder.dims));
     createVec0Tables(db, embedder.dims);
 
-    // Fetch all symbols that have a signature to embed.
+    // Fetch all symbols that have structural text to embed.
     const symbols = db
-      .prepare('SELECT id, name, signature FROM symbols WHERE signature IS NOT NULL')
-      .all() as Array<{ id: number; name: string; signature: string }>;
+      .prepare(
+        `SELECT id, name, signature, resolved_type_signature, resolved_return_type
+         FROM symbols
+         WHERE signature IS NOT NULL
+            OR resolved_type_signature IS NOT NULL
+            OR resolved_return_type IS NOT NULL`,
+      )
+      .all() as Array<{
+        id: number;
+        name: string;
+        signature: string | null;
+        resolved_type_signature: string | null;
+        resolved_return_type: string | null;
+      }>;
 
     const insertEmbed = db.prepare(
       'INSERT OR REPLACE INTO symbol_embeddings(rowid, embedding) VALUES (CAST(? AS INTEGER), json(?))',
@@ -877,7 +1083,14 @@ export class IndexBuilder {
 
     for (let i = 0; i < symbols.length; i += EMBED_BATCH_SIZE) {
       const batch = symbols.slice(i, i + EMBED_BATCH_SIZE);
-      const texts = batch.map(s => s.signature || s.name);
+      const texts = batch.map((symbol) =>
+        buildStructuralEmbeddingText({
+          name: symbol.name,
+          signature: symbol.signature,
+          resolvedTypeSignature: symbol.resolved_type_signature,
+          resolvedReturnType: symbol.resolved_return_type,
+        }),
+      );
       const embeddings = await embedder.embed(texts);
 
       db.transaction(() => {

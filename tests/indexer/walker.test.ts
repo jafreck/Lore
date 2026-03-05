@@ -2,9 +2,10 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, writeFileSync, rmdirSync, unlinkSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { walkFiles, walkDocumentationFiles, detectLanguageForPath } from '../../src/indexer/walker.js';
+import { walkFiles, walkDocumentationFiles, detectLanguageForPath, SUPPORTED_WALKER_LANGUAGES } from '../../src/indexer/walker.js';
 import { inferDocumentKind } from '../../src/indexer/docs.js';
 import type { WalkerConfig } from '../../src/indexer/walker.js';
+import { DEFAULT_LSP_SERVER_REGISTRY } from '../../src/indexer/lsp/registry.js';
 
 describe('WalkerConfig', () => {
   it('should accept an optional branch field', () => {
@@ -190,5 +191,11 @@ describe('inferDocumentKind', () => {
     expect(inferDocumentKind('/repo/docs/getting-guide.rst')).toBe('guide');
     expect(inferDocumentKind('/repo/CHANGELOG.md')).toBe('changelog');
     expect(inferDocumentKind('/repo/notes.txt')).toBe('text');
+  });
+});
+
+describe('language coverage synchronization', () => {
+  it('keeps walker language support aligned with LSP registry defaults', () => {
+    expect(Object.keys(DEFAULT_LSP_SERVER_REGISTRY).sort()).toEqual([...SUPPORTED_WALKER_LANGUAGES].sort());
   });
 });
