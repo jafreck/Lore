@@ -1,0 +1,1 @@
+/Users/jacobfreck/.cadre/agents-cache-copilot/code-writer.agent.md

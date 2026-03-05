@@ -74,6 +74,15 @@ function queryCommitCount(dbPath: string): number {
   return row.count;
 }
 
+function queryKbMetaValue(dbPath: string, key: string): string | undefined {
+  const db = new Database(dbPath, { readonly: true });
+  const row = db.prepare('SELECT value FROM kb_meta WHERE key = ?').get(key) as
+    | { value: string }
+    | undefined;
+  db.close();
+  return row?.value;
+}
+
 function querySymbolNamesForFile(dbPath: string, filePath: string, branch: string): string[] {
   const db = new Database(dbPath, { readonly: true });
   const rows = db.prepare(
@@ -157,6 +166,66 @@ function queryTestsForSourceFile(
   return rows;
 }
 
+function queryDocsForBranch(
+  dbPath: string,
+  branch: string,
+): Array<{ id: number; path: string; kind: string; title: string; content_hash: string }> {
+  const db = new Database(dbPath, { readonly: true });
+  const rows = db.prepare(
+    `SELECT id, path, kind, title, content_hash
+     FROM docs
+     WHERE branch = ?
+     ORDER BY path`,
+  ).all(branch) as Array<{ id: number; path: string; kind: string; title: string; content_hash: string }>;
+  db.close();
+  return rows;
+}
+
+function queryDocSectionsForPath(
+  dbPath: string,
+  filePath: string,
+  branch: string,
+): Array<{ id: number; section_index: number; title: string; heading_path: string }> {
+  const db = new Database(dbPath, { readonly: true });
+  const rows = db.prepare(
+    `SELECT ds.id, ds.section_index, ds.title, ds.heading_path
+     FROM doc_sections ds
+     JOIN docs d ON d.id = ds.doc_id
+     WHERE d.path = ? AND d.branch = ?
+     ORDER BY ds.section_index`,
+  ).all(filePath, branch) as Array<{ id: number; section_index: number; title: string; heading_path: string }>;
+  db.close();
+  return rows;
+}
+
+function queryDocSectionEmbeddingCount(dbPath: string): number {
+  const db = new Database(dbPath, { readonly: true });
+  (esmRequire('sqlite-vec') as { load(database: Database.Database): void }).load(db);
+  const hasTable = db
+    .prepare("SELECT name FROM sqlite_master WHERE type IN ('table', 'virtual table') AND name = 'doc_section_embeddings'")
+    .get() as { name: string } | undefined;
+  if (!hasTable) {
+    db.close();
+    return 0;
+  }
+  const row = db.prepare('SELECT COUNT(*) AS count FROM doc_section_embeddings').get() as { count: number };
+  db.close();
+  return row.count;
+}
+
+function queryDocScopedNotes(
+  dbPath: string,
+): Array<{ key: string; scope: string; content: string; source_hash: string | null; updated_at: number }> {
+  const db = new Database(dbPath, { readonly: true });
+  const rows = db.prepare(
+    `SELECT key, scope, content, source_hash, updated_at
+     FROM notes
+     WHERE scope LIKE 'doc:%'
+     ORDER BY key, scope`,
+  ).all() as Array<{ key: string; scope: string; content: string; source_hash: string | null; updated_at: number }>;
+  db.close();
+  return rows;
+}
 describe('IndexBuilder — dependency indexing options', () => {
   let srcDir: string;
   let dbPath: string;
@@ -452,6 +521,61 @@ describe('IndexBuilder — branch support in build()', () => {
     expect(headRow?.value).toBe(runGit(srcDir, ['rev-parse', 'HEAD']));
   });
 
+  it('should index documentation content and section chunks during build', async () => {
+    const docPath = join(srcDir, 'README.md');
+    writeFileSync(docPath, '# Lore\n\n## Install\nUse npm\n');
+
+    const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
+    await builder.build();
+
+    const docs = queryDocsForBranch(dbPath, 'main');
+    const indexedDoc = docs.find(doc => doc.path === docPath);
+    expect(indexedDoc).toMatchObject({
+      path: docPath,
+      kind: 'readme',
+      title: 'Lore',
+    });
+
+    const sections = queryDocSectionsForPath(dbPath, docPath, 'main');
+    expect(sections.map(section => section.title)).toEqual(['Lore', 'Install']);
+    expect(sections[1]?.heading_path).toBe(JSON.stringify(['Lore', 'Install']));
+  });
+
+  it('should remove stale documentation rows on subsequent builds', async () => {
+    const docPath = join(srcDir, 'README.md');
+    writeFileSync(docPath, '# Lore\n\n## Install\nUse npm\n');
+
+    const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
+    await builder.build();
+    expect(queryDocsForBranch(dbPath, 'main').find(doc => doc.path === docPath)).toBeDefined();
+
+    rmSync(docPath, { force: true });
+    await builder.build();
+
+    expect(queryDocsForBranch(dbPath, 'main').find(doc => doc.path === docPath)).toBeUndefined();
+    expect(queryDocSectionsForPath(dbPath, docPath, 'main')).toEqual([]);
+  });
+
+  it('should persist documentation chunk embeddings during build when embedder is configured', async () => {
+    const docPath = join(srcDir, 'README.md');
+    writeFileSync(docPath, '# Lore\n\n## Install\nUse npm\n');
+
+    const embedder: EmbeddingProvider = {
+      modelName: 'test-embedder',
+      dims: 3,
+      async init(): Promise<void> {},
+      async embed(texts: string[]): Promise<number[][]> {
+        return texts.map((_, i) => [i + 1, i + 2, i + 3]);
+      },
+      async dispose(): Promise<void> {},
+    };
+
+    const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' }, embedder);
+    await builder.build();
+
+    expect(queryDocSectionEmbeddingCount(dbPath)).toBeGreaterThan(0);
+  });
+
   it('should replace stale api_routes rows when build() reprocesses an existing file', async () => {
     const routeFile = join(srcDir, 'routes.js');
     writeFileSync(routeFile, 'function health() { return "ok"; }\napp.get("/health", health);\n');
@@ -487,6 +611,149 @@ describe('IndexBuilder — branch support in build()', () => {
     expect(queryTestsForSourceFile(dbPath, sourceFile, 'main')).toEqual([
       { test_path: testFile, confidence: 'import' },
     ]);
+  });
+});
+
+describe('IndexBuilder — docs auto-notes metadata', () => {
+  let srcDir: string;
+  let dbPath: string;
+  let srcFile: string;
+
+  beforeEach(() => {
+    srcDir = createTmpSrcDir();
+    dbPath = tmpDbPath();
+    srcFile = join(srcDir, 'hello.ts');
+  });
+
+  afterEach(() => {
+    try { rmSync(srcDir, { recursive: true, force: true }); } catch { /* ignore */ }
+    const dbDir = join(dbPath, '..');
+    try { rmSync(dbDir, { recursive: true, force: true }); } catch { /* ignore */ }
+  });
+
+  it('should persist docs_auto_notes as enabled by default during build()', async () => {
+    const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
+    await builder.build();
+
+    expect(queryKbMetaValue(dbPath, 'docs_auto_notes')).toBe('1');
+  });
+
+  it('should persist docs_auto_notes as disabled during build() when docsAutoNotes is false', async () => {
+    const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' }, undefined, {
+      docsAutoNotes: false,
+    });
+    await builder.build();
+
+    expect(queryKbMetaValue(dbPath, 'docs_auto_notes')).toBe('0');
+  });
+
+  it('should persist docs_auto_notes updates during update()', async () => {
+    const defaultBuilder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
+    await defaultBuilder.build();
+    expect(queryKbMetaValue(dbPath, 'docs_auto_notes')).toBe('1');
+
+    const disabledBuilder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' }, undefined, {
+      docsAutoNotes: false,
+    });
+    await disabledBuilder.update([srcFile]);
+    expect(queryKbMetaValue(dbPath, 'docs_auto_notes')).toBe('0');
+
+    const enabledBuilder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
+    await enabledBuilder.update([srcFile]);
+    expect(queryKbMetaValue(dbPath, 'docs_auto_notes')).toBe('1');
+  });
+});
+
+describe('IndexBuilder — docs auto-notes seeding', () => {
+  let srcDir: string;
+  let dbPath: string;
+
+  beforeEach(() => {
+    srcDir = createTmpSrcDir();
+    dbPath = tmpDbPath();
+  });
+
+  afterEach(() => {
+    try { rmSync(srcDir, { recursive: true, force: true }); } catch { /* ignore */ }
+    const dbDir = join(dbPath, '..');
+    try { rmSync(dbDir, { recursive: true, force: true }); } catch { /* ignore */ }
+  });
+
+  it('should seed readme, architecture, and adr notes with deterministic keys/scopes and doc source hashes', async () => {
+    const readmePath = join(srcDir, 'README.md');
+    const architecturePath = join(srcDir, 'ARCHITECTURE.md');
+    const adrsDir = join(srcDir, 'docs', 'adrs');
+    const adrPath = join(adrsDir, '0001-api-boundaries.md');
+
+    mkdirSync(adrsDir, { recursive: true });
+    writeFileSync(readmePath, '# Lore\n\nProject overview\n', 'utf8');
+    writeFileSync(architecturePath, '# Architecture\n\nSystem layout\n', 'utf8');
+    writeFileSync(adrPath, '# ADR 0001\n\n## Decision\nUse seeded docs notes.\n', 'utf8');
+
+    const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
+    await builder.build();
+
+    const notes = queryDocScopedNotes(dbPath);
+    expect(notes.map(({ key, scope }) => ({ key, scope }))).toEqual(expect.arrayContaining([
+      { key: 'docs/readme', scope: `doc:${readmePath}@main` },
+      { key: 'docs/architecture', scope: `doc:${architecturePath}@main` },
+      { key: 'docs/adr/0001-api-boundaries', scope: `doc:${adrPath}@main` },
+    ]));
+
+    const docsByPath = new Map(queryDocsForBranch(dbPath, 'main').map(doc => [doc.path, doc.content_hash]));
+    expect(notes.find(note => note.scope === `doc:${readmePath}@main`)?.source_hash).toBe(docsByPath.get(readmePath));
+    expect(notes.find(note => note.scope === `doc:${architecturePath}@main`)?.source_hash).toBe(docsByPath.get(architecturePath));
+    expect(notes.find(note => note.scope === `doc:${adrPath}@main`)?.source_hash).toBe(docsByPath.get(adrPath));
+  });
+
+  it('should keep seeded-note upserts idempotent across repeated build/update runs', async () => {
+    const readmePath = join(srcDir, 'README.md');
+    writeFileSync(readmePath, '# Lore\n\nStable content\n', 'utf8');
+
+    const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
+    await builder.build();
+    await builder.build();
+    await builder.update([readmePath]);
+
+    const notes = queryDocScopedNotes(dbPath).filter(
+      note => note.key === 'docs/readme' && note.scope === `doc:${readmePath}@main`,
+    );
+    expect(notes).toHaveLength(1);
+  });
+
+  it('should skip seeded-note creation when docs auto-notes are disabled in builder options', async () => {
+    const readmePath = join(srcDir, 'README.md');
+    writeFileSync(readmePath, '# Lore\n\nNo seeding\n', 'utf8');
+
+    const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' }, undefined, {
+      docsAutoNotes: false,
+    });
+    await builder.build();
+    await builder.update([readmePath]);
+
+    expect(queryDocScopedNotes(dbPath)).toEqual([]);
+  });
+
+  it('should keep seeded notes branch-scoped so one branch does not overwrite another', async () => {
+    const readmePath = join(srcDir, 'README.md');
+    writeFileSync(readmePath, '# Lore\n\nMain branch details\n', 'utf8');
+
+    const mainBuilder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
+    await mainBuilder.build();
+
+    writeFileSync(readmePath, '# Lore\n\nDev branch details\n', 'utf8');
+    const devBuilder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'dev' });
+    await devBuilder.build();
+
+    const notes = queryDocScopedNotes(dbPath).filter(note => note.key === 'docs/readme');
+    const mainNote = notes.find(note => note.scope === `doc:${readmePath}@main`);
+    const devNote = notes.find(note => note.scope === `doc:${readmePath}@dev`);
+
+    expect(mainNote).toBeDefined();
+    expect(devNote).toBeDefined();
+    expect(mainNote?.content).toContain('Main branch details');
+    expect(devNote?.content).toContain('Dev branch details');
+    expect(mainNote?.source_hash).not.toBe(devNote?.source_hash);
   });
 });
 
@@ -613,6 +880,62 @@ describe('IndexBuilder — branch support in update()', () => {
 
     expect(initCalled).toBe(true);
     expect(queryStructuralEmbeddingCount(dbPath)).toBeGreaterThan(0);
+  });
+
+  it('should persist doc-section embeddings when docs are updated with an embedder', async () => {
+    const docsDir = join(srcDir, 'docs');
+    const docPath = join(docsDir, 'guide.md');
+    mkdirSync(docsDir, { recursive: true });
+
+    const embedder: EmbeddingProvider = {
+      modelName: 'test-embedder',
+      dims: 3,
+      async init(): Promise<void> {},
+      async embed(texts: string[]): Promise<number[][]> {
+        return texts.map((_, i) => [i + 1, i + 2, i + 3]);
+      },
+      async dispose(): Promise<void> {},
+    };
+
+    const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' }, embedder);
+
+    writeFileSync(docPath, '# Guide\n\n## Intro\nFirst pass\n');
+    await builder.update([docPath]);
+    expect(queryDocSectionsForPath(dbPath, docPath, 'main').map(section => section.title)).toEqual(['Guide', 'Intro']);
+    expect(queryDocSectionEmbeddingCount(dbPath)).toBe(2);
+  });
+
+  it('should upsert docs on add/modify and remove docs on delete during update with hash-idempotent behavior', async () => {
+    const docsDir = join(srcDir, 'docs');
+    const docPath = join(docsDir, 'guide.md');
+    mkdirSync(docsDir, { recursive: true });
+    writeFileSync(docPath, '# Guide\n\n## Intro\nFirst pass\n');
+
+    const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
+    await builder.update([docPath]);
+
+    const afterInsert = queryDocsForBranch(dbPath, 'main').find(doc => doc.path === docPath);
+    expect(afterInsert).toBeDefined();
+    const insertedSectionIds = queryDocSectionsForPath(dbPath, docPath, 'main').map(section => section.id);
+    expect(insertedSectionIds.length).toBe(2);
+
+    await builder.update([docPath]);
+    const afterNoop = queryDocsForBranch(dbPath, 'main').find(doc => doc.path === docPath);
+    const noOpSectionIds = queryDocSectionsForPath(dbPath, docPath, 'main').map(section => section.id);
+    expect(afterNoop?.content_hash).toBe(afterInsert?.content_hash);
+    expect(noOpSectionIds).toEqual(insertedSectionIds);
+
+    writeFileSync(docPath, '# Guide\n\n## Intro\nUpdated\n\n## Advanced\nDeeper details\n');
+    await builder.update([docPath]);
+    const afterModify = queryDocsForBranch(dbPath, 'main').find(doc => doc.path === docPath);
+    expect(afterModify?.content_hash).not.toBe(afterInsert?.content_hash);
+    const updatedSections = queryDocSectionsForPath(dbPath, docPath, 'main');
+    expect(updatedSections.map(section => section.title)).toEqual(['Guide', 'Intro', 'Advanced']);
+
+    rmSync(docPath, { force: true });
+    await builder.update([docPath]);
+    expect(queryDocsForBranch(dbPath, 'main').find(doc => doc.path === docPath)).toBeUndefined();
+    expect(queryDocSectionsForPath(dbPath, docPath, 'main')).toEqual([]);
   });
 
   it('should remove branch-scoped file rows and related symbols_fts entries when a tracked file is deleted', async () => {

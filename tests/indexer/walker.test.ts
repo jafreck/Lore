@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, writeFileSync, rmdirSync, unlinkSync, mkdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { walkFiles, detectLanguageForPath } from '../../src/indexer/walker.js';
+import { walkFiles, walkDocumentationFiles, detectLanguageForPath } from '../../src/indexer/walker.js';
+import { inferDocumentKind } from '../../src/indexer/docs.js';
 import type { WalkerConfig } from '../../src/indexer/walker.js';
 
 describe('WalkerConfig', () => {
@@ -37,6 +38,7 @@ describe('walkFiles', () => {
 
   function writeFile(name: string, content = ''): string {
     const p = join(tmpDir, name);
+    mkdirSync(dirname(p), { recursive: true });
     writeFileSync(p, content, 'utf8');
     createdFiles.push(p);
     return p;
@@ -105,6 +107,58 @@ describe('walkFiles', () => {
     expect(results.length).toBe(1);
     expect(results[0]!.language).toBe('typescript');
   });
+
+  it('should discover documentation defaults across markdown/rst/adoc/txt', async () => {
+    writeFile('README.md', '# Project Root');
+    writeFile('docs/setup.rst', 'setup');
+    writeFile('docs/architecture.adoc', '= System Architecture');
+    writeFile('docs/notes.txt', 'plain text docs');
+    writeFile('adrs/0001-use-sqlite.md', '# ADR 0001');
+    writeFile('architecture.md', '# Architecture');
+
+    const docs = await walkDocumentationFiles({ rootDir: tmpDir });
+    const byName = new Map(docs.map(doc => [doc.path.split('/').pop()!, doc]));
+
+    expect(byName.has('README.md')).toBe(true);
+    expect(byName.has('setup.rst')).toBe(true);
+    expect(byName.has('architecture.adoc')).toBe(true);
+    expect(byName.has('notes.txt')).toBe(true);
+    expect(byName.has('0001-use-sqlite.md')).toBe(true);
+    expect(byName.get('README.md')?.kind).toBe('readme');
+    expect(byName.get('0001-use-sqlite.md')?.kind).toBe('adr');
+    expect(byName.get('architecture.md')?.kind).toBe('architecture');
+  });
+
+  it('should allow docs include/exclude globs without affecting source walking', async () => {
+    writeFile('src/index.ts', 'export const ok = true;');
+    writeFile('docs/guide.md', '# Guide');
+    writeFile('handbook/custom.rst', 'custom docs');
+    writeFile('handbook/skip/ignored.rst', 'skip me');
+
+    const docs = await walkDocumentationFiles({
+      rootDir: tmpDir,
+      docsIncludeGlobs: ['handbook/**/*.rst'],
+      docsExcludeGlobs: ['**/skip/**'],
+    });
+    const sourceFiles = await walkFiles({ rootDir: tmpDir });
+
+    expect(docs).toHaveLength(1);
+    expect(docs[0]?.path.endsWith('handbook/custom.rst')).toBe(true);
+    expect(sourceFiles.some(file => file.path.endsWith('src/index.ts'))).toBe(true);
+  });
+
+  it('should pass docs extension filters through to documentation discovery', async () => {
+    writeFile('docs/guide.md', '# Guide');
+    writeFile('docs/howto.rst', 'How-to');
+
+    const docs = await walkDocumentationFiles({
+      rootDir: tmpDir,
+      docsExtensions: ['.rst'],
+    });
+
+    expect(docs).toHaveLength(1);
+    expect(docs[0]?.path.endsWith('docs/howto.rst')).toBe(true);
+  });
 });
 
 describe('detectLanguageForPath', () => {
@@ -124,5 +178,17 @@ describe('detectLanguageForPath', () => {
 
   it('should normalize extension casing before lookup', () => {
     expect(detectLanguageForPath('/tmp/file.TS')).toBe('typescript');
+  });
+});
+
+describe('inferDocumentKind', () => {
+  it('should classify common documentation kinds from path patterns', () => {
+    expect(inferDocumentKind('/repo/README.md')).toBe('readme');
+    expect(inferDocumentKind('/repo/docs/adrs/0002-better-indexing.md')).toBe('adr');
+    expect(inferDocumentKind('/repo/architecture-overview.md')).toBe('architecture');
+    expect(inferDocumentKind('/repo/design-decisions.adoc')).toBe('design');
+    expect(inferDocumentKind('/repo/docs/getting-guide.rst')).toBe('guide');
+    expect(inferDocumentKind('/repo/CHANGELOG.md')).toBe('changelog');
+    expect(inferDocumentKind('/repo/notes.txt')).toBe('text');
   });
 });
