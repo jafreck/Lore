@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { openDb, setKbMeta } from '../../src/indexer/db.js';
+import { openDb, setLoreMeta } from '../../src/indexer/db.js';
 
 // ─── Mock simple-git ──────────────────────────────────────────────────────────
 
@@ -287,7 +287,7 @@ describe('ingestGitHistory', () => {
     const { ingestGitHistory } = await import('../../src/indexer/git-history.js');
     await ingestGitHistory(db, '/fake/repo');
 
-    const watermarkRow = db.prepare('SELECT value FROM kb_meta WHERE key = ?').get('git_history_last_ingested_sha') as
+    const watermarkRow = db.prepare('SELECT value FROM lore_meta WHERE key = ?').get('git_history_last_ingested_sha') as
       | { value: string }
       | undefined;
     db.close();
@@ -304,7 +304,7 @@ describe('ingestGitHistory', () => {
     });
 
     const db = openDb(dbPath);
-    setKbMeta(db, 'git_history_last_ingested_sha', 'wm123');
+    setLoreMeta(db, 'git_history_last_ingested_sha', 'wm123');
     const { ingestGitHistory } = await import('../../src/indexer/git-history.js');
     await ingestGitHistory(db, '/fake/repo');
     db.close();
@@ -327,7 +327,7 @@ describe('ingestGitHistory', () => {
     });
 
     const db = openDb(dbPath);
-    setKbMeta(db, 'git_history_last_ingested_sha', 'stale999');
+    setLoreMeta(db, 'git_history_last_ingested_sha', 'stale999');
     const { ingestGitHistory } = await import('../../src/indexer/git-history.js');
     await expect(ingestGitHistory(db, '/fake/repo')).resolves.not.toThrow();
     db.close();

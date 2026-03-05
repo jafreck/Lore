@@ -131,10 +131,10 @@ C/C++ toolchain is required the first time dependencies are built.
 
 ```bash
 # 1) Build an index
-npx @jafreck/lore index --root ./my-project --db ./kb.db
+npx @jafreck/lore index --root ./my-project --db ./lore.db
 
 # 2) Start MCP server over stdio
-npx @jafreck/lore mcp --db ./kb.db
+npx @jafreck/lore mcp --db ./lore.db
 ```
 
 ## Quick start (programmatic)
@@ -143,7 +143,7 @@ npx @jafreck/lore mcp --db ./kb.db
 import { IndexBuilder } from '@jafreck/lore';
 
 const builder = new IndexBuilder(
-  './kb.db',
+  './lore.db',
   { rootDir: './my-project' },
   undefined,
   { history: true },
@@ -199,7 +199,7 @@ Example symbol lookup requests:
   "mcpServers": {
     "lore": {
       "command": "npx",
-      "args": ["@jafreck/lore", "mcp", "--db", "/path/to/kb.db"]
+      "args": ["@jafreck/lore", "mcp", "--db", "/path/to/lore.db"]
     }
   }
 }
@@ -273,7 +273,7 @@ Programmatic example:
 ```ts
 import { IndexBuilder } from '@jafreck/lore';
 
-await new IndexBuilder('./kb.db', {
+await new IndexBuilder('./lore.db', {
   rootDir: './my-project',
   includeGlobs: ['src/**'],
   excludeGlobs: ['**/*.gen.ts'],
@@ -309,7 +309,7 @@ the backing document changes or disappears.
 Programmatic example:
 
 ```ts
-await new IndexBuilder('./kb.db', {
+await new IndexBuilder('./lore.db', {
   rootDir: './my-project',
   docsIncludeGlobs: ['**/README*', 'handbook/**/*.rst'],
   docsExcludeGlobs: ['**/docs/private/**'],
@@ -333,7 +333,7 @@ Indexed tables:
 Programmatic example:
 
 ```ts
-await new IndexBuilder('./kb.db', {
+await new IndexBuilder('./lore.db', {
   rootDir: './my-project',
 }, undefined, {
   history: { all: true, depth: 2000 },
@@ -349,7 +349,7 @@ only ingested when newer than the last stored coverage run.
 For non-standard report locations, use `lore ingest-coverage`:
 
 ```bash
-npx @jafreck/lore ingest-coverage --db ./kb.db --root ./my-project \
+npx @jafreck/lore ingest-coverage --db ./lore.db --root ./my-project \
   --file ./custom/coverage.xml --format cobertura
 ```
 
@@ -360,7 +360,7 @@ sentence-transformers model. The embedding model is downloaded and managed
 automatically — specify it with `--embedding-model`:
 
 ```bash
-npx @jafreck/lore index --root ./my-project --db ./kb.db \
+npx @jafreck/lore index --root ./my-project --db ./lore.db \
   --embedding-model 'Qwen/Qwen3-Embedding-4B'
 ```
 
@@ -454,19 +454,19 @@ The index stays current automatically through three mechanisms:
 `post-commit`, `post-merge`, `post-checkout`, and `post-rewrite`:
 
 ```bash
-npx @jafreck/lore hooks --root ./my-project --db ./kb.db --history
+npx @jafreck/lore hooks --root ./my-project --db ./lore.db --history
 ```
 
 **Watch mode** — reacts to filesystem events in real time:
 
 ```bash
-npx @jafreck/lore refresh --db ./kb.db --root ./my-project --watch
+npx @jafreck/lore refresh --db ./lore.db --root ./my-project --watch
 ```
 
 **Poll mode** — periodic mtime diffing, most reliable across filesystems:
 
 ```bash
-npx @jafreck/lore refresh --db ./kb.db --root ./my-project --poll
+npx @jafreck/lore refresh --db ./lore.db --root ./my-project --poll
 ```
 
 Each refresh only re-processes files whose content hash has changed, so updates
@@ -588,14 +588,14 @@ Use this procedure when you need measurable before/after evidence for indexing c
 2. Capture a baseline timing from the same machine and environment:
 
 ```bash
-time npx @jafreck/lore index --root /path/to/repo --db ./kb-baseline.db
+time npx @jafreck/lore index --root /path/to/repo --db ./lore-baseline.db
 ```
 
 3. Apply your change, rebuild Lore, then capture a post-change timing against the same repository commit:
 
 ```bash
 npm run build
-time npx @jafreck/lore index --root /path/to/repo --db ./kb-after.db
+time npx @jafreck/lore index --root /path/to/repo --db ./lore-after.db
 ```
 
 4. Record both timings (baseline and post-change) in the related GitHub issue or PR under an "Acceptance Evidence" section, including repo name, commit SHA, and command used.

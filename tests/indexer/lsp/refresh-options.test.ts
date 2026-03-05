@@ -107,7 +107,7 @@ describe('refresh option propagation', () => {
     const hookOptions: InstallGitHooksOptions = {
       repoRoot: '/tmp/repo',
       rootDir: '/tmp/repo',
-      dbPath: '/tmp/repo/kb.db',
+      dbPath: '/tmp/repo/lore.db',
       lspEnabled: false,
     };
 

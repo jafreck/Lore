@@ -35,7 +35,7 @@ export interface WatcherOptions {
  *
  * @example
  * ```ts
- * const watcher = new FileWatcher('/path/to/kb.db', { rootDir: '/path/to/src' });
+ * const watcher = new FileWatcher('/path/to/lore.db', { rootDir: '/path/to/src' });
  * watcher.start();
  * // ...later...
  * watcher.stop();

@@ -1,5 +1,5 @@
 export { IndexBuilder } from './indexer/index.js';
-export { openDb, setKbMeta, getKbMeta, createVec0Tables } from './indexer/db.js';
+export { openDb, setLoreMeta, getLoreMeta, createVec0Tables } from './indexer/db.js';
 export type { Database } from './indexer/db.js';
 export { buildCallGraph, topoSort, detectCycles } from './indexer/call-graph.js';
 export { walkFiles, detectLanguageForPath } from './indexer/walker.js';
@@ -27,9 +27,9 @@ export { FilePoller } from './indexer/poller.js';
 export type { PollerOptions } from './indexer/poller.js';
 
 // ── MCP server ────────────────────────────────────────────────────────────────
-export { createKbMcpServer } from './kb-server/server.js';
-export type { KbServerOptions } from './kb-server/server.js';
-export type { SearchObservation, SearchObserver } from './kb-server/tools/search.js';
+export { createLoreMcpServer } from './lore-server/server.js';
+export type { LoreServerOptions } from './lore-server/server.js';
+export type { SearchObservation, SearchObserver } from './lore-server/tools/search.js';
 export {
   openReadOnly,
   getSymbolById,
@@ -38,5 +38,5 @@ export {
   getFileById,
   getFileByPath,
   listFiles,
-} from './kb-server/db.js';
-export type { SymbolRow, FileRow } from './kb-server/db.js';
+} from './lore-server/db.js';
+export type { SymbolRow, FileRow } from './lore-server/db.js';
