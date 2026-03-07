@@ -40,3 +40,7 @@ export {
   listFiles,
 } from './lore-server/db.js';
 export type { SymbolRow, FileRow } from './lore-server/db.js';
+
+// ── Logging ───────────────────────────────────────────────────────────────────
+export { LoreLogger, LogLevel, LOG_LEVEL_NAMES, initLogger, getLogger, resetLogger } from './logger.js';
+export type { LoreLoggerOptions, LogEntry, ToolCallFields, StartupFields } from './logger.js';
