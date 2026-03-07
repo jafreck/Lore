@@ -71,6 +71,7 @@ import { ingestCoverageReport, type CoverageFormat } from './coverage.js';
 import { refreshTestMappings } from './test-mapper.js';
 import type { EffectiveLspSettings } from './lsp/config.js';
 import { LspEnrichmentCoordinator } from './lsp/enrichment.js';
+import { getLogger } from '../logger.js';
 
 // ─── Extractor registry ───────────────────────────────────────────────────────
 
@@ -198,19 +199,26 @@ export class IndexBuilder {
    * the database.
    */
   async build(): Promise<void> {
+    const log = getLogger();
+    const buildStart = performance.now();
     const db = openDb(this.dbPath);
     const branch = this.resolveBranch();
     const lspCoordinator = this.createLspEnrichmentCoordinator();
+    log.indexing('build started', { dbPath: this.dbPath, branch, rootDir: this.walkerConfig.rootDir });
     try {
       this.saveDocsAutoNotesSetting(db);
       const files = await walkFiles(this.walkerConfig);
       const docs = await walkDocumentationFiles(this.walkerConfig);
+      log.indexing('walk complete', { fileCount: files.length, docCount: docs.length });
       if (lspCoordinator) {
         const languages = new Set(files.map((file) => file.language));
         if (this.indexDependencies) languages.add('typescript');
         await lspCoordinator.start(languages);
       }
       const resumeAt = this.loadBuildCheckpoint(db, branch, files.length);
+      if (resumeAt > 0) {
+        log.indexing('resuming from checkpoint', { resumeAt, totalFiles: files.length });
+      }
       db.transaction(() => {
         for (let i = resumeAt; i < files.length; i++) {
           const file = files[i];
@@ -227,6 +235,7 @@ export class IndexBuilder {
         this.removeStaleDocumentation(db, branch, seenDocPaths);
       })();
       this.saveBuildCheckpoint(db, branch, files.length, files.length);
+      log.indexing('files processed, resolving imports');
       this.resolveImports(db, branch);
       await this.indexDependencyDeclarations(db, lspCoordinator);
       await this.enrichProjectSymbolsAndCallRefs(db, branch, files, lspCoordinator);
@@ -234,18 +243,47 @@ export class IndexBuilder {
       buildCallGraph(db);
       this.saveLastKnownHead(db);
       if (this.embedder) {
+        log.indexing('embedding started', { model: this.embeddingModel });
         await this.embedder.init();
         await this.embedStructural(db);
         await this.embedDocumentation(db);
+        log.indexing('embedding complete');
       }
       if (this.history) {
+        log.indexing('git history ingestion started');
         const historyOptions =
           typeof this.history === 'object' ? this.history : undefined;
         await ingestGitHistory(db, this.walkerConfig.rootDir, historyOptions);
         if (this.embedder) {
           await this.embedCommitMessages(db);
         }
+        log.indexing('git history ingestion complete');
       }
+      // Gather final DB stats for the build summary
+      let totalSymbols = 0;
+      try { totalSymbols = (db.prepare('SELECT COUNT(*) AS cnt FROM symbols').get() as { cnt: number }).cnt; } catch { /* table may not exist */ }
+      let totalEdges = 0;
+      try { totalEdges = (db.prepare('SELECT COUNT(*) AS cnt FROM call_graph').get() as { cnt: number }).cnt; } catch { /* table may not exist */ }
+      let totalDocs = 0;
+      try { totalDocs = (db.prepare('SELECT COUNT(*) AS cnt FROM documentation').get() as { cnt: number }).cnt; } catch { /* table may not exist */ }
+      let commitCount: number | undefined;
+      try {
+        commitCount = (db.prepare('SELECT COUNT(*) AS cnt FROM commits').get() as { cnt: number }).cnt;
+      } catch { /* commits table may not exist */ }
+      const dbSizeBytes = fs.existsSync(this.dbPath) ? fs.statSync(this.dbPath).size : undefined;
+      const indexDurationMs = Math.round(performance.now() - buildStart);
+      log.startup('indexing complete', {
+        dbPath: this.dbPath,
+        dbSizeBytes,
+        embeddingModel: this.embeddingModel,
+        embeddingReady: !!this.embedder,
+        totalFiles: files.length,
+        totalSymbols,
+        totalDocs,
+        totalEdges,
+        commitCount,
+        indexDurationMs,
+      });
     } finally {
       if (lspCoordinator) {
         await lspCoordinator.dispose();

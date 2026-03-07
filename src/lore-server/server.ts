@@ -40,6 +40,7 @@ import {
 } from './db.js';
 import { getLoreMeta } from '../indexer/db.js';
 import { SentenceTransformersProvider, type EmbeddingProvider } from '../indexer/embedder.js';
+import { getLogger, type LoreLogger } from '../logger.js';
 import * as lookup from './tools/lookup.js';
 import * as graph from './tools/graph.js';
 import * as search from './tools/search.js';
@@ -110,6 +111,8 @@ function handleCommitStats(db: Database.Database, args: CommitStatsArgs): unknow
 export interface LoreServerOptions {
   /** Callback invoked after every `lore_search` call with query/mode/latency/result metadata. */
   searchObserver?: SearchObserver;
+  /** Logger instance. Falls back to the global logger when omitted. */
+  logger?: LoreLogger;
 }
 
 // ─── Server factory ───────────────────────────────────────────────────────────
@@ -128,10 +131,48 @@ export function createLoreMcpServer(
   embedder?: EmbeddingProvider,
   options?: LoreServerOptions,
 ): McpServer {
+  const log = options?.logger ?? getLogger();
+
   const server = new McpServer(
     { name: 'lore-server', version: '0.1.0' },
     { capabilities: { tools: {} } },
   );
+
+  /**
+   * Wrap an MCP tool handler with structured logging.
+   * Captures request args, response, timing, and success/error status.
+   */
+  function loggedHandler<A>(
+    toolName: string,
+    fn: (args: A) => unknown | Promise<unknown>,
+  ): (args: A) => Promise<{ content: Array<{ type: 'text'; text: string }> }> {
+    return async (args: A) => {
+      const start = performance.now();
+      try {
+        const result = await fn(args);
+        const durationMs = Math.round((performance.now() - start) * 100) / 100;
+        log.toolCall({
+          tool: toolName,
+          requestBody: args,
+          responseBody: result,
+          status: 'success',
+          durationMs,
+        });
+        return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
+      } catch (err) {
+        const durationMs = Math.round((performance.now() - start) * 100) / 100;
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        log.toolCall({
+          tool: toolName,
+          requestBody: args,
+          status: 'error',
+          durationMs,
+          error: errorMessage,
+        });
+        throw err;
+      }
+    };
+  }
 
   // ── lore_lookup ──────────────────────────────────────────────────────────────
   server.tool(
@@ -155,9 +196,7 @@ export function createLoreMcpServer(
       limit: z.number().int().nonnegative().optional().describe('For kind="symbol" with empty query: maximum rows to return.'),
       offset: z.number().int().nonnegative().optional().describe('For kind="symbol" with empty query: rows to skip before returning results.'),
     },
-    async (args) => ({
-      content: [{ type: 'text', text: JSON.stringify(await lookup.handler(db, args, embedder)) }],
-    }),
+    loggedHandler(lookup.toolDef.name, (args) => lookup.handler(db, args, embedder)),
   );
 
   // ── lore_graph ───────────────────────────────────────────────────────────────
@@ -188,9 +227,7 @@ export function createLoreMcpServer(
         .optional()
         .describe('Optional max embedding distance threshold for semantic nodes.'),
     },
-    async (args) => ({
-      content: [{ type: 'text', text: JSON.stringify(graph.handler(db, args)) }],
-    }),
+    loggedHandler(graph.toolDef.name, (args) => graph.handler(db, args)),
   );
 
   // ── lore_search ──────────────────────────────────────────────────────────────
@@ -217,9 +254,7 @@ export function createLoreMcpServer(
         .describe('Optional documentation kind filter for semantic/fused doc-section results.'),
       branch: z.string().optional().describe('Optional branch to filter results. Query-time retrieval uses SQLite-only persisted data.'),
     },
-    async (args) => ({
-      content: [{ type: 'text', text: JSON.stringify(await search.handler(db, args, embedder, options?.searchObserver)) }],
-    }),
+    loggedHandler(search.toolDef.name, (args) => search.handler(db, args, embedder, options?.searchObserver)),
   );
 
   // ── lore_docs ────────────────────────────────────────────────────────────────
@@ -246,9 +281,7 @@ export function createLoreMcpServer(
       limit: z.number().optional().describe('Max rows to return (defaults depend on action).'),
       branch: z.string().optional().describe('Optional branch to filter docs.'),
     },
-    async (args) => ({
-      content: [{ type: 'text', text: JSON.stringify(await docs.handler(db, args, embedder)) }],
-    }),
+    loggedHandler(docs.toolDef.name, (args) => docs.handler(db, args, embedder)),
   );
 
   // ── lore_annotations ─────────────────────────────────────────────────────────
@@ -262,9 +295,7 @@ export function createLoreMcpServer(
       path: z.string().optional().describe('Optional exact file path filter.'),
       limit: z.number().optional().describe('Maximum number of results to return (default 20).'),
     },
-    async (args) => ({
-      content: [{ type: 'text', text: JSON.stringify(annotations.handler(db, args)) }],
-    }),
+    loggedHandler(annotations.toolDef.name, (args) => annotations.handler(db, args)),
   );
 
   // ── lore_routes ──────────────────────────────────────────────────────────────
@@ -276,9 +307,7 @@ export function createLoreMcpServer(
       path_prefix: z.string().optional().describe('Optional route path prefix filter.'),
       framework: z.string().optional().describe('Optional framework filter (for example express, fastapi, gin).'),
     },
-    async (args) => ({
-      content: [{ type: 'text', text: JSON.stringify(routes.handler(db, args)) }],
-    }),
+    loggedHandler(routes.toolDef.name, (args) => routes.handler(db, args)),
   );
 
   // ── lore_notes_write ─────────────────────────────────────────────────────────
@@ -295,9 +324,7 @@ export function createLoreMcpServer(
       model: z.string().optional().describe('Model identifier that authored the note.'),
       source_hash: z.string().optional().describe('Optional source hash used for staleness detection.'),
     },
-    async (args) => ({
-      content: [{ type: 'text', text: JSON.stringify(notes.writeHandler(dbPath, args)) }],
-    }),
+    loggedHandler(notes.writeToolDef.name, (args) => notes.writeHandler(dbPath, args)),
   );
 
   // ── lore_notes_read ──────────────────────────────────────────────────────────
@@ -310,9 +337,7 @@ export function createLoreMcpServer(
       scope: z.string().optional().describe('Optional scope filter.'),
       limit: z.number().optional().describe('Max notes to return (default 20, max 200).'),
     },
-    async (args) => ({
-      content: [{ type: 'text', text: JSON.stringify(notes.readHandler(db, args)) }],
-    }),
+    loggedHandler(notes.readToolDef.name, (args) => notes.readHandler(db, args)),
   );
 
   // ── lore_architecture ────────────────────────────────────────────────────────
@@ -326,9 +351,7 @@ export function createLoreMcpServer(
         .describe('Optional path depth used to group files into components (default 2).'),
       branch: z.string().optional().describe('Optional branch name to filter architecture output.'),
     },
-    async (args) => ({
-      content: [{ type: 'text', text: JSON.stringify(architecture.handler(db, args)) }],
-    }),
+    loggedHandler(architecture.toolDef.name, (args) => architecture.handler(db, args)),
   );
 
   // ── lore_test_map ─────────────────────────────────────────────────────────────
@@ -339,9 +362,7 @@ export function createLoreMcpServer(
       source_path: z.string().describe('Source file path to resolve mapped test files for.'),
       branch: z.string().optional().describe('Optional branch to constrain mappings.'),
     },
-    async (args) => ({
-      content: [{ type: 'text', text: JSON.stringify(testMap.handler(db, args)) }],
-    }),
+    loggedHandler(testMap.toolDef.name, (args) => testMap.handler(db, args)),
   );
 
   // ── lore_snippet ─────────────────────────────────────────────────────────────
@@ -354,9 +375,7 @@ export function createLoreMcpServer(
       end_line: z.number().optional().describe('Last line (1-based, inclusive).'),
       branch: z.string().optional().describe('Optional branch to disambiguate the file path.'),
     },
-    async (args) => ({
-      content: [{ type: 'text', text: JSON.stringify(snippet.handler(db, args)) }],
-    }),
+    loggedHandler(snippet.toolDef.name, (args) => snippet.handler(db, args)),
   );
 
   // ── lore_metrics ─────────────────────────────────────────────────────────────
@@ -377,9 +396,7 @@ export function createLoreMcpServer(
         .optional()
         .describe(metrics.toolDef.inputSchema.properties.min_cyclomatic.description),
     },
-    async (args: metrics.MetricsArgs = {}) => ({
-      content: [{ type: 'text', text: JSON.stringify(metrics.handler(db, args)) }],
-    }),
+    loggedHandler(metrics.toolDef.name, (args: metrics.MetricsArgs = {}) => metrics.handler(db, args)),
   );
 
   // ── lore_coverage ────────────────────────────────────────────────────────────
@@ -393,9 +410,7 @@ export function createLoreMcpServer(
       branch: z.string().optional().describe('Optional branch filter.'),
       limit: z.number().optional().describe('Maximum symbols to return (default 50).'),
     },
-    async (args) => ({
-      content: [{ type: 'text', text: JSON.stringify(coverage.handler(db, args)) }],
-    }),
+    loggedHandler(coverage.toolDef.name, (args) => coverage.handler(db, args)),
   );
 
   // ── lore_blame ───────────────────────────────────────────────────────────────
@@ -422,9 +437,7 @@ export function createLoreMcpServer(
         .optional()
         .describe('Ownership mode scope. If omitted, inferred from `path`.'),
     },
-    async (args) => ({
-      content: [{ type: 'text', text: JSON.stringify(blame.handler(db, args)) }],
-    }),
+    loggedHandler(blame.toolDef.name, (args) => blame.handler(db, args)),
   );
 
   // ── lore_writeback ───────────────────────────────────────────────────────────
@@ -437,11 +450,7 @@ export function createLoreMcpServer(
       model: z.string().describe('Model identifier that generated the summary.'),
       branch: z.string().optional().describe('Optional branch to validate the symbol belongs to.'),
     },
-    async (args) => ({
-      content: [
-        { type: 'text', text: JSON.stringify(writeback.handler(dbPath, args)) },
-      ],
-    }),
+    loggedHandler(writeback.toolDef.name, (args) => writeback.handler(dbPath, args)),
   );
 
   // ── lore_history ─────────────────────────────────────────────────────────────
@@ -455,9 +464,7 @@ export function createLoreMcpServer(
       query: z.string().optional().describe('File path, commit SHA, author name/email, ref, or semantic query text.'),
       limit: z.number().optional().describe('Max results (default 20, max 200).'),
     },
-    async (args) => ({
-      content: [{ type: 'text', text: JSON.stringify(await history.handler(db, args, embedder)) }],
-    }),
+    loggedHandler(history.toolDef.name, (args) => history.handler(db, args, embedder)),
   );
 
   // ── lore_commit_stats ────────────────────────────────────────────────────────
@@ -473,9 +480,7 @@ export function createLoreMcpServer(
       until: z.string().optional().describe('Optional ISO date upper bound (inclusive).'),
       author: z.string().optional().describe('Optional author name/email substring filter.'),
     },
-    async (args) => ({
-      content: [{ type: 'text', text: JSON.stringify(handleCommitStats(db, args)) }],
-    }),
+    loggedHandler('lore_commit_stats', (args: CommitStatsArgs) => handleCommitStats(db, args)),
   );
 
   return server;

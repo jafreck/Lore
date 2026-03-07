@@ -21,6 +21,7 @@ import {
   loadLspSettingsFromLoreConfig,
   resolveEffectiveLspSettings,
 } from './indexer/lsp/config.js';
+import { initLogger, LogLevel, LOG_LEVEL_NAMES } from './logger.js';
 
 // ─── Argument helpers ─────────────────────────────────────────────────────────
 
@@ -61,6 +62,8 @@ Options:
   --file <path>            Coverage report path (required for ingest-coverage)
   --format <name>          Coverage format: lcov or cobertura (required for ingest-coverage)
   --commit <sha>           Commit SHA to associate with coverage ingestion (default: HEAD)
+  --log-level <level>      Log level: debug, info, warn, error, silent (default: info)
+  --log-file <path>        Path to the structured log file (default: lore.log next to the DB)
   --help, -h               Show this help message`,
   );
   process.exit(1);
@@ -115,6 +118,19 @@ async function main(): Promise<void> {
   }
 
   const subcommand = args[0];
+
+  // ── Initialise logger (applies to all subcommands) ─────────────────────────
+  const logLevelRaw = flag(args, '--log-level');
+  const logFileRaw = flag(args, '--log-file');
+  const dbPathForLog = flag(args, '--db');
+  const resolvedLogLevel = logLevelRaw
+    ? (LOG_LEVEL_NAMES[logLevelRaw.toLowerCase()] ?? LogLevel.INFO)
+    : LogLevel.INFO;
+  const resolvedLogFile = logFileRaw
+    ?? (dbPathForLog
+      ? dbPathForLog.replace(/\.db$/, '.log')
+      : undefined);
+  const log = initLogger({ level: resolvedLogLevel, logFile: resolvedLogFile });
 
   if (subcommand === 'index') {
     const rootDir = flag(args, '--root');
@@ -260,6 +276,8 @@ async function main(): Promise<void> {
       return;
     }
 
+    log.startup('mcp server initializing', { dbPath });
+
     // Dynamically import so tree-shaking keeps the MCP server out of the
     // library entry point for consumers who only need the indexer.
     const { McpServer } = await import('@modelcontextprotocol/sdk/server/mcp.js');
@@ -276,6 +294,23 @@ async function main(): Promise<void> {
 
     const db = openReadOnly(dbPath);
 
+    // Gather DB stats for startup log
+    const totalFiles = (db.prepare('SELECT COUNT(*) AS cnt FROM files').get() as { cnt: number }).cnt;
+    const totalSymbols = (db.prepare('SELECT COUNT(*) AS cnt FROM symbols').get() as { cnt: number }).cnt;
+    let totalEdges = 0;
+    try {
+      totalEdges = (db.prepare('SELECT COUNT(*) AS cnt FROM call_graph').get() as { cnt: number }).cnt;
+    } catch { /* table may not exist */ }
+    let totalDocs = 0;
+    try {
+      totalDocs = (db.prepare('SELECT COUNT(*) AS cnt FROM documentation').get() as { cnt: number }).cnt;
+    } catch { /* table may not exist */ }
+    let commitCount: number | undefined;
+    try {
+      commitCount = (db.prepare('SELECT COUNT(*) AS cnt FROM commits').get() as { cnt: number }).cnt;
+    } catch { /* commits table may not exist */ }
+    const dbSizeBytes = fs.existsSync(dbPath) ? fs.statSync(dbPath).size : undefined;
+
     // Build optional embedder from model recorded at index time.
     let embedder: import('./indexer/embedder.js').EmbeddingProvider | undefined;
     const modelName = getLoreMeta(db, 'embedding_model') as string | undefined;
@@ -284,7 +319,9 @@ async function main(): Promise<void> {
       try {
         await provider.init();
         embedder = provider;
+        log.startup('embedding model loaded', { embeddingModel: modelName, embeddingReady: true });
       } catch {
+        log.warn('startup', 'embedding model unavailable, falling back to structural search', { embeddingModel: modelName });
         try {
           await provider.dispose();
         } catch {
@@ -293,11 +330,24 @@ async function main(): Promise<void> {
       }
     }
 
-    const server = createLoreMcpServer(db, dbPath, embedder);
+    log.startup('db stats', {
+      dbPath,
+      dbSizeBytes,
+      embeddingModel: modelName ?? null,
+      embeddingReady: !!embedder,
+      totalFiles,
+      totalSymbols,
+      totalDocs,
+      totalEdges,
+      commitCount,
+    });
+
+    const server = createLoreMcpServer(db, dbPath, embedder, { logger: log });
 
     const transport = new StdioServerTransport();
     await server.connect(transport);
 
+    log.startup('mcp server ready', { transport: 'stdio' });
     // Signal readiness on stderr so parent processes can detect it.
     process.stderr.write('READY\n');
   } else if (subcommand === 'refresh') {
