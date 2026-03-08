@@ -47,7 +47,10 @@ flowchart LR
         SEARCH[lore_search<br/>BM25 · vector · fused]
         DOCS_TOOL[lore_docs]
         GRAPH[lore_graph]
+        ROUTES[lore_routes]
+        ARCHITECTURE[lore_architecture]
         SNIPPET[lore_snippet]
+        TESTMAP[lore_test_map]
         BLAME[lore_blame]
         HISTORY[lore_history]
         METRICS[lore_metrics]
@@ -86,9 +89,9 @@ flowchart LR
     EMBED -.->|optional| VEC
     GIT --> GITHIST --> HIST
 
-    FILES & SYM & IMP & EXT & REFS & DOCS & NOTES & COV & VEC & HIST & META --- LOOKUP & SEARCH & DOCS_TOOL & GRAPH & SNIPPET & BLAME & HISTORY & METRICS & LORE_COVERAGE & WRITEBACK
+    FILES & SYM & IMP & EXT & REFS & DOCS & NOTES & COV & VEC & HIST & META --- LOOKUP & SEARCH & DOCS_TOOL & GRAPH & ROUTES & ARCHITECTURE & SNIPPET & TESTMAP & BLAME & HISTORY & METRICS & LORE_COVERAGE & WRITEBACK
 
-    LOOKUP & SEARCH & DOCS_TOOL & GRAPH & SNIPPET & BLAME & HISTORY & METRICS & LORE_COVERAGE & WRITEBACK <--> LLM_AGENTS
+    LOOKUP & SEARCH & DOCS_TOOL & GRAPH & ROUTES & ARCHITECTURE & SNIPPET & TESTMAP & BLAME & HISTORY & METRICS & LORE_COVERAGE & WRITEBACK <--> LLM_AGENTS
 
     LLM_AGENTS <--- ENTRY
 ```
@@ -99,14 +102,14 @@ flowchart LR
 |-------|--------|--------------|
 | Walk | `walker.ts` | Discovers source files via `fast-glob`, maps extensions to languages |
 | Parse | `parser.ts` | Lazily creates one tree-sitter `Parser` per language, caches for reuse |
-| Extract | `extractors/*` | Language-specific visitors that pull symbols, imports, and call refs from the AST |
+| Extract | `extractors/*` | Language-specific visitors that pull symbols, imports, and call refs from the AST; all 24 supported languages extract call references, with C/C++ extractors additionally covering function-pointer and macro-level call sites |
 | Resolve | `resolver.ts` | Classifies each raw import as internal (resolved to a file ID) or external (third-party / stdlib) |
 | Dependency APIs | `index.ts` dependency API pass | Optional (`--index-deps`) declaration-only indexing from direct dependencies across npm (`.d.ts`), Python (`.pyi` / `py.typed`), Go (direct `go.mod` requirements), and Rust (direct `Cargo.toml` crates); excludes transitive dependencies and implementation bodies |
 | Call-Graph | `call-graph.ts` | Matches raw callee names in `symbol_refs` to concrete symbol IDs; supports topo sort and cycle detection |
 | Docs ingest | `docs.ts` + `IndexBuilder` | Discovers docs from default/configured globs, infers kind/title, persists docs plus retrievable sections/chunks, and optionally seeds doc-scoped notes |
 | LSP Enrichment | `lsp/enrichment.ts` | Optional index-time language-server hover/definition lookups; persists resolved type signature/return/definition metadata into SQLite |
 | Coverage | `coverage.ts` | Parses LCOV/Cobertura reports, normalizes per-file/per-line hit data, and persists a run linked to commit SHA/source mtime |
-| Embed | `embedder.ts` | Optional — spawns a Python subprocess running sentence-transformers to produce dense vectors |
+| Embed | `embedder.ts` | Optional — spawns a Python subprocess running sentence-transformers to produce dense vectors; supports live incremental re-embedding during watch and poll refresh modes |
 | Git History | `git-history.ts` | Ingests commits, per-file diffs, and branch/tag refs via `simple-git` |
 
 Coverage ingestion accepts reports from auto-detected paths (`coverage/lcov.info`, `coverage/cobertura-coverage.xml`, `coverage.xml`) during build/update/refresh, plus manual CLI ingestion from an explicit `--file` and `--format`. LCOV/Cobertura inputs are normalized into a run (`coverage_runs`), per-file totals (`coverage_files`), and per-line hits (`coverage_lines`), which are then consumed by MCP coverage-aware tools.
@@ -138,8 +141,11 @@ When docs auto-notes are enabled (default), `IndexBuilder` seeds/updates notes f
 | `lore_lookup` | Find symbols by name or files by path (optional branch filter), including external API symbol matches from `external_symbols` and persisted LSP-enrichment metadata when available |
 | `lore_search` | Structural BM25, semantic vector, or fused RRF search; semantic/fused modes can return docs section hits and structural results are augmented by external symbol-name matches from `external_symbols`; returns persisted LSP-enrichment metadata fields when available |
 | `lore_docs` | List indexed docs, fetch full docs with optional sections, or search indexed sections |
+| `lore_routes` | Query extracted API routes/endpoints with optional method, path prefix, and framework filters |
+| `lore_architecture` | Build a component-level architecture view with edges, entry/leaf nodes, and external dependency usage |
 | `lore_graph` | Query call, import, module, or inheritance edges (`call` edges include `callee_coverage_percent`) |
 | `lore_snippet` | Return snippets from indexed DB-backed file snapshots by file path + line range or by symbol name; path/symbol resolution is branch-aware and responses include containing-symbol context metadata when available |
+| `lore_test_map` | Return mapped test files (with confidence) for a given source file path |
 | `lore_blame` | Query blame (`mode: "blame"`), line-range evolution (`mode: "history"`), or ownership aggregates (`mode: "ownership"`), including symbol-targeted range resolution |
 | `lore_history` | Query history by file, commit, author, ref, recency, or semantic commit-message similarity (with graceful fallback to recent mode when vectors are unavailable) |
 | `lore_metrics` | Return aggregate index metrics plus global coverage totals and staleness metadata (`coverage_commit`, `current_commit`, `commits_behind`, `stale`) |
