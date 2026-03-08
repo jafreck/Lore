@@ -28,13 +28,6 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod';
 import { fileURLToPath } from 'url';
 import {
-  listCommitAuthorStats,
-  listCommitBranchActivity,
-  listCommitCadence,
-  listCommitChurnByFile,
-  listCommitMessagePrefixes,
-  listCommitSchedule,
-  listCommitSizes,
   openReadOnly,
   type Database,
 } from './db.js';
@@ -46,7 +39,6 @@ import * as graph from './tools/graph.js';
 import * as search from './tools/search.js';
 import type { SearchObserver } from './tools/search.js';
 import * as docs from './tools/docs.js';
-import * as annotations from './tools/annotations.js';
 import * as routes from './tools/routes.js';
 import * as notes from './tools/notes.js';
 import * as architecture from './tools/architecture.js';
@@ -57,53 +49,6 @@ import * as metrics from './tools/metrics.js';
 import * as coverage from './tools/coverage.js';
 import * as writeback from './tools/writeback.js';
 import * as history from './tools/history.js';
-
-type CommitStatsMetric =
-  | 'cadence'
-  | 'size'
-  | 'churn'
-  | 'authors'
-  | 'messages'
-  | 'schedule'
-  | 'branches';
-
-interface CommitStatsArgs {
-  metric: CommitStatsMetric;
-  limit?: number;
-  since?: string;
-  until?: string;
-  author?: string;
-}
-
-function handleCommitStats(db: Database.Database, args: CommitStatsArgs): unknown {
-  const filters = {
-    limit: args.limit,
-    since: args.since,
-    until: args.until,
-    author: args.author,
-  };
-  switch (args.metric) {
-    case 'cadence':
-      return {
-        metric: args.metric,
-        day: listCommitCadence(db, 'day', filters),
-        week: listCommitCadence(db, 'week', filters),
-        month: listCommitCadence(db, 'month', filters),
-      };
-    case 'size':
-      return { metric: args.metric, commits: listCommitSizes(db, filters) };
-    case 'churn':
-      return { metric: args.metric, files: listCommitChurnByFile(db, filters) };
-    case 'authors':
-      return { metric: args.metric, authors: listCommitAuthorStats(db, filters) };
-    case 'messages':
-      return { metric: args.metric, prefixes: listCommitMessagePrefixes(db, filters) };
-    case 'schedule':
-      return { metric: args.metric, buckets: listCommitSchedule(db, filters) };
-    case 'branches':
-      return { metric: args.metric, refs: listCommitBranchActivity(db, filters) };
-  }
-}
 
 // ─── Server options ───────────────────────────────────────────────────────────
 
@@ -284,20 +229,6 @@ export function createLoreMcpServer(
     loggedHandler(docs.toolDef.name, (args) => docs.handler(db, args, embedder)),
   );
 
-  // ── lore_annotations ─────────────────────────────────────────────────────────
-  server.tool(
-    annotations.toolDef.name,
-    annotations.toolDef.description,
-    {
-      kind: z
-        .enum(['TODO', 'FIXME', 'HACK', 'XXX', 'NOTE', 'BUG', 'OPTIMIZE'])
-        .describe('Annotation kind/tag to filter by.'),
-      path: z.string().optional().describe('Optional exact file path filter.'),
-      limit: z.number().optional().describe('Maximum number of results to return (default 20).'),
-    },
-    loggedHandler(annotations.toolDef.name, (args) => annotations.handler(db, args)),
-  );
-
   // ── lore_routes ──────────────────────────────────────────────────────────────
   server.tool(
     routes.toolDef.name,
@@ -465,22 +396,6 @@ export function createLoreMcpServer(
       limit: z.number().optional().describe('Max results (default 20, max 200).'),
     },
     loggedHandler(history.toolDef.name, (args) => history.handler(db, args, embedder)),
-  );
-
-  // ── lore_commit_stats ────────────────────────────────────────────────────────
-  server.tool(
-    'lore_commit_stats',
-    'Return git commit analytics for a selected metric.',
-    {
-      metric: z
-        .enum(['cadence', 'size', 'churn', 'authors', 'messages', 'schedule', 'branches'])
-        .describe('Analytics metric to compute.'),
-      limit: z.number().optional().describe('Max rows for top-N metrics (default 20, max 200).'),
-      since: z.string().optional().describe('Optional ISO date lower bound (inclusive).'),
-      until: z.string().optional().describe('Optional ISO date upper bound (inclusive).'),
-      author: z.string().optional().describe('Optional author name/email substring filter.'),
-    },
-    loggedHandler('lore_commit_stats', (args: CommitStatsArgs) => handleCommitStats(db, args)),
   );
 
   return server;
