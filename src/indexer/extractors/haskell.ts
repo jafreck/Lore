@@ -8,6 +8,7 @@
 import type Parser from 'tree-sitter';
 import {
   type ExtractionResult,
+  type RawCallRef,
   type RawImport,
   type RawSymbol,
   type SymbolExtractor,
@@ -50,6 +51,11 @@ export class HaskellExtractor implements SymbolExtractor {
         case 'import':
           result.imports.push(extractImport(node));
           break;
+        case 'apply': {
+          const ref = extractCallRef(node);
+          if (ref) result.callRefs.push(ref);
+          break;
+        }
       }
     }
 
@@ -101,6 +107,29 @@ function extractInstance(node: Parser.SyntaxNode): RawSymbol {
     startLine: node.startPosition.row,
     endLine: node.endPosition.row,
     signature: nodeSignature(node),
+  };
+}
+
+function extractCallRef(node: Parser.SyntaxNode): RawCallRef | null {
+  // function application: (fn arg1 arg2)
+  const fnNode = node.namedChildren[0];
+  if (!fnNode) return null;
+  // Find enclosing function
+  let callerSymbol = '';
+  let current: Parser.SyntaxNode | null = node.parent;
+  while (current) {
+    if (current.type === 'function') {
+      const nameNode = current.childForFieldName('name') ?? current.namedChildren[0];
+      callerSymbol = nameNode?.text ?? '';
+      break;
+    }
+    current = current.parent;
+  }
+  return {
+    callerSymbol,
+    calleeRaw: fnNode.text,
+    line: node.startPosition.row,
+    character: node.startPosition.column,
   };
 }
 

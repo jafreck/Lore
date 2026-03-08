@@ -22,3 +22,10 @@ class Animal:
 class Dog(Animal):
     def speak(self) -> str:
         return f"{self.name} barks."
+
+def main():
+    greeting = greet("World")
+    total = add(1, 2)
+    dog = Dog("Rex")
+    dog.speak()
+    print(greeting)

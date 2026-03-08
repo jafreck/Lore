@@ -8,13 +8,21 @@
 import type Parser from 'tree-sitter';
 import {
   type ExtractionResult,
+  type RawCallRef,
   type RawImport,
   type RawSymbol,
   type SymbolExtractor,
   emptyResult,
+  findEnclosingSymbolName,
   nodeSignature,
   walk,
 } from './types.js';
+
+const CS_SYMBOL_NODE_TYPES = [
+  'method_declaration',
+  'constructor_declaration',
+  'class_declaration',
+] as const;
 
 // ─── CSharpExtractor ──────────────────────────────────────────────────────────
 
@@ -42,6 +50,16 @@ export class CSharpExtractor implements SymbolExtractor {
         case 'using_directive':
           result.imports.push(extractUsingDirective(node));
           break;
+        case 'invocation_expression': {
+          const ref = extractCallRef(node);
+          if (ref) result.callRefs.push(ref);
+          break;
+        }
+        case 'object_creation_expression': {
+          const ref = extractNewCallRef(node);
+          if (ref) result.callRefs.push(ref);
+          break;
+        }
       }
     }
 
@@ -70,6 +88,28 @@ function extractMethod(node: Parser.SyntaxNode): RawSymbol {
     startLine: node.startPosition.row,
     endLine: node.endPosition.row,
     signature: nodeSignature(node),
+  };
+}
+
+function extractCallRef(node: Parser.SyntaxNode): RawCallRef | null {
+  const fnNode = node.childForFieldName('function');
+  if (!fnNode) return null;
+  return {
+    callerSymbol: findEnclosingSymbolName(node, CS_SYMBOL_NODE_TYPES),
+    calleeRaw: fnNode.text,
+    line: node.startPosition.row,
+    character: node.startPosition.column,
+  };
+}
+
+function extractNewCallRef(node: Parser.SyntaxNode): RawCallRef | null {
+  const typeNode = node.childForFieldName('type');
+  if (!typeNode) return null;
+  return {
+    callerSymbol: findEnclosingSymbolName(node, CS_SYMBOL_NODE_TYPES),
+    calleeRaw: `new ${typeNode.text}`,
+    line: node.startPosition.row,
+    character: node.startPosition.column,
   };
 }
 

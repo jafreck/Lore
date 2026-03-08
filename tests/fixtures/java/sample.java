@@ -37,4 +37,11 @@ class Circle implements Shape {
     public double perimeter() {
         return 2 * Math.PI * radius;
     }
+
+    public static void main(String[] args) {
+        Sample s = new Sample("World");
+        String greeting = s.greet();
+        int sum = add(1, 2);
+        System.out.println(greeting);
+    }
 }

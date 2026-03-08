@@ -8,13 +8,22 @@
 import type Parser from 'tree-sitter';
 import {
   type ExtractionResult,
+  type RawCallRef,
   type RawImport,
   type RawSymbol,
   type SymbolExtractor,
   emptyResult,
+  findEnclosingSymbolName,
   nodeSignature,
   walk,
 } from './types.js';
+
+const RUBY_SYMBOL_NODE_TYPES = [
+  'method',
+  'singleton_method',
+  'class',
+  'module',
+] as const;
 
 // ─── RubyExtractor ───────────────────────────────────────────────────────────
 
@@ -39,6 +48,8 @@ export class RubyExtractor implements SymbolExtractor {
         case 'call': {
           const imp = tryExtractRequire(node);
           if (imp) result.imports.push(imp);
+          const ref = extractCallRef(node);
+          if (ref) result.callRefs.push(ref);
           break;
         }
       }
@@ -93,6 +104,19 @@ function extractModule(node: Parser.SyntaxNode): RawSymbol {
     startLine: node.startPosition.row,
     endLine: node.endPosition.row,
     signature: nodeSignature(node),
+  };
+}
+
+function extractCallRef(node: Parser.SyntaxNode): RawCallRef | null {
+  const methodNode = node.childForFieldName('method');
+  if (!methodNode) return null;
+  const receiver = node.childForFieldName('receiver');
+  const callee = receiver ? `${receiver.text}.${methodNode.text}` : methodNode.text;
+  return {
+    callerSymbol: findEnclosingSymbolName(node, RUBY_SYMBOL_NODE_TYPES),
+    calleeRaw: callee,
+    line: node.startPosition.row,
+    character: node.startPosition.column,
   };
 }
 

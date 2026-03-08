@@ -8,13 +8,21 @@
 import type Parser from 'tree-sitter';
 import {
   type ExtractionResult,
+  type RawCallRef,
   type RawImport,
   type RawSymbol,
   type SymbolExtractor,
   emptyResult,
+  findEnclosingSymbolName,
   nodeSignature,
   walk,
 } from './types.js';
+
+const JAVA_SYMBOL_NODE_TYPES = [
+  'method_declaration',
+  'constructor_declaration',
+  'class_declaration',
+] as const;
 
 // ─── JavaExtractor ────────────────────────────────────────────────────────────
 
@@ -39,6 +47,16 @@ export class JavaExtractor implements SymbolExtractor {
         case 'import_declaration':
           result.imports.push(extractImport(node));
           break;
+        case 'method_invocation': {
+          const ref = extractMethodCallRef(node);
+          if (ref) result.callRefs.push(ref);
+          break;
+        }
+        case 'object_creation_expression': {
+          const ref = extractNewCallRef(node);
+          if (ref) result.callRefs.push(ref);
+          break;
+        }
       }
     }
 
@@ -67,6 +85,30 @@ function extractMethod(node: Parser.SyntaxNode): RawSymbol {
     startLine: node.startPosition.row,
     endLine: node.endPosition.row,
     signature: nodeSignature(node),
+  };
+}
+
+function extractMethodCallRef(node: Parser.SyntaxNode): RawCallRef | null {
+  const nameNode = node.childForFieldName('name');
+  if (!nameNode) return null;
+  const objectNode = node.childForFieldName('object');
+  const calleeRaw = objectNode ? `${objectNode.text}.${nameNode.text}` : nameNode.text;
+  return {
+    callerSymbol: findEnclosingSymbolName(node, JAVA_SYMBOL_NODE_TYPES),
+    calleeRaw,
+    line: node.startPosition.row,
+    character: node.startPosition.column,
+  };
+}
+
+function extractNewCallRef(node: Parser.SyntaxNode): RawCallRef | null {
+  const typeNode = node.childForFieldName('type');
+  if (!typeNode) return null;
+  return {
+    callerSymbol: findEnclosingSymbolName(node, JAVA_SYMBOL_NODE_TYPES),
+    calleeRaw: `new ${typeNode.text}`,
+    line: node.startPosition.row,
+    character: node.startPosition.column,
   };
 }
 

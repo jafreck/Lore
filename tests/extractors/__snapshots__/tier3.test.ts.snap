@@ -1,6 +1,39 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`Kotlin extractor > callRefs 1`] = `[]`;
+exports[`Kotlin extractor > callRefs 1`] = `
+[
+  {
+    "calleeRaw": "greet",
+    "callerSymbol": "",
+    "character": 14,
+    "line": 25,
+  },
+  {
+    "calleeRaw": "add",
+    "callerSymbol": "",
+    "character": 14,
+    "line": 26,
+  },
+  {
+    "calleeRaw": "Circle",
+    "callerSymbol": "",
+    "character": 12,
+    "line": 27,
+  },
+  {
+    "calleeRaw": "println",
+    "callerSymbol": "",
+    "character": 4,
+    "line": 28,
+  },
+  {
+    "calleeRaw": "c.area",
+    "callerSymbol": "",
+    "character": 12,
+    "line": 28,
+  },
+]
+`;
 
 exports[`Kotlin extractor > imports 1`] = `
 [
@@ -91,10 +124,26 @@ exports[`Kotlin extractor > symbols 1`] = `
     "signature": "fun square(x: Int): Int = x * x",
     "startLine": 21,
   },
+  {
+    "endLine": 29,
+    "kind": "function",
+    "name": "main",
+    "signature": "fun main()",
+    "startLine": 24,
+  },
 ]
 `;
 
-exports[`OCaml extractor > callRefs 1`] = `[]`;
+exports[`OCaml extractor > callRefs 1`] = `
+[
+  {
+    "calleeRaw": "printf",
+    "callerSymbol": "greet",
+    "character": 2,
+    "line": 6,
+  },
+]
+`;
 
 exports[`OCaml extractor > imports 1`] = `[]`;
 
@@ -159,7 +208,16 @@ exports[`OCaml extractor > symbols 1`] = `
 ]
 `;
 
-exports[`Objective-C extractor > callRefs 1`] = `[]`;
+exports[`Objective-C extractor > callRefs 1`] = `
+[
+  {
+    "calleeRaw": "super",
+    "callerSymbol": "",
+    "character": 11,
+    "line": 16,
+  },
+]
+`;
 
 exports[`Objective-C extractor > imports 1`] = `
 [
@@ -216,7 +274,64 @@ exports[`Objective-C extractor > symbols 1`] = `
 ]
 `;
 
-exports[`Ruby extractor > callRefs 1`] = `[]`;
+exports[`Ruby extractor > callRefs 1`] = `
+[
+  {
+    "calleeRaw": "require",
+    "callerSymbol": "",
+    "character": 0,
+    "line": 0,
+  },
+  {
+    "calleeRaw": "require_relative",
+    "callerSymbol": "",
+    "character": 0,
+    "line": 1,
+  },
+  {
+    "calleeRaw": "attr_reader",
+    "callerSymbol": "Circle",
+    "character": 4,
+    "line": 7,
+  },
+  {
+    "calleeRaw": "new",
+    "callerSymbol": "unit_circle",
+    "character": 6,
+    "line": 22,
+  },
+  {
+    "calleeRaw": "greet",
+    "callerSymbol": "main",
+    "character": 8,
+    "line": 36,
+  },
+  {
+    "calleeRaw": "add",
+    "callerSymbol": "main",
+    "character": 10,
+    "line": 37,
+  },
+  {
+    "calleeRaw": "Geometry::Circle.new",
+    "callerSymbol": "main",
+    "character": 6,
+    "line": 38,
+  },
+  {
+    "calleeRaw": "puts",
+    "callerSymbol": "main",
+    "character": 2,
+    "line": 39,
+  },
+  {
+    "calleeRaw": "c.area",
+    "callerSymbol": "main",
+    "character": 7,
+    "line": 39,
+  },
+]
+`;
 
 exports[`Ruby extractor > imports 1`] = `
 [
@@ -304,10 +419,38 @@ exports[`Ruby extractor > symbols 1`] = `
     "signature": "def add(a, b)",
     "startLine": 31,
   },
+  {
+    "endLine": 40,
+    "kind": "function",
+    "name": "main",
+    "signature": "def main",
+    "startLine": 35,
+  },
 ]
 `;
 
-exports[`Scala extractor > callRefs 1`] = `[]`;
+exports[`Scala extractor > callRefs 1`] = `
+[
+  {
+    "calleeRaw": "greet",
+    "callerSymbol": "main",
+    "character": 12,
+    "line": 30,
+  },
+  {
+    "calleeRaw": "add",
+    "callerSymbol": "main",
+    "character": 12,
+    "line": 31,
+  },
+  {
+    "calleeRaw": "println",
+    "callerSymbol": "main",
+    "character": 2,
+    "line": 32,
+  },
+]
+`;
 
 exports[`Scala extractor > imports 1`] = `
 [
@@ -406,10 +549,64 @@ exports[`Scala extractor > symbols 1`] = `
     "signature": "var counter = 0",
     "startLine": 27,
   },
+  {
+    "endLine": 33,
+    "kind": "function",
+    "name": "main",
+    "signature": "def main(args: Array[String]): Unit =",
+    "startLine": 29,
+  },
+  {
+    "endLine": 30,
+    "kind": "val",
+    "name": "msg",
+    "signature": "val msg = greet("World")",
+    "startLine": 30,
+  },
+  {
+    "endLine": 31,
+    "kind": "val",
+    "name": "sum",
+    "signature": "val sum = add(1, 2)",
+    "startLine": 31,
+  },
 ]
 `;
 
-exports[`Swift extractor > callRefs 1`] = `[]`;
+exports[`Swift extractor > callRefs 1`] = `
+[
+  {
+    "calleeRaw": "Circle",
+    "callerSymbol": "main",
+    "character": 12,
+    "line": 53,
+  },
+  {
+    "calleeRaw": "c.area",
+    "callerSymbol": "main",
+    "character": 12,
+    "line": 54,
+  },
+  {
+    "calleeRaw": "greet",
+    "callerSymbol": "main",
+    "character": 14,
+    "line": 55,
+  },
+  {
+    "calleeRaw": "add",
+    "callerSymbol": "main",
+    "character": 14,
+    "line": 56,
+  },
+  {
+    "calleeRaw": "print",
+    "callerSymbol": "main",
+    "character": 4,
+    "line": 57,
+  },
+]
+`;
 
 exports[`Swift extractor > imports 1`] = `
 [
@@ -502,6 +699,13 @@ exports[`Swift extractor > symbols 1`] = `
     "name": "describe",
     "signature": "func describe() -> String",
     "startLine": 47,
+  },
+  {
+    "endLine": 58,
+    "kind": "function",
+    "name": "main",
+    "signature": "func main()",
+    "startLine": 52,
   },
 ]
 `;

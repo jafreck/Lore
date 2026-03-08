@@ -8,6 +8,7 @@
 import type Parser from 'tree-sitter';
 import {
   type ExtractionResult,
+  type RawCallRef,
   type RawImport,
   type RawSymbol,
   type SymbolExtractor,
@@ -43,6 +44,12 @@ export class ZigExtractor implements SymbolExtractor {
             const imp = tryExtractImport(node);
             if (imp) result.imports.push(imp);
           }
+          break;
+        }
+        case 'SuffixOp':
+        case 'BuiltinCallExpr': {
+          const ref = extractCallRef(node);
+          if (ref) result.callRefs.push(ref);
           break;
         }
       }
@@ -98,6 +105,29 @@ function extractVarDecl(node: Parser.SyntaxNode): RawSymbol | null {
     startLine: node.startPosition.row,
     endLine: node.endPosition.row,
     signature: nodeSignature(node),
+  };
+}
+
+function extractCallRef(node: Parser.SyntaxNode): RawCallRef | null {
+  // Zig call expressions: fn or method calls
+  const fnNode = node.namedChildren[0];
+  if (!fnNode) return null;
+  // Find enclosing FnProto
+  let callerSymbol = '';
+  let current: Parser.SyntaxNode | null = node.parent;
+  while (current) {
+    if (current.type === 'FnProto') {
+      const nameNode = current.namedChildren.find(c => c.type === 'IDENTIFIER');
+      callerSymbol = nameNode?.text ?? '';
+      break;
+    }
+    current = current.parent;
+  }
+  return {
+    callerSymbol,
+    calleeRaw: fnNode.text,
+    line: node.startPosition.row,
+    character: node.startPosition.column,
   };
 }
 

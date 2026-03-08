@@ -8,13 +8,20 @@
 import type Parser from 'tree-sitter';
 import {
   type ExtractionResult,
+  type RawCallRef,
   type RawImport,
   type RawSymbol,
   type SymbolExtractor,
   emptyResult,
+  findEnclosingSymbolName,
   nodeSignature,
   walk,
 } from './types.js';
+
+const KOTLIN_SYMBOL_NODE_TYPES = [
+  'function_declaration',
+  'class_declaration',
+] as const;
 
 // ─── KotlinExtractor ─────────────────────────────────────────────────────────
 
@@ -42,6 +49,11 @@ export class KotlinExtractor implements SymbolExtractor {
         case 'import_header':
           result.imports.push(extractImport(node));
           break;
+        case 'call_expression': {
+          const ref = extractCallRef(node);
+          if (ref) result.callRefs.push(ref);
+          break;
+        }
       }
     }
 
@@ -73,6 +85,18 @@ function extractNamedNode(node: Parser.SyntaxNode, kind: string): RawSymbol {
     startLine: node.startPosition.row,
     endLine: node.endPosition.row,
     signature: nodeSignature(node),
+  };
+}
+
+function extractCallRef(node: Parser.SyntaxNode): RawCallRef | null {
+  // Kotlin call_expression: first named child is the callee
+  const fnNode = node.namedChildren[0];
+  if (!fnNode) return null;
+  return {
+    callerSymbol: findEnclosingSymbolName(node, KOTLIN_SYMBOL_NODE_TYPES),
+    calleeRaw: fnNode.text,
+    line: node.startPosition.row,
+    character: node.startPosition.column,
   };
 }
 

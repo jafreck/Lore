@@ -8,6 +8,7 @@
 import type Parser from 'tree-sitter';
 import {
   type ExtractionResult,
+  type RawCallRef,
   type RawImport,
   type RawSymbol,
   type SymbolExtractor,
@@ -15,6 +16,12 @@ import {
   nodeSignature,
   walk,
 } from './types.js';
+
+const OBJC_SYMBOL_NODE_TYPES = [
+  'method_declaration',
+  'class_method_declaration',
+  'instance_method_declaration',
+] as const;
 
 // ─── ObjcExtractor ───────────────────────────────────────────────────────────
 
@@ -47,6 +54,11 @@ export class ObjcExtractor implements SymbolExtractor {
         case 'module_import':
           result.imports.push(extractModuleImport(node));
           break;
+        case 'message_expression': {
+          const ref = extractMessageCallRef(node);
+          if (ref) result.callRefs.push(ref);
+          break;
+        }
       }
     }
 
@@ -58,6 +70,33 @@ export class ObjcExtractor implements SymbolExtractor {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function extractMessageCallRef(node: Parser.SyntaxNode): RawCallRef | null {
+  // [receiver selector:arg] — extract selector as callee
+  const selectorNode = node.childForFieldName('selector') ??
+    node.namedChildren.find(c => c.type === 'selector' || c.type === 'keyword_selector');
+  const receiverNode = node.childForFieldName('receiver') ?? node.namedChildren[0];
+  if (!selectorNode && !receiverNode) return null;
+  const callee = selectorNode?.text ?? receiverNode?.text ?? '';
+  // Find enclosing method
+  let callerSymbol = '';
+  let current: Parser.SyntaxNode | null = node.parent;
+  while (current) {
+    if (OBJC_SYMBOL_NODE_TYPES.includes(current.type as typeof OBJC_SYMBOL_NODE_TYPES[number])) {
+      const sel = current.childForFieldName('selector') ??
+        current.namedChildren.find(c => c.type === 'selector' || c.type === 'keyword_selector');
+      callerSymbol = sel?.text ?? '';
+      break;
+    }
+    current = current.parent;
+  }
+  return {
+    callerSymbol,
+    calleeRaw: callee,
+    line: node.startPosition.row,
+    character: node.startPosition.column,
+  };
+}
 
 function extractClassInterface(node: Parser.SyntaxNode): RawSymbol {
   const nameNode = node.childForFieldName('name') ??

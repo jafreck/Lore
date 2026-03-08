@@ -8,6 +8,7 @@
 import type Parser from 'tree-sitter';
 import {
   type ExtractionResult,
+  type RawCallRef,
   type RawImport,
   type RawSymbol,
   type SymbolExtractor,
@@ -39,6 +40,11 @@ export class ElmExtractor implements SymbolExtractor {
         case 'import_clause':
           result.imports.push(extractImport(node));
           break;
+        case 'function_call_expr': {
+          const ref = extractCallRef(node);
+          if (ref) result.callRefs.push(ref);
+          break;
+        }
       }
     }
 
@@ -85,6 +91,32 @@ function extractPort(node: Parser.SyntaxNode): RawSymbol {
     startLine: node.startPosition.row,
     endLine: node.endPosition.row,
     signature: node.text.split('\n')[0]?.trim() ?? '',
+  };
+}
+
+function extractCallRef(node: Parser.SyntaxNode): RawCallRef | null {
+  const fnNode = node.namedChildren[0];
+  if (!fnNode) return null;
+  // Find enclosing value_declaration
+  let callerSymbol = '';
+  let current: Parser.SyntaxNode | null = node.parent;
+  while (current) {
+    if (current.type === 'value_declaration') {
+      const pat = current.childForFieldName('pattern') ?? current.namedChildren[0];
+      if (pat?.type === 'function_declaration_left') {
+        callerSymbol = pat.namedChildren[0]?.text ?? '';
+      } else {
+        callerSymbol = pat?.text.split(/\s/)[0] ?? '';
+      }
+      break;
+    }
+    current = current.parent;
+  }
+  return {
+    callerSymbol,
+    calleeRaw: fnNode.text,
+    line: node.startPosition.row,
+    character: node.startPosition.column,
   };
 }
 
