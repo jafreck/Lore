@@ -30,10 +30,10 @@ function usage(): never {
     `Usage:
   lore index --root <dir> --db <path> [--embedding-model <id>] [--index-deps] [--history] [--history-depth <n>] [--history-all]
                          Index a codebase into a knowledge-base SQLite file
-  lore mcp --db <path>                          Start the Lore MCP server (stdio transport)
+  lore mcp --db <path> [--root <dir> --watch|--poll]  Start the Lore MCP server (stdio transport), optionally with live indexing
   lore refresh --db <path> --root <dir> [--index-deps] [--history] [--history-depth <n>] [--history-all]  Run an incremental index update and exit
-  lore refresh --db <path> --root <dir> --watch Watch for file changes and refresh automatically
-  lore refresh --db <path> --root <dir> --poll  Poll for file changes and refresh automatically
+  lore refresh --db <path> --root <dir> --watch [--embedding-model <id>] Watch for file changes and refresh automatically
+  lore refresh --db <path> --root <dir> --poll [--embedding-model <id>]  Poll for file changes and refresh automatically
   lore hooks --db <path> --root <dir> [--history] [--history-depth <n>] [--history-all] [--lsp] [--no-lsp]
                          Install git hooks for automatic refresh on commit/merge/checkout
   lore ingest-coverage --db <path> --root <dir> --file <path> --format <lcov|cobertura> [--commit <sha>]
@@ -348,8 +348,49 @@ async function main(): Promise<void> {
     await server.connect(transport);
 
     log.startup('mcp server ready', { transport: 'stdio' });
+
+    // ── Optional live-index watcher/poller (shares the same embedder) ────
+    const watchMode = args.includes('--watch');
+    const pollMode = args.includes('--poll');
+    const rootDir = flag(args, '--root');
+
+    type StoppableRefresher = { stop(): void };
+    let refresher: StoppableRefresher | undefined;
+
+    if (watchMode || pollMode) {
+      if (!rootDir) {
+        log.warn('startup', '--root <dir> is required when using --watch or --poll with mcp; live indexing disabled');
+      } else {
+        const walkerConfig = { rootDir };
+        const refreshOptions = { embedder };
+
+        if (watchMode) {
+          const { FileWatcher } = await import('./indexer/watcher.js');
+          const watcher = new FileWatcher(dbPath, walkerConfig, refreshOptions);
+          watcher.start();
+          refresher = watcher;
+          log.startup('watch mode started (shared embedder)', { rootDir, embeddingEnabled: !!embedder });
+        } else {
+          const { FilePoller } = await import('./indexer/poller.js');
+          const poller = new FilePoller(dbPath, walkerConfig, refreshOptions);
+          poller.start();
+          refresher = poller;
+          log.startup('poll mode started (shared embedder)', { rootDir, embeddingEnabled: !!embedder });
+        }
+      }
+    }
+
     // Signal readiness on stderr so parent processes can detect it.
     process.stderr.write('READY\n');
+
+    // Clean up on shutdown: stop the refresher, then dispose the shared embedder.
+    const shutdown = () => {
+      if (refresher) refresher.stop();
+      if (embedder) embedder.dispose().catch(() => { /* best-effort */ });
+      process.exit(0);
+    };
+    process.on('SIGINT', shutdown);
+    process.on('SIGTERM', shutdown);
   } else if (subcommand === 'refresh') {
     const dbPath = flag(args, '--db');
     const rootDir = flag(args, '--root');
@@ -427,26 +468,54 @@ async function main(): Promise<void> {
       ...(shouldEnableHistory && { history: historyOption }),
     };
 
+    // Build an optional long-lived embedder for watch/poll modes.
+    const embeddingModel = flag(args, '--embedding-model');
+    let embedder: import('./indexer/embedder.js').EmbeddingProvider | undefined;
+    if ((watchMode || pollMode) && embeddingModel) {
+      const { SentenceTransformersProvider } = await import('./indexer/embedder.js');
+      const provider = new SentenceTransformersProvider(embeddingModel);
+      try {
+        await provider.init();
+        embedder = provider;
+        process.stderr.write(
+          JSON.stringify({ level: 'info', source: 'cli', message: 'embedding model loaded for live updates', embeddingModel }) + '\n',
+        );
+      } catch (err) {
+        process.stderr.write(
+          JSON.stringify({ level: 'warn', source: 'cli', message: 'embedding model unavailable, continuing without embeddings', embeddingModel, error: String(err) }) + '\n',
+        );
+        try { await provider.dispose(); } catch { /* ignore */ }
+      }
+    }
+
     if (watchMode) {
       const { FileWatcher } = await import('./indexer/watcher.js');
-      const watcher = new FileWatcher(dbPath, walkerConfig, refreshOptions);
+      const watcher = new FileWatcher(dbPath, walkerConfig, { ...refreshOptions, embedder });
       watcher.start();
       process.stderr.write(
-        JSON.stringify({ level: 'info', source: 'cli', message: 'watch mode started', rootDir }) + '\n',
+        JSON.stringify({ level: 'info', source: 'cli', message: 'watch mode started', rootDir, embeddingEnabled: !!embedder }) + '\n',
       );
-      // Keep the process alive until interrupted
-      process.on('SIGINT', () => { watcher.stop(); process.exit(0); });
-      process.on('SIGTERM', () => { watcher.stop(); process.exit(0); });
+      const shutdown = () => {
+        watcher.stop();
+        if (embedder) embedder.dispose().catch(() => { /* best-effort */ });
+        process.exit(0);
+      };
+      process.on('SIGINT', shutdown);
+      process.on('SIGTERM', shutdown);
     } else if (pollMode) {
       const { FilePoller } = await import('./indexer/poller.js');
-      const poller = new FilePoller(dbPath, walkerConfig, refreshOptions);
+      const poller = new FilePoller(dbPath, walkerConfig, { ...refreshOptions, embedder });
       poller.start();
       process.stderr.write(
-        JSON.stringify({ level: 'info', source: 'cli', message: 'poll mode started', rootDir }) + '\n',
+        JSON.stringify({ level: 'info', source: 'cli', message: 'poll mode started', rootDir, embeddingEnabled: !!embedder }) + '\n',
       );
-      // Keep the process alive until interrupted
-      process.on('SIGINT', () => { poller.stop(); process.exit(0); });
-      process.on('SIGTERM', () => { poller.stop(); process.exit(0); });
+      const shutdown = () => {
+        poller.stop();
+        if (embedder) embedder.dispose().catch(() => { /* best-effort */ });
+        process.exit(0);
+      };
+      process.on('SIGINT', shutdown);
+      process.on('SIGTERM', shutdown);
     } else {
       // Manual refresh: full build if DB doesn't exist yet, otherwise incremental update
       const { IndexBuilder } = await import('./indexer/index.js');

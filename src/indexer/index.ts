@@ -303,6 +303,12 @@ export class IndexBuilder {
     const branch = this.resolveBranch();
     const lspCoordinator = this.createLspEnrichmentCoordinator();
     const enrichedFiles: Array<{ path: string; language: string }> = [];
+    /** Symbol IDs whose embeddings should be removed (from deleted/re-processed files). */
+    const staleSymbolIds: number[] = [];
+    /** Paths of changed source files — used to look up new file IDs for scoped embedding. */
+    const changedSourcePaths: string[] = [];
+    /** Paths of changed doc files — used to look up new doc IDs for scoped embedding. */
+    const changedDocPaths: string[] = [];
     try {
       this.saveDocsAutoNotesSetting(db);
       const docs = await walkDocumentationFiles(this.walkerConfig);
@@ -326,6 +332,9 @@ export class IndexBuilder {
               | { id: number }
               | undefined;
             if (row) {
+              // Collect symbol IDs for embedding cleanup before cascade-delete removes them.
+              const symRows = db.prepare('SELECT id FROM symbols WHERE file_id = ?').all(row.id) as Array<{ id: number }>;
+              for (const s of symRows) staleSymbolIds.push(s.id);
               // Null out any resolved_id references pointing to this file
               db.prepare('UPDATE file_imports SET resolved_id = NULL WHERE resolved_id = ?').run(row.id);
               db.prepare('DELETE FROM symbols_fts WHERE rowid IN (SELECT id FROM symbols WHERE file_id = ?)').run(row.id);
@@ -338,11 +347,15 @@ export class IndexBuilder {
           const language = detectLanguageForPath(filePath, this.walkerConfig);
           if (language) {
             enrichedFiles.push({ path: filePath, language });
+            changedSourcePaths.push(filePath);
             // Null out resolved_id references pointing to this file before deletion
             const existingRow = db.prepare('SELECT id FROM files WHERE path = ? AND branch = ?').get(filePath, branch) as
               | { id: number }
               | undefined;
             if (existingRow) {
+              // Collect symbol IDs for embedding cleanup before cascade-delete removes them.
+              const symRows = db.prepare('SELECT id FROM symbols WHERE file_id = ?').all(existingRow.id) as Array<{ id: number }>;
+              for (const s of symRows) staleSymbolIds.push(s.id);
               db.prepare('UPDATE file_imports SET resolved_id = NULL WHERE resolved_id = ?').run(existingRow.id);
               db.prepare('DELETE FROM symbols_fts WHERE rowid IN (SELECT id FROM symbols WHERE file_id = ?)').run(existingRow.id);
             }
@@ -357,6 +370,7 @@ export class IndexBuilder {
           if (changedDoc) {
             this.processDocumentationFile(db, changedDoc, branch);
             this.upsertSeededDocumentationNote(db, changedDoc, branch);
+            changedDocPaths.push(filePath);
           } else {
             this.deleteDocumentationByPath(db, filePath, branch);
           }
@@ -374,8 +388,30 @@ export class IndexBuilder {
       }
       if (this.embedder) {
         await this.embedder.init();
-        await this.embedStructural(db);
-        await this.embedDocumentation(db);
+
+        // Clean up orphaned symbol embeddings for symbols that were deleted/replaced.
+        this.deleteSymbolEmbeddings(db, staleSymbolIds);
+
+        // Resolve the new file IDs for the changed source files.
+        const changedFileIds: number[] = [];
+        for (const p of changedSourcePaths) {
+          const row = db.prepare('SELECT id FROM files WHERE path = ? AND branch = ?').get(p, branch) as
+            | { id: number }
+            | undefined;
+          if (row) changedFileIds.push(row.id);
+        }
+
+        // Resolve the new doc IDs for the changed documentation files.
+        const changedDocIds: number[] = [];
+        for (const p of changedDocPaths) {
+          const row = db.prepare('SELECT id FROM docs WHERE path = ? AND branch = ?').get(p, branch) as
+            | { id: number }
+            | undefined;
+          if (row) changedDocIds.push(row.id);
+        }
+
+        await this.embedStructural(db, changedFileIds);
+        await this.embedDocumentation(db, changedDocIds);
         if (this.history) {
           await this.embedCommitMessages(db);
         }
@@ -708,6 +744,21 @@ export class IndexBuilder {
     db.prepare(
       `DELETE FROM doc_section_embeddings WHERE rowid IN (${sectionIds.map(() => '?').join(', ')})`,
     ).run(...sectionIds);
+  }
+
+  /**
+   * Remove orphaned rows from the `symbol_embeddings` vec0 table for symbols
+   * that have been deleted (e.g. file re-processed or removed).
+   */
+  private deleteSymbolEmbeddings(db: Database.Database, symbolIds: number[]): void {
+    if (symbolIds.length === 0) return;
+    const hasEmbeddingsTable = db.prepare(
+      "SELECT 1 AS present FROM sqlite_master WHERE type IN ('table', 'virtual table') AND name = 'symbol_embeddings'",
+    ).get() as { present: number } | undefined;
+    if (!hasEmbeddingsTable) return;
+    db.prepare(
+      `DELETE FROM symbol_embeddings WHERE rowid IN (${symbolIds.map(() => '?').join(', ')})`,
+    ).run(...symbolIds);
   }
 
   /**
@@ -1098,30 +1149,43 @@ export class IndexBuilder {
    *
    * Also stores the embedding model name and dims in `lore_meta` and
    * creates the vec0 tables if they don't exist yet.
+   *
+   * @param fileIds  When provided, only embed symbols belonging to these file
+   *                 IDs (incremental mode). When omitted, embeds all symbols
+   *                 (full-build mode).
    */
-  private async embedStructural(db: Database.Database): Promise<void> {
+  private async embedStructural(db: Database.Database, fileIds?: number[]): Promise<void> {
     const embedder = this.embedder!;
 
     setLoreMeta(db, 'embedding_model', embedder.modelName);
     setLoreMeta(db, 'embedding_dims', String(embedder.dims));
     createVec0Tables(db, embedder.dims);
 
-    // Fetch all symbols that have structural text to embed.
-    const symbols = db
-      .prepare(
-        `SELECT id, name, signature, resolved_type_signature, resolved_return_type
-         FROM symbols
-         WHERE signature IS NOT NULL
-            OR resolved_type_signature IS NOT NULL
-            OR resolved_return_type IS NOT NULL`,
-      )
-      .all() as Array<{
-        id: number;
-        name: string;
-        signature: string | null;
-        resolved_type_signature: string | null;
-        resolved_return_type: string | null;
-      }>;
+    // Build the query — scoped to specific files when doing an incremental update.
+    const baseQuery =
+      `SELECT id, name, signature, resolved_type_signature, resolved_return_type
+       FROM symbols
+       WHERE (signature IS NOT NULL
+          OR resolved_type_signature IS NOT NULL
+          OR resolved_return_type IS NOT NULL)`;
+
+    let symbols: Array<{
+      id: number;
+      name: string;
+      signature: string | null;
+      resolved_type_signature: string | null;
+      resolved_return_type: string | null;
+    }>;
+
+    if (fileIds && fileIds.length > 0) {
+      symbols = db
+        .prepare(
+          `${baseQuery} AND file_id IN (${fileIds.map(() => '?').join(', ')})`,
+        )
+        .all(...fileIds) as typeof symbols;
+    } else {
+      symbols = db.prepare(baseQuery).all() as typeof symbols;
+    }
 
     const insertEmbed = db.prepare(
       'INSERT OR REPLACE INTO symbol_embeddings(rowid, embedding) VALUES (CAST(? AS INTEGER), json(?))',
@@ -1148,7 +1212,15 @@ export class IndexBuilder {
     }
   }
 
-  private async embedDocumentation(db: Database.Database): Promise<void> {
+  /**
+   * Embed documentation sections in batches and persist results to
+   * the `doc_section_embeddings` vec0 virtual table.
+   *
+   * @param docIds  When provided, only embed sections belonging to these
+   *                doc IDs (incremental mode). When omitted, embeds all
+   *                sections (full-build mode).
+   */
+  private async embedDocumentation(db: Database.Database, docIds?: number[]): Promise<void> {
     const embedder = this.embedder!;
 
     db.exec(`
@@ -1157,11 +1229,21 @@ export class IndexBuilder {
       );
     `);
 
-    const sections = db.prepare(
-      `SELECT id, title, content
-       FROM doc_sections
-       ORDER BY id`,
-    ).all() as Array<{ id: number; title: string; content: string }>;
+    let sections: Array<{ id: number; title: string; content: string }>;
+    if (docIds && docIds.length > 0) {
+      sections = db.prepare(
+        `SELECT id, title, content
+         FROM doc_sections
+         WHERE doc_id IN (${docIds.map(() => '?').join(', ')})
+         ORDER BY id`,
+      ).all(...docIds) as typeof sections;
+    } else {
+      sections = db.prepare(
+        `SELECT id, title, content
+         FROM doc_sections
+         ORDER BY id`,
+      ).all() as typeof sections;
+    }
     if (sections.length === 0) return;
 
     const insertEmbed = db.prepare(
@@ -1184,14 +1266,23 @@ export class IndexBuilder {
     }
   }
 
+  /**
+   * Embed commit messages that haven't been embedded yet.
+   *
+   * Uses a `LEFT JOIN` against `commit_embeddings` to skip commits whose
+   * embeddings already exist, so only newly-ingested commits are processed.
+   */
   private async embedCommitMessages(db: Database.Database): Promise<void> {
     const embedder = this.embedder!;
 
+    // Only embed commits that don't already have an embedding row.
     const commits = db.prepare(
-      `SELECT rowid, message
-       FROM commits
-       WHERE length(trim(message)) > 0
-       ORDER BY rowid`,
+      `SELECT c.rowid, c.message
+       FROM commits c
+       LEFT JOIN commit_embeddings ce ON ce.rowid = c.rowid
+       WHERE length(trim(c.message)) > 0
+         AND ce.rowid IS NULL
+       ORDER BY c.rowid`,
     ).all() as Array<{ rowid: number; message: string }>;
     if (commits.length === 0) return;
 

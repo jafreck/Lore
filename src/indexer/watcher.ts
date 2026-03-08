@@ -8,6 +8,7 @@
 
 import * as fs from 'node:fs';
 import { IndexBuilder } from './index.js';
+import type { EmbeddingProvider } from './embedder.js';
 import type { EffectiveLspSettings } from './lsp/config.js';
 import type { WalkerConfig } from './walker.js';
 
@@ -25,6 +26,12 @@ export interface WatcherOptions {
   indexDependencies?: boolean;
   /** Effective LSP settings forwarded to update cycles. */
   lsp?: EffectiveLspSettings;
+  /**
+   * Optional long-lived embedding provider. When supplied, each incremental
+   * update cycle will generate embeddings for changed symbols and docs.
+   * The caller is responsible for the provider's lifecycle (init/dispose).
+   */
+  embedder?: EmbeddingProvider;
 }
 
 // ─── FileWatcher ──────────────────────────────────────────────────────────────
@@ -49,6 +56,7 @@ export class FileWatcher {
   private readonly history: boolean | { depth?: number; all?: boolean };
   private readonly indexDependencies: boolean;
   private readonly lsp: EffectiveLspSettings | undefined;
+  private readonly embedder: EmbeddingProvider | undefined;
 
   private watcher: fs.FSWatcher | null = null;
   private pendingPaths: Set<string> = new Set();
@@ -63,6 +71,7 @@ export class FileWatcher {
     this.history = options.history ?? false;
     this.indexDependencies = options.indexDependencies ?? false;
     this.lsp = options.lsp;
+    this.embedder = options.embedder;
   }
 
   /** Begin watching `walkerConfig.rootDir` recursively for file changes. */
@@ -118,7 +127,7 @@ export class FileWatcher {
 
       if (paths.length === 0) return;
 
-      const builder = new IndexBuilder(this.dbPath, this.walkerConfig, undefined, {
+      const builder = new IndexBuilder(this.dbPath, this.walkerConfig, this.embedder, {
         history: this.history,
         ...(this.indexDependencies && { indexDependencies: true }),
         ...(this.lsp && { lsp: this.lsp }),
