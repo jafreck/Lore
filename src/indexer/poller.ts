@@ -9,6 +9,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { IndexBuilder } from './index.js';
+import type { EmbeddingProvider } from './embedder.js';
 import type { EffectiveLspSettings } from './lsp/config.js';
 import { walkFiles } from './walker.js';
 import type { WalkerConfig } from './walker.js';
@@ -27,6 +28,12 @@ export interface PollerOptions {
   indexDependencies?: boolean;
   /** Effective LSP settings forwarded to update cycles. */
   lsp?: EffectiveLspSettings;
+  /**
+   * Optional long-lived embedding provider. When supplied, each incremental
+   * update cycle will generate embeddings for changed symbols and docs.
+   * The caller is responsible for the provider's lifecycle (init/dispose).
+   */
+  embedder?: EmbeddingProvider;
 }
 
 const COVERAGE_REPORT_RELATIVE_PATHS = [
@@ -57,6 +64,7 @@ export class FilePoller {
   private readonly history: boolean | { depth?: number; all?: boolean };
   private readonly indexDependencies: boolean;
   private readonly lsp: EffectiveLspSettings | undefined;
+  private readonly embedder: EmbeddingProvider | undefined;
 
   /** Maps absolute path → last seen mtime (ms since epoch). */
   private snapshot: Map<string, number> = new Map();
@@ -71,6 +79,7 @@ export class FilePoller {
     this.history = options.history ?? false;
     this.indexDependencies = options.indexDependencies ?? false;
     this.lsp = options.lsp;
+    this.embedder = options.embedder;
   }
 
   /** Begin polling `walkerConfig.rootDir` at the configured interval. */
@@ -150,7 +159,7 @@ export class FilePoller {
       }
 
       if (changed.length > 0) {
-        const builder = new IndexBuilder(this.dbPath, this.walkerConfig, undefined, {
+        const builder = new IndexBuilder(this.dbPath, this.walkerConfig, this.embedder, {
           history: this.history,
           ...(this.indexDependencies && { indexDependencies: true }),
           ...(this.lsp && { lsp: this.lsp }),

@@ -223,6 +223,30 @@ describe('FileWatcher', () => {
       expect(IndexBuilder).toHaveBeenCalledWith('/db.sqlite', walkerConfig, undefined, { history });
     });
 
+    it('should pass the embedder to IndexBuilder when provided', async () => {
+      const mockEmbedder = { embed: vi.fn(), init: vi.fn(), dispose: vi.fn().mockResolvedValue(undefined), modelName: 'test-model', dims: 128 };
+      const watcher = new FileWatcher('/db.sqlite', walkerConfig, { debounceMs: 100, embedder: mockEmbedder });
+      watcher.start();
+
+      const watchCb = vi.mocked(fs.watch).mock.calls[0]?.[2] as (
+        event: string,
+        filename: string,
+      ) => void;
+      watchCb('change', 'a.ts');
+
+      await vi.advanceTimersByTimeAsync(100);
+
+      expect(IndexBuilder).toHaveBeenCalledWith('/db.sqlite', walkerConfig, mockEmbedder, expect.any(Object));
+    });
+
+    it('should not dispose the embedder when stop() is called', () => {
+      const mockEmbedder = { embed: vi.fn(), init: vi.fn(), dispose: vi.fn().mockResolvedValue(undefined), modelName: 'test-model', dims: 128 };
+      const watcher = new FileWatcher('/db.sqlite', walkerConfig, { embedder: mockEmbedder });
+      watcher.start();
+      watcher.stop();
+      expect(mockEmbedder.dispose).not.toHaveBeenCalled();
+    });
+
     it('should deduplicate repeated events for the same file', async () => {
       const watcher = new FileWatcher('/db.sqlite', walkerConfig, { debounceMs: 100 });
       watcher.start();
