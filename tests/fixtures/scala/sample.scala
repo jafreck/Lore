@@ -26,3 +26,8 @@ object MathUtils {
 
 val version = "1.0.0"
 var counter = 0
+
+def main(args: Array[String]): Unit =
+  val msg = greet("World")
+  val sum = add(1, 2)
+  println(msg)

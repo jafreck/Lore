@@ -18,3 +18,10 @@ local function clamp(value, min, max)
     if value > max then return max end
     return value
 end
+
+local function main()
+    local msg = greet("World")
+    local sum = add(1, 2)
+    local sq = square(sum)
+    print(msg)
+end

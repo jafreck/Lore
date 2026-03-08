@@ -16,3 +16,9 @@ private:
 int add(int a, int b) {
   return a + b;
 }
+
+void run() {
+  Greeter g("World");
+  std::cout << g.greet() << std::endl;
+  int sum = add(1, 2);
+}

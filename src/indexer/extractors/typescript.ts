@@ -10,14 +10,23 @@ import type Parser from 'tree-sitter';
 import {
   type ComplexityNodeTypes,
   type ExtractionResult,
+  type RawCallRef,
   type RawImport,
   type RawRelationship,
   type RawSymbol,
   type SymbolExtractor,
   emptyResult,
+  findEnclosingSymbolName,
   nodeSignature,
   walk,
 } from './types.js';
+
+const TS_SYMBOL_NODE_TYPES = [
+  'function_declaration',
+  'generator_function_declaration',
+  'method_definition',
+  'class_declaration',
+] as const;
 
 export const TYPESCRIPT_COMPLEXITY_NODE_TYPES: ComplexityNodeTypes = {
   parameterListTypes: ['formal_parameters'],
@@ -80,6 +89,11 @@ export class TypeScriptExtractor implements SymbolExtractor {
         case 'import_statement':
           result.imports.push(extractImport(node));
           break;
+        case 'call_expression': {
+          const ref = extractCallRef(node);
+          if (ref) result.callRefs.push(ref);
+          break;
+        }
       }
     }
 
@@ -226,4 +240,15 @@ function collectImportNames(node: Parser.SyntaxNode, out: string[]): void {
 
 function stripQuotes(s: string): string {
   return s.replace(/^['"`]|['"`]$/g, '');
+}
+
+function extractCallRef(node: Parser.SyntaxNode): RawCallRef | null {
+  const fnNode = node.childForFieldName('function');
+  if (!fnNode) return null;
+  return {
+    callerSymbol: findEnclosingSymbolName(node, TS_SYMBOL_NODE_TYPES),
+    calleeRaw: fnNode.text,
+    line: node.startPosition.row,
+    character: node.startPosition.column,
+  };
 }

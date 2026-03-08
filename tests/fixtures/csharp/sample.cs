@@ -22,4 +22,13 @@ namespace Sample
     {
         int Add(int a, int b);
     }
+
+    public static class Program
+    {
+        public static void Main()
+        {
+            var greeter = new Greeter("World");
+            Console.WriteLine(greeter.Greet());
+        }
+    }
 }

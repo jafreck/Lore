@@ -8,13 +8,22 @@
 import type Parser from 'tree-sitter';
 import {
   type ExtractionResult,
+  type RawCallRef,
   type RawImport,
   type RawSymbol,
   type SymbolExtractor,
   emptyResult,
+  findEnclosingSymbolName,
   nodeSignature,
   walk,
 } from './types.js';
+
+const SCALA_SYMBOL_NODE_TYPES = [
+  'function_definition',
+  'class_definition',
+  'trait_definition',
+  'object_definition',
+] as const;
 
 // ─── ScalaExtractor ───────────────────────────────────────────────────────────
 
@@ -43,6 +52,11 @@ export class ScalaExtractor implements SymbolExtractor {
         case 'import_declaration':
           result.imports.push(extractImport(node));
           break;
+        case 'call_expression': {
+          const ref = extractCallRef(node);
+          if (ref) result.callRefs.push(ref);
+          break;
+        }
       }
     }
 
@@ -82,6 +96,17 @@ function extractNamedNode(node: Parser.SyntaxNode, kind: string): RawSymbol {
     startLine: node.startPosition.row,
     endLine: node.endPosition.row,
     signature: nodeSignature(node),
+  };
+}
+
+function extractCallRef(node: Parser.SyntaxNode): RawCallRef | null {
+  const fnNode = node.childForFieldName('function') ?? node.namedChildren[0];
+  if (!fnNode) return null;
+  return {
+    callerSymbol: findEnclosingSymbolName(node, SCALA_SYMBOL_NODE_TYPES),
+    calleeRaw: fnNode.text,
+    line: node.startPosition.row,
+    character: node.startPosition.column,
   };
 }
 

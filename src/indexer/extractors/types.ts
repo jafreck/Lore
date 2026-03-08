@@ -175,6 +175,56 @@ export function emptyResult(): ExtractionResult {
 }
 
 /**
+ * Walks up the parent chain from `node` to find the nearest enclosing symbol
+ * declaration and returns its name.  Returns `''` for top-level code.
+ *
+ * @param symbolNodeTypes  AST node types that represent symbol declarations
+ *                         in the current language (e.g. `function_definition`).
+ */
+export function findEnclosingSymbolName(
+  node: Parser.SyntaxNode,
+  symbolNodeTypes: readonly string[],
+): string {
+  let current: Parser.SyntaxNode | null = node.parent;
+  while (current) {
+    if (symbolNodeTypes.includes(current.type)) {
+      // Standard 'name' field (Go, Python, Rust, Java, C#, etc.)
+      const nameNode = current.childForFieldName('name');
+      if (nameNode) return nameNode.text;
+      // C/C++ use 'declarator' for function names
+      const declNode = current.childForFieldName('declarator');
+      if (declNode) {
+        const id =
+          findFirst(declNode, 'qualified_identifier')
+          ?? findFirst(declNode, 'identifier');
+        if (id) return id.text;
+      }
+    }
+    // TS/JS arrow functions: const foo = () => {} — name is on the variable_declarator
+    if (
+      current.type === 'variable_declarator'
+      && current.parent
+      && (current.parent.type === 'lexical_declaration' || current.parent.type === 'variable_declaration')
+    ) {
+      const valueNode = current.childForFieldName('value');
+      if (
+        valueNode
+        && (valueNode.type === 'arrow_function'
+          || valueNode.type === 'function_expression'
+          || valueNode.type === 'generator_function')
+        && node.startIndex >= valueNode.startIndex
+        && node.endIndex <= valueNode.endIndex
+      ) {
+        const nameNode = current.childForFieldName('name');
+        if (nameNode) return nameNode.text;
+      }
+    }
+    current = current.parent;
+  }
+  return '';
+}
+
+/**
  * Returns true when a symbol belongs to the public declaration API surface.
  *
  * Falls back to `isExported` so existing extractors remain compatible while

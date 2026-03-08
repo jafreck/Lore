@@ -8,13 +8,20 @@
 import type Parser from 'tree-sitter';
 import {
   type ExtractionResult,
+  type RawCallRef,
   type RawImport,
   type RawSymbol,
   type SymbolExtractor,
   emptyResult,
+  findEnclosingSymbolName,
   nodeSignature,
   walk,
 } from './types.js';
+
+const LUA_SYMBOL_NODE_TYPES = [
+  'function_declaration',
+  'local_function_declaration',
+] as const;
 
 // ─── LuaExtractor ────────────────────────────────────────────────────────────
 
@@ -33,6 +40,8 @@ export class LuaExtractor implements SymbolExtractor {
         case 'function_call': {
           const imp = tryExtractRequire(node);
           if (imp) result.imports.push(imp);
+          const ref = extractCallRef(node);
+          if (ref) result.callRefs.push(ref);
           break;
         }
       }
@@ -63,6 +72,17 @@ function extractLocalFunction(node: Parser.SyntaxNode): RawSymbol {
     startLine: node.startPosition.row,
     endLine: node.endPosition.row,
     signature: nodeSignature(node),
+  };
+}
+
+function extractCallRef(node: Parser.SyntaxNode): RawCallRef | null {
+  const fnNode = node.childForFieldName('name');
+  if (!fnNode) return null;
+  return {
+    callerSymbol: findEnclosingSymbolName(node, LUA_SYMBOL_NODE_TYPES),
+    calleeRaw: fnNode.text,
+    line: node.startPosition.row,
+    character: node.startPosition.column,
   };
 }
 
