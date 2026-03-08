@@ -10,9 +10,13 @@ import {
   type ExtractionResult,
   type RawCallRef,
   type RawImport,
+  type RawRelationship,
   type RawSymbol,
+  type RawTypeRef,
+  type TypeRefKind,
   type SymbolExtractor,
   emptyResult,
+  extractGenericTypeArgs,
   findEnclosingSymbolName,
   nodeSignature,
   walk,
@@ -34,18 +38,23 @@ export class CSharpExtractor implements SymbolExtractor {
       switch (node.type) {
         case 'class_declaration':
           result.symbols.push(extractNamedNode(node, 'class'));
+          extractCsBaseListRelationships(node, 'class', result.relationships, result.typeRefs);
+          extractCsFieldTypeRefs(node, result.typeRefs);
           break;
         case 'interface_declaration':
           result.symbols.push(extractNamedNode(node, 'interface'));
+          extractCsBaseListRelationships(node, 'interface', result.relationships, result.typeRefs);
           break;
         case 'struct_declaration':
           result.symbols.push(extractNamedNode(node, 'struct'));
+          extractCsBaseListRelationships(node, 'struct', result.relationships, result.typeRefs);
           break;
         case 'enum_declaration':
           result.symbols.push(extractNamedNode(node, 'enum'));
           break;
         case 'method_declaration':
           result.symbols.push(extractMethod(node));
+          extractCsMethodTypeRefs(node, result.typeRefs);
           break;
         case 'using_directive':
           result.imports.push(extractUsingDirective(node));
@@ -58,6 +67,10 @@ export class CSharpExtractor implements SymbolExtractor {
         case 'object_creation_expression': {
           const ref = extractNewCallRef(node);
           if (ref) result.callRefs.push(ref);
+          break;
+        }
+        case 'variable_declaration': {
+          extractCsVariableTypeRefs(node, result.typeRefs);
           break;
         }
       }
@@ -134,4 +147,97 @@ function extractUsingDirective(node: Parser.SyntaxNode): RawImport {
   }
 
   return { source, importedNames };
+}
+
+// ─── Relationship extraction ──────────────────────────────────────────────────
+
+function extractCsBaseListRelationships(
+  node: Parser.SyntaxNode,
+  declKind: string,
+  relationships: RawRelationship[],
+  typeRefs: RawTypeRef[],
+): void {
+  const name = node.childForFieldName('name')?.text ?? '';
+  if (!name) return;
+  const baseList = node.namedChildren.find(c => c.type === 'base_list');
+  if (!baseList) return;
+  let first = true;
+  for (const child of baseList.namedChildren) {
+    if (child.type === 'identifier' || child.type === 'generic_name' || child.type === 'qualified_name') {
+      const baseName = child.text;
+      // In C#, the first item in a class base list is the superclass (extends),
+      // subsequent items are interfaces (implements). For interfaces, all are extends.
+      const kind = (declKind === 'interface' || !first) ? 'implements' : 'extends';
+      relationships.push({ kind, fromSymbol: name, toSymbol: baseName, line: child.startPosition.row });
+      typeRefs.push({ enclosingSymbol: name, typeRaw: baseName, refKind: 'bound', line: child.startPosition.row, character: child.startPosition.column });
+      first = false;
+    }
+  }
+}
+
+// ─── Type-ref extraction ──────────────────────────────────────────────────────
+
+function extractCsTypeName(typeNode: Parser.SyntaxNode): string | null {
+  if (typeNode.type === 'identifier' || typeNode.type === 'qualified_name' || typeNode.type === 'generic_name') return typeNode.text;
+  if (typeNode.type === 'predefined_type') return typeNode.text;
+  if (typeNode.type === 'nullable_type' || typeNode.type === 'array_type') {
+    const inner = typeNode.namedChildren[0];
+    return inner ? extractCsTypeName(inner) : null;
+  }
+  for (const child of typeNode.namedChildren) {
+    const name = extractCsTypeName(child);
+    if (name) return name;
+  }
+  return null;
+}
+
+function emitCsTypeRef(refs: RawTypeRef[], enclosing: string, typeNode: Parser.SyntaxNode, refKind: TypeRefKind): void {
+  const typeName = extractCsTypeName(typeNode);
+  if (!typeName) return;
+  refs.push({ enclosingSymbol: enclosing, typeRaw: typeName, refKind, line: typeNode.startPosition.row, character: typeNode.startPosition.column });
+  const genericArgs = extractGenericTypeArgs(typeNode, 'generic_name', 'type_argument_list');
+  for (const arg of genericArgs) {
+    refs.push({ enclosingSymbol: enclosing, typeRaw: arg, refKind: 'generic_arg', line: typeNode.startPosition.row, character: typeNode.startPosition.column });
+  }
+}
+
+function extractCsMethodTypeRefs(methodNode: Parser.SyntaxNode, refs: RawTypeRef[]): void {
+  const methodName = methodNode.childForFieldName('name')?.text ?? '';
+  // Return type
+  const returnType = methodNode.childForFieldName('type');
+  if (returnType) emitCsTypeRef(refs, methodName, returnType, 'return');
+  // Parameters
+  const params = methodNode.childForFieldName('parameters');
+  if (params) {
+    for (const param of params.namedChildren) {
+      if (param.type === 'parameter') {
+        const typeNode = param.childForFieldName('type');
+        if (typeNode) emitCsTypeRef(refs, methodName, typeNode, 'parameter');
+      }
+    }
+  }
+}
+
+function extractCsFieldTypeRefs(classNode: Parser.SyntaxNode, refs: RawTypeRef[]): void {
+  const className = classNode.childForFieldName('name')?.text ?? '';
+  const body = classNode.childForFieldName('body');
+  if (!body) return;
+  for (const child of body.namedChildren) {
+    if (child.type === 'field_declaration') {
+      const decl = child.namedChildren.find(c => c.type === 'variable_declaration');
+      if (decl) {
+        const typeNode = decl.childForFieldName('type');
+        if (typeNode) emitCsTypeRef(refs, className, typeNode, 'field');
+      }
+    }
+  }
+}
+
+function extractCsVariableTypeRefs(varDeclNode: Parser.SyntaxNode, refs: RawTypeRef[]): void {
+  const typeNode = varDeclNode.childForFieldName('type');
+  if (!typeNode) return;
+  const typeName = extractCsTypeName(typeNode);
+  if (!typeName) return;
+  const enclosing = findEnclosingSymbolName(varDeclNode, CS_SYMBOL_NODE_TYPES);
+  emitCsTypeRef(refs, enclosing, typeNode, 'variable');
 }

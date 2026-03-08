@@ -10,7 +10,10 @@ import {
   type ExtractionResult,
   type RawCallRef,
   type RawImport,
+  type RawRelationship,
   type RawSymbol,
+  type RawTypeRef,
+  type TypeRefKind,
   type SymbolExtractor,
   emptyResult,
   findEnclosingSymbolName,
@@ -36,12 +39,15 @@ export class DartExtractor implements SymbolExtractor {
         case 'function_signature':
         case 'function_declaration':
           result.symbols.push(extractFunction(node));
+          extractDartFunctionTypeRefs(node, result.typeRefs);
           break;
         case 'method_signature':
           result.symbols.push(extractFunction(node));
+          extractDartFunctionTypeRefs(node, result.typeRefs);
           break;
         case 'class_definition':
           result.symbols.push(extractNamedNode(node, 'class'));
+          extractDartInheritance(node, result.relationships, result.typeRefs);
           break;
         case 'mixin_declaration':
           result.symbols.push(extractNamedNode(node, 'mixin'));
@@ -135,4 +141,53 @@ function extractImport(node: Parser.SyntaxNode): RawImport {
   }
 
   return { source, importedNames };
+}
+
+// ─── Inheritance / type-ref extraction ─────────────────────────────────────────
+
+function extractDartInheritance(
+  classNode: Parser.SyntaxNode,
+  relationships: RawRelationship[],
+  typeRefs: RawTypeRef[],
+): void {
+  const name = classNode.childForFieldName('name')?.text ??
+    classNode.namedChildren.find(c => c.type === 'identifier')?.text ?? '';
+  if (!name) return;
+  for (const child of classNode.namedChildren) {
+    if (child.type === 'superclass') {
+      const typeNode = child.namedChildren[0];
+      if (typeNode) {
+        relationships.push({ kind: 'extends', fromSymbol: name, toSymbol: typeNode.text, line: typeNode.startPosition.row });
+        typeRefs.push({ enclosingSymbol: name, typeRaw: typeNode.text, refKind: 'bound', line: typeNode.startPosition.row, character: typeNode.startPosition.column });
+      }
+    }
+    if (child.type === 'interfaces' || child.type === 'mixins') {
+      for (const iface of child.namedChildren) {
+        if (iface.type === 'type_identifier' || iface.type === 'identifier') {
+          relationships.push({ kind: 'implements', fromSymbol: name, toSymbol: iface.text, line: iface.startPosition.row });
+          typeRefs.push({ enclosingSymbol: name, typeRaw: iface.text, refKind: 'bound', line: iface.startPosition.row, character: iface.startPosition.column });
+        }
+      }
+    }
+  }
+}
+
+function extractDartFunctionTypeRefs(funcNode: Parser.SyntaxNode, refs: RawTypeRef[]): void {
+  const funcName = funcNode.childForFieldName('name')?.text ??
+    funcNode.namedChildren.find(c => c.type === 'identifier')?.text ?? '';
+  // Return type  
+  const returnType = funcNode.childForFieldName('type') ?? funcNode.namedChildren.find(c => c.type === 'type_identifier');
+  if (returnType && returnType.type === 'type_identifier') {
+    refs.push({ enclosingSymbol: funcName, typeRaw: returnType.text, refKind: 'return', line: returnType.startPosition.row, character: returnType.startPosition.column });
+  }
+  // Parameters
+  const params = funcNode.namedChildren.find(c => c.type === 'formal_parameter_list');
+  if (params) {
+    for (const param of params.namedChildren) {
+      const typeNode = param.namedChildren.find(c => c.type === 'type_identifier');
+      if (typeNode) {
+        refs.push({ enclosingSymbol: funcName, typeRaw: typeNode.text, refKind: 'parameter', line: typeNode.startPosition.row, character: typeNode.startPosition.column });
+      }
+    }
+  }
 }

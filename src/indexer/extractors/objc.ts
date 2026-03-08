@@ -11,6 +11,7 @@ import {
   type RawCallRef,
   type RawImport,
   type RawSymbol,
+  type RawTypeRef,
   type SymbolExtractor,
   emptyResult,
   nodeSignature,
@@ -44,6 +45,7 @@ export class ObjcExtractor implements SymbolExtractor {
         case 'class_method_declaration':
         case 'instance_method_declaration':
           result.symbols.push(extractMethod(node));
+          extractObjcMethodTypeRefs(node, result.typeRefs);
           break;
         case 'category_interface':
           result.symbols.push(extractCategory(node));
@@ -188,4 +190,42 @@ function extractHashImports(source: string, result: ExtractionResult): void {
       result.imports.push({ source: src, importedNames: [] });
     }
   }
+}
+
+// ─── Type-ref extraction ──────────────────────────────────────────────────────
+
+function extractObjcMethodTypeRefs(methodNode: Parser.SyntaxNode, refs: RawTypeRef[]): void {
+  const selectorNode = methodNode.childForFieldName('selector') ??
+    methodNode.namedChildren.find(c => c.type === 'selector' || c.type === 'keyword_selector');
+  const methodName = selectorNode?.text ?? '';
+  // Return type
+  const returnType = methodNode.childForFieldName('return_type');
+  if (returnType) {
+    const typeName = extractObjcTypeName(returnType);
+    if (typeName) {
+      refs.push({ enclosingSymbol: methodName, typeRaw: typeName, refKind: 'return', line: returnType.startPosition.row, character: returnType.startPosition.column });
+    }
+  }
+  // Parameters
+  for (const child of methodNode.namedChildren) {
+    if (child.type === 'keyword_declarator') {
+      const typeNode = child.childForFieldName('type');
+      if (typeNode) {
+        const typeName = extractObjcTypeName(typeNode);
+        if (typeName) {
+          refs.push({ enclosingSymbol: methodName, typeRaw: typeName, refKind: 'parameter', line: typeNode.startPosition.row, character: typeNode.startPosition.column });
+        }
+      }
+    }
+  }
+}
+
+function extractObjcTypeName(typeNode: Parser.SyntaxNode): string | null {
+  // ObjC types come as type_identifier, pointer types like NSString*, etc.
+  if (typeNode.type === 'type_identifier' || typeNode.type === 'id') return typeNode.text;
+  // Look for type_identifier in children
+  for (const child of typeNode.namedChildren) {
+    if (child.type === 'type_identifier') return child.text;
+  }
+  return null;
 }

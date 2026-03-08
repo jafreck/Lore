@@ -97,6 +97,34 @@ export interface RawRelationship {
   line: number;
 }
 
+/**
+ * Classification of how a type reference is used at the referencing site.
+ */
+export type TypeRefKind =
+  | 'parameter'
+  | 'return'
+  | 'field'
+  | 'variable'
+  | 'cast'
+  | 'sizeof'
+  | 'generic_arg'
+  | 'bound'
+  | 'other';
+
+/** A type-usage reference found in a source file. */
+export interface RawTypeRef {
+  /** Name of the enclosing symbol that contains the reference (empty string if top-level). */
+  enclosingSymbol: string;
+  /** Raw type text as it appears in source. */
+  typeRaw: string;
+  /** How the type is referenced (parameter, return, field, etc.). */
+  refKind: TypeRefKind;
+  /** 0-indexed line of the type reference. */
+  line: number;
+  /** 0-indexed character in the line (best-effort, optional). */
+  character?: number;
+}
+
 /** A framework route/endpoint extracted from source. */
 export interface RawRoute {
   /** HTTP method for the route (e.g. `GET`, `POST`). */
@@ -120,6 +148,7 @@ export interface ExtractionResult {
   callRefs: RawCallRef[];
   envRefs: RawEnvRef[];
   relationships: RawRelationship[];
+  typeRefs: RawTypeRef[];
   routes: RawRoute[];
 }
 
@@ -185,7 +214,7 @@ export function nodeSignature(node: Parser.SyntaxNode): string {
 
 /** Returns an empty `ExtractionResult`. */
 export function emptyResult(): ExtractionResult {
-  return { symbols: [], imports: [], callRefs: [], envRefs: [], relationships: [], routes: [] };
+  return { symbols: [], imports: [], callRefs: [], envRefs: [], relationships: [], typeRefs: [], routes: [] };
 }
 
 /**
@@ -249,4 +278,29 @@ export function isPublicDeclarationSurfaceSymbol(symbol: RawSymbol): boolean {
     return symbol.declarationSurface.isPublic && symbol.declarationSurface.isDeclaration;
   }
   return symbol.isExported === true;
+}
+
+/**
+ * Extracts type argument names from a generic/template type node.
+ *
+ * Walks the immediate children of the argument list node and returns their
+ * text values.  One level deep only — nested generics are **not** recursed.
+ *
+ * @param typeNode         The type node that may contain generic args.
+ * @param genericNodeType  The AST node type of the generic wrapper (e.g. `generic_type`, `template_type`).
+ * @param argListNodeType  The AST node type of the argument list (e.g. `type_arguments`, `template_argument_list`).
+ * @returns Array of type argument text values, or empty if none found.
+ */
+export function extractGenericTypeArgs(
+  typeNode: Parser.SyntaxNode,
+  genericNodeType: string,
+  argListNodeType: string,
+): string[] {
+  if (typeNode.type !== genericNodeType) return [];
+  for (const child of typeNode.namedChildren) {
+    if (child.type === argListNodeType) {
+      return child.namedChildren.map(c => c.text);
+    }
+  }
+  return [];
 }

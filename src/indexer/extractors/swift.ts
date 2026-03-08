@@ -10,7 +10,10 @@ import {
   type ExtractionResult,
   type RawCallRef,
   type RawImport,
+  type RawRelationship,
   type RawSymbol,
+  type RawTypeRef,
+  type TypeRefKind,
   type SymbolExtractor,
   emptyResult,
   findEnclosingSymbolName,
@@ -34,12 +37,15 @@ export class SwiftExtractor implements SymbolExtractor {
       switch (node.type) {
         case 'function_declaration':
           result.symbols.push(extractFunction(node));
+          extractSwiftFunctionTypeRefs(node, result.typeRefs);
           break;
         case 'class_declaration':
           result.symbols.push(extractNamedNode(node, 'class'));
+          extractSwiftInheritance(node, result.relationships, result.typeRefs);
           break;
         case 'struct_declaration':
           result.symbols.push(extractNamedNode(node, 'struct'));
+          extractSwiftInheritance(node, result.relationships, result.typeRefs);
           break;
         case 'enum_declaration':
           result.symbols.push(extractNamedNode(node, 'enum'));
@@ -132,4 +138,69 @@ function extractImport(node: Parser.SyntaxNode): RawImport {
   const parts = source.split('.');
   const importedNames = parts.length > 1 ? [parts[parts.length - 1] ?? ''] : [];
   return { source, importedNames };
+}
+
+// ─── Inheritance / type-ref extraction ─────────────────────────────────────────
+
+function extractSwiftInheritance(
+  node: Parser.SyntaxNode,
+  relationships: RawRelationship[],
+  typeRefs: RawTypeRef[],
+): void {
+  const name = node.childForFieldName('name')?.text ?? '';
+  if (!name) return;
+  const isClass = node.type === 'class_declaration';
+  // Look for type_inheritance_clause
+  const inheritanceClause = node.namedChildren.find(c => c.type === 'type_inheritance_clause' || c.type === 'inheritance_specifier');
+  if (!inheritanceClause) return;
+  let first = true;
+  for (const child of inheritanceClause.namedChildren) {
+    if (child.type === 'type_identifier' || child.type === 'user_type') {
+      const baseName = child.text;
+      const kind = (isClass && first) ? 'extends' : 'implements';
+      relationships.push({ kind, fromSymbol: name, toSymbol: baseName, line: child.startPosition.row });
+      typeRefs.push({ enclosingSymbol: name, typeRaw: baseName, refKind: 'bound', line: child.startPosition.row, character: child.startPosition.column });
+      first = false;
+    }
+  }
+}
+
+function extractSwiftTypeName(typeNode: Parser.SyntaxNode): string | null {
+  if (typeNode.type === 'type_identifier' || typeNode.type === 'user_type') return typeNode.text;
+  if (typeNode.type === 'optional_type') {
+    const inner = typeNode.namedChildren[0];
+    return inner ? extractSwiftTypeName(inner) : null;
+  }
+  if (typeNode.type === 'array_type') {
+    const element = typeNode.namedChildren[0];
+    return element ? extractSwiftTypeName(element) : null;
+  }
+  return null;
+}
+
+function emitSwiftTypeRef(refs: RawTypeRef[], enclosing: string, typeNode: Parser.SyntaxNode, refKind: TypeRefKind): void {
+  const typeName = extractSwiftTypeName(typeNode);
+  if (!typeName) return;
+  refs.push({ enclosingSymbol: enclosing, typeRaw: typeName, refKind, line: typeNode.startPosition.row, character: typeNode.startPosition.column });
+}
+
+function extractSwiftFunctionTypeRefs(funcNode: Parser.SyntaxNode, refs: RawTypeRef[]): void {
+  const funcName = funcNode.childForFieldName('name')?.text ?? '';
+  // Parameters
+  const params = funcNode.namedChildren.find(c => c.type === 'parameter');
+  if (!params) {
+    // Look for parameter clause
+    for (const child of funcNode.namedChildren) {
+      if (child.type === 'function_parameter' || child.type === 'parameter') {
+        const typeAnnotation = child.childForFieldName('type');
+        if (typeAnnotation) emitSwiftTypeRef(refs, funcName, typeAnnotation, 'parameter');
+      }
+    }
+  }
+  // Return type
+  const returnClause = funcNode.namedChildren.find(c => c.type === 'function_result' || c.type === 'type_identifier' || c.type === 'user_type');
+  if (returnClause?.type === 'function_result') {
+    const typeNode = returnClause.namedChildren[0];
+    if (typeNode) emitSwiftTypeRef(refs, funcName, typeNode, 'return');
+  }
 }

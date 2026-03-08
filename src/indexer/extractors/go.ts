@@ -10,8 +10,11 @@ import {
   type ExtractionResult,
   type RawCallRef,
   type RawImport,
+  type RawRelationship,
   type RawRoute,
   type RawSymbol,
+  type RawTypeRef,
+  type TypeRefKind,
   type SymbolExtractor,
   emptyResult,
   findEnclosingSymbolName,
@@ -35,12 +38,15 @@ export class GoExtractor implements SymbolExtractor {
       switch (node.type) {
         case 'function_declaration':
           result.symbols.push(extractFunction(node, 'function'));
+          extractGoFunctionTypeRefs(node, result.typeRefs);
           break;
         case 'method_declaration':
           result.symbols.push(extractMethod(node));
+          extractGoMethodTypeRefs(node, result.typeRefs);
           break;
         case 'type_declaration':
           result.symbols.push(...extractTypeDecl(node));
+          extractGoTypeDeclRefs(node, result.typeRefs, result.relationships);
           break;
         case 'import_declaration':
           result.imports.push(...extractImportDecl(node));
@@ -196,4 +202,120 @@ function maybeExtractGinRoute(node: Parser.SyntaxNode): RawRoute | null {
     framework: 'gin',
     line: node.startPosition.row,
   };
+}
+
+// ─── Type-ref extraction ──────────────────────────────────────────────────────
+
+function extractGoTypeName(typeNode: Parser.SyntaxNode): string | null {
+  if (typeNode.type === 'type_identifier') return typeNode.text;
+  if (typeNode.type === 'qualified_type') return typeNode.text;
+  if (typeNode.type === 'pointer_type') {
+    const inner = typeNode.namedChildren[0];
+    return inner ? extractGoTypeName(inner) : null;
+  }
+  if (typeNode.type === 'slice_type' || typeNode.type === 'array_type') {
+    const element = typeNode.childForFieldName('element') ?? typeNode.namedChildren[0];
+    return element ? extractGoTypeName(element) : null;
+  }
+  return null;
+}
+
+function emitGoTypeRef(refs: RawTypeRef[], enclosing: string, typeNode: Parser.SyntaxNode, refKind: TypeRefKind): void {
+  const typeName = extractGoTypeName(typeNode);
+  if (!typeName) return;
+  refs.push({ enclosingSymbol: enclosing, typeRaw: typeName, refKind, line: typeNode.startPosition.row, character: typeNode.startPosition.column });
+}
+
+function extractGoFunctionTypeRefs(funcNode: Parser.SyntaxNode, refs: RawTypeRef[]): void {
+  const funcName = funcNode.childForFieldName('name')?.text ?? '';
+  const params = funcNode.childForFieldName('parameters');
+  if (params) {
+    for (const param of params.namedChildren) {
+      if (param.type === 'parameter_declaration') {
+        const typeNode = param.childForFieldName('type');
+        if (typeNode) emitGoTypeRef(refs, funcName, typeNode, 'parameter');
+      }
+    }
+  }
+  const result = funcNode.childForFieldName('result');
+  if (result) {
+    if (result.type === 'parameter_list') {
+      for (const param of result.namedChildren) {
+        if (param.type === 'parameter_declaration') {
+          const typeNode = param.childForFieldName('type');
+          if (typeNode) emitGoTypeRef(refs, funcName, typeNode, 'return');
+        }
+      }
+    } else {
+      emitGoTypeRef(refs, funcName, result, 'return');
+    }
+  }
+}
+
+function extractGoMethodTypeRefs(methodNode: Parser.SyntaxNode, refs: RawTypeRef[]): void {
+  const nameNode = methodNode.childForFieldName('name');
+  const receiverNode = methodNode.childForFieldName('receiver');
+  let funcName = nameNode?.text ?? '';
+  if (receiverNode) {
+    const receiverType = findFirst(receiverNode, 'type_identifier')?.text ?? findFirst(receiverNode, 'pointer_type')?.text;
+    if (receiverType) funcName = `${receiverType}.${funcName}`;
+  }
+  const params = methodNode.childForFieldName('parameters');
+  if (params) {
+    for (const param of params.namedChildren) {
+      if (param.type === 'parameter_declaration') {
+        const typeNode = param.childForFieldName('type');
+        if (typeNode) emitGoTypeRef(refs, funcName, typeNode, 'parameter');
+      }
+    }
+  }
+  const result = methodNode.childForFieldName('result');
+  if (result) {
+    if (result.type === 'parameter_list') {
+      for (const param of result.namedChildren) {
+        if (param.type === 'parameter_declaration') {
+          const typeNode = param.childForFieldName('type');
+          if (typeNode) emitGoTypeRef(refs, funcName, typeNode, 'return');
+        }
+      }
+    } else {
+      emitGoTypeRef(refs, funcName, result, 'return');
+    }
+  }
+}
+
+function extractGoTypeDeclRefs(
+  typeDeclNode: Parser.SyntaxNode,
+  refs: RawTypeRef[],
+  relationships: RawRelationship[],
+): void {
+  for (const spec of typeDeclNode.namedChildren) {
+    if (spec.type !== 'type_spec') continue;
+    const name = spec.childForFieldName('name')?.text ?? '';
+    const typeNode = spec.childForFieldName('type');
+    if (!typeNode) continue;
+    // Interface embedding
+    if (typeNode.type === 'interface_type') {
+      for (const child of typeNode.namedChildren) {
+        // Embedded interfaces appear as type identifiers directly in the interface body
+        if (child.type === 'type_identifier' || child.type === 'qualified_type') {
+          relationships.push({ kind: 'extends', fromSymbol: name, toSymbol: child.text, line: child.startPosition.row });
+          refs.push({ enclosingSymbol: name, typeRaw: child.text, refKind: 'bound', line: child.startPosition.row, character: child.startPosition.column });
+        }
+      }
+    }
+    // Struct fields
+    if (typeNode.type === 'struct_type') {
+      for (const child of typeNode.namedChildren) {
+        if (child.type === 'field_declaration_list') {
+          for (const field of child.namedChildren) {
+            if (field.type === 'field_declaration') {
+              const fieldType = field.childForFieldName('type');
+              if (fieldType) emitGoTypeRef(refs, name, fieldType, 'field');
+            }
+          }
+        }
+      }
+    }
+  }
 }
