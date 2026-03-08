@@ -51,6 +51,16 @@ export interface RawImport {
   importedNames: string[];
 }
 
+/**
+ * Classification of how a call-site invokes its target.
+ *
+ * - `'direct'`   — ordinary named function/method call.
+ * - `'indirect'` — call through a function pointer or `std::function`-like wrapper.
+ * - `'macro'`    — invocation of a function-like macro.
+ * - `'virtual'`  — virtual / dynamic-dispatch call (reserved for future use).
+ */
+export type CallKind = 'direct' | 'indirect' | 'macro' | 'virtual';
+
 /** A call-site reference found in a source file. */
 export interface RawCallRef {
   /** Name of the enclosing symbol that contains the call (empty string if top-level). */
@@ -61,6 +71,10 @@ export interface RawCallRef {
   line: number;
   /** 0-indexed character in the call line (best-effort, optional). */
   character?: number;
+  /** How the callee is invoked (defaults to `'direct'` when absent). */
+  callKind?: CallKind;
+  /** True when the call target is reached via indirection (pointer deref, field, etc.). */
+  isIndirect?: boolean;
 }
 
 /** An environment-variable reference found in a source file. */

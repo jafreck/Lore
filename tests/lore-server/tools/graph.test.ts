@@ -35,7 +35,8 @@ function createTestDb(): Database.Database {
       id          INTEGER PRIMARY KEY AUTOINCREMENT,
       caller_id   INTEGER NOT NULL REFERENCES symbols(id) ON DELETE CASCADE,
       callee_id   INTEGER,
-      callee_name TEXT    NOT NULL
+      callee_name TEXT    NOT NULL,
+      call_kind   TEXT    NOT NULL DEFAULT 'direct'
     );
     CREATE TABLE file_imports (
       id          INTEGER PRIMARY KEY AUTOINCREMENT,
