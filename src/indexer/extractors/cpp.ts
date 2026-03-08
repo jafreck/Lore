@@ -98,6 +98,17 @@ export class CppExtractor implements SymbolExtractor {
           extractCppVariableTypeRefs(node, result.typeRefs);
           break;
         }
+        case 'cast_expression': {
+          extractCppCastTypeRef(node, result.typeRefs);
+          break;
+        }
+        case 'static_cast_expression':
+        case 'dynamic_cast_expression':
+        case 'reinterpret_cast_expression':
+        case 'const_cast_expression': {
+          extractCppNamedCastTypeRef(node, result.typeRefs);
+          break;
+        }
       }
     }
 
@@ -439,4 +450,20 @@ function extractCppVariableTypeRefs(declNode: Parser.SyntaxNode, refs: RawTypeRe
   if (!typeName) return;
   const enclosing = findEnclosingSymbolName(declNode, CPP_SYMBOL_NODE_TYPES);
   emitCppTypeRef(refs, enclosing, typeNode, 'variable');
+}
+
+function extractCppCastTypeRef(node: Parser.SyntaxNode, refs: RawTypeRef[]): void {
+  // C-style cast: (Type)expr
+  const typeNode = node.childForFieldName('type');
+  if (!typeNode) return;
+  const enclosing = findEnclosingSymbolName(node, CPP_SYMBOL_NODE_TYPES);
+  emitCppTypeRef(refs, enclosing, typeNode, 'cast');
+}
+
+function extractCppNamedCastTypeRef(node: Parser.SyntaxNode, refs: RawTypeRef[]): void {
+  // static_cast<Type>(expr), dynamic_cast<Type>(expr), etc.
+  const typeNode = node.childForFieldName('type');
+  if (!typeNode) return;
+  const enclosing = findEnclosingSymbolName(node, CPP_SYMBOL_NODE_TYPES);
+  emitCppTypeRef(refs, enclosing, typeNode, 'cast');
 }

@@ -73,6 +73,14 @@ export class CSharpExtractor implements SymbolExtractor {
           extractCsVariableTypeRefs(node, result.typeRefs);
           break;
         }
+        case 'cast_expression': {
+          extractCsCastTypeRef(node, result.typeRefs);
+          break;
+        }
+        case 'as_expression': {
+          extractCsAsCastTypeRef(node, result.typeRefs);
+          break;
+        }
       }
     }
 
@@ -240,4 +248,21 @@ function extractCsVariableTypeRefs(varDeclNode: Parser.SyntaxNode, refs: RawType
   if (!typeName) return;
   const enclosing = findEnclosingSymbolName(varDeclNode, CS_SYMBOL_NODE_TYPES);
   emitCsTypeRef(refs, enclosing, typeNode, 'variable');
+}
+
+function extractCsCastTypeRef(node: Parser.SyntaxNode, refs: RawTypeRef[]): void {
+  // (Type)expr
+  const typeNode = node.childForFieldName('type');
+  if (!typeNode) return;
+  const enclosing = findEnclosingSymbolName(node, CS_SYMBOL_NODE_TYPES);
+  emitCsTypeRef(refs, enclosing, typeNode, 'cast');
+}
+
+function extractCsAsCastTypeRef(node: Parser.SyntaxNode, refs: RawTypeRef[]): void {
+  // expr as Type
+  const typeNode = node.namedChildren.find(c =>
+    c.type === 'identifier' || c.type === 'generic_name' || c.type === 'qualified_name' || c.type === 'nullable_type');
+  if (!typeNode) return;
+  const enclosing = findEnclosingSymbolName(node, CS_SYMBOL_NODE_TYPES);
+  emitCsTypeRef(refs, enclosing, typeNode, 'cast');
 }

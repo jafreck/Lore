@@ -69,6 +69,10 @@ export class JavaExtractor implements SymbolExtractor {
           extractJavaLocalVarTypeRefs(node, result.typeRefs);
           break;
         }
+        case 'cast_expression': {
+          extractJavaCastTypeRef(node, result.typeRefs);
+          break;
+        }
       }
     }
 
@@ -253,4 +257,12 @@ function extractJavaLocalVarTypeRefs(node: Parser.SyntaxNode, refs: RawTypeRef[]
   if (!typeName) return;
   const enclosing = findEnclosingSymbolName(node, JAVA_SYMBOL_NODE_TYPES);
   emitJavaTypeRef(refs, enclosing, typeNode, 'variable');
+}
+
+function extractJavaCastTypeRef(node: Parser.SyntaxNode, refs: RawTypeRef[]): void {
+  // (Type)expr
+  const typeNode = node.childForFieldName('type');
+  if (!typeNode) return;
+  const enclosing = findEnclosingSymbolName(node, JAVA_SYMBOL_NODE_TYPES);
+  emitJavaTypeRef(refs, enclosing, typeNode, 'cast');
 }

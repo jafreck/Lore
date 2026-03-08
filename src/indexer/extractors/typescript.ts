@@ -102,6 +102,14 @@ export class TypeScriptExtractor implements SymbolExtractor {
           if (ref) result.callRefs.push(ref);
           break;
         }
+        case 'as_expression': {
+          extractTsCastTypeRef(node, result.typeRefs);
+          break;
+        }
+        case 'type_assertion': {
+          extractTsTypeAssertionRef(node, result.typeRefs);
+          break;
+        }
       }
     }
 
@@ -389,4 +397,23 @@ function extractTsVariableTypeRefs(declNode: Parser.SyntaxNode, refs: RawTypeRef
     const actualType = typeAnnotation.type === 'type_annotation' ? typeAnnotation.namedChildren[0] : typeAnnotation;
     if (actualType) emitTsTypeRef(refs, enclosing, actualType, 'variable');
   }
+}
+
+function extractTsCastTypeRef(node: Parser.SyntaxNode, refs: RawTypeRef[]): void {
+  // expr as Type
+  const typeNode = node.namedChildren.find(c =>
+    c.type === 'type_identifier' || c.type === 'generic_type' || c.type === 'nested_type_identifier');
+  if (!typeNode) return;
+  const enclosing = findEnclosingSymbolName(node, TS_SYMBOL_NODE_TYPES);
+  emitTsTypeRef(refs, enclosing, typeNode, 'cast');
+}
+
+function extractTsTypeAssertionRef(node: Parser.SyntaxNode, refs: RawTypeRef[]): void {
+  // <Type>expr
+  const typeAnnotation = node.childForFieldName('type');
+  if (!typeAnnotation) return;
+  const actualType = typeAnnotation.type === 'type_annotation' ? typeAnnotation.namedChildren[0] : typeAnnotation;
+  if (!actualType) return;
+  const enclosing = findEnclosingSymbolName(node, TS_SYMBOL_NODE_TYPES);
+  emitTsTypeRef(refs, enclosing, actualType, 'cast');
 }

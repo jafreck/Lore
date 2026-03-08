@@ -71,6 +71,10 @@ export class RustExtractor implements SymbolExtractor {
           extractRustLetTypeRef(node, result.typeRefs);
           break;
         }
+        case 'type_cast_expression': {
+          extractRustCastTypeRef(node, result.typeRefs);
+          break;
+        }
       }
     }
 
@@ -258,4 +262,12 @@ function extractRustLetTypeRef(letNode: Parser.SyntaxNode, refs: RawTypeRef[]): 
   if (!typeNode) return;
   const enclosing = findEnclosingSymbolName(letNode, RUST_SYMBOL_NODE_TYPES);
   emitRustTypeRef(refs, enclosing, typeNode, 'variable');
+}
+
+function extractRustCastTypeRef(node: Parser.SyntaxNode, refs: RawTypeRef[]): void {
+  // expr as Type
+  const typeNode = node.childForFieldName('type');
+  if (!typeNode) return;
+  const enclosing = findEnclosingSymbolName(node, RUST_SYMBOL_NODE_TYPES);
+  emitRustTypeRef(refs, enclosing, typeNode, 'cast');
 }
