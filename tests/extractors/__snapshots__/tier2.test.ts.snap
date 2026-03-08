@@ -1,5 +1,148 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`C extractor > callRefs 1`] = `
+[
+  {
+    "callKind": "direct",
+    "calleeRaw": "printf",
+    "callerSymbol": "print_point",
+    "character": 2,
+    "isIndirect": false,
+    "line": 25,
+  },
+  {
+    "callKind": "indirect",
+    "calleeRaw": "op",
+    "callerSymbol": "apply",
+    "character": 15,
+    "isIndirect": true,
+    "line": 29,
+  },
+  {
+    "callKind": "direct",
+    "calleeRaw": "printf",
+    "callerSymbol": "apply",
+    "character": 2,
+    "isIndirect": false,
+    "line": 30,
+  },
+  {
+    "callKind": "direct",
+    "calleeRaw": "print_point",
+    "callerSymbol": "run",
+    "character": 2,
+    "isIndirect": false,
+    "line": 35,
+  },
+  {
+    "callKind": "macro",
+    "calleeRaw": "SQUARE",
+    "callerSymbol": "run",
+    "character": 11,
+    "isIndirect": false,
+    "line": 37,
+  },
+  {
+    "callKind": "direct",
+    "calleeRaw": "printf",
+    "callerSymbol": "run",
+    "character": 2,
+    "isIndirect": false,
+    "line": 38,
+  },
+  {
+    "callKind": "indirect",
+    "calleeRaw": "fn",
+    "callerSymbol": "run",
+    "character": 2,
+    "isIndirect": true,
+    "line": 42,
+  },
+  {
+    "callKind": "direct",
+    "calleeRaw": "apply",
+    "callerSymbol": "run",
+    "character": 2,
+    "isIndirect": false,
+    "line": 45,
+  },
+]
+`;
+
+exports[`C extractor > imports 1`] = `
+[
+  {
+    "importedNames": [],
+    "source": "stdio.h",
+  },
+  {
+    "importedNames": [],
+    "source": "stdlib.h",
+  },
+]
+`;
+
+exports[`C extractor > symbols 1`] = `
+[
+  {
+    "endLine": 5,
+    "kind": "macro",
+    "name": "SQUARE",
+    "signature": "#define SQUARE(x) ((x) * (x))",
+    "startLine": 4,
+  },
+  {
+    "endLine": 6,
+    "kind": "macro",
+    "name": "PI",
+    "signature": "#define PI 3",
+    "startLine": 5,
+  },
+  {
+    "endLine": 12,
+    "kind": "struct",
+    "name": "Point",
+    "signature": "struct Point",
+    "startLine": 9,
+  },
+  {
+    "endLine": 14,
+    "kind": "struct",
+    "name": "Point",
+    "signature": "struct Point",
+    "startLine": 14,
+  },
+  {
+    "endLine": 22,
+    "kind": "function",
+    "name": "add",
+    "signature": "int add(int a, int b)",
+    "startLine": 20,
+  },
+  {
+    "endLine": 26,
+    "kind": "function",
+    "name": "print_point",
+    "signature": "void print_point(Point p)",
+    "startLine": 24,
+  },
+  {
+    "endLine": 31,
+    "kind": "function",
+    "name": "apply",
+    "signature": "void apply(BinaryOp op, int a, int b)",
+    "startLine": 28,
+  },
+  {
+    "endLine": 46,
+    "kind": "function",
+    "name": "run",
+    "signature": "void run()",
+    "startLine": 33,
+  },
+]
+`;
+
 exports[`C# extractor > callRefs 1`] = `
 [
   {
