@@ -135,7 +135,8 @@ function getStructuralEdges(
                 s_caller.name AS source_name,
                 f_caller.branch AS source_branch,
                 sr.callee_id  AS target_id,
-                sr.callee_name AS target_name
+                sr.callee_name AS target_name,
+                sr.call_kind  AS call_kind
            FROM symbol_refs sr
            JOIN symbols s_caller ON s_caller.id = sr.caller_id
            JOIN files f_caller ON f_caller.id = s_caller.file_id
@@ -145,7 +146,8 @@ function getStructuralEdges(
                 s_caller.name AS source_name,
                 f_caller.branch AS source_branch,
                 sr.callee_id  AS target_id,
-                sr.callee_name AS target_name
+                sr.callee_name AS target_name,
+                sr.call_kind  AS call_kind
            FROM symbol_refs sr
            JOIN symbols s_caller ON s_caller.id = sr.caller_id
            JOIN files f_caller ON f_caller.id = s_caller.file_id
