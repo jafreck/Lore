@@ -17,6 +17,7 @@ import {
   type TypeRefKind,
   type SymbolExtractor,
   emptyResult,
+  extractGenericTypeArgs,
   findEnclosingSymbolName,
   findFirst,
   nodeSignature,
@@ -56,6 +57,15 @@ export class GoExtractor implements SymbolExtractor {
           if (route) result.routes.push(route);
           const ref = extractCallRef(node);
           if (ref) result.callRefs.push(ref);
+          break;
+        }
+        case 'short_var_declaration':
+        case 'var_declaration': {
+          extractGoVarTypeRefs(node, result.typeRefs);
+          break;
+        }
+        case 'type_assertion_expression': {
+          extractGoTypeAssertionRef(node, result.typeRefs);
           break;
         }
       }
@@ -224,6 +234,11 @@ function emitGoTypeRef(refs: RawTypeRef[], enclosing: string, typeNode: Parser.S
   const typeName = extractGoTypeName(typeNode);
   if (!typeName) return;
   refs.push({ enclosingSymbol: enclosing, typeRaw: typeName, refKind, line: typeNode.startPosition.row, character: typeNode.startPosition.column });
+  // Decompose generic args one level (Go 1.18+ type parameters)
+  const genericArgs = extractGenericTypeArgs(typeNode, 'generic_type', 'type_arguments');
+  for (const arg of genericArgs) {
+    refs.push({ enclosingSymbol: enclosing, typeRaw: arg, refKind: 'generic_arg', line: typeNode.startPosition.row, character: typeNode.startPosition.column });
+  }
 }
 
 function extractGoFunctionTypeRefs(funcNode: Parser.SyntaxNode, refs: RawTypeRef[]): void {
@@ -318,4 +333,26 @@ function extractGoTypeDeclRefs(
       }
     }
   }
+}
+
+function extractGoVarTypeRefs(node: Parser.SyntaxNode, refs: RawTypeRef[]): void {
+  const enclosing = findEnclosingSymbolName(node, GO_SYMBOL_NODE_TYPES);
+  if (node.type === 'var_declaration') {
+    // var x Type = ... or var ( x Type; y Type )
+    for (const child of node.namedChildren) {
+      if (child.type === 'var_spec') {
+        const typeNode = child.childForFieldName('type');
+        if (typeNode) emitGoTypeRef(refs, enclosing, typeNode, 'variable');
+      }
+    }
+  }
+  // short_var_declaration has no explicit type annotation — skip
+}
+
+function extractGoTypeAssertionRef(node: Parser.SyntaxNode, refs: RawTypeRef[]): void {
+  // x.(Type) — type assertion
+  const typeNode = node.childForFieldName('type');
+  if (!typeNode) return;
+  const enclosing = findEnclosingSymbolName(node, GO_SYMBOL_NODE_TYPES);
+  emitGoTypeRef(refs, enclosing, typeNode, 'cast');
 }

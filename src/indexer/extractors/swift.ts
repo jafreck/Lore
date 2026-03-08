@@ -16,6 +16,7 @@ import {
   type TypeRefKind,
   type SymbolExtractor,
   emptyResult,
+  extractGenericTypeArgs,
   findEnclosingSymbolName,
   nodeSignature,
   walk,
@@ -42,10 +43,12 @@ export class SwiftExtractor implements SymbolExtractor {
         case 'class_declaration':
           result.symbols.push(extractNamedNode(node, 'class'));
           extractSwiftInheritance(node, result.relationships, result.typeRefs);
+          extractSwiftClassFieldTypeRefs(node, result.typeRefs);
           break;
         case 'struct_declaration':
           result.symbols.push(extractNamedNode(node, 'struct'));
           extractSwiftInheritance(node, result.relationships, result.typeRefs);
+          extractSwiftClassFieldTypeRefs(node, result.typeRefs);
           break;
         case 'enum_declaration':
           result.symbols.push(extractNamedNode(node, 'enum'));
@@ -62,6 +65,15 @@ export class SwiftExtractor implements SymbolExtractor {
         case 'call_expression': {
           const ref = extractCallRef(node);
           if (ref) result.callRefs.push(ref);
+          break;
+        }
+        case 'property_declaration':
+        case 'pattern_binding_declaration': {
+          extractSwiftVarTypeRef(node, result.typeRefs);
+          break;
+        }
+        case 'as_expression': {
+          extractSwiftCastTypeRef(node, result.typeRefs);
           break;
         }
       }
@@ -182,6 +194,11 @@ function emitSwiftTypeRef(refs: RawTypeRef[], enclosing: string, typeNode: Parse
   const typeName = extractSwiftTypeName(typeNode);
   if (!typeName) return;
   refs.push({ enclosingSymbol: enclosing, typeRaw: typeName, refKind, line: typeNode.startPosition.row, character: typeNode.startPosition.column });
+  // Decompose generic args one level
+  const genericArgs = extractGenericTypeArgs(typeNode, 'generic_type', 'type_arguments');
+  for (const arg of genericArgs) {
+    refs.push({ enclosingSymbol: enclosing, typeRaw: arg, refKind: 'generic_arg', line: typeNode.startPosition.row, character: typeNode.startPosition.column });
+  }
 }
 
 function extractSwiftFunctionTypeRefs(funcNode: Parser.SyntaxNode, refs: RawTypeRef[]): void {
@@ -203,4 +220,37 @@ function extractSwiftFunctionTypeRefs(funcNode: Parser.SyntaxNode, refs: RawType
     const typeNode = returnClause.namedChildren[0];
     if (typeNode) emitSwiftTypeRef(refs, funcName, typeNode, 'return');
   }
+}
+
+function extractSwiftClassFieldTypeRefs(classNode: Parser.SyntaxNode, refs: RawTypeRef[]): void {
+  const className = classNode.childForFieldName('name')?.text ?? '';
+  const body = classNode.childForFieldName('body') ?? classNode.namedChildren.find(c => c.type === 'class_body');
+  if (!body) return;
+  for (const child of body.namedChildren) {
+    if (child.type === 'property_declaration') {
+      const typeAnnotation = child.namedChildren.find(c => c.type === 'type_annotation');
+      if (typeAnnotation) {
+        const typeNode = typeAnnotation.namedChildren[0];
+        if (typeNode) emitSwiftTypeRef(refs, className, typeNode, 'field');
+      }
+    }
+  }
+}
+
+function extractSwiftVarTypeRef(node: Parser.SyntaxNode, refs: RawTypeRef[]): void {
+  const typeAnnotation = node.namedChildren.find(c => c.type === 'type_annotation');
+  if (!typeAnnotation) return;
+  const typeNode = typeAnnotation.namedChildren[0];
+  if (!typeNode) return;
+  const enclosing = findEnclosingSymbolName(node, SWIFT_SYMBOL_NODE_TYPES);
+  emitSwiftTypeRef(refs, enclosing, typeNode, 'variable');
+}
+
+function extractSwiftCastTypeRef(node: Parser.SyntaxNode, refs: RawTypeRef[]): void {
+  // expression as Type or expression as? Type
+  const typeNode = node.namedChildren.find(c =>
+    c.type === 'type_identifier' || c.type === 'user_type' || c.type === 'optional_type');
+  if (!typeNode) return;
+  const enclosing = findEnclosingSymbolName(node, SWIFT_SYMBOL_NODE_TYPES);
+  emitSwiftTypeRef(refs, enclosing, typeNode, 'cast');
 }

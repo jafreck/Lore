@@ -10,8 +10,10 @@ import {
   type ExtractionResult,
   type RawCallRef,
   type RawImport,
+  type RawRelationship,
   type RawSymbol,
   type RawTypeRef,
+  type TypeRefKind,
   type SymbolExtractor,
   emptyResult,
   findEnclosingSymbolName,
@@ -38,6 +40,8 @@ export class PhpExtractor implements SymbolExtractor {
           break;
         case 'class_declaration':
           result.symbols.push(extractNamedNode(node, 'class'));
+          extractPhpClassRelationships(node, result.relationships, result.typeRefs);
+          extractPhpClassFieldTypeRefs(node, result.typeRefs);
           break;
         case 'interface_declaration':
           result.symbols.push(extractNamedNode(node, 'interface'));
@@ -65,6 +69,10 @@ export class PhpExtractor implements SymbolExtractor {
         case 'object_creation_expression': {
           const ref = extractNewCallRef(node);
           if (ref) result.callRefs.push(ref);
+          break;
+        }
+        case 'cast_expression': {
+          extractPhpCastTypeRef(node, result.typeRefs);
           break;
         }
       }
@@ -204,4 +212,62 @@ function extractPhpTypeName(typeNode: Parser.SyntaxNode): string | null {
     if (name) return name;
   }
   return null;
+}
+
+// ─── Relationship extraction ──────────────────────────────────────────────────
+
+function extractPhpClassRelationships(
+  classNode: Parser.SyntaxNode,
+  relationships: RawRelationship[],
+  typeRefs: RawTypeRef[],
+): void {
+  const name = classNode.childForFieldName('name')?.text ?? '';
+  if (!name) return;
+  // extends
+  const baseClause = classNode.namedChildren.find(c => c.type === 'base_clause');
+  if (baseClause) {
+    for (const child of baseClause.namedChildren) {
+      if (child.type === 'name' || child.type === 'qualified_name') {
+        relationships.push({ kind: 'extends', fromSymbol: name, toSymbol: child.text, line: child.startPosition.row });
+        typeRefs.push({ enclosingSymbol: name, typeRaw: child.text, refKind: 'bound', line: child.startPosition.row, character: child.startPosition.column });
+      }
+    }
+  }
+  // implements
+  const classInterfaceClause = classNode.namedChildren.find(c => c.type === 'class_interface_clause');
+  if (classInterfaceClause) {
+    for (const child of classInterfaceClause.namedChildren) {
+      if (child.type === 'name' || child.type === 'qualified_name') {
+        relationships.push({ kind: 'implements', fromSymbol: name, toSymbol: child.text, line: child.startPosition.row });
+        typeRefs.push({ enclosingSymbol: name, typeRaw: child.text, refKind: 'bound', line: child.startPosition.row, character: child.startPosition.column });
+      }
+    }
+  }
+}
+
+function extractPhpClassFieldTypeRefs(classNode: Parser.SyntaxNode, refs: RawTypeRef[]): void {
+  const className = classNode.childForFieldName('name')?.text ?? '';
+  const body = classNode.childForFieldName('body') ?? classNode.namedChildren.find(c => c.type === 'declaration_list');
+  if (!body) return;
+  for (const child of body.namedChildren) {
+    if (child.type === 'property_declaration') {
+      const typeNode = child.childForFieldName('type');
+      if (typeNode) {
+        const typeName = extractPhpTypeName(typeNode);
+        if (typeName) {
+          refs.push({ enclosingSymbol: className, typeRaw: typeName, refKind: 'field', line: typeNode.startPosition.row, character: typeNode.startPosition.column });
+        }
+      }
+    }
+  }
+}
+
+function extractPhpCastTypeRef(node: Parser.SyntaxNode, refs: RawTypeRef[]): void {
+  // (Type)$expr — the cast type is the first child
+  const typeNode = node.childForFieldName('type') ?? node.namedChildren[0];
+  if (!typeNode) return;
+  const typeName = typeNode.text;
+  if (!typeName) return;
+  const enclosing = findEnclosingSymbolName(node, PHP_SYMBOL_NODE_TYPES);
+  refs.push({ enclosingSymbol: enclosing, typeRaw: typeName, refKind: 'cast', line: typeNode.startPosition.row, character: typeNode.startPosition.column });
 }
