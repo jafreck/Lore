@@ -6,7 +6,6 @@ import * as history from '../../src/lore-server/tools/history.js';
 import * as lookup from '../../src/lore-server/tools/lookup.js';
 import * as graph from '../../src/lore-server/tools/graph.js';
 import type { EmbeddingProvider } from '../../src/indexer/embedder.js';
-import * as annotations from '../../src/lore-server/tools/annotations.js';
 import * as routes from '../../src/lore-server/tools/routes.js';
 import * as notes from '../../src/lore-server/tools/notes.js';
 import * as architecture from '../../src/lore-server/tools/architecture.js';
@@ -15,22 +14,8 @@ import * as metrics from '../../src/lore-server/tools/metrics.js';
 
 const {
   mockTool,
-  mockListCommitCadence,
-  mockListCommitSizes,
-  mockListCommitChurnByFile,
-  mockListCommitAuthorStats,
-  mockListCommitMessagePrefixes,
-  mockListCommitSchedule,
-  mockListCommitBranchActivity,
 } = vi.hoisted(() => ({
   mockTool: vi.fn(),
-  mockListCommitCadence: vi.fn(),
-  mockListCommitSizes: vi.fn(),
-  mockListCommitChurnByFile: vi.fn(),
-  mockListCommitAuthorStats: vi.fn(),
-  mockListCommitMessagePrefixes: vi.fn(),
-  mockListCommitSchedule: vi.fn(),
-  mockListCommitBranchActivity: vi.fn(),
 }));
 
 vi.mock('@modelcontextprotocol/sdk/server/mcp.js', () => ({
@@ -38,20 +23,6 @@ vi.mock('@modelcontextprotocol/sdk/server/mcp.js', () => ({
     tool = mockTool;
   },
 }));
-
-vi.mock('../../src/lore-server/db.js', async () => {
-  const actual = await vi.importActual<typeof import('../../src/lore-server/db.js')>('../../src/lore-server/db.js');
-  return {
-    ...actual,
-    listCommitCadence: mockListCommitCadence,
-    listCommitSizes: mockListCommitSizes,
-    listCommitChurnByFile: mockListCommitChurnByFile,
-    listCommitAuthorStats: mockListCommitAuthorStats,
-    listCommitMessagePrefixes: mockListCommitMessagePrefixes,
-    listCommitSchedule: mockListCommitSchedule,
-    listCommitBranchActivity: mockListCommitBranchActivity,
-  };
-});
 
 import { createLoreMcpServer, type LoreServerOptions } from '../../src/lore-server/server.js';
 
@@ -99,7 +70,6 @@ describe('createLoreMcpServer', () => {
     createLoreMcpServer(db, '/tmp/test.db');
 
     const toolNames = mockTool.mock.calls.map((call) => call[0]);
-    expect(toolNames).toContain('lore_annotations');
     expect(toolNames).toContain('lore_routes');
     expect(toolNames).toContain('lore_notes_write');
     expect(toolNames).toContain('lore_notes_read');
@@ -109,16 +79,6 @@ describe('createLoreMcpServer', () => {
   it('should register newly exposed tools with expected schema fields', () => {
     const db = new Database(':memory:');
     createLoreMcpServer(db, '/tmp/test.db');
-
-    const annotationsSchema = getToolCall('lore_annotations')[2] as {
-      kind: { safeParse: (v: unknown) => { success: boolean } };
-      path: { safeParse: (v: unknown) => { success: boolean } };
-      limit: { safeParse: (v: unknown) => { success: boolean } };
-    };
-    expect(annotationsSchema.kind.safeParse('TODO').success).toBe(true);
-    expect(annotationsSchema.path.safeParse('src/server.ts').success).toBe(true);
-    expect(annotationsSchema.limit.safeParse(10).success).toBe(true);
-    expect(annotationsSchema.kind.safeParse('INVALID').success).toBe(false);
 
     const routesSchema = getToolCall('lore_routes')[2] as {
       method: { safeParse: (v: unknown) => { success: boolean } };
@@ -296,25 +256,6 @@ describe('createLoreMcpServer', () => {
     expect(docsHandlerSpy).toHaveBeenCalledWith(db, { action: 'search', query: 'architecture' }, undefined);
   });
 
-  it('should route lore_annotations tool calls through annotations.handler', async () => {
-    const db = new Database(':memory:');
-    const annotationsResult = { results: [{ kind: 'TODO', text: 'todo', path: 'src/a.ts', line: 1 }] };
-    const annotationsHandlerSpy = vi.spyOn(annotations, 'handler').mockReturnValue(annotationsResult);
-
-    createLoreMcpServer(db, '/tmp/test.db');
-
-    const callback = getToolCall('lore_annotations')[3] as (args: unknown) => Promise<{
-      content: Array<{ type: string; text: string }>;
-    }>;
-    const args = { kind: 'TODO', limit: 5 };
-    const response = await callback(args);
-
-    expect(annotationsHandlerSpy).toHaveBeenCalledWith(db, args);
-    expect(response).toEqual({
-      content: [{ type: 'text', text: JSON.stringify(annotationsResult) }],
-    });
-  });
-
   it('should route lore_routes tool calls through routes.handler', async () => {
     const db = new Database(':memory:');
     const routesResult = { results: [{ method: 'GET', path: '/api/health', framework: 'express' }] };
@@ -443,21 +384,16 @@ describe('createLoreMcpServer', () => {
   it('should propagate errors from newly exposed tool handlers', async () => {
     const db = new Database(':memory:');
     const callbackArgs = {
-      annotations: { kind: 'TODO' },
       routes: { method: 'GET' },
       notesWrite: { key: 'architecture/overview', content: 'note body' },
       notesRead: { key_prefix: 'architecture/' },
       architecture: { depth: 2 },
     };
-    const annotationError = new Error('annotations failed');
     const routeError = new Error('routes failed');
     const notesWriteError = new Error('notes write failed');
     const notesReadError = new Error('notes read failed');
     const architectureError = new Error('architecture failed');
 
-    vi.spyOn(annotations, 'handler').mockImplementation(() => {
-      throw annotationError;
-    });
     vi.spyOn(routes, 'handler').mockImplementation(() => {
       throw routeError;
     });
@@ -473,13 +409,11 @@ describe('createLoreMcpServer', () => {
 
     createLoreMcpServer(db, '/tmp/test.db');
 
-    const annotationsCallback = getToolCall('lore_annotations')[3] as (args: unknown) => Promise<unknown>;
     const routesCallback = getToolCall('lore_routes')[3] as (args: unknown) => Promise<unknown>;
     const notesWriteCallback = getToolCall('lore_notes_write')[3] as (args: unknown) => Promise<unknown>;
     const notesReadCallback = getToolCall('lore_notes_read')[3] as (args: unknown) => Promise<unknown>;
     const architectureCallback = getToolCall('lore_architecture')[3] as (args: unknown) => Promise<unknown>;
 
-    await expect(annotationsCallback(callbackArgs.annotations)).rejects.toThrow(annotationError);
     await expect(routesCallback(callbackArgs.routes)).rejects.toThrow(routeError);
     await expect(notesWriteCallback(callbackArgs.notesWrite)).rejects.toThrow(notesWriteError);
     await expect(notesReadCallback(callbackArgs.notesRead)).rejects.toThrow(notesReadError);
@@ -773,107 +707,7 @@ describe('createLoreMcpServer', () => {
     expect(argsSchema.safeParse({ path: '/repo/src/main.ts', line: '7' }).success).toBe(false);
   });
 
-  it('should register lore_commit_stats with expected metric and filter schema fields', () => {
-    const db = new Database(':memory:');
-    createLoreMcpServer(db, '/tmp/test.db');
 
-    const commitStatsToolCall = mockTool.mock.calls.find((call) => call[0] === 'lore_commit_stats');
-    expect(commitStatsToolCall).toBeDefined();
-
-    const commitStatsSchema = commitStatsToolCall?.[2] as {
-      metric: z.ZodTypeAny;
-      limit: z.ZodTypeAny;
-      since: z.ZodTypeAny;
-      until: z.ZodTypeAny;
-      author: z.ZodTypeAny;
-    };
-    expect(commitStatsSchema.metric.safeParse('cadence').success).toBe(true);
-    expect(commitStatsSchema.metric.safeParse('size').success).toBe(true);
-    expect(commitStatsSchema.metric.safeParse('churn').success).toBe(true);
-    expect(commitStatsSchema.metric.safeParse('authors').success).toBe(true);
-    expect(commitStatsSchema.metric.safeParse('messages').success).toBe(true);
-    expect(commitStatsSchema.metric.safeParse('schedule').success).toBe(true);
-    expect(commitStatsSchema.metric.safeParse('branches').success).toBe(true);
-    expect(commitStatsSchema.limit.safeParse(25).success).toBe(true);
-    expect(commitStatsSchema.since.safeParse('2025-01-01').success).toBe(true);
-    expect(commitStatsSchema.until.safeParse('2025-01-31').success).toBe(true);
-    expect(commitStatsSchema.author.safeParse('jane').success).toBe(true);
-    expect(commitStatsSchema.metric.safeParse('invalid').success).toBe(false);
-    expect(commitStatsSchema.limit.safeParse('25').success).toBe(false);
-  });
-
-  it('should route lore_commit_stats cadence metric to day, week, and month cadence queries', async () => {
-    const db = new Database(':memory:');
-    const filters = {
-      limit: 10,
-      since: '2025-01-01',
-      until: '2025-01-31',
-      author: 'jane',
-    };
-    mockListCommitCadence.mockImplementation((_db, granularity) => [{ bucket: String(granularity), commits: 1 }]);
-
-    createLoreMcpServer(db, '/tmp/test.db');
-
-    const commitStatsToolCall = mockTool.mock.calls.find((call) => call[0] === 'lore_commit_stats');
-    expect(commitStatsToolCall).toBeDefined();
-
-    const commitStatsCallback = commitStatsToolCall?.[3] as (args: unknown) => Promise<{
-      content: Array<{ type: string; text: string }>;
-    }>;
-    const response = await commitStatsCallback({ metric: 'cadence', ...filters });
-    const payload = JSON.parse(response.content[0]!.text);
-
-    expect(mockListCommitCadence).toHaveBeenCalledTimes(3);
-    expect(mockListCommitCadence).toHaveBeenNthCalledWith(1, db, 'day', filters);
-    expect(mockListCommitCadence).toHaveBeenNthCalledWith(2, db, 'week', filters);
-    expect(mockListCommitCadence).toHaveBeenNthCalledWith(3, db, 'month', filters);
-    expect(payload).toEqual({
-      metric: 'cadence',
-      day: [{ bucket: 'day', commits: 1 }],
-      week: [{ bucket: 'week', commits: 1 }],
-      month: [{ bucket: 'month', commits: 1 }],
-    });
-  });
-
-  it.each([
-    ['size', mockListCommitSizes, 'commits'],
-    ['churn', mockListCommitChurnByFile, 'files'],
-    ['authors', mockListCommitAuthorStats, 'authors'],
-    ['messages', mockListCommitMessagePrefixes, 'prefixes'],
-    ['schedule', mockListCommitSchedule, 'buckets'],
-    ['branches', mockListCommitBranchActivity, 'refs'],
-  ] as const)(
-    'should route lore_commit_stats %s metric through its metric query',
-    async (metric, metricQueryMock, responseKey) => {
-      const db = new Database(':memory:');
-      const filters = {
-        limit: 15,
-        since: '2025-02-01',
-        until: '2025-02-28',
-        author: 'alex',
-      };
-      const metricRows = [{ id: `${metric}-row` }];
-      metricQueryMock.mockReturnValue(metricRows);
-
-      createLoreMcpServer(db, '/tmp/test.db');
-
-      const commitStatsToolCall = mockTool.mock.calls.find((call) => call[0] === 'lore_commit_stats');
-      expect(commitStatsToolCall).toBeDefined();
-
-      const commitStatsCallback = commitStatsToolCall?.[3] as (args: unknown) => Promise<{
-        content: Array<{ type: string; text: string }>;
-      }>;
-      const response = await commitStatsCallback({ metric, ...filters });
-      const payload = JSON.parse(response.content[0]!.text);
-
-      expect(metricQueryMock).toHaveBeenCalledTimes(1);
-      expect(metricQueryMock).toHaveBeenCalledWith(db, filters);
-      expect(payload).toEqual({
-        metric,
-        [responseKey]: metricRows,
-      });
-    },
-  );
 
   it('should register lore_search schema fields for symbol and doc filters', () => {
     const db = new Database(':memory:');
