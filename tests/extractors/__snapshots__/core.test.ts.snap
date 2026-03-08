@@ -125,7 +125,16 @@ exports[`Java extractor > imports 1`] = `
 ]
 `;
 
-exports[`Java extractor > relationships 1`] = `[]`;
+exports[`Java extractor > relationships 1`] = `
+[
+  {
+    "fromSymbol": "Circle",
+    "kind": "implements",
+    "line": 25,
+    "toSymbol": "Shape",
+  },
+]
+`;
 
 exports[`Java extractor > symbols 1`] = `
 [
@@ -482,7 +491,16 @@ exports[`Rust extractor > imports 1`] = `
 ]
 `;
 
-exports[`Rust extractor > relationships 1`] = `[]`;
+exports[`Rust extractor > relationships 1`] = `
+[
+  {
+    "fromSymbol": "Shape for Circle",
+    "kind": "implements",
+    "line": 17,
+    "toSymbol": "Shape",
+  },
+]
+`;
 
 exports[`Rust extractor > symbols 1`] = `
 [

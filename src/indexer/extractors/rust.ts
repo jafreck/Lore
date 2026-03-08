@@ -10,9 +10,13 @@ import {
   type ExtractionResult,
   type RawCallRef,
   type RawImport,
+  type RawRelationship,
   type RawSymbol,
+  type RawTypeRef,
+  type TypeRefKind,
   type SymbolExtractor,
   emptyResult,
+  extractGenericTypeArgs,
   findEnclosingSymbolName,
   nodeSignature,
   walk,
@@ -33,9 +37,11 @@ export class RustExtractor implements SymbolExtractor {
       switch (node.type) {
         case 'function_item':
           result.symbols.push(extractItem(node, 'function'));
+          extractRustFunctionTypeRefs(node, result.typeRefs);
           break;
         case 'struct_item':
           result.symbols.push(extractItem(node, 'struct'));
+          extractRustStructFieldTypeRefs(node, result.typeRefs);
           break;
         case 'enum_item':
           result.symbols.push(extractItem(node, 'enum'));
@@ -43,9 +49,11 @@ export class RustExtractor implements SymbolExtractor {
         case 'trait_item':
           result.symbols.push(extractItem(node, 'trait'));
           break;
-        case 'impl_item':
+        case 'impl_item': {
           result.symbols.push(extractImpl(node));
+          extractImplRelationships(node, result.relationships, result.typeRefs);
           break;
+        }
         case 'use_declaration':
           result.imports.push(extractUse(node));
           break;
@@ -57,6 +65,14 @@ export class RustExtractor implements SymbolExtractor {
         case 'macro_invocation': {
           const ref = extractMacroCallRef(node);
           if (ref) result.callRefs.push(ref);
+          break;
+        }
+        case 'let_declaration': {
+          extractRustLetTypeRef(node, result.typeRefs);
+          break;
+        }
+        case 'type_cast_expression': {
+          extractRustCastTypeRef(node, result.typeRefs);
           break;
         }
       }
@@ -141,4 +157,117 @@ function collectLeafIdentifiers(
   for (const child of node.namedChildren) {
     collectLeafIdentifiers(child, out);
   }
+}
+
+// ─── Relationship extraction ──────────────────────────────────────────────────
+
+function extractImplRelationships(
+  implNode: Parser.SyntaxNode,
+  relationships: RawRelationship[],
+  typeRefs: RawTypeRef[],
+): void {
+  const traitNode = implNode.childForFieldName('trait');
+  const typeNode = implNode.childForFieldName('type');
+  if (!traitNode || !typeNode) return;
+  const typeName = typeNode.text;
+  const traitName = traitNode.text;
+  relationships.push({
+    kind: 'implements',
+    fromSymbol: `${traitName} for ${typeName}`,
+    toSymbol: traitName,
+    line: traitNode.startPosition.row,
+  });
+  typeRefs.push({
+    enclosingSymbol: `${traitName} for ${typeName}`,
+    typeRaw: traitName,
+    refKind: 'bound',
+    line: traitNode.startPosition.row,
+    character: traitNode.startPosition.column,
+  });
+}
+
+// ─── Type-ref extraction ──────────────────────────────────────────────────────
+
+function extractRustTypeName(typeNode: Parser.SyntaxNode): string | null {
+  if (typeNode.type === 'type_identifier' || typeNode.type === 'scoped_type_identifier') return typeNode.text;
+  if (typeNode.type === 'generic_type') return typeNode.text;
+  if (typeNode.type === 'reference_type') {
+    const inner = typeNode.namedChildren.find(c => c.type !== 'mutable_specifier' && c.type !== 'lifetime');
+    return inner ? extractRustTypeName(inner) : null;
+  }
+  return null;
+}
+
+function emitRustTypeRef(
+  refs: RawTypeRef[],
+  enclosing: string,
+  typeNode: Parser.SyntaxNode,
+  refKind: TypeRefKind,
+): void {
+  const typeName = extractRustTypeName(typeNode);
+  if (!typeName) return;
+  refs.push({
+    enclosingSymbol: enclosing,
+    typeRaw: typeName,
+    refKind,
+    line: typeNode.startPosition.row,
+    character: typeNode.startPosition.column,
+  });
+  // Decompose generic args one level
+  const genericArgs = extractGenericTypeArgs(typeNode, 'generic_type', 'type_arguments');
+  for (const arg of genericArgs) {
+    refs.push({
+      enclosingSymbol: enclosing,
+      typeRaw: arg,
+      refKind: 'generic_arg',
+      line: typeNode.startPosition.row,
+      character: typeNode.startPosition.column,
+    });
+  }
+}
+
+function extractRustFunctionTypeRefs(funcNode: Parser.SyntaxNode, refs: RawTypeRef[]): void {
+  const funcName = funcNode.childForFieldName('name')?.text ?? '';
+  // Parameters
+  const params = funcNode.childForFieldName('parameters');
+  if (params) {
+    for (const param of params.namedChildren) {
+      if (param.type === 'parameter' || param.type === 'self_parameter') {
+        const typeNode = param.childForFieldName('type');
+        if (typeNode) emitRustTypeRef(refs, funcName, typeNode, 'parameter');
+      }
+    }
+  }
+  // Return type
+  const returnType = funcNode.childForFieldName('return_type');
+  if (returnType) {
+    emitRustTypeRef(refs, funcName, returnType, 'return');
+  }
+}
+
+function extractRustStructFieldTypeRefs(structNode: Parser.SyntaxNode, refs: RawTypeRef[]): void {
+  const structName = structNode.childForFieldName('name')?.text ?? '';
+  const body = structNode.childForFieldName('body');
+  if (!body) return;
+  for (const child of body.namedChildren) {
+    if (child.type === 'field_declaration') {
+      const typeNode = child.childForFieldName('type');
+      if (typeNode) emitRustTypeRef(refs, structName, typeNode, 'field');
+    }
+  }
+}
+
+function extractRustLetTypeRef(letNode: Parser.SyntaxNode, refs: RawTypeRef[]): void {
+  const typeNode = letNode.childForFieldName('type');
+  if (!typeNode) return;
+  const enclosing = findEnclosingSymbolName(letNode, RUST_SYMBOL_NODE_TYPES);
+  emitRustTypeRef(refs, enclosing, typeNode, 'variable');
+}
+
+function extractRustCastTypeRef(node: Parser.SyntaxNode, refs: RawTypeRef[]): void {
+  // expr as Type
+  const typeNode = node.childForFieldName('type');
+  if (!typeNode) return;
+  const enclosing = findEnclosingSymbolName(node, RUST_SYMBOL_NODE_TYPES);
+  emitRustTypeRef(refs, enclosing, typeNode, 'cast');
 }

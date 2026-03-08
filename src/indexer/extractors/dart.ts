@@ -10,9 +10,13 @@ import {
   type ExtractionResult,
   type RawCallRef,
   type RawImport,
+  type RawRelationship,
   type RawSymbol,
+  type RawTypeRef,
+  type TypeRefKind,
   type SymbolExtractor,
   emptyResult,
+  extractGenericTypeArgs,
   findEnclosingSymbolName,
   nodeSignature,
   walk,
@@ -36,12 +40,16 @@ export class DartExtractor implements SymbolExtractor {
         case 'function_signature':
         case 'function_declaration':
           result.symbols.push(extractFunction(node));
+          extractDartFunctionTypeRefs(node, result.typeRefs);
           break;
         case 'method_signature':
           result.symbols.push(extractFunction(node));
+          extractDartFunctionTypeRefs(node, result.typeRefs);
           break;
         case 'class_definition':
           result.symbols.push(extractNamedNode(node, 'class'));
+          extractDartInheritance(node, result.relationships, result.typeRefs);
+          extractDartClassFieldTypeRefs(node, result.typeRefs);
           break;
         case 'mixin_declaration':
           result.symbols.push(extractNamedNode(node, 'mixin'));
@@ -60,6 +68,14 @@ export class DartExtractor implements SymbolExtractor {
         case 'method_invocation': {
           const ref = extractCallRef(node);
           if (ref) result.callRefs.push(ref);
+          break;
+        }
+        case 'initialized_variable_definition': {
+          extractDartVarTypeRef(node, result.typeRefs);
+          break;
+        }
+        case 'as_expression': {
+          extractDartCastTypeRef(node, result.typeRefs);
           break;
         }
       }
@@ -135,4 +151,99 @@ function extractImport(node: Parser.SyntaxNode): RawImport {
   }
 
   return { source, importedNames };
+}
+
+// ─── Inheritance / type-ref extraction ─────────────────────────────────────────
+
+function extractDartInheritance(
+  classNode: Parser.SyntaxNode,
+  relationships: RawRelationship[],
+  typeRefs: RawTypeRef[],
+): void {
+  const name = classNode.childForFieldName('name')?.text ??
+    classNode.namedChildren.find(c => c.type === 'identifier')?.text ?? '';
+  if (!name) return;
+  for (const child of classNode.namedChildren) {
+    if (child.type === 'superclass') {
+      const typeNode = child.namedChildren[0];
+      if (typeNode) {
+        relationships.push({ kind: 'extends', fromSymbol: name, toSymbol: typeNode.text, line: typeNode.startPosition.row });
+        typeRefs.push({ enclosingSymbol: name, typeRaw: typeNode.text, refKind: 'bound', line: typeNode.startPosition.row, character: typeNode.startPosition.column });
+      }
+    }
+    if (child.type === 'interfaces' || child.type === 'mixins') {
+      for (const iface of child.namedChildren) {
+        if (iface.type === 'type_identifier' || iface.type === 'identifier') {
+          relationships.push({ kind: 'implements', fromSymbol: name, toSymbol: iface.text, line: iface.startPosition.row });
+          typeRefs.push({ enclosingSymbol: name, typeRaw: iface.text, refKind: 'bound', line: iface.startPosition.row, character: iface.startPosition.column });
+        }
+      }
+    }
+  }
+}
+
+function extractDartTypeName(typeNode: Parser.SyntaxNode): string | null {
+  if (typeNode.type === 'type_identifier' || typeNode.type === 'identifier') return typeNode.text;
+  return null;
+}
+
+function emitDartTypeRef(refs: RawTypeRef[], enclosing: string, typeNode: Parser.SyntaxNode, refKind: TypeRefKind): void {
+  const typeName = extractDartTypeName(typeNode);
+  if (!typeName) return;
+  refs.push({ enclosingSymbol: enclosing, typeRaw: typeName, refKind, line: typeNode.startPosition.row, character: typeNode.startPosition.column });
+  // Decompose generic args one level
+  const genericArgs = extractGenericTypeArgs(typeNode, 'type_identifier', 'type_arguments');
+  for (const arg of genericArgs) {
+    refs.push({ enclosingSymbol: enclosing, typeRaw: arg, refKind: 'generic_arg', line: typeNode.startPosition.row, character: typeNode.startPosition.column });
+  }
+}
+
+function extractDartFunctionTypeRefs(funcNode: Parser.SyntaxNode, refs: RawTypeRef[]): void {
+  const funcName = funcNode.childForFieldName('name')?.text ??
+    funcNode.namedChildren.find(c => c.type === 'identifier')?.text ?? '';
+  // Return type  
+  const returnType = funcNode.childForFieldName('type') ?? funcNode.namedChildren.find(c => c.type === 'type_identifier');
+  if (returnType && returnType.type === 'type_identifier') {
+    emitDartTypeRef(refs, funcName, returnType, 'return');
+  }
+  // Parameters
+  const params = funcNode.namedChildren.find(c => c.type === 'formal_parameter_list');
+  if (params) {
+    for (const param of params.namedChildren) {
+      const typeNode = param.namedChildren.find(c => c.type === 'type_identifier');
+      if (typeNode) {
+        emitDartTypeRef(refs, funcName, typeNode, 'parameter');
+      }
+    }
+  }
+}
+
+function extractDartClassFieldTypeRefs(classNode: Parser.SyntaxNode, refs: RawTypeRef[]): void {
+  const className = classNode.childForFieldName('name')?.text ??
+    classNode.namedChildren.find(c => c.type === 'identifier')?.text ?? '';
+  const body = classNode.childForFieldName('body') ?? classNode.namedChildren.find(c => c.type === 'class_body');
+  if (!body) return;
+  for (const node of walk(body)) {
+    if (node.type === 'initialized_variable_definition' || node.type === 'declaration') {
+      const typeNode = node.namedChildren.find(c => c.type === 'type_identifier');
+      if (typeNode) {
+        emitDartTypeRef(refs, className, typeNode, 'field');
+      }
+    }
+  }
+}
+
+function extractDartVarTypeRef(node: Parser.SyntaxNode, refs: RawTypeRef[]): void {
+  const typeNode = node.namedChildren.find(c => c.type === 'type_identifier');
+  if (!typeNode) return;
+  const enclosing = findEnclosingSymbolName(node, DART_SYMBOL_NODE_TYPES);
+  emitDartTypeRef(refs, enclosing, typeNode, 'variable');
+}
+
+function extractDartCastTypeRef(node: Parser.SyntaxNode, refs: RawTypeRef[]): void {
+  // expr as Type
+  const typeNode = node.namedChildren.find(c => c.type === 'type_identifier');
+  if (!typeNode) return;
+  const enclosing = findEnclosingSymbolName(node, DART_SYMBOL_NODE_TYPES);
+  emitDartTypeRef(refs, enclosing, typeNode, 'cast');
 }

@@ -10,9 +10,13 @@ import {
   type ExtractionResult,
   type RawCallRef,
   type RawImport,
+  type RawRelationship,
   type RawSymbol,
+  type RawTypeRef,
+  type TypeRefKind,
   type SymbolExtractor,
   emptyResult,
+  extractGenericTypeArgs,
   findEnclosingSymbolName,
   nodeSignature,
   walk,
@@ -33,9 +37,12 @@ export class KotlinExtractor implements SymbolExtractor {
       switch (node.type) {
         case 'function_declaration':
           result.symbols.push(extractFunction(node));
+          extractKotlinFunctionTypeRefs(node, result.typeRefs);
           break;
         case 'class_declaration':
           result.symbols.push(extractNamedNode(node, 'class'));
+          extractKotlinInheritance(node, result.relationships, result.typeRefs);
+          extractKotlinClassFieldTypeRefs(node, result.typeRefs);
           break;
         case 'object_declaration':
           result.symbols.push(extractNamedNode(node, 'class'));
@@ -52,6 +59,14 @@ export class KotlinExtractor implements SymbolExtractor {
         case 'call_expression': {
           const ref = extractCallRef(node);
           if (ref) result.callRefs.push(ref);
+          break;
+        }
+        case 'property_declaration': {
+          extractKotlinVarTypeRef(node, result.typeRefs);
+          break;
+        }
+        case 'as_expression': {
+          extractKotlinCastTypeRef(node, result.typeRefs);
           break;
         }
       }
@@ -111,4 +126,106 @@ function extractImport(node: Parser.SyntaxNode): RawImport {
   const importedNames = lastName === '*' ? [] : [lastName];
 
   return { source, importedNames };
+}
+
+// ─── Inheritance / type-ref extraction ─────────────────────────────────────────
+
+function extractKotlinInheritance(
+  classNode: Parser.SyntaxNode,
+  relationships: RawRelationship[],
+  typeRefs: RawTypeRef[],
+): void {
+  const name = classNode.childForFieldName('name')?.text ??
+    classNode.namedChildren.find(c => c.type === 'type_identifier' || c.type === 'simple_identifier')?.text ?? '';
+  if (!name) return;
+  const delegation = classNode.namedChildren.find(c => c.type === 'delegation_specifier' || c.type === 'delegation_specifiers');
+  if (!delegation) return;
+  const specs = delegation.type === 'delegation_specifiers' ? delegation.namedChildren : [delegation];
+  let first = true;
+  for (const spec of specs) {
+    const typeNode = spec.namedChildren.find(c => c.type === 'user_type' || c.type === 'type_identifier' || c.type === 'simple_identifier');
+    if (typeNode) {
+      const baseName = typeNode.text;
+      const kind = first ? 'extends' : 'implements';
+      relationships.push({ kind, fromSymbol: name, toSymbol: baseName, line: typeNode.startPosition.row });
+      typeRefs.push({ enclosingSymbol: name, typeRaw: baseName, refKind: 'bound', line: typeNode.startPosition.row, character: typeNode.startPosition.column });
+      first = false;
+    }
+  }
+}
+
+function extractKotlinTypeName(typeNode: Parser.SyntaxNode): string | null {
+  if (typeNode.type === 'user_type' || typeNode.type === 'type_identifier' || typeNode.type === 'simple_identifier') return typeNode.text;
+  if (typeNode.type === 'nullable_type') {
+    const inner = typeNode.namedChildren[0];
+    return inner ? extractKotlinTypeName(inner) : null;
+  }
+  return null;
+}
+
+function emitKotlinTypeRef(refs: RawTypeRef[], enclosing: string, typeNode: Parser.SyntaxNode, refKind: TypeRefKind): void {
+  const typeName = extractKotlinTypeName(typeNode);
+  if (!typeName) return;
+  refs.push({ enclosingSymbol: enclosing, typeRaw: typeName, refKind, line: typeNode.startPosition.row, character: typeNode.startPosition.column });
+  // Decompose generic args one level
+  const genericArgs = extractGenericTypeArgs(typeNode, 'user_type', 'type_arguments');
+  for (const arg of genericArgs) {
+    refs.push({ enclosingSymbol: enclosing, typeRaw: arg, refKind: 'generic_arg', line: typeNode.startPosition.row, character: typeNode.startPosition.column });
+  }
+}
+
+function extractKotlinFunctionTypeRefs(funcNode: Parser.SyntaxNode, refs: RawTypeRef[]): void {
+  const funcName = funcNode.childForFieldName('name')?.text ??
+    funcNode.namedChildren.find(c => c.type === 'simple_identifier')?.text ?? '';
+  // Parameters
+  const params = funcNode.namedChildren.find(c => c.type === 'function_value_parameters');
+  if (params) {
+    for (const param of params.namedChildren) {
+      if (param.type === 'parameter') {
+        const typeNode = param.childForFieldName('type');
+        if (typeNode) {
+          const typeName = extractKotlinTypeName(typeNode);
+          if (typeName) {
+            refs.push({ enclosingSymbol: funcName, typeRaw: typeName, refKind: 'parameter', line: typeNode.startPosition.row, character: typeNode.startPosition.column });
+          }
+        }
+      }
+    }
+  }
+  // Return type
+  const returnType = funcNode.namedChildren.find(c => c.type === 'user_type' && c !== funcNode.childForFieldName('name'));
+  if (returnType) {
+    const typeName = extractKotlinTypeName(returnType);
+    if (typeName) {
+      refs.push({ enclosingSymbol: funcName, typeRaw: typeName, refKind: 'return', line: returnType.startPosition.row, character: returnType.startPosition.column });
+    }
+  }
+}
+
+function extractKotlinClassFieldTypeRefs(classNode: Parser.SyntaxNode, refs: RawTypeRef[]): void {
+  const className = classNode.childForFieldName('name')?.text ??
+    classNode.namedChildren.find(c => c.type === 'type_identifier' || c.type === 'simple_identifier')?.text ?? '';
+  const body = classNode.namedChildren.find(c => c.type === 'class_body');
+  if (!body) return;
+  for (const child of body.namedChildren) {
+    if (child.type === 'property_declaration') {
+      const typeNode = child.namedChildren.find(c => c.type === 'user_type' || c.type === 'nullable_type');
+      if (typeNode) emitKotlinTypeRef(refs, className, typeNode, 'field');
+    }
+  }
+}
+
+function extractKotlinVarTypeRef(node: Parser.SyntaxNode, refs: RawTypeRef[]): void {
+  const typeNode = node.namedChildren.find(c => c.type === 'user_type' || c.type === 'nullable_type');
+  if (!typeNode) return;
+  const enclosing = findEnclosingSymbolName(node, KOTLIN_SYMBOL_NODE_TYPES);
+  emitKotlinTypeRef(refs, enclosing, typeNode, 'variable');
+}
+
+function extractKotlinCastTypeRef(node: Parser.SyntaxNode, refs: RawTypeRef[]): void {
+  // expr as Type or expr as? Type
+  const typeNode = node.namedChildren.find(c => c.type === 'user_type' || c.type === 'nullable_type');
+  if (!typeNode) return;
+  const enclosing = findEnclosingSymbolName(node, KOTLIN_SYMBOL_NODE_TYPES);
+  emitKotlinTypeRef(refs, enclosing, typeNode, 'cast');
 }

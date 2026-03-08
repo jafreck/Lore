@@ -15,18 +15,19 @@ import { getCoveragePercentBySymbolIds, semanticSearchSymbols } from '../db.js';
 export const toolDef = {
   name: 'lore_graph',
   description:
-    'Query call, import, module, or inheritance graph edges stored in the knowledge-base index. ' +
-    'Set `kind` to "call", "import", "module", or "inheritance". ' +
+    'Query call, import, module, inheritance, or type dependency graph edges stored in the knowledge-base index. ' +
+    'Set `kind` to "call", "import", "module", "inheritance", or "type_dependency". ' +
     'Optionally set mode="semantic" with query_vector to retrieve semantically related symbol/module nodes alongside edges.',
   inputSchema: {
     type: 'object',
     properties: {
       kind: {
         type: 'string',
-        enum: ['call', 'import', 'module', 'inheritance'],
+        enum: ['call', 'import', 'module', 'inheritance', 'type_dependency'],
         description:
           '"call" returns symbol → callee edges; "import" returns file → imported-file edges; ' +
-          '"module" returns module → imported-module edges; "inheritance" returns symbol → base-symbol edges.',
+          '"module" returns module → imported-module edges; "inheritance" returns symbol → base-symbol edges; ' +
+          '"type_dependency" returns symbol → referenced-type edges.',
       },
       source_id: {
         type: 'number',
@@ -66,7 +67,7 @@ export const toolDef = {
 
 // ─── Handler ──────────────────────────────────────────────────────────────────
 
-type GraphKind = 'call' | 'import' | 'module' | 'inheritance';
+type GraphKind = 'call' | 'import' | 'module' | 'inheritance' | 'type_dependency';
 
 export interface GraphArgs {
   kind: GraphKind;
@@ -243,8 +244,8 @@ function getStructuralEdges(
     const edges = db.prepare(sql).all(...edgeParams) as GraphEdge[];
 
     return edges;
-  } else {
-    // Symbol-level inheritance edges (e.g., class extends)
+  } else if (args.kind === 'inheritance') {
+    // Symbol-level inheritance edges (e.g., class extends, implements)
     const hasFilter = args.source_id !== undefined;
     const branchClause = args.branch !== undefined ? ' AND f_src.branch = ?' : '';
     const sql = hasFilter
@@ -257,7 +258,7 @@ function getStructuralEdges(
            JOIN symbols s_src ON s_src.id = rel.source_symbol_id
            JOIN files f_src ON f_src.id = s_src.file_id
            LEFT JOIN symbols s_dst ON s_dst.id = rel.target_symbol_id
-          WHERE rel.relationship_type = 'extends'
+          WHERE rel.relationship_type IN ('extends', 'implements')
             AND rel.source_symbol_id = ?${branchClause}
           LIMIT ?`
       : `SELECT rel.source_symbol_id AS source_id,
@@ -269,7 +270,41 @@ function getStructuralEdges(
            JOIN symbols s_src ON s_src.id = rel.source_symbol_id
            JOIN files f_src ON f_src.id = s_src.file_id
            LEFT JOIN symbols s_dst ON s_dst.id = rel.target_symbol_id
-          WHERE rel.relationship_type = 'extends'${branchClause}
+          WHERE rel.relationship_type IN ('extends', 'implements')${branchClause}
+          LIMIT ?`;
+
+    const edgeParams = hasFilter
+      ? (args.branch !== undefined ? [args.source_id, args.branch, limit] : [args.source_id, limit])
+      : (args.branch !== undefined ? [args.branch, limit] : [limit]);
+    const edges = db.prepare(sql).all(...edgeParams) as GraphEdge[];
+
+    return edges;
+  } else {
+    // type_dependency: symbol → referenced type edges
+    const hasFilter = args.source_id !== undefined;
+    const branchClause = args.branch !== undefined ? ' AND f_src.branch = ?' : '';
+    const sql = hasFilter
+      ? `SELECT tr.symbol_id AS source_id,
+                COALESCE(s_src.name, '') AS source_name,
+                f_src.branch AS source_branch,
+                tr.type_id AS target_id,
+                COALESCE(s_dst.name, tr.type_name) AS target_name
+           FROM type_refs tr
+           JOIN files f_src ON f_src.id = tr.file_id
+           LEFT JOIN symbols s_src ON s_src.id = tr.symbol_id
+           LEFT JOIN symbols s_dst ON s_dst.id = tr.type_id
+          WHERE tr.symbol_id = ?${branchClause}
+          LIMIT ?`
+      : `SELECT tr.symbol_id AS source_id,
+                COALESCE(s_src.name, '') AS source_name,
+                f_src.branch AS source_branch,
+                tr.type_id AS target_id,
+                COALESCE(s_dst.name, tr.type_name) AS target_name
+           FROM type_refs tr
+           JOIN files f_src ON f_src.id = tr.file_id
+           LEFT JOIN symbols s_src ON s_src.id = tr.symbol_id
+           LEFT JOIN symbols s_dst ON s_dst.id = tr.type_id
+          WHERE 1=1${branchClause}
           LIMIT ?`;
 
     const edgeParams = hasFilter

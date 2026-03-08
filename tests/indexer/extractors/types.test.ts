@@ -16,13 +16,14 @@ const tree = pool.parse('javascript', simpleSource);
 // ─── emptyResult ──────────────────────────────────────────────────────────────
 
 describe('emptyResult', () => {
-  it('should return an object with empty symbols, imports, callRefs, relationships, and routes arrays', () => {
+  it('should return an object with empty symbols, imports, callRefs, relationships, typeRefs, and routes arrays', () => {
     expect(emptyResult()).toEqual({
       symbols: [],
       imports: [],
       callRefs: [],
       envRefs: [],
       relationships: [],
+      typeRefs: [],
       routes: [],
     });
   });
