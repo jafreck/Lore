@@ -14,8 +14,11 @@ import {
   type RawImport,
   type RawRelationship,
   type RawSymbol,
+  type RawTypeRef,
+  type TypeRefKind,
   type SymbolExtractor,
   emptyResult,
+  extractGenericTypeArgs,
   findEnclosingSymbolName,
   nodeSignature,
   walk,
@@ -68,13 +71,17 @@ export class TypeScriptExtractor implements SymbolExtractor {
         case 'generator_function_declaration':
         case 'function_signature':
           result.symbols.push(extractNamedDecl(node, 'function', source, declarationMode));
+          extractTsFunctionTypeRefs(node, result.typeRefs);
           break;
         case 'class_declaration':
           result.symbols.push(extractNamedDecl(node, 'class', source, declarationMode));
           result.relationships.push(...extractClassInheritance(node));
+          extractTsClassInheritanceTypeRefs(node, result.typeRefs);
+          extractTsClassFieldTypeRefs(node, result.typeRefs);
           break;
         case 'interface_declaration':
           result.symbols.push(extractNamedDecl(node, 'interface', source, declarationMode));
+          extractTsInterfaceTypeRefs(node, result.typeRefs);
           break;
         case 'type_alias_declaration':
           result.symbols.push(extractNamedDecl(node, 'type', source, declarationMode));
@@ -84,6 +91,7 @@ export class TypeScriptExtractor implements SymbolExtractor {
           // Handle: const foo = () => {} or const foo = function() {}
           const sym = maybeExtractArrowOrFunctionExpr(node, source, declarationMode);
           if (sym) result.symbols.push(sym);
+          extractTsVariableTypeRefs(node, result.typeRefs);
           break;
         }
         case 'import_statement':
@@ -92,6 +100,14 @@ export class TypeScriptExtractor implements SymbolExtractor {
         case 'call_expression': {
           const ref = extractCallRef(node);
           if (ref) result.callRefs.push(ref);
+          break;
+        }
+        case 'as_expression': {
+          extractTsCastTypeRef(node, result.typeRefs);
+          break;
+        }
+        case 'type_assertion': {
+          extractTsTypeAssertionRef(node, result.typeRefs);
           break;
         }
       }
@@ -251,4 +267,153 @@ function extractCallRef(node: Parser.SyntaxNode): RawCallRef | null {
     line: node.startPosition.row,
     character: node.startPosition.column,
   };
+}
+
+// ─── Type-ref extraction ──────────────────────────────────────────────────────
+
+function extractTsTypeName(typeNode: Parser.SyntaxNode): string | null {
+  if (typeNode.type === 'type_identifier') return typeNode.text;
+  if (typeNode.type === 'generic_type') return typeNode.text;
+  if (typeNode.type === 'nested_type_identifier') return typeNode.text;
+  if (typeNode.type === 'array_type') {
+    const element = typeNode.namedChildren[0];
+    return element ? extractTsTypeName(element) : null;
+  }
+  if (typeNode.type === 'union_type' || typeNode.type === 'intersection_type') {
+    // Don't extract entire union/intersection as a type ref; each constituent is handled separately
+    return null;
+  }
+  return null;
+}
+
+function emitTsTypeRef(refs: RawTypeRef[], enclosing: string, typeNode: Parser.SyntaxNode, refKind: TypeRefKind): void {
+  // For union/intersection types, walk the children
+  if (typeNode.type === 'union_type' || typeNode.type === 'intersection_type') {
+    for (const child of typeNode.namedChildren) {
+      emitTsTypeRef(refs, enclosing, child, refKind);
+    }
+    return;
+  }
+  const typeName = extractTsTypeName(typeNode);
+  if (!typeName) return;
+  refs.push({ enclosingSymbol: enclosing, typeRaw: typeName, refKind, line: typeNode.startPosition.row, character: typeNode.startPosition.column });
+  const genericArgs = extractGenericTypeArgs(typeNode, 'generic_type', 'type_arguments');
+  for (const arg of genericArgs) {
+    refs.push({ enclosingSymbol: enclosing, typeRaw: arg, refKind: 'generic_arg', line: typeNode.startPosition.row, character: typeNode.startPosition.column });
+  }
+}
+
+function extractTsFunctionTypeRefs(funcNode: Parser.SyntaxNode, refs: RawTypeRef[]): void {
+  const funcName = funcNode.childForFieldName('name')?.text ?? '';
+  // Parameters
+  const params = funcNode.childForFieldName('parameters');
+  if (params) {
+    for (const param of params.namedChildren) {
+      if (param.type === 'required_parameter' || param.type === 'optional_parameter' || param.type === 'rest_parameter') {
+        const typeAnnotation = param.childForFieldName('type');
+        if (typeAnnotation) {
+          // type_annotation wraps the actual type
+          const actualType = typeAnnotation.type === 'type_annotation' ? typeAnnotation.namedChildren[0] : typeAnnotation;
+          if (actualType) emitTsTypeRef(refs, funcName, actualType, 'parameter');
+        }
+      }
+    }
+  }
+  // Return type
+  const returnType = funcNode.childForFieldName('return_type');
+  if (returnType) {
+    const actualType = returnType.type === 'type_annotation' ? returnType.namedChildren[0] : returnType;
+    if (actualType) emitTsTypeRef(refs, funcName, actualType, 'return');
+  }
+}
+
+function extractTsClassInheritanceTypeRefs(classNode: Parser.SyntaxNode, refs: RawTypeRef[]): void {
+  const className = classNode.childForFieldName('name')?.text ?? '';
+  if (!className) return;
+  const heritageNode = classNode.namedChildren.find(c => c.type === 'class_heritage');
+  if (!heritageNode) return;
+  const extendsClause = heritageNode.namedChildren.find(c => c.type === 'extends_clause');
+  if (!extendsClause) return;
+  const target = extendsClause.namedChildren[0];
+  if (target) {
+    refs.push({ enclosingSymbol: className, typeRaw: target.text, refKind: 'bound', line: extendsClause.startPosition.row, character: extendsClause.startPosition.column });
+  }
+}
+
+function extractTsClassFieldTypeRefs(classNode: Parser.SyntaxNode, refs: RawTypeRef[]): void {
+  const className = classNode.childForFieldName('name')?.text ?? '';
+  const body = classNode.childForFieldName('body');
+  if (!body) return;
+  for (const child of body.namedChildren) {
+    if (child.type === 'public_field_definition' || child.type === 'property_declaration') {
+      const typeAnnotation = child.childForFieldName('type');
+      if (typeAnnotation) {
+        const actualType = typeAnnotation.type === 'type_annotation' ? typeAnnotation.namedChildren[0] : typeAnnotation;
+        if (actualType) emitTsTypeRef(refs, className, actualType, 'field');
+      }
+    }
+  }
+}
+
+function extractTsInterfaceTypeRefs(ifaceNode: Parser.SyntaxNode, refs: RawTypeRef[]): void {
+  const name = ifaceNode.childForFieldName('name')?.text ?? '';
+  const body = ifaceNode.childForFieldName('body');
+  if (!body) return;
+  for (const child of body.namedChildren) {
+    if (child.type === 'property_signature') {
+      const typeAnnotation = child.childForFieldName('type');
+      if (typeAnnotation) {
+        const actualType = typeAnnotation.type === 'type_annotation' ? typeAnnotation.namedChildren[0] : typeAnnotation;
+        if (actualType) emitTsTypeRef(refs, name, actualType, 'field');
+      }
+    }
+    if (child.type === 'method_signature') {
+      const methodName = child.childForFieldName('name')?.text ?? name;
+      const params = child.childForFieldName('parameters');
+      if (params) {
+        for (const param of params.namedChildren) {
+          const typeAnnotation = param.childForFieldName('type');
+          if (typeAnnotation) {
+            const actualType = typeAnnotation.type === 'type_annotation' ? typeAnnotation.namedChildren[0] : typeAnnotation;
+            if (actualType) emitTsTypeRef(refs, methodName, actualType, 'parameter');
+          }
+        }
+      }
+      const returnType = child.childForFieldName('return_type');
+      if (returnType) {
+        const actualType = returnType.type === 'type_annotation' ? returnType.namedChildren[0] : returnType;
+        if (actualType) emitTsTypeRef(refs, methodName, actualType, 'return');
+      }
+    }
+  }
+}
+
+function extractTsVariableTypeRefs(declNode: Parser.SyntaxNode, refs: RawTypeRef[]): void {
+  for (const child of declNode.namedChildren) {
+    if (child.type !== 'variable_declarator') continue;
+    const typeAnnotation = child.childForFieldName('type');
+    if (!typeAnnotation) continue;
+    const enclosing = findEnclosingSymbolName(child, TS_SYMBOL_NODE_TYPES);
+    const actualType = typeAnnotation.type === 'type_annotation' ? typeAnnotation.namedChildren[0] : typeAnnotation;
+    if (actualType) emitTsTypeRef(refs, enclosing, actualType, 'variable');
+  }
+}
+
+function extractTsCastTypeRef(node: Parser.SyntaxNode, refs: RawTypeRef[]): void {
+  // expr as Type
+  const typeNode = node.namedChildren.find(c =>
+    c.type === 'type_identifier' || c.type === 'generic_type' || c.type === 'nested_type_identifier');
+  if (!typeNode) return;
+  const enclosing = findEnclosingSymbolName(node, TS_SYMBOL_NODE_TYPES);
+  emitTsTypeRef(refs, enclosing, typeNode, 'cast');
+}
+
+function extractTsTypeAssertionRef(node: Parser.SyntaxNode, refs: RawTypeRef[]): void {
+  // <Type>expr
+  const typeAnnotation = node.childForFieldName('type');
+  if (!typeAnnotation) return;
+  const actualType = typeAnnotation.type === 'type_annotation' ? typeAnnotation.namedChildren[0] : typeAnnotation;
+  if (!actualType) return;
+  const enclosing = findEnclosingSymbolName(node, TS_SYMBOL_NODE_TYPES);
+  emitTsTypeRef(refs, enclosing, actualType, 'cast');
 }

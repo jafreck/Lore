@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import Database from 'better-sqlite3';
 import { handler, toolDef, type GraphArgs, type GraphEdge } from '../../../src/lore-server/tools/graph.js';
+import { openDb } from '../../../src/indexer/db.js';
 import { createRequire } from 'node:module';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -8,82 +9,13 @@ import { createRequire } from 'node:module';
 const esmRequire = createRequire(import.meta.url);
 
 function createTestDb(): Database.Database {
-  const db = new Database(':memory:');
-  db.pragma('foreign_keys = ON');
-  db.exec(`
-    CREATE TABLE files (
-      id          INTEGER PRIMARY KEY AUTOINCREMENT,
-      path        TEXT    NOT NULL,
-      branch      TEXT    NOT NULL DEFAULT '',
-      language    TEXT    NOT NULL DEFAULT 'typescript',
-      size_bytes  INTEGER NOT NULL DEFAULT 0,
-      last_hash   TEXT,
-      indexed_at  INTEGER NOT NULL DEFAULT 0,
-      UNIQUE(path, branch)
-    );
-    CREATE TABLE symbols (
-      id          INTEGER PRIMARY KEY AUTOINCREMENT,
-      file_id     INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
-      name        TEXT    NOT NULL,
-      kind        TEXT    NOT NULL DEFAULT 'function',
-      start_line  INTEGER NOT NULL DEFAULT 1,
-      end_line    INTEGER NOT NULL DEFAULT 10,
-      signature   TEXT,
-      doc_comment TEXT
-    );
-    CREATE TABLE symbol_refs (
-      id          INTEGER PRIMARY KEY AUTOINCREMENT,
-      caller_id   INTEGER NOT NULL REFERENCES symbols(id) ON DELETE CASCADE,
-      callee_id   INTEGER,
-      callee_name TEXT    NOT NULL,
-      call_kind   TEXT    NOT NULL DEFAULT 'direct'
-    );
-    CREATE TABLE file_imports (
-      id          INTEGER PRIMARY KEY AUTOINCREMENT,
-      file_id     INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
-      raw_import  TEXT    NOT NULL,
-      resolved_id INTEGER REFERENCES files(id)
-    );
-    CREATE TABLE modules (
-      id          INTEGER PRIMARY KEY AUTOINCREMENT,
-      name        TEXT    NOT NULL UNIQUE,
-      kind        TEXT    NOT NULL,
-      manifest    TEXT
-    );
-    CREATE TABLE file_modules (
-      file_id   INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
-      module_id INTEGER NOT NULL REFERENCES modules(id) ON DELETE CASCADE,
-      PRIMARY KEY (file_id, module_id)
-    );
-    CREATE TABLE symbol_relationships (
-      id                 INTEGER PRIMARY KEY AUTOINCREMENT,
-      source_symbol_id   INTEGER NOT NULL REFERENCES symbols(id) ON DELETE CASCADE,
-      target_symbol_id   INTEGER REFERENCES symbols(id),
-      target_symbol_name TEXT    NOT NULL,
-      relationship_type  TEXT    NOT NULL
-    );
-    CREATE TABLE coverage_runs (
-      id            INTEGER PRIMARY KEY AUTOINCREMENT,
-      commit_sha    TEXT    NOT NULL,
-      source_path   TEXT    NOT NULL,
-      format        TEXT    NOT NULL,
-      ingested_at   INTEGER NOT NULL DEFAULT (unixepoch()),
-      source_mtime  INTEGER
-    );
-    CREATE TABLE coverage_lines (
-      run_id        INTEGER NOT NULL REFERENCES coverage_runs(id) ON DELETE CASCADE,
-      file_path     TEXT    NOT NULL,
-      line_number   INTEGER NOT NULL,
-      hit_count     INTEGER NOT NULL DEFAULT 0,
-      PRIMARY KEY (run_id, file_path, line_number)
-    );
-  `);
+  const db = openDb(':memory:');
   return db;
 }
 
 function insertFile(db: Database.Database, path: string, branch: string): number {
   const result = db
-    .prepare('INSERT INTO files (path, branch, language) VALUES (?, ?, ?)')
+    .prepare('INSERT INTO files (path, branch, language, size_bytes, last_hash, source) VALUES (?, ?, ?, 0, NULL, \'\')')
     .run(path, branch, 'typescript');
   return result.lastInsertRowid as number;
 }
@@ -103,7 +35,7 @@ function insertCallEdge(
   calleeId: number | null,
   calleeName: string,
 ): void {
-  db.prepare('INSERT INTO symbol_refs (caller_id, callee_id, callee_name) VALUES (?, ?, ?)').run(
+  db.prepare('INSERT INTO symbol_refs (caller_id, callee_id, callee_name, call_line) VALUES (?, ?, ?, 1)').run(
     callerId,
     calleeId,
     calleeName,
@@ -137,11 +69,13 @@ function insertInheritanceEdge(
   sourceSymbolId: number,
   targetSymbolId: number | null,
   targetSymbolName: string,
+  fileId: number,
+  line = 1,
 ): void {
   db.prepare(
-    `INSERT INTO symbol_relationships (source_symbol_id, target_symbol_id, target_symbol_name, relationship_type)
-     VALUES (?, ?, ?, 'extends')`,
-  ).run(sourceSymbolId, targetSymbolId, targetSymbolName);
+    `INSERT INTO symbol_relationships (file_id, source_symbol_id, target_symbol_id, target_symbol_name, relationship_type, line)
+     VALUES (?, ?, ?, ?, 'extends', ?)`,
+  ).run(fileId, sourceSymbolId, targetSymbolId, targetSymbolName, line);
 }
 
 function loadSymbolEmbeddings(db: Database.Database, dims: number): void {
@@ -163,12 +97,13 @@ function insertSymbolEmbedding(db: Database.Database, symbolId: number, embeddin
 // ─── handler (kind=call) ──────────────────────────────────────────────────────
 
 describe('lore_graph toolDef', () => {
-  it('should expose kind enum values for call, import, module, and inheritance', () => {
+  it('should expose kind enum values for call, import, module, inheritance, and type_dependency', () => {
     expect(toolDef.inputSchema.properties.kind.enum).toEqual([
       'call',
       'import',
       'module',
       'inheritance',
+      'type_dependency',
     ]);
   });
 
@@ -200,6 +135,8 @@ describe('graph handler – kind=call', () => {
         'INSERT INTO coverage_runs (commit_sha, source_path, format, ingested_at) VALUES (?, ?, ?, ?)',
       )
       .run('abc123', 'coverage/lcov.info', 'lcov', 100).lastInsertRowid as number;
+    db.prepare('INSERT INTO coverage_files (run_id, file_path, lines_found, lines_hit) VALUES (?, ?, ?, ?)').run(runId, 'src/main.ts', 10, 9);
+    db.prepare('INSERT INTO coverage_files (run_id, file_path, lines_found, lines_hit) VALUES (?, ?, ?, ?)').run(runId, 'src/feat.ts', 10, 8);
     db.prepare('INSERT INTO coverage_lines (run_id, file_path, line_number, hit_count) VALUES (?, ?, ?, ?)').run(runId, 'src/main.ts', 1, 1);
     db.prepare('INSERT INTO coverage_lines (run_id, file_path, line_number, hit_count) VALUES (?, ?, ?, ?)').run(runId, 'src/main.ts', 2, 0);
     db.prepare('INSERT INTO coverage_lines (run_id, file_path, line_number, hit_count) VALUES (?, ?, ?, ?)').run(runId, 'src/main.ts', 3, 1);
@@ -375,8 +312,8 @@ describe('graph handler – kind=inheritance', () => {
     derivedId = insertSymbol(db, mainFileId, 'Derived', 'class');
     const featDerivedId = insertSymbol(db, featFileId, 'FeatDerived', 'class');
 
-    insertInheritanceEdge(db, derivedId, baseId, 'Base');
-    insertInheritanceEdge(db, featDerivedId, null, 'UnknownBase');
+    insertInheritanceEdge(db, derivedId, baseId, 'Base', mainFileId);
+    insertInheritanceEdge(db, featDerivedId, null, 'UnknownBase', featFileId);
   });
 
   it('should return inheritance edges', () => {
@@ -521,5 +458,60 @@ describe('graph handler – semantic mode', () => {
     expect(symbolNodes[0].name).toBe('parseConfig');
     expect(moduleNodes).toHaveLength(1);
     expect(moduleNodes[0].name).toBe('core');
+  });
+});
+
+// ─── handler (kind=inheritance with implements) ───────────────────────────────
+
+describe('graph handler – inheritance includes implements', () => {
+  let db: Database.Database;
+
+  beforeEach(() => {
+    db = createTestDb();
+    const fileId = insertFile(db, 'src/main.ts', 'main');
+    const classId = insertSymbol(db, fileId, 'MyService', 'class');
+    const ifaceId = insertSymbol(db, fileId, 'IService', 'interface');
+    // extends
+    insertInheritanceEdge(db, classId, null, 'BaseService', fileId);
+    // implements
+    db.prepare(
+      `INSERT INTO symbol_relationships (file_id, source_symbol_id, target_symbol_id, target_symbol_name, relationship_type, line)
+       VALUES (?, ?, ?, ?, 'implements', 1)`,
+    ).run(fileId, classId, ifaceId, 'IService');
+  });
+
+  it('should return both extends and implements edges', () => {
+    const result = handler(db, { kind: 'inheritance' });
+    expect(result.edges.length).toBe(2);
+  });
+});
+
+// ─── handler (kind=type_dependency) ───────────────────────────────────────────
+
+describe('graph handler – kind=type_dependency', () => {
+  let db: Database.Database;
+  let symbolId: number;
+
+  beforeEach(() => {
+    db = createTestDb();
+    const fileId = insertFile(db, 'src/main.ts', 'main');
+    symbolId = insertSymbol(db, fileId, 'process');
+    const targetId = insertSymbol(db, fileId, 'MyStruct', 'struct');
+    db.prepare(
+      `INSERT INTO type_refs (file_id, symbol_id, type_id, type_name, type_name_bare, ref_kind, ref_line)
+       VALUES (?, ?, ?, 'MyStruct', 'MyStruct', 'parameter', 5)`,
+    ).run(fileId, symbolId, targetId);
+  });
+
+  it('should return type dependency edges', () => {
+    const result = handler(db, { kind: 'type_dependency' });
+    expect(result.edges.length).toBe(1);
+    expect(result.edges[0].source_name).toBe('process');
+    expect(result.edges[0].target_name).toBe('MyStruct');
+  });
+
+  it('should filter type dependency edges by source_id', () => {
+    const result = handler(db, { kind: 'type_dependency', source_id: symbolId });
+    expect(result.edges.length).toBe(1);
   });
 });

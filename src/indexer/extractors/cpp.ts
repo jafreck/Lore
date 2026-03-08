@@ -14,9 +14,13 @@ import {
   type ExtractionResult,
   type RawCallRef,
   type RawImport,
+  type RawRelationship,
   type RawSymbol,
+  type RawTypeRef,
+  type TypeRefKind,
   type SymbolExtractor,
   emptyResult,
+  extractGenericTypeArgs,
   findEnclosingSymbolName,
   findFirst,
   nodeSignature,
@@ -56,20 +60,24 @@ export class CppExtractor implements SymbolExtractor {
       }
     }
 
-    // Main pass: symbols, imports, call-refs.
+    // Main pass: symbols, imports, call-refs, type-refs, relationships.
     for (const node of walk(tree.rootNode)) {
       switch (node.type) {
         case 'function_definition':
           result.symbols.push(extractFunction(node));
+          extractCppFunctionTypeRefs(node, result.typeRefs);
           break;
         case 'class_specifier':
           if (node.childForFieldName('name')) {
             result.symbols.push(extractSpecifier(node, 'class'));
+            extractBaseClassRelationships(node, result.relationships, result.typeRefs);
+            extractCppFieldTypeRefs(node, result.typeRefs);
           }
           break;
         case 'struct_specifier':
           if (node.childForFieldName('name')) {
             result.symbols.push(extractSpecifier(node, 'struct'));
+            extractCppFieldTypeRefs(node, result.typeRefs);
           }
           break;
         case 'preproc_function_def':
@@ -84,6 +92,21 @@ export class CppExtractor implements SymbolExtractor {
         case 'call_expression': {
           const ref = extractCallRef(node, macroNames);
           if (ref) result.callRefs.push(ref);
+          break;
+        }
+        case 'declaration': {
+          extractCppVariableTypeRefs(node, result.typeRefs);
+          break;
+        }
+        case 'cast_expression': {
+          extractCppCastTypeRef(node, result.typeRefs);
+          break;
+        }
+        case 'static_cast_expression':
+        case 'dynamic_cast_expression':
+        case 'reinterpret_cast_expression':
+        case 'const_cast_expression': {
+          extractCppNamedCastTypeRef(node, result.typeRefs);
           break;
         }
       }
@@ -293,4 +316,154 @@ function extractInclude(node: Parser.SyntaxNode): RawImport {
   const raw = pathNode?.text ?? '';
   const source = raw.replace(/^["<]|[">]$/g, '');
   return { source, importedNames: [] };
+}
+
+// ─── Relationship extraction ──────────────────────────────────────────────────
+
+function extractBaseClassRelationships(
+  classNode: Parser.SyntaxNode,
+  relationships: RawRelationship[],
+  typeRefs: RawTypeRef[],
+): void {
+  const className = classNode.childForFieldName('name')?.text ?? '';
+  if (!className) return;
+  // Look for base_class_clause nodes
+  for (const child of classNode.namedChildren) {
+    if (child.type === 'base_class_clause') {
+      for (const base of child.namedChildren) {
+        if (base.type === 'type_identifier' || base.type === 'qualified_identifier' || base.type === 'template_type') {
+          const baseName = base.type === 'template_type'
+            ? (base.childForFieldName('name')?.text ?? base.text)
+            : base.text;
+          relationships.push({
+            kind: 'extends',
+            fromSymbol: className,
+            toSymbol: baseName,
+            line: base.startPosition.row,
+          });
+          typeRefs.push({
+            enclosingSymbol: className,
+            typeRaw: baseName,
+            refKind: 'bound',
+            line: base.startPosition.row,
+            character: base.startPosition.column,
+          });
+        }
+      }
+    }
+  }
+}
+
+// ─── Type-ref extraction ──────────────────────────────────────────────────────
+
+function extractCppTypeName(typeNode: Parser.SyntaxNode): string | null {
+  if (typeNode.type === 'type_identifier' || typeNode.type === 'qualified_identifier') return typeNode.text;
+  if (typeNode.type === 'template_type') return typeNode.text;
+  if (typeNode.type === 'sized_type_specifier') return typeNode.text;
+  for (const child of typeNode.namedChildren) {
+    const name = extractCppTypeName(child);
+    if (name) return name;
+  }
+  return null;
+}
+
+function emitCppTypeRef(
+  refs: RawTypeRef[],
+  enclosing: string,
+  typeNode: Parser.SyntaxNode,
+  refKind: TypeRefKind,
+): void {
+  const typeName = extractCppTypeName(typeNode);
+  if (!typeName) return;
+  refs.push({
+    enclosingSymbol: enclosing,
+    typeRaw: typeName,
+    refKind,
+    line: typeNode.startPosition.row,
+    character: typeNode.startPosition.column,
+  });
+  // Decompose generic args one level
+  const genericArgs = extractGenericTypeArgs(typeNode, 'template_type', 'template_argument_list');
+  for (const arg of genericArgs) {
+    refs.push({
+      enclosingSymbol: enclosing,
+      typeRaw: arg,
+      refKind: 'generic_arg',
+      line: typeNode.startPosition.row,
+      character: typeNode.startPosition.column,
+    });
+  }
+}
+
+function extractCppFunctionTypeRefs(funcNode: Parser.SyntaxNode, refs: RawTypeRef[]): void {
+  const declarator = funcNode.childForFieldName('declarator');
+  const funcName = declarator ? extractDeclaratorName(declarator) : '';
+  // Return type
+  const typeNode = funcNode.childForFieldName('type');
+  if (typeNode) {
+    emitCppTypeRef(refs, funcName, typeNode, 'return');
+  }
+  // Parameters
+  if (declarator) {
+    const funcDecl = findCppFuncDeclarator(declarator);
+    if (funcDecl) {
+      const params = funcDecl.childForFieldName('parameters');
+      if (params) {
+        for (const param of params.namedChildren) {
+          if (param.type === 'parameter_declaration') {
+            const paramType = param.childForFieldName('type');
+            if (paramType) {
+              emitCppTypeRef(refs, funcName, paramType, 'parameter');
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+function findCppFuncDeclarator(node: Parser.SyntaxNode): Parser.SyntaxNode | null {
+  if (node.type === 'function_declarator') return node;
+  for (const child of node.namedChildren) {
+    const found = findCppFuncDeclarator(child);
+    if (found) return found;
+  }
+  return null;
+}
+
+function extractCppFieldTypeRefs(classNode: Parser.SyntaxNode, refs: RawTypeRef[]): void {
+  const className = classNode.childForFieldName('name')?.text ?? '';
+  const body = classNode.childForFieldName('body');
+  if (!body) return;
+  for (const child of body.namedChildren) {
+    if (child.type === 'field_declaration') {
+      const typeNode = child.childForFieldName('type');
+      if (typeNode) emitCppTypeRef(refs, className, typeNode, 'field');
+    }
+  }
+}
+
+function extractCppVariableTypeRefs(declNode: Parser.SyntaxNode, refs: RawTypeRef[]): void {
+  const typeNode = declNode.childForFieldName('type');
+  if (!typeNode) return;
+  const typeName = extractCppTypeName(typeNode);
+  if (!typeName) return;
+  const enclosing = findEnclosingSymbolName(declNode, CPP_SYMBOL_NODE_TYPES);
+  emitCppTypeRef(refs, enclosing, typeNode, 'variable');
+}
+
+function extractCppCastTypeRef(node: Parser.SyntaxNode, refs: RawTypeRef[]): void {
+  // C-style cast: (Type)expr
+  const typeNode = node.childForFieldName('type');
+  if (!typeNode) return;
+  const enclosing = findEnclosingSymbolName(node, CPP_SYMBOL_NODE_TYPES);
+  emitCppTypeRef(refs, enclosing, typeNode, 'cast');
+}
+
+function extractCppNamedCastTypeRef(node: Parser.SyntaxNode, refs: RawTypeRef[]): void {
+  // static_cast<Type>(expr), dynamic_cast<Type>(expr), etc.
+  const typeNode = node.childForFieldName('type');
+  if (!typeNode) return;
+  const enclosing = findEnclosingSymbolName(node, CPP_SYMBOL_NODE_TYPES);
+  emitCppTypeRef(refs, enclosing, typeNode, 'cast');
 }
