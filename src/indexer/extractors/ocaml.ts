@@ -8,6 +8,7 @@
 import type Parser from 'tree-sitter';
 import {
   type ExtractionResult,
+  type RawCallRef,
   type RawImport,
   type RawSymbol,
   type SymbolExtractor,
@@ -43,6 +44,11 @@ export class OcamlExtractor implements SymbolExtractor {
         case 'open_statement':
           result.imports.push(extractOpen(node));
           break;
+        case 'application_expression': {
+          const ref = extractCallRef(node);
+          if (ref) result.callRefs.push(ref);
+          break;
+        }
       }
     }
 
@@ -104,6 +110,29 @@ function extractModuleTypeDefinition(node: Parser.SyntaxNode): RawSymbol {
     startLine: node.startPosition.row,
     endLine: node.endPosition.row,
     signature: nodeSignature(node),
+  };
+}
+
+function extractCallRef(node: Parser.SyntaxNode): RawCallRef | null {
+  // OCaml application: (fn arg1 arg2) — first child is the callee
+  const fnNode = node.namedChildren[0];
+  if (!fnNode) return null;
+  // Find enclosing let binding
+  let callerSymbol = '';
+  let current: Parser.SyntaxNode | null = node.parent;
+  while (current) {
+    if (current.type === 'let_binding') {
+      const pat = current.childForFieldName('pattern') ?? current.namedChildren[0];
+      callerSymbol = pat?.text ?? '';
+      break;
+    }
+    current = current.parent;
+  }
+  return {
+    callerSymbol,
+    calleeRaw: fnNode.text,
+    line: node.startPosition.row,
+    character: node.startPosition.column,
   };
 }
 

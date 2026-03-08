@@ -8,13 +8,20 @@
 import type Parser from 'tree-sitter';
 import {
   type ExtractionResult,
+  type RawCallRef,
   type RawImport,
   type RawSymbol,
   type SymbolExtractor,
   emptyResult,
+  findEnclosingSymbolName,
   nodeSignature,
   walk,
 } from './types.js';
+
+const PHP_SYMBOL_NODE_TYPES = [
+  'function_definition',
+  'method_declaration',
+] as const;
 
 // ─── PhpExtractor ─────────────────────────────────────────────────────────────
 
@@ -45,6 +52,18 @@ export class PhpExtractor implements SymbolExtractor {
         case 'namespace_use_declaration':
           result.imports.push(...extractUseDeclaration(node));
           break;
+        case 'function_call_expression':
+        case 'member_call_expression':
+        case 'scoped_call_expression': {
+          const ref = extractCallRef(node);
+          if (ref) result.callRefs.push(ref);
+          break;
+        }
+        case 'object_creation_expression': {
+          const ref = extractNewCallRef(node);
+          if (ref) result.callRefs.push(ref);
+          break;
+        }
       }
     }
 
@@ -73,6 +92,29 @@ function extractNamedNode(node: Parser.SyntaxNode, kind: string): RawSymbol {
     startLine: node.startPosition.row,
     endLine: node.endPosition.row,
     signature: nodeSignature(node),
+  };
+}
+
+function extractCallRef(node: Parser.SyntaxNode): RawCallRef | null {
+  const fnNode = node.childForFieldName('function') ?? node.childForFieldName('name');
+  if (!fnNode) return null;
+  return {
+    callerSymbol: findEnclosingSymbolName(node, PHP_SYMBOL_NODE_TYPES),
+    calleeRaw: fnNode.text,
+    line: node.startPosition.row,
+    character: node.startPosition.column,
+  };
+}
+
+function extractNewCallRef(node: Parser.SyntaxNode): RawCallRef | null {
+  // new ClassName(...)
+  const nameNode = node.namedChildren.find(c => c.type === 'name' || c.type === 'qualified_name');
+  if (!nameNode) return null;
+  return {
+    callerSymbol: findEnclosingSymbolName(node, PHP_SYMBOL_NODE_TYPES),
+    calleeRaw: `new ${nameNode.text}`,
+    line: node.startPosition.row,
+    character: node.startPosition.column,
   };
 }
 

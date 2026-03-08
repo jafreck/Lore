@@ -8,14 +8,20 @@
 import type Parser from 'tree-sitter';
 import {
   type ExtractionResult,
+  type RawCallRef,
   type RawImport,
   type RawSymbol,
   type SymbolExtractor,
   emptyResult,
+  findEnclosingSymbolName,
   findFirst,
   nodeSignature,
   walk,
 } from './types.js';
+
+const CPP_SYMBOL_NODE_TYPES = [
+  'function_definition',
+] as const;
 
 // ─── CppExtractor ─────────────────────────────────────────────────────────────
 
@@ -41,6 +47,11 @@ export class CppExtractor implements SymbolExtractor {
         case 'preproc_include':
           result.imports.push(extractInclude(node));
           break;
+        case 'call_expression': {
+          const ref = extractCallRef(node);
+          if (ref) result.callRefs.push(ref);
+          break;
+        }
       }
     }
 
@@ -94,6 +105,17 @@ function extractSpecifier(node: Parser.SyntaxNode, kind: string): RawSymbol {
     startLine: node.startPosition.row,
     endLine: node.endPosition.row,
     signature: nodeSignature(node),
+  };
+}
+
+function extractCallRef(node: Parser.SyntaxNode): RawCallRef | null {
+  const fnNode = node.childForFieldName('function');
+  if (!fnNode) return null;
+  return {
+    callerSymbol: findEnclosingSymbolName(node, CPP_SYMBOL_NODE_TYPES),
+    calleeRaw: fnNode.text,
+    line: node.startPosition.row,
+    character: node.startPosition.column,
   };
 }
 

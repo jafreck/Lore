@@ -74,6 +74,10 @@ describe('C extractor', () => {
   test.skipIf(!cResult)('callRefs', () => {
     expect(cResult!.callRefs).toMatchSnapshot();
   });
+
+  test.skipIf(!cResult)('callRefs are non-empty', () => {
+    expect(cResult!.callRefs.length).toBeGreaterThan(0);
+  });
 });
 
 // ─── C++ ──────────────────────────────────────────────────────────────────────
@@ -89,6 +93,10 @@ describe('C++ extractor', () => {
 
   test.skipIf(!cppResult)('callRefs', () => {
     expect(cppResult!.callRefs).toMatchSnapshot();
+  });
+
+  test.skipIf(!cppResult)('callRefs are non-empty', () => {
+    expect(cppResult!.callRefs.length).toBeGreaterThan(0);
   });
 });
 
@@ -106,6 +114,10 @@ describe('C# extractor', () => {
   test.skipIf(!csharpResult)('callRefs', () => {
     expect(csharpResult!.callRefs).toMatchSnapshot();
   });
+
+  test.skipIf(!csharpResult)('callRefs are non-empty', () => {
+    expect(csharpResult!.callRefs.length).toBeGreaterThan(0);
+  });
 });
 
 // ─── Dart ─────────────────────────────────────────────────────────────────────
@@ -122,6 +134,10 @@ describe('Dart extractor', () => {
   test.skipIf(!dartResult)('callRefs', () => {
     expect(dartResult!.callRefs).toMatchSnapshot();
   });
+
+  test.skipIf(!dartResult)('callRefs are non-empty', () => {
+    expect(dartResult!.callRefs.length).toBeGreaterThan(0);
+  });
 });
 
 // ─── Elixir ───────────────────────────────────────────────────────────────────
@@ -137,6 +153,10 @@ describe('Elixir extractor', () => {
 
   test.skipIf(!elixirResult)('callRefs', () => {
     expect(elixirResult!.callRefs).toMatchSnapshot();
+  });
+
+  test.skipIf(!elixirResult)('callRefs are non-empty', () => {
+    expect(elixirResult!.callRefs.length).toBeGreaterThan(0);
   });
 });
 
@@ -185,5 +205,9 @@ describe('Julia extractor', () => {
 
   test.skipIf(!juliaResult)('callRefs', () => {
     expect(juliaResult!.callRefs).toMatchSnapshot();
+  });
+
+  test.skipIf(!juliaResult)('callRefs are non-empty', () => {
+    expect(juliaResult!.callRefs.length).toBeGreaterThan(0);
   });
 });

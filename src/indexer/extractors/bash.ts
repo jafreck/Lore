@@ -8,13 +8,26 @@
 import type Parser from 'tree-sitter';
 import {
   type ExtractionResult,
+  type RawCallRef,
   type RawImport,
   type RawSymbol,
   type SymbolExtractor,
   emptyResult,
+  findEnclosingSymbolName,
   nodeSignature,
   walk,
 } from './types.js';
+
+const BASH_SYMBOL_NODE_TYPES = [
+  'function_definition',
+] as const;
+
+/** Bash builtins that are not interesting as call refs. */
+const BASH_SKIP_COMMANDS = new Set([
+  'echo', 'local', 'export', 'readonly', 'declare', 'typeset',
+  'unset', 'shift', 'return', 'exit', 'cd', 'pushd', 'popd',
+  'true', 'false', 'test', '[', '[[',
+]);
 
 // ─── BashExtractor ────────────────────────────────────────────────────────────
 
@@ -30,6 +43,10 @@ export class BashExtractor implements SymbolExtractor {
         case 'command': {
           const imp = tryExtractSource(node);
           if (imp) result.imports.push(imp);
+          else {
+            const ref = extractCommandCallRef(node);
+            if (ref) result.callRefs.push(ref);
+          }
           break;
         }
       }
@@ -49,6 +66,19 @@ function extractFunction(node: Parser.SyntaxNode): RawSymbol {
     startLine: node.startPosition.row,
     endLine: node.endPosition.row,
     signature: nodeSignature(node),
+  };
+}
+
+function extractCommandCallRef(node: Parser.SyntaxNode): RawCallRef | null {
+  const nameNode = node.childForFieldName('name');
+  if (!nameNode) return null;
+  const cmd = nameNode.text;
+  if (BASH_SKIP_COMMANDS.has(cmd)) return null;
+  return {
+    callerSymbol: findEnclosingSymbolName(node, BASH_SYMBOL_NODE_TYPES),
+    calleeRaw: cmd,
+    line: node.startPosition.row,
+    character: node.startPosition.column,
   };
 }
 

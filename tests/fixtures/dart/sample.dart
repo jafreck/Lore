@@ -18,3 +18,10 @@ int add(int a, int b) {
 String greet(String name) {
   return 'Hello, $name!';
 }
+
+void main() {
+  var c = Circle(5.0);
+  print(c.area());
+  var sum = add(1, 2);
+  greet('World');
+}

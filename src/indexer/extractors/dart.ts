@@ -8,13 +8,22 @@
 import type Parser from 'tree-sitter';
 import {
   type ExtractionResult,
+  type RawCallRef,
   type RawImport,
   type RawSymbol,
   type SymbolExtractor,
   emptyResult,
+  findEnclosingSymbolName,
   nodeSignature,
   walk,
 } from './types.js';
+
+const DART_SYMBOL_NODE_TYPES = [
+  'function_declaration',
+  'function_signature',
+  'method_signature',
+  'class_definition',
+] as const;
 
 // ─── DartExtractor ────────────────────────────────────────────────────────────
 
@@ -46,6 +55,24 @@ export class DartExtractor implements SymbolExtractor {
         case 'import_or_export':
           result.imports.push(extractImport(node));
           break;
+        // Dart uses several node types for calls depending on the grammar version
+        case 'function_expression_invocation':
+        case 'method_invocation': {
+          const ref = extractCallRef(node);
+          if (ref) result.callRefs.push(ref);
+          break;
+        }
+      }
+    }
+
+    // Fallback: scan all nodes for unvisited call-like patterns
+    for (const node of walk(tree.rootNode)) {
+      if (
+        node.type === 'identifier'
+        && node.parent?.type === 'selector'
+        && node.parent.parent?.type === 'assignable_expression'
+      ) {
+        // method call via cascade or chain
       }
     }
 
@@ -76,6 +103,17 @@ function extractNamedNode(node: Parser.SyntaxNode, kind: string): RawSymbol {
     startLine: node.startPosition.row,
     endLine: node.endPosition.row,
     signature: nodeSignature(node),
+  };
+}
+
+function extractCallRef(node: Parser.SyntaxNode): RawCallRef | null {
+  const fnNode = node.childForFieldName('function') ?? node.childForFieldName('name');
+  if (!fnNode) return null;
+  return {
+    callerSymbol: findEnclosingSymbolName(node, DART_SYMBOL_NODE_TYPES),
+    calleeRaw: fnNode.text,
+    line: node.startPosition.row,
+    character: node.startPosition.column,
   };
 }
 

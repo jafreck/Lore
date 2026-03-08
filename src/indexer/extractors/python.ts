@@ -8,14 +8,21 @@
 import type Parser from 'tree-sitter';
 import {
   type ExtractionResult,
+  type RawCallRef,
   type RawImport,
   type RawRoute,
   type RawSymbol,
   type SymbolExtractor,
   emptyResult,
+  findEnclosingSymbolName,
   nodeSignature,
   walk,
 } from './types.js';
+
+const PY_SYMBOL_NODE_TYPES = [
+  'function_definition',
+  'class_definition',
+] as const;
 
 // ─── PythonExtractor ──────────────────────────────────────────────────────────
 
@@ -52,6 +59,11 @@ export class PythonExtractor implements SymbolExtractor {
         case 'import_from_statement':
           result.imports.push(extractFromImport(node));
           break;
+        case 'call': {
+          const ref = extractCallRef(node);
+          if (ref) result.callRefs.push(ref);
+          break;
+        }
       }
     }
 
@@ -123,6 +135,17 @@ function extractFromImport(node: Parser.SyntaxNode): RawImport {
   }
 
   return { source, importedNames };
+}
+
+function extractCallRef(node: Parser.SyntaxNode): RawCallRef | null {
+  const fnNode = node.childForFieldName('function');
+  if (!fnNode) return null;
+  return {
+    callerSymbol: findEnclosingSymbolName(node, PY_SYMBOL_NODE_TYPES),
+    calleeRaw: fnNode.text,
+    line: node.startPosition.row,
+    character: node.startPosition.column,
+  };
 }
 
 const PY_HTTP_METHODS = ['get', 'post', 'put', 'delete', 'patch', 'options', 'head'];

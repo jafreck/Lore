@@ -32,3 +32,10 @@ end
 def add(a, b)
   a + b
 end
+
+def main
+  msg = greet("World")
+  total = add(1, 2)
+  c = Geometry::Circle.new(5.0)
+  puts c.area
+end
