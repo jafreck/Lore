@@ -4,7 +4,8 @@
  * Call-graph utilities operating on the SQLite knowledge-base:
  *
  *  - `buildCallGraph(db)` — resolves raw callee names in `symbol_refs` to
- *    concrete symbol IDs where possible.
+ *    concrete symbol IDs where possible (pass 1: name-based, pass 2:
+ *    definition-path-based for indirect / macro calls).
  *  - `topoSort(db)` — topological ordering of files based on `file_imports`
  *    using Kahn's algorithm.
  *  - `detectCycles(db)` — cycle detection over the `file_imports` graph using
@@ -16,13 +17,25 @@ import type { Database } from './db.js';
 // ─── buildCallGraph ───────────────────────────────────────────────────────────
 
 /**
- * Resolves unresolved `symbol_refs` rows by looking up `callee_name` in the
- * `symbols` table and writing the matching `callee_id` back.
+ * Resolves unresolved `symbol_refs` rows in two passes:
  *
- * Only exact-name matches within the same DB are performed; cross-file
- * disambiguation is not attempted here.
+ * **Pass 1 (name-based):** looks up `callee_name` in the `symbols` table by
+ * exact name match, preferring same-file matches for common identifiers.
+ *
+ * **Pass 2 (definition-path-based):** for refs still unresolved after pass 1,
+ * attempts to match via `definition_path` written by LSP enrichment.  This
+ * covers function-pointer calls and macro invocations whose names don't appear
+ * in the `symbols` table directly, but whose LSP-resolved definition locations
+ * do correspond to known symbol files / lines.
  */
 export function buildCallGraph(db: Database.Database): void {
+  resolveByName(db);
+  resolveByDefinitionPath(db);
+}
+
+// ─── Pass 1: name-based resolution ──────────────────────────────────────────
+
+function resolveByName(db: Database.Database): void {
   // Build a multimap: symbol name → array of { id, file_id }
   const nameToSymbols = new Map<string, Array<{ id: number; file_id: number }>>();
   const allSymbols = db
@@ -58,6 +71,77 @@ export function buildCallGraph(db: Database.Database): void {
       const sameFile = candidates.find(c => c.file_id === ref.caller_file_id);
       const best = sameFile ?? candidates[0]!;
       update.run(best.id, ref.id);
+    }
+  });
+
+  updateMany();
+}
+
+// ─── Pass 2: definition-path-based resolution ───────────────────────────────
+
+/**
+ * For `symbol_refs` rows that:
+ *   - still have `callee_id IS NULL`, AND
+ *   - have a non-null `definition_path` (written by LSP enrichment),
+ *
+ * this pass tries to find a symbol in the `symbols` table whose file matches
+ * the definition path.  When there are multiple symbols in that file, the one
+ * closest to the enriched definition line (approximated by `resolved_type_signature`
+ * presence) is chosen; otherwise the first symbol defined in that file is used.
+ *
+ * This is the primary mechanism for resolving:
+ *   - Function-pointer calls (`(*callback)(...)`) — clangd resolves the pointer
+ *     to its original declaration location.
+ *   - Macro invocations (`MY_MACRO(...)`) — clangd resolves to the `#define` site.
+ */
+function resolveByDefinitionPath(db: Database.Database): void {
+  // Build a map: normalised file path → array of { id, start_line }
+  const pathToSymbols = new Map<string, Array<{ id: number; start_line: number }>>();
+  const allSymbols = db
+    .prepare(
+      `SELECT s.id, s.start_line, f.path
+       FROM symbols s
+       JOIN files f ON f.id = s.file_id`,
+    )
+    .all() as Array<{ id: number; start_line: number; path: string }>;
+  for (const row of allSymbols) {
+    let list = pathToSymbols.get(row.path);
+    if (!list) {
+      list = [];
+      pathToSymbols.set(row.path, list);
+    }
+    list.push({ id: row.id, start_line: row.start_line });
+  }
+
+  const unresolved = db
+    .prepare(
+      `SELECT sr.id, sr.definition_path
+       FROM symbol_refs sr
+       WHERE sr.callee_id IS NULL
+         AND sr.definition_path IS NOT NULL`,
+    )
+    .all() as Array<{ id: number; definition_path: string }>;
+
+  if (unresolved.length === 0) return;
+
+  const update = db.prepare('UPDATE symbol_refs SET callee_id = ? WHERE id = ?');
+
+  const updateMany = db.transaction(() => {
+    for (const ref of unresolved) {
+      const candidates = pathToSymbols.get(ref.definition_path);
+      if (!candidates || candidates.length === 0) continue;
+
+      // If only one symbol in the file, use it directly.
+      if (candidates.length === 1) {
+        update.run(candidates[0]!.id, ref.id);
+        continue;
+      }
+
+      // Multiple symbols: pick the first defined (lowest start_line).
+      // A more precise heuristic would use the definition line from the LSP
+      // URI fragment, but definition_path currently stores only the file path.
+      const sorted = [...candidates].sort((a, b) => a.start_line - b.start_line);
+      update.run(sorted[0]!.id, ref.id);
     }
   });
 

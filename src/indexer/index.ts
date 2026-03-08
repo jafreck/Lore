@@ -595,13 +595,13 @@ export class IndexBuilder {
 
     // Insert call refs (callee_id resolved in call-graph phase)
     const insertCallRef = db.prepare(
-      `INSERT INTO symbol_refs (caller_id, callee_name, call_line)
-       VALUES (?, ?, ?)`,
+      `INSERT INTO symbol_refs (caller_id, callee_name, call_line, call_kind)
+       VALUES (?, ?, ?, ?)`,
     );
     for (const ref of result.callRefs) {
       const callerId = symbolIdMap.get(ref.callerSymbol);
       if (callerId !== undefined) {
-        insertCallRef.run(callerId, ref.calleeRaw, ref.line);
+        insertCallRef.run(callerId, ref.calleeRaw, ref.line, ref.callKind ?? 'direct');
       }
     }
   }
