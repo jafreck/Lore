@@ -78,6 +78,24 @@ describe('C extractor', () => {
   test.skipIf(!cResult)('callRefs are non-empty', () => {
     expect(cResult!.callRefs.length).toBeGreaterThan(0);
   });
+
+  test.skipIf(!cResult)('extracts macro symbols', () => {
+    const macros = cResult!.symbols.filter(s => s.kind === 'macro');
+    expect(macros.length).toBeGreaterThan(0);
+    expect(macros.map(m => m.name)).toContain('SQUARE');
+  });
+
+  test.skipIf(!cResult)('tags macro call-refs with callKind macro', () => {
+    const macroRefs = cResult!.callRefs.filter(r => r.callKind === 'macro');
+    expect(macroRefs.length).toBeGreaterThan(0);
+    expect(macroRefs.some(r => r.calleeRaw === 'SQUARE')).toBe(true);
+  });
+
+  test.skipIf(!cResult)('tags indirect call-refs via function pointer', () => {
+    const indirectRefs = cResult!.callRefs.filter(r => r.isIndirect === true);
+    expect(indirectRefs.length).toBeGreaterThan(0);
+    expect(indirectRefs.every(r => r.callKind === 'indirect')).toBe(true);
+  });
 });
 
 // ─── C++ ──────────────────────────────────────────────────────────────────────
@@ -97,6 +115,24 @@ describe('C++ extractor', () => {
 
   test.skipIf(!cppResult)('callRefs are non-empty', () => {
     expect(cppResult!.callRefs.length).toBeGreaterThan(0);
+  });
+
+  test.skipIf(!cppResult)('extracts macro symbols', () => {
+    const macros = cppResult!.symbols.filter(s => s.kind === 'macro');
+    expect(macros.length).toBeGreaterThan(0);
+    expect(macros.map(m => m.name)).toContain('MAX');
+  });
+
+  test.skipIf(!cppResult)('tags macro call-refs with callKind macro', () => {
+    const macroRefs = cppResult!.callRefs.filter(r => r.callKind === 'macro');
+    expect(macroRefs.length).toBeGreaterThan(0);
+    expect(macroRefs.some(r => r.calleeRaw === 'MAX')).toBe(true);
+  });
+
+  test.skipIf(!cppResult)('tags indirect call-refs via function pointer', () => {
+    const indirectRefs = cppResult!.callRefs.filter(r => r.isIndirect === true);
+    expect(indirectRefs.length).toBeGreaterThan(0);
+    expect(indirectRefs.every(r => r.callKind === 'indirect')).toBe(true);
   });
 });
 
