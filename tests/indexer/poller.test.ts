@@ -172,6 +172,27 @@ describe('FilePoller', () => {
       expect(IndexBuilder).toHaveBeenCalledWith('/db.sqlite', walkerConfig, undefined, { history });
     });
 
+    it('should pass the embedder to IndexBuilder when provided', async () => {
+      vi.mocked(walkFiles).mockResolvedValue([makeEntry('/tmp/testroot/new.ts')]);
+      vi.mocked(fs.statSync).mockReturnValue({ mtimeMs: 1000 } as Stats);
+
+      const mockEmbedder = { embed: vi.fn(), init: vi.fn(), dispose: vi.fn().mockResolvedValue(undefined), modelName: 'test-model', dims: 128 };
+      const poller = new FilePoller('/db.sqlite', walkerConfig, { intervalMs: 100, embedder: mockEmbedder });
+      poller.start();
+      await vi.advanceTimersByTimeAsync(100);
+      poller.stop();
+
+      expect(IndexBuilder).toHaveBeenCalledWith('/db.sqlite', walkerConfig, mockEmbedder, expect.any(Object));
+    });
+
+    it('should not dispose the embedder when stop() is called', () => {
+      const mockEmbedder = { embed: vi.fn(), init: vi.fn(), dispose: vi.fn().mockResolvedValue(undefined), modelName: 'test-model', dims: 128 };
+      const poller = new FilePoller('/db.sqlite', walkerConfig, { embedder: mockEmbedder });
+      poller.start();
+      poller.stop();
+      expect(mockEmbedder.dispose).not.toHaveBeenCalled();
+    });
+
     it('should call IndexBuilder.update for files with changed mtime', async () => {
       const file = '/tmp/testroot/changed.ts';
 
