@@ -1,6 +1,15 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`C extractor > callRefs 1`] = `[]`;
+exports[`C extractor > callRefs 1`] = `
+[
+  {
+    "calleeRaw": "printf",
+    "callerSymbol": "print_point",
+    "character": 2,
+    "line": 15,
+  },
+]
+`;
 
 exports[`C extractor > imports 1`] = `
 [
