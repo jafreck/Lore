@@ -9,14 +9,23 @@
 import type Parser from 'tree-sitter';
 import {
   type ExtractionResult,
+  type RawCallRef,
   type RawImport,
   type RawRoute,
   type RawSymbol,
   type SymbolExtractor,
   emptyResult,
+  findEnclosingSymbolName,
   nodeSignature,
   walk,
 } from './types.js';
+
+const JS_SYMBOL_NODE_TYPES = [
+  'function_declaration',
+  'generator_function_declaration',
+  'method_definition',
+  'class_declaration',
+] as const;
 
 // ─── JavaScriptExtractor ──────────────────────────────────────────────────────
 
@@ -47,6 +56,8 @@ export class JavaScriptExtractor implements SymbolExtractor {
           if (imp) result.imports.push(imp);
           const route = maybeExtractRoute(node);
           if (route) result.routes.push(route);
+          const ref = extractCallRef(node);
+          if (ref) result.callRefs.push(ref);
           break;
         }
       }
@@ -156,6 +167,17 @@ function maybeExtractRequire(node: Parser.SyntaxNode): RawImport | null {
 
 function stripQuotes(s: string): string {
   return s.replace(/^['"`]|['"`]$/g, '');
+}
+
+function extractCallRef(node: Parser.SyntaxNode): RawCallRef | null {
+  const fnNode = node.childForFieldName('function');
+  if (!fnNode) return null;
+  return {
+    callerSymbol: findEnclosingSymbolName(node, JS_SYMBOL_NODE_TYPES),
+    calleeRaw: fnNode.text,
+    line: node.startPosition.row,
+    character: node.startPosition.column,
+  };
 }
 
 const JS_HTTP_METHODS = new Set([

@@ -33,3 +33,10 @@ trait Greetable {
         return "Hello from trait!";
     }
 }
+
+function main(): void {
+    $msg = greet("World");
+    $sum = add(1, 2);
+    $c = new Circle(5.0);
+    echo $c->area();
+}

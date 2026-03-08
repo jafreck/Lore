@@ -8,13 +8,21 @@
 import type Parser from 'tree-sitter';
 import {
   type ExtractionResult,
+  type RawCallRef,
   type RawImport,
   type RawSymbol,
   type SymbolExtractor,
   emptyResult,
+  findEnclosingSymbolName,
   nodeSignature,
   walk,
 } from './types.js';
+
+const SWIFT_SYMBOL_NODE_TYPES = [
+  'function_declaration',
+  'class_declaration',
+  'struct_declaration',
+] as const;
 
 // ─── SwiftExtractor ───────────────────────────────────────────────────────────
 
@@ -45,6 +53,11 @@ export class SwiftExtractor implements SymbolExtractor {
         case 'import_declaration':
           result.imports.push(extractImport(node));
           break;
+        case 'call_expression': {
+          const ref = extractCallRef(node);
+          if (ref) result.callRefs.push(ref);
+          break;
+        }
       }
     }
 
@@ -53,6 +66,18 @@ export class SwiftExtractor implements SymbolExtractor {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function extractCallRef(node: Parser.SyntaxNode): RawCallRef | null {
+  // Swift call_expression: first named child is typically the callee
+  const fnNode = node.namedChildren[0];
+  if (!fnNode) return null;
+  return {
+    callerSymbol: findEnclosingSymbolName(node, SWIFT_SYMBOL_NODE_TYPES),
+    calleeRaw: fnNode.text,
+    line: node.startPosition.row,
+    character: node.startPosition.column,
+  };
+}
 
 function extractFunction(node: Parser.SyntaxNode): RawSymbol {
   const nameNode = node.childForFieldName('name');

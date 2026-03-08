@@ -8,6 +8,7 @@
 import type Parser from 'tree-sitter';
 import {
   type ExtractionResult,
+  type RawCallRef,
   type RawImport,
   type RawSymbol,
   type SymbolExtractor,
@@ -15,6 +16,14 @@ import {
   nodeSignature,
   walk,
 } from './types.js';
+
+/** Elixir keywords that define modules/functions rather than calling them. */
+const ELIXIR_DEFINITION_KEYWORDS = new Set([
+  'def', 'defp', 'defmodule', 'defmacro', 'defmacrop',
+  'defstruct', 'defprotocol', 'defimpl', 'defguard', 'defguardp',
+  'defdelegate', 'defexception', 'defoverridable',
+  'alias', 'import', 'use', 'require',
+]);
 
 // ─── ElixirExtractor ──────────────────────────────────────────────────────────
 
@@ -57,6 +66,14 @@ export class ElixirExtractor implements SymbolExtractor {
         case 'require':
           result.imports.push(extractElixirImport(node, targetText));
           break;
+        default: {
+          // Regular function call (not a definition keyword)
+          if (!ELIXIR_DEFINITION_KEYWORDS.has(targetText)) {
+            const ref = extractCallRef(node, target);
+            if (ref) result.callRefs.push(ref);
+          }
+          break;
+        }
       }
     }
 
@@ -91,6 +108,35 @@ function extractDef(node: Parser.SyntaxNode, kind: string): RawSymbol {
     startLine: node.startPosition.row,
     endLine: node.endPosition.row,
     signature: nodeSignature(node),
+  };
+}
+
+function extractCallRef(node: Parser.SyntaxNode, target: Parser.SyntaxNode): RawCallRef | null {
+  const calleeRaw = target.text;
+  if (!calleeRaw) return null;
+  // Walk up to find enclosing def/defp
+  let callerSymbol = '';
+  let current: Parser.SyntaxNode | null = node.parent;
+  while (current) {
+    if (current.type === 'call') {
+      const t = current.childForFieldName('target');
+      if (t && (t.text === 'def' || t.text === 'defp')) {
+        const args = current.childForFieldName('arguments');
+        if (args?.namedChildren[0]) {
+          const first = args.namedChildren[0];
+          const ct = first.childForFieldName('target');
+          callerSymbol = ct?.text ?? first.text.split(/[\s(]/)[0] ?? '';
+        }
+        break;
+      }
+    }
+    current = current.parent;
+  }
+  return {
+    callerSymbol,
+    calleeRaw,
+    line: node.startPosition.row,
+    character: node.startPosition.column,
   };
 }
 

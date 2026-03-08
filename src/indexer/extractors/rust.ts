@@ -8,13 +8,20 @@
 import type Parser from 'tree-sitter';
 import {
   type ExtractionResult,
+  type RawCallRef,
   type RawImport,
   type RawSymbol,
   type SymbolExtractor,
   emptyResult,
+  findEnclosingSymbolName,
   nodeSignature,
   walk,
 } from './types.js';
+
+const RUST_SYMBOL_NODE_TYPES = [
+  'function_item',
+  'impl_item',
+] as const;
 
 // ─── RustExtractor ────────────────────────────────────────────────────────────
 
@@ -42,6 +49,16 @@ export class RustExtractor implements SymbolExtractor {
         case 'use_declaration':
           result.imports.push(extractUse(node));
           break;
+        case 'call_expression': {
+          const ref = extractCallRef(node);
+          if (ref) result.callRefs.push(ref);
+          break;
+        }
+        case 'macro_invocation': {
+          const ref = extractMacroCallRef(node);
+          if (ref) result.callRefs.push(ref);
+          break;
+        }
       }
     }
 
@@ -89,6 +106,28 @@ function extractUse(node: Parser.SyntaxNode): RawImport {
   }
 
   return { source, importedNames };
+}
+
+function extractCallRef(node: Parser.SyntaxNode): RawCallRef | null {
+  const fnNode = node.childForFieldName('function');
+  if (!fnNode) return null;
+  return {
+    callerSymbol: findEnclosingSymbolName(node, RUST_SYMBOL_NODE_TYPES),
+    calleeRaw: fnNode.text,
+    line: node.startPosition.row,
+    character: node.startPosition.column,
+  };
+}
+
+function extractMacroCallRef(node: Parser.SyntaxNode): RawCallRef | null {
+  const macroNode = node.childForFieldName('macro');
+  if (!macroNode) return null;
+  return {
+    callerSymbol: findEnclosingSymbolName(node, RUST_SYMBOL_NODE_TYPES),
+    calleeRaw: macroNode.text + '!',
+    line: node.startPosition.row,
+    character: node.startPosition.column,
+  };
 }
 
 function collectLeafIdentifiers(

@@ -21,3 +21,10 @@ interface Shape {
 object MathUtils {
     fun square(x: Int): Int = x * x
 }
+
+fun main() {
+    val msg = greet("World")
+    val sum = add(1, 2)
+    val c = Circle(5.0)
+    println(c.area())
+}

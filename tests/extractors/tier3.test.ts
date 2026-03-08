@@ -89,6 +89,10 @@ describe('Kotlin extractor', () => {
   test.skipIf(!kotlinResult)('callRefs', () => {
     expect(kotlinResult!.callRefs).toMatchSnapshot();
   });
+
+  test.skipIf(!kotlinResult)('callRefs are non-empty', () => {
+    expect(kotlinResult!.callRefs.length).toBeGreaterThan(0);
+  });
 });
 
 // ─── Lua ──────────────────────────────────────────────────────────────────────
@@ -104,6 +108,10 @@ describe('Lua extractor', () => {
 
   test.skipIf(!luaResult)('callRefs', () => {
     expect(luaResult!.callRefs).toMatchSnapshot();
+  });
+
+  test.skipIf(!luaResult)('callRefs are non-empty', () => {
+    expect(luaResult!.callRefs.length).toBeGreaterThan(0);
   });
 });
 
@@ -121,6 +129,10 @@ describe('Objective-C extractor', () => {
   test.skipIf(!objcResult)('callRefs', () => {
     expect(objcResult!.callRefs).toMatchSnapshot();
   });
+
+  test.skipIf(!objcResult)('callRefs are non-empty', () => {
+    expect(objcResult!.callRefs.length).toBeGreaterThan(0);
+  });
 });
 
 // ─── OCaml ────────────────────────────────────────────────────────────────────
@@ -136,6 +148,10 @@ describe('OCaml extractor', () => {
 
   test.skipIf(!ocamlResult)('callRefs', () => {
     expect(ocamlResult!.callRefs).toMatchSnapshot();
+  });
+
+  test.skipIf(!ocamlResult)('callRefs are non-empty', () => {
+    expect(ocamlResult!.callRefs.length).toBeGreaterThan(0);
   });
 });
 
@@ -153,6 +169,10 @@ describe('PHP extractor', () => {
   test.skipIf(!phpResult)('callRefs', () => {
     expect(phpResult!.callRefs).toMatchSnapshot();
   });
+
+  test.skipIf(!phpResult)('callRefs are non-empty', () => {
+    expect(phpResult!.callRefs.length).toBeGreaterThan(0);
+  });
 });
 
 // ─── Ruby ─────────────────────────────────────────────────────────────────────
@@ -168,6 +188,10 @@ describe('Ruby extractor', () => {
 
   test.skipIf(!rubyResult)('callRefs', () => {
     expect(rubyResult!.callRefs).toMatchSnapshot();
+  });
+
+  test.skipIf(!rubyResult)('callRefs are non-empty', () => {
+    expect(rubyResult!.callRefs.length).toBeGreaterThan(0);
   });
 });
 
@@ -185,6 +209,10 @@ describe('Scala extractor', () => {
   test.skipIf(!scalaResult)('callRefs', () => {
     expect(scalaResult!.callRefs).toMatchSnapshot();
   });
+
+  test.skipIf(!scalaResult)('callRefs are non-empty', () => {
+    expect(scalaResult!.callRefs.length).toBeGreaterThan(0);
+  });
 });
 
 // ─── Swift ────────────────────────────────────────────────────────────────────
@@ -200,6 +228,10 @@ describe('Swift extractor', () => {
 
   test.skipIf(!swiftResult)('callRefs', () => {
     expect(swiftResult!.callRefs).toMatchSnapshot();
+  });
+
+  test.skipIf(!swiftResult)('callRefs are non-empty', () => {
+    expect(swiftResult!.callRefs.length).toBeGreaterThan(0);
   });
 });
 
@@ -217,6 +249,10 @@ describe('Bash extractor', () => {
   test.skipIf(!bashResult)('callRefs', () => {
     expect(bashResult!.callRefs).toMatchSnapshot();
   });
+
+  test.skipIf(!bashResult)('callRefs are non-empty', () => {
+    expect(bashResult!.callRefs.length).toBeGreaterThan(0);
+  });
 });
 
 // ─── Zig ──────────────────────────────────────────────────────────────────────
@@ -232,5 +268,9 @@ describe('Zig extractor', () => {
 
   test.skipIf(!zigResult)('callRefs', () => {
     expect(zigResult!.callRefs).toMatchSnapshot();
+  });
+
+  test.skipIf(!zigResult)('callRefs are non-empty', () => {
+    expect(zigResult!.callRefs.length).toBeGreaterThan(0);
   });
 });

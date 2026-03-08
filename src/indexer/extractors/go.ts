@@ -8,15 +8,22 @@
 import type Parser from 'tree-sitter';
 import {
   type ExtractionResult,
+  type RawCallRef,
   type RawImport,
   type RawRoute,
   type RawSymbol,
   type SymbolExtractor,
   emptyResult,
+  findEnclosingSymbolName,
   findFirst,
   nodeSignature,
   walk,
 } from './types.js';
+
+const GO_SYMBOL_NODE_TYPES = [
+  'function_declaration',
+  'method_declaration',
+] as const;
 
 // ─── GoExtractor ──────────────────────────────────────────────────────────────
 
@@ -41,6 +48,8 @@ export class GoExtractor implements SymbolExtractor {
         case 'call_expression': {
           const route = maybeExtractGinRoute(node);
           if (route) result.routes.push(route);
+          const ref = extractCallRef(node);
+          if (ref) result.callRefs.push(ref);
           break;
         }
       }
@@ -138,6 +147,17 @@ function extractImportSpec(spec: Parser.SyntaxNode): RawImport {
   const aliasNode = spec.childForFieldName('name');
   const importedNames = aliasNode ? [aliasNode.text] : [];
   return { source, importedNames };
+}
+
+function extractCallRef(node: Parser.SyntaxNode): RawCallRef | null {
+  const fnNode = node.childForFieldName('function');
+  if (!fnNode) return null;
+  return {
+    callerSymbol: findEnclosingSymbolName(node, GO_SYMBOL_NODE_TYPES),
+    calleeRaw: fnNode.text,
+    line: node.startPosition.row,
+    character: node.startPosition.column,
+  };
 }
 
 const GO_GIN_METHODS: Record<string, string> = {

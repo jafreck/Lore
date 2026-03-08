@@ -16,4 +16,10 @@ function add(a::Int, b::Int)::Int
     a + b
 end
 
+function main()
+    msg = greet("World")
+    total = add(1, 2)
+    println(msg)
+end
+
 end # module

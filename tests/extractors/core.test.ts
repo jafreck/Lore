@@ -98,6 +98,10 @@ describe('TypeScript extractor', () => {
     expect(tsResult!.callRefs).toMatchSnapshot();
   });
 
+  test.skipIf(!tsResult)('callRefs are non-empty', () => {
+    expect(tsResult!.callRefs.length).toBeGreaterThan(0);
+  });
+
   test.skipIf(!tsResult)('relationships', () => {
     expect(tsResult!.relationships).toMatchSnapshot();
   });
@@ -116,6 +120,10 @@ describe('JavaScript extractor', () => {
 
   test.skipIf(!jsResult)('callRefs', () => {
     expect(jsResult!.callRefs).toMatchSnapshot();
+  });
+
+  test.skipIf(!jsResult)('callRefs are non-empty', () => {
+    expect(jsResult!.callRefs.length).toBeGreaterThan(0);
   });
 
   test.skipIf(!jsResult)('relationships', () => {
@@ -167,6 +175,10 @@ describe('Python extractor', () => {
     expect(pyResult!.callRefs).toMatchSnapshot();
   });
 
+  test.skipIf(!pyResult)('callRefs are non-empty', () => {
+    expect(pyResult!.callRefs.length).toBeGreaterThan(0);
+  });
+
   test.skipIf(!pyResult)('relationships', () => {
     expect(pyResult!.relationships).toMatchSnapshot();
   });
@@ -200,6 +212,10 @@ describe('Go extractor', () => {
 
   test.skipIf(!goResult)('callRefs', () => {
     expect(goResult!.callRefs).toMatchSnapshot();
+  });
+
+  test.skipIf(!goResult)('callRefs are non-empty', () => {
+    expect(goResult!.callRefs.length).toBeGreaterThan(0);
   });
 
   test.skipIf(!goResult)('relationships', () => {
@@ -237,6 +253,10 @@ describe('Rust extractor', () => {
     expect(rustResult!.callRefs).toMatchSnapshot();
   });
 
+  test.skipIf(!rustResult)('callRefs are non-empty', () => {
+    expect(rustResult!.callRefs.length).toBeGreaterThan(0);
+  });
+
   test.skipIf(!rustResult)('relationships', () => {
     expect(rustResult!.relationships).toMatchSnapshot();
   });
@@ -255,6 +275,10 @@ describe('Java extractor', () => {
 
   test.skipIf(!javaResult)('callRefs', () => {
     expect(javaResult!.callRefs).toMatchSnapshot();
+  });
+
+  test.skipIf(!javaResult)('callRefs are non-empty', () => {
+    expect(javaResult!.callRefs.length).toBeGreaterThan(0);
   });
 
   test.skipIf(!javaResult)('relationships', () => {

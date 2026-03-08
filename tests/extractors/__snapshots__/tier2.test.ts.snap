@@ -48,7 +48,28 @@ exports[`C extractor > symbols 1`] = `
 ]
 `;
 
-exports[`C# extractor > callRefs 1`] = `[]`;
+exports[`C# extractor > callRefs 1`] = `
+[
+  {
+    "calleeRaw": "new Greeter",
+    "callerSymbol": "Main",
+    "character": 26,
+    "line": 29,
+  },
+  {
+    "calleeRaw": "Console.WriteLine",
+    "callerSymbol": "Main",
+    "character": 12,
+    "line": 30,
+  },
+  {
+    "calleeRaw": "greeter.Greet",
+    "callerSymbol": "Main",
+    "character": 30,
+    "line": 30,
+  },
+]
+`;
 
 exports[`C# extractor > imports 1`] = `
 [
@@ -97,10 +118,45 @@ exports[`C# extractor > symbols 1`] = `
     "signature": "int Add(int a, int b);",
     "startLine": 22,
   },
+  {
+    "endLine": 32,
+    "kind": "class",
+    "name": "Program",
+    "signature": "public static class Program",
+    "startLine": 25,
+  },
+  {
+    "endLine": 31,
+    "kind": "function",
+    "name": "Main",
+    "signature": "public static void Main()",
+    "startLine": 27,
+  },
 ]
 `;
 
-exports[`C++ extractor > callRefs 1`] = `[]`;
+exports[`C++ extractor > callRefs 1`] = `
+[
+  {
+    "calleeRaw": "std::move",
+    "callerSymbol": "std::string",
+    "character": 45,
+    "line": 5,
+  },
+  {
+    "calleeRaw": "g.greet",
+    "callerSymbol": "run",
+    "character": 15,
+    "line": 21,
+  },
+  {
+    "calleeRaw": "add",
+    "callerSymbol": "run",
+    "character": 12,
+    "line": 22,
+  },
+]
+`;
 
 exports[`C++ extractor > imports 1`] = `
 [
@@ -145,10 +201,44 @@ exports[`C++ extractor > symbols 1`] = `
     "signature": "int add(int a, int b)",
     "startLine": 15,
   },
+  {
+    "endLine": 23,
+    "kind": "function",
+    "name": "run",
+    "signature": "void run()",
+    "startLine": 19,
+  },
 ]
 `;
 
-exports[`Elixir extractor > callRefs 1`] = `[]`;
+exports[`Elixir extractor > callRefs 1`] = `
+[
+  {
+    "calleeRaw": "greet",
+    "callerSymbol": "",
+    "character": 6,
+    "line": 4,
+  },
+  {
+    "calleeRaw": "format",
+    "callerSymbol": "",
+    "character": 7,
+    "line": 8,
+  },
+  {
+    "calleeRaw": "to_string",
+    "callerSymbol": "",
+    "character": 4,
+    "line": 9,
+  },
+  {
+    "calleeRaw": "add",
+    "callerSymbol": "",
+    "character": 6,
+    "line": 12,
+  },
+]
+`;
 
 exports[`Elixir extractor > imports 1`] = `
 [
@@ -290,7 +380,46 @@ exports[`Haskell extractor > symbols 1`] = `
 ]
 `;
 
-exports[`Julia extractor > callRefs 1`] = `[]`;
+exports[`Julia extractor > callRefs 1`] = `
+[
+  {
+    "calleeRaw": "greet",
+    "callerSymbol": "",
+    "character": 9,
+    "line": 10,
+  },
+  {
+    "calleeRaw": "add",
+    "callerSymbol": "",
+    "character": 9,
+    "line": 14,
+  },
+  {
+    "calleeRaw": "main",
+    "callerSymbol": "",
+    "character": 9,
+    "line": 18,
+  },
+  {
+    "calleeRaw": "greet",
+    "callerSymbol": "",
+    "character": 10,
+    "line": 19,
+  },
+  {
+    "calleeRaw": "add",
+    "callerSymbol": "",
+    "character": 12,
+    "line": 20,
+  },
+  {
+    "calleeRaw": "println",
+    "callerSymbol": "",
+    "character": 4,
+    "line": 21,
+  },
+]
+`;
 
 exports[`Julia extractor > imports 1`] = `
 [
@@ -312,7 +441,7 @@ exports[`Julia extractor > imports 1`] = `
 exports[`Julia extractor > symbols 1`] = `
 [
   {
-    "endLine": 18,
+    "endLine": 24,
     "kind": "module",
     "name": "Sample",
     "signature": "module Sample",
@@ -338,6 +467,13 @@ exports[`Julia extractor > symbols 1`] = `
     "name": "",
     "signature": "function add(a::Int, b::Int)::Int",
     "startLine": 14,
+  },
+  {
+    "endLine": 22,
+    "kind": "function",
+    "name": "",
+    "signature": "function main()",
+    "startLine": 18,
   },
 ]
 `;

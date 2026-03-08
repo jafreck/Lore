@@ -49,3 +49,11 @@ extension Circle {
         return "Circle with radius \(radius)"
     }
 }
+
+func main() {
+    let c = Circle(radius: 5.0)
+    let a = c.area()
+    let msg = greet(name: "World")
+    let sum = add(1, 2)
+    print(msg)
+}

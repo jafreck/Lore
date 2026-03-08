@@ -32,3 +32,9 @@ pub fn greet(name: &str) -> String {
 pub fn add(a: i32, b: i32) -> i32 {
     a + b
 }
+
+pub fn main() {
+    let msg = greet("World");
+    let sum = add(1, 2);
+    println!("{} {}", msg, sum);
+}

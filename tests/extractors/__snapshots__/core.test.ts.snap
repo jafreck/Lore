@@ -1,6 +1,15 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`Go extractor > callRefs 1`] = `[]`;
+exports[`Go extractor > callRefs 1`] = `
+[
+  {
+    "calleeRaw": "fmt.Sprintf",
+    "callerSymbol": "Greet",
+    "character": 8,
+    "line": 25,
+  },
+]
+`;
 
 exports[`Go extractor > imports 1`] = `
 [
@@ -64,7 +73,34 @@ exports[`Go extractor > symbols 1`] = `
 ]
 `;
 
-exports[`Java extractor > callRefs 1`] = `[]`;
+exports[`Java extractor > callRefs 1`] = `
+[
+  {
+    "calleeRaw": "new Sample",
+    "callerSymbol": "main",
+    "character": 19,
+    "line": 41,
+  },
+  {
+    "calleeRaw": "s.greet",
+    "callerSymbol": "main",
+    "character": 26,
+    "line": 42,
+  },
+  {
+    "calleeRaw": "add",
+    "callerSymbol": "main",
+    "character": 18,
+    "line": 43,
+  },
+  {
+    "calleeRaw": "System.out.println",
+    "callerSymbol": "main",
+    "character": 8,
+    "line": 44,
+  },
+]
+`;
 
 exports[`Java extractor > imports 1`] = `
 [
@@ -136,7 +172,7 @@ exports[`Java extractor > symbols 1`] = `
     "startLine": 22,
   },
   {
-    "endLine": 39,
+    "endLine": 46,
     "kind": "class",
     "name": "Circle",
     "signature": "class Circle implements Shape",
@@ -156,10 +192,50 @@ exports[`Java extractor > symbols 1`] = `
     "signature": "public double perimeter()",
     "startLine": 36,
   },
+  {
+    "endLine": 45,
+    "kind": "function",
+    "name": "main",
+    "signature": "public static void main(String[] args)",
+    "startLine": 40,
+  },
 ]
 `;
 
-exports[`JavaScript extractor > callRefs 1`] = `[]`;
+exports[`JavaScript extractor > callRefs 1`] = `
+[
+  {
+    "calleeRaw": "path.normalize",
+    "callerSymbol": "formatPath",
+    "character": 33,
+    "line": 23,
+  },
+  {
+    "calleeRaw": "app.get",
+    "callerSymbol": "",
+    "character": 0,
+    "line": 29,
+  },
+  {
+    "calleeRaw": "app.post",
+    "callerSymbol": "",
+    "character": 0,
+    "line": 30,
+  },
+  {
+    "calleeRaw": "koaRouter.get",
+    "callerSymbol": "",
+    "character": 0,
+    "line": 31,
+  },
+  {
+    "calleeRaw": "hono.get",
+    "callerSymbol": "",
+    "character": 0,
+    "line": 32,
+  },
+]
+`;
 
 exports[`JavaScript extractor > imports 1`] = `
 [
@@ -216,7 +292,40 @@ exports[`JavaScript extractor > symbols 1`] = `
 ]
 `;
 
-exports[`Python extractor > callRefs 1`] = `[]`;
+exports[`Python extractor > callRefs 1`] = `
+[
+  {
+    "calleeRaw": "greet",
+    "callerSymbol": "main",
+    "character": 15,
+    "line": 26,
+  },
+  {
+    "calleeRaw": "add",
+    "callerSymbol": "main",
+    "character": 12,
+    "line": 27,
+  },
+  {
+    "calleeRaw": "Dog",
+    "callerSymbol": "main",
+    "character": 10,
+    "line": 28,
+  },
+  {
+    "calleeRaw": "dog.speak",
+    "callerSymbol": "main",
+    "character": 4,
+    "line": 29,
+  },
+  {
+    "calleeRaw": "print",
+    "callerSymbol": "main",
+    "character": 4,
+    "line": 30,
+  },
+]
+`;
 
 exports[`Python extractor > imports 1`] = `
 [
@@ -314,10 +423,44 @@ exports[`Python extractor > symbols 1`] = `
         return f"",
     "startLine": 22,
   },
+  {
+    "endLine": 30,
+    "kind": "function",
+    "name": "main",
+    "signature": "def main():",
+    "startLine": 25,
+  },
 ]
 `;
 
-exports[`Rust extractor > callRefs 1`] = `[]`;
+exports[`Rust extractor > callRefs 1`] = `
+[
+  {
+    "calleeRaw": "format!",
+    "callerSymbol": "greet",
+    "character": 4,
+    "line": 28,
+  },
+  {
+    "calleeRaw": "greet",
+    "callerSymbol": "main",
+    "character": 14,
+    "line": 36,
+  },
+  {
+    "calleeRaw": "add",
+    "callerSymbol": "main",
+    "character": 14,
+    "line": 37,
+  },
+  {
+    "calleeRaw": "println!",
+    "callerSymbol": "main",
+    "character": 4,
+    "line": 38,
+  },
+]
+`;
 
 exports[`Rust extractor > imports 1`] = `
 [
@@ -399,10 +542,26 @@ exports[`Rust extractor > symbols 1`] = `
     "signature": "pub fn add(a: i32, b: i32) -> i32",
     "startLine": 31,
   },
+  {
+    "endLine": 39,
+    "kind": "function",
+    "name": "main",
+    "signature": "pub fn main()",
+    "startLine": 35,
+  },
 ]
 `;
 
-exports[`TypeScript extractor > callRefs 1`] = `[]`;
+exports[`TypeScript extractor > callRefs 1`] = `
+[
+  {
+    "calleeRaw": "path.normalize",
+    "callerSymbol": "formatPath",
+    "character": 49,
+    "line": 37,
+  },
+]
+`;
 
 exports[`TypeScript extractor > imports 1`] = `
 [

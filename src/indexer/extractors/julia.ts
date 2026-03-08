@@ -8,13 +8,20 @@
 import type Parser from 'tree-sitter';
 import {
   type ExtractionResult,
+  type RawCallRef,
   type RawImport,
   type RawSymbol,
   type SymbolExtractor,
   emptyResult,
+  findEnclosingSymbolName,
   nodeSignature,
   walk,
 } from './types.js';
+
+const JULIA_SYMBOL_NODE_TYPES = [
+  'function_definition',
+  'short_function_definition',
+] as const;
 
 // ─── JuliaExtractor ──────────────────────────────────────────────────────────
 
@@ -48,6 +55,11 @@ export class JuliaExtractor implements SymbolExtractor {
         case 'using_statement':
           result.imports.push(extractImport(node));
           break;
+        case 'call_expression': {
+          const ref = extractCallRef(node);
+          if (ref) result.callRefs.push(ref);
+          break;
+        }
       }
     }
 
@@ -88,6 +100,18 @@ function extractNamedNode(node: Parser.SyntaxNode, kind: string): RawSymbol {
     startLine: node.startPosition.row,
     endLine: node.endPosition.row,
     signature: nodeSignature(node),
+  };
+}
+
+function extractCallRef(node: Parser.SyntaxNode): RawCallRef | null {
+  // Julia call_expression: first child is the callee
+  const fnNode = node.namedChildren[0];
+  if (!fnNode) return null;
+  return {
+    callerSymbol: findEnclosingSymbolName(node, JULIA_SYMBOL_NODE_TYPES),
+    calleeRaw: fnNode.text,
+    line: node.startPosition.row,
+    character: node.startPosition.column,
   };
 }
 
