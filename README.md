@@ -9,13 +9,13 @@
 
 **The teammate that has seen it all** 
 
-Lore is your agent's institutional knowledge over the codebase — it knows what was built, why it changed, and how it all connects. Lore indexes your code and git history into a structured knowledge base that agents query through MCP. It maps symbols, imports, call relationships, and git history — with optional embeddings for semantic search — so agents can reason about your codebase
+Lore is your agent's institutional knowledge over the codebase — it knows what was built, why it changed, and how it all connects. Lore indexes your code and git history into a structured knowledge base that agents query through MCP. It maps symbols, imports, call relationships, type relationships, routes, annotations, and git history — with optional embeddings for semantic search — so agents can reason about your codebase
 without re-reading it from scratch.
 
 ## What Lore does
 
-- Parses source files and extracts symbols, imports, and call refs
-- Resolves internal vs external imports and builds call/import graph edges
+- Parses source files and extracts symbols, imports, call refs, type refs, annotations, and API routes across all 24 supported languages
+- Resolves internal vs external imports and builds call/import/module/inheritance/type-dependency graph edges
 - Discovers and indexes documentation (`.md`, `.rst`, `.adoc`, `.txt`) with inferred kinds/titles
 - Stores everything in a normalized SQL schema with optional vector search
 - Enables RAG-style retrieval with semantic/fused search across symbols and doc sections
@@ -36,9 +36,9 @@ flowchart LR
     end
 
     subgraph Lore Indexer
-        WALK[Walker] --> PARSE[Parser] --> EXTRACT[Extractors<br/>symbols · imports · call refs]
+      WALK[Walker] --> PARSE[Parser] --> EXTRACT[Extractors<br/>symbols · imports · call refs<br/>type refs · routes · annotations]
         EXTRACT --> RESOLVE[Import Resolver<br/>internal ↔ external]
-        EXTRACT --> CALLGRAPH[Call-Graph Builder]
+      EXTRACT --> CALLGRAPH[Relationship Resolver]
         EXTRACT -.-> LSPENRICH[LSP Enrichment<br/>type signatures · definition locations]
         DOCSINGEST[Docs Ingest<br/>sections · headings · notes]
         GITHIST[Git History Ingest<br/>commits · diffs · refs]
@@ -52,12 +52,15 @@ flowchart LR
         LOOKUP[lore_lookup]
         SEARCH[lore_search]
         DOCS_TOOL[lore_docs]
+      ANNOT[lore_annotations]
         GRAPH[lore_graph]
+      ROUTES[lore_routes]
+      NOTES[lore_notes_read/write]
+      ARCH[lore_architecture]
         TESTMAP[lore_test_map]
         SNIPPET[lore_snippet]
         BLAME[lore_blame]
         HISTORY[lore_history]
-        COMMITSTATS[lore_commit_stats]
         METRICS[lore_metrics]
         COVERAGE[lore_coverage]
         WRITEBACK[lore_writeback]
@@ -81,10 +84,10 @@ flowchart LR
     RESOLVE -.->|optional| EMBED
     EMBED -.-> DB
 
-    DB --- LOOKUP & SEARCH & DOCS_TOOL & GRAPH & TESTMAP & SNIPPET & BLAME & HISTORY & COMMITSTATS & METRICS & COVERAGE & WRITEBACK
+    DB --- LOOKUP & SEARCH & DOCS_TOOL & ANNOT & GRAPH & ROUTES & NOTES & ARCH & TESTMAP & SNIPPET & BLAME & HISTORY & METRICS & COVERAGE & WRITEBACK
     EMBED <-.->|semantic/fused| SEARCH
 
-    LOOKUP & SEARCH & DOCS_TOOL & GRAPH & TESTMAP & SNIPPET & BLAME & HISTORY & COMMITSTATS & METRICS & COVERAGE & WRITEBACK <--> MCP_CLIENTS
+    LOOKUP & SEARCH & DOCS_TOOL & ANNOT & GRAPH & ROUTES & NOTES & ARCH & TESTMAP & SNIPPET & BLAME & HISTORY & METRICS & COVERAGE & WRITEBACK <--> MCP_CLIENTS
 ```
 
 Lore sits between your codebase and any LLM-powered tool. The **indexer**
@@ -103,8 +106,9 @@ blame/history, and write summaries back.
 The index stays fresh automatically. You can install **git hooks**
 (`post-commit`, `post-merge`, etc.) that trigger an incremental refresh on
 every commit, run a **watch** mode that reacts to filesystem events in
-real time, or use **poll** mode for environments where watch events are
-unreliable. Each refresh only re-processes files whose content hash has
+real time (with live embedding updates), or use **poll** mode for
+environments where watch events are unreliable (also with live embedding
+updates). Each refresh only re-processes files whose content hash has
 changed, so updates are fast even on large repositories.
 
 See [docs/architecture.md](docs/architecture.md) for the full schema and
@@ -165,12 +169,11 @@ await builder.build();
 | `lore_notes_write` | Upsert agent-authored notes by key and scope, with optional source hash for staleness tracking |
 | `lore_notes_read` | Read notes by exact key or key prefix with scope-aware staleness metadata |
 | `lore_architecture` | Build a component-level architecture view with edges, entry/leaf nodes, and external dependency usage |
-| `lore_graph` | Query call/import/module/inheritance edges; call edges include `callee_coverage_percent` |
+| `lore_graph` | Query call/import/module/inheritance/type-dependency edges; call edges include `callee_coverage_percent` |
 | `lore_snippet` | Return snippets from indexed source snapshots by file path + line range or by symbol name; path/symbol resolution is branch-aware and responses include containing-symbol context metadata (name, kind, start/end lines) when available |
 | `lore_test_map` | Return mapped test files (with confidence) for a given source file path |
 | `lore_blame` | Query blame, line-range history, or ownership aggregates with optional symbol targeting, commit-context enrichment, and risk signals |
 | `lore_history` | Query commit history by file, commit, author, ref, recency, or semantic commit-message similarity |
-| `lore_commit_stats` | Git commit analytics: cadence, size, churn, top authors, message patterns, schedule heatmaps, branch activity |
 | `lore_metrics` | Aggregate index metrics plus coverage/staleness fields |
 | `lore_coverage` | Symbol-level coverage, uncovered lines, and staleness metadata |
 | `lore_writeback` | Persist agent-authored symbol summaries |
@@ -469,6 +472,10 @@ npx @jafreck/lore refresh --db ./lore.db --root ./my-project --watch
 ```bash
 npx @jafreck/lore refresh --db ./lore.db --root ./my-project --poll
 ```
+
+Both watch and poll modes support **live embeddings** — when an embedding
+model is configured, changed files have their vectors re-generated
+incrementally during each refresh cycle.
 
 Each refresh only re-processes files whose content hash has changed, so updates
 are fast even on large repositories.
