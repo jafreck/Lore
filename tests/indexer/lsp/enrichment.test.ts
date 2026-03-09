@@ -75,6 +75,8 @@ describe('LspEnrichmentCoordinator', () => {
       resolvedReturnType: 'string',
       definitionUri,
       definitionPath: join(rootDir, 'defs.ts'),
+      definitionLine: null,
+      definitionCharacter: null,
     });
     expect(metadata[1]).toEqual(metadata[0]);
 
@@ -129,12 +131,16 @@ describe('LspEnrichmentCoordinator', () => {
       resolvedReturnType: null,
       definitionUri: firstUri,
       definitionPath: join(rootDir, 'first.ts'),
+      definitionLine: null,
+      definitionCharacter: null,
     });
     expect(metadata[1]).toEqual({
       resolvedTypeSignature: 'const value: number',
       resolvedReturnType: 'number',
       definitionUri: null,
       definitionPath: null,
+      definitionLine: null,
+      definitionCharacter: null,
     });
 
     rmSync(executableDir, { recursive: true, force: true });
@@ -267,6 +273,8 @@ describe('hasResolvedTypeMetadata', () => {
         resolvedReturnType: null,
         definitionUri: null,
         definitionPath: null,
+        definitionLine: null,
+        definitionCharacter: null,
       }),
     ).toBe(false);
   });
@@ -278,6 +286,8 @@ describe('hasResolvedTypeMetadata', () => {
         resolvedReturnType: null,
         definitionUri: null,
         definitionPath: null,
+        definitionLine: null,
+        definitionCharacter: null,
       }),
     ).toBe(true);
     expect(
@@ -286,6 +296,8 @@ describe('hasResolvedTypeMetadata', () => {
         resolvedReturnType: 'string',
         definitionUri: null,
         definitionPath: null,
+        definitionLine: null,
+        definitionCharacter: null,
       }),
     ).toBe(true);
     expect(
@@ -294,6 +306,8 @@ describe('hasResolvedTypeMetadata', () => {
         resolvedReturnType: null,
         definitionUri: 'file:///tmp/file.ts',
         definitionPath: null,
+        definitionLine: null,
+        definitionCharacter: null,
       }),
     ).toBe(true);
     expect(
@@ -302,6 +316,18 @@ describe('hasResolvedTypeMetadata', () => {
         resolvedReturnType: null,
         definitionUri: null,
         definitionPath: '/tmp/file.ts',
+        definitionLine: null,
+        definitionCharacter: null,
+      }),
+    ).toBe(true);
+    expect(
+      hasResolvedTypeMetadata({
+        resolvedTypeSignature: null,
+        resolvedReturnType: null,
+        definitionUri: null,
+        definitionPath: null,
+        definitionLine: 5,
+        definitionCharacter: null,
       }),
     ).toBe(true);
   });
