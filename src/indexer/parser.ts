@@ -18,7 +18,8 @@ const esmRequire = createRequire(import.meta.url);
  * for packages that only expose ESM entry points (e.g. scoped
  * `@tree-sitter-grammars/*` packages with top-level `await`).
  */
-function loadGrammarPackage(pkg: string): unknown {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function loadGrammarPackage(pkg: string): any {
   try {
     return esmRequire(pkg);
   } catch (firstError: unknown) {
