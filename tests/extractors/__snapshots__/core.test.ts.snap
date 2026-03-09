@@ -385,8 +385,7 @@ exports[`Python extractor > symbols 1`] = `
     "endLine": 6,
     "kind": "function",
     "name": "greet",
-    "signature": "def greet(name: str) -> str:
-    return f"Hello,",
+    "signature": "def greet(name: str) -> str:",
     "startLine": 5,
   },
   {
@@ -398,7 +397,7 @@ exports[`Python extractor > symbols 1`] = `
   },
   {
     "endLine": 12,
-    "kind": "function",
+    "kind": "async_function",
     "name": "fetch_data",
     "signature": "async def fetch_data(url: str) -> bytes:",
     "startLine": 11,
@@ -407,12 +406,7 @@ exports[`Python extractor > symbols 1`] = `
     "endLine": 19,
     "kind": "class",
     "name": "Animal",
-    "signature": "class Animal:
-    def __init__(self, name: str) -> None:
-        self.name = name
-
-    def speak(self) -> str:
-        return f"",
+    "signature": "class Animal:",
     "startLine": 14,
   },
   {
@@ -426,25 +420,21 @@ exports[`Python extractor > symbols 1`] = `
     "endLine": 19,
     "kind": "function",
     "name": "speak",
-    "signature": "def speak(self) -> str:
-        return f"",
+    "signature": "def speak(self) -> str:",
     "startLine": 18,
   },
   {
     "endLine": 23,
     "kind": "class",
     "name": "Dog",
-    "signature": "class Dog(Animal):
-    def speak(self) -> str:
-        return f"",
+    "signature": "class Dog(Animal):",
     "startLine": 21,
   },
   {
     "endLine": 23,
     "kind": "function",
     "name": "speak",
-    "signature": "def speak(self) -> str:
-        return f"",
+    "signature": "def speak(self) -> str:",
     "startLine": 22,
   },
   {

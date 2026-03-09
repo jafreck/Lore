@@ -867,17 +867,18 @@ describe('documentation helpers', () => {
     expect(semanticSearchDocSections(db, { queryVector: [] })).toEqual([]);
   });
 
-  it('semanticSearchDocSections should surface vec query errors for non-empty query vectors', () => {
+  it('semanticSearchDocSections should return results for matching embeddings', () => {
     loadDocSectionEmbeddingsTable(db, 3);
     insertDocSectionEmbedding(db, architectureSectionId, [1, 0, 0]);
-    expect(() =>
-      semanticSearchDocSections(db, {
-        queryVector: [1, 0, 0],
-        branch: 'main',
-        kinds: ['readme', 'architecture'],
-        limit: 20,
-      }),
-    ).toThrow();
+    // With a properly parameterised k value, the vec0 query returns
+    // matching rows when the embedding table has data.
+    const rows = semanticSearchDocSections(db, {
+      queryVector: [1, 0, 0],
+      branch: 'main',
+      kinds: ['readme', 'architecture'],
+      limit: 20,
+    });
+    expect(rows.length).toBeGreaterThan(0);
   });
 });
 

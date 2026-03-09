@@ -97,12 +97,15 @@ export class ImportResolver {
         '/index.js',
       ]);
       if (resolved) return { rawSource: source, resolvedPath: resolved, isExternal: false };
-      return this.markExternal(source);
+      // Unresolved relative imports are still internal — never external packages.
+      return { rawSource: source, isExternal: false };
     }
 
     // Absolute / bare specifier — check package.json
     const pkgDeps = this.parsePackageJson(rootDir);
-    const pkgName = source.split('/')[0] ?? source;
+    const pkgName = source.startsWith('@')
+      ? source.split('/').slice(0, 2).join('/')
+      : (source.split('/')[0] ?? source);
     if (pkgDeps.has(pkgName) || pkgDeps.size === 0) {
       return this.markExternal(source);
     }
@@ -118,7 +121,7 @@ export class ImportResolver {
   ): ResolvedImport {
     const moduleName = this.parseGoMod(rootDir);
 
-    if (moduleName && source.startsWith(moduleName)) {
+    if (moduleName && (source === moduleName || source.startsWith(moduleName + '/'))) {
       // Internal package: module/sub/pkg → rootDir/sub/pkg
       const rel = source.slice(moduleName.length).replace(/^\//, '');
       const candidate = path.join(rootDir, rel);
@@ -144,7 +147,8 @@ export class ImportResolver {
       const candidate = path.join(base, modPath.length ? modPath : '');
       const resolved = this.tryPythonModule(candidate);
       if (resolved) return { rawSource: source, resolvedPath: resolved, isExternal: false };
-      return this.markExternal(source);
+      // Unresolved relative imports are still internal — never external packages.
+      return { rawSource: source, isExternal: false };
     }
 
     // Absolute — try to find in rootDir

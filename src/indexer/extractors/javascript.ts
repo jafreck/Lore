@@ -202,11 +202,12 @@ function maybeExtractRoute(node: Parser.SyntaxNode): RawRoute | null {
 
   const argsNode = node.childForFieldName('arguments');
   const pathNode = argsNode?.namedChildren[0];
-  const handlerNode = argsNode?.namedChildren[1];
+  if (!argsNode || argsNode.namedChildren.length < 2) return null;
+  const handlerNode = argsNode.namedChildren[argsNode.namedChildren.length - 1];
   if (!pathNode || !handlerNode) return null;
   if (pathNode.type !== 'string' && pathNode.type !== 'template_string') return null;
 
-  const middleware = argsNode!.namedChildren.slice(1, -1).map((n) => n.text);
+  const middleware = argsNode.namedChildren.slice(1, -1).map((n) => n.text);
   return {
     method: method.toUpperCase(),
     path: stripQuotes(pathNode.text),

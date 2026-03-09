@@ -34,7 +34,7 @@ export class PythonExtractor implements SymbolExtractor {
       switch (node.type) {
         case 'function_definition':
           if (node.parent?.type !== 'decorated_definition') {
-            result.symbols.push(extractFunction(node, false));
+            result.symbols.push(extractFunction(node, isAsync(node)));
           }
           break;
         case 'decorated_definition': {
@@ -162,7 +162,7 @@ function extractFastApiRoute(
     const nameNode = fn.childForFieldName('name');
     return {
       method: method.toUpperCase(),
-      path: match[2] ?? '',
+      path: match[1] ?? '',
       handler: nameNode?.text ?? '',
       framework: 'fastapi',
       line: decorated.startPosition.row,

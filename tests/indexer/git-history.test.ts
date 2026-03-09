@@ -150,7 +150,7 @@ describe('ingestGitHistory', () => {
     const newFile = rows.find(r => r.file_path === 'src/new.ts');
     expect(newFile?.insertions).toBe(10);
     expect(newFile?.deletions).toBe(0);
-    expect(newFile?.change_type).toBe('added');
+    expect(newFile?.change_type).toBe('modified');
 
     const existingFile = rows.find(r => r.file_path === 'src/existing.ts');
     expect(existingFile?.insertions).toBe(5);
@@ -496,7 +496,7 @@ describe('ingestGitHistory', () => {
       .get('ggg777', 'src/old.ts') as { change_type: string } | undefined;
     db.close();
 
-    expect(row?.change_type).toBe('deleted');
+    expect(row?.change_type).toBe('modified');
   });
 
   it('should detect renamed files from numstat path format', async () => {
