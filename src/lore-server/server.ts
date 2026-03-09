@@ -25,7 +25,6 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { z } from 'zod';
 import { fileURLToPath } from 'url';
 import {
   openReadOnly,
@@ -34,11 +33,12 @@ import {
 import { getLoreMeta } from '../indexer/db.js';
 import { SentenceTransformersProvider, type EmbeddingProvider } from '../indexer/embedder.js';
 import { getLogger, type LoreLogger } from '../logger.js';
+import type { SearchObserver } from './tools/search.js';
+import { buildToolModules, registerTools, type ToolModule } from './tool-registry.js';
 import * as lookup from './tools/lookup.js';
 import * as graph from './tools/graph.js';
 import * as search from './tools/search.js';
-import type { SearchObserver } from './tools/search.js';
-import * as docs from './tools/docs.js';
+import * as docsMod from './tools/docs.js';
 import * as routes from './tools/routes.js';
 import * as notes from './tools/notes.js';
 import * as architecture from './tools/architecture.js';
@@ -49,7 +49,7 @@ import * as metrics from './tools/metrics.js';
 import * as coverage from './tools/coverage.js';
 import * as writeback from './tools/writeback.js';
 import * as history from './tools/history.js';
-import * as annotations from './tools/annotations.js';
+import * as annotationsMod from './tools/annotations.js';
 
 // ─── Server options ───────────────────────────────────────────────────────────
 
@@ -84,336 +84,70 @@ export function createLoreMcpServer(
     { capabilities: { tools: {} } },
   );
 
-  /**
-   * Wrap an MCP tool handler with structured logging.
-   * Captures request args, response, timing, and success/error status.
-   */
-  function loggedHandler<A>(
-    toolName: string,
-    fn: (args: A) => unknown | Promise<unknown>,
-  ): (args: A) => Promise<{ content: Array<{ type: 'text'; text: string }> }> {
-    return async (args: A) => {
-      const start = performance.now();
-      try {
-        const result = await fn(args);
-        const durationMs = Math.round((performance.now() - start) * 100) / 100;
-        log.toolCall({
-          tool: toolName,
-          requestBody: args,
-          responseBody: result,
-          status: 'success',
-          durationMs,
-        });
-        return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
-      } catch (err) {
-        const durationMs = Math.round((performance.now() - start) * 100) / 100;
-        const errorMessage = err instanceof Error ? err.message : String(err);
-        log.toolCall({
-          tool: toolName,
-          requestBody: args,
-          status: 'error',
-          durationMs,
-          error: errorMessage,
-        });
-        throw err;
-      }
-    };
-  }
-
-  // ── lore_lookup ──────────────────────────────────────────────────────────────
-  server.tool(
-    lookup.toolDef.name,
-    lookup.toolDef.description,
-    {
-      kind: z.enum(['symbol', 'file']).describe('Whether to look up a symbol or a file.'),
-      query: z.string().describe('Symbol name or file path to look up (includes persisted enrichment metadata when available).'),
-      mode: z
-        .enum(['exact', 'semantic', 'fused'])
-        .optional()
-        .describe('For kind="symbol", retrieval mode (default: exact).'),
-      branch: z.string().optional().describe('Optional branch to filter results.'),
-      match_mode: z
-        .enum(['exact', 'prefix', 'contains'])
-        .optional()
-        .describe('For kind="symbol": symbol-name match mode (default "exact").'),
-      symbol_kind: z.string().optional().describe('For kind="symbol": optional symbol kind filter.'),
-      path_prefix: z.string().optional().describe('For kind="symbol": optional indexed file-path prefix filter.'),
-      language: z.string().optional().describe('For kind="symbol": optional indexed file language filter.'),
-      limit: z.number().int().nonnegative().optional().describe('For kind="symbol" with empty query: maximum rows to return.'),
-      offset: z.number().int().nonnegative().optional().describe('For kind="symbol" with empty query: rows to skip before returning results.'),
-    },
-    loggedHandler(lookup.toolDef.name, (args) => lookup.handler(db, args, embedder)),
-  );
-
-  // ── lore_graph ───────────────────────────────────────────────────────────────
-  server.tool(
-    graph.toolDef.name,
-    graph.toolDef.description,
-    {
-      kind: z
-        .enum(['call', 'import', 'module', 'inheritance', 'type_dependency'])
-        .describe('"call", "import", "module", "inheritance", or "type_dependency" graph edges.'),
-      source_id: z.number().optional().describe('Filter edges by source node id.'),
-      limit: z.number().optional().describe('Max edges to return (default 200).'),
-      branch: z.string().optional().describe('Optional branch to filter edges.'),
-      mode: z
-        .enum(['structural', 'semantic'])
-        .optional()
-        .describe('Query mode (default: structural).'),
-      query_vector: z
-        .array(z.number())
-        .optional()
-        .describe('Embedding vector for semantic mode related-node retrieval.'),
-      semantic_limit: z
-        .number()
-        .optional()
-        .describe('Semantic related-node cap (default: min(limit, 20)).'),
-      semantic_max_distance: z
-        .number()
-        .optional()
-        .describe('Optional max embedding distance threshold for semantic nodes.'),
-    },
-    loggedHandler(graph.toolDef.name, (args) => graph.handler(db, args)),
-  );
-
-  // ── lore_search ──────────────────────────────────────────────────────────────
-  server.tool(
-    search.toolDef.name,
-    search.toolDef.description,
-    {
-      query: z.string().describe('Search query.'),
-      mode: z
-        .enum(['structural', 'semantic', 'fused'])
-        .optional()
-        .describe('Search mode (default: structural).'),
-      limit: z.number().optional().describe('Max results (default 20).'),
-      path_prefix: z.string().optional().describe('Optional source file path prefix filter for symbol results.'),
-      language: z.string().optional().describe('Optional source language filter for symbol results.'),
-      kind: z.string().optional().describe('Optional symbol kind filter for symbol results.'),
-      doc_path_prefix: z
-        .string()
-        .optional()
-        .describe('Optional documentation path prefix filter for semantic/fused doc-section results.'),
-      doc_kind: z
-        .string()
-        .optional()
-        .describe('Optional documentation kind filter for semantic/fused doc-section results.'),
-      branch: z.string().optional().describe('Optional branch to filter results. Query-time retrieval uses SQLite-only persisted data.'),
-    },
-    loggedHandler(search.toolDef.name, (args) => search.handler(db, args, embedder, options?.searchObserver)),
-  );
-
-  // ── lore_docs ────────────────────────────────────────────────────────────────
-  server.tool(
-    docs.toolDef.name,
-    docs.toolDef.description,
-    {
-      action: z
-        .enum(['list', 'get', 'search'])
-        .describe('Docs operation mode: list docs, get a doc by path, or search sections.'),
-      path: z.string().optional().describe('Optional doc path filter (required for exact get).'),
-      query: z.string().optional().describe('Search query text for action="search".'),
-      mode: z
-        .enum(['text', 'semantic', 'fused'])
-        .optional()
-        .describe('For action="search", retrieval mode (default: text).'),
-      kind: z.string().optional().describe('Optional single doc kind filter.'),
-      kinds: z.array(z.string()).optional().describe('Optional doc kind filter list.'),
-      include_sections: z
-        .boolean()
-        .optional()
-        .describe('For action="get", include section/chunk rows (default true).'),
-      section_index: z.number().int().optional().describe('Optional section index filter.'),
-      limit: z.number().optional().describe('Max rows to return (defaults depend on action).'),
-      branch: z.string().optional().describe('Optional branch to filter docs.'),
-    },
-    loggedHandler(docs.toolDef.name, (args) => docs.handler(db, args, embedder)),
-  );
-
-  // ── lore_routes ──────────────────────────────────────────────────────────────
-  server.tool(
-    routes.toolDef.name,
-    routes.toolDef.description,
-    {
-      method: z.string().optional().describe('Optional HTTP method filter (for example GET, POST).'),
-      path_prefix: z.string().optional().describe('Optional route path prefix filter.'),
-      framework: z.string().optional().describe('Optional framework filter (for example express, fastapi, gin).'),
-    },
-    loggedHandler(routes.toolDef.name, (args) => routes.handler(db, args)),
-  );
-
-  // ── lore_notes_write ─────────────────────────────────────────────────────────
-  server.tool(
-    notes.writeToolDef.name,
-    notes.writeToolDef.description,
-    {
-      key: z.string().describe('Topic identifier, e.g. "architecture/overview".'),
-      scope: z
-        .string()
-        .optional()
-        .describe('Optional scope (default "global"), e.g. file:<path>, module:<name>.'),
-      content: z.string().describe('The note text.'),
-      model: z.string().optional().describe('Model identifier that authored the note.'),
-      source_hash: z.string().optional().describe('Optional source hash used for staleness detection.'),
-    },
-    loggedHandler(notes.writeToolDef.name, (args) => notes.writeHandler(dbPath, args)),
-  );
-
-  // ── lore_notes_read ──────────────────────────────────────────────────────────
-  server.tool(
-    notes.readToolDef.name,
-    notes.readToolDef.description,
-    {
-      key: z.string().optional().describe('Exact key match.'),
-      key_prefix: z.string().optional().describe('Prefix match (e.g. "architecture/").'),
-      scope: z.string().optional().describe('Optional scope filter.'),
-      limit: z.number().optional().describe('Max notes to return (default 20, max 200).'),
-    },
-    loggedHandler(notes.readToolDef.name, (args) => notes.readHandler(db, args)),
-  );
-
-  // ── lore_architecture ────────────────────────────────────────────────────────
-  server.tool(
-    architecture.toolDef.name,
-    architecture.toolDef.description,
-    {
-      depth: z
-        .number()
-        .optional()
-        .describe('Optional path depth used to group files into components (default 2).'),
-      branch: z.string().optional().describe('Optional branch name to filter architecture output.'),
-    },
-    loggedHandler(architecture.toolDef.name, (args) => architecture.handler(db, args)),
-  );
-
-  // ── lore_test_map ─────────────────────────────────────────────────────────────
-  server.tool(
-    testMap.toolDef.name,
-    testMap.toolDef.description,
-    {
-      source_path: z.string().describe('Source file path to resolve mapped test files for.'),
-      branch: z.string().optional().describe('Optional branch to constrain mappings.'),
-    },
-    loggedHandler(testMap.toolDef.name, (args) => testMap.handler(db, args)),
-  );
-
-  // ── lore_snippet ─────────────────────────────────────────────────────────────
-  server.tool(
-    snippet.toolDef.name,
-    snippet.toolDef.description,
-    {
-      path: z.string().describe('Absolute file path as stored in the index.'),
-      start_line: z.number().optional().describe('First line (1-based, inclusive).'),
-      end_line: z.number().optional().describe('Last line (1-based, inclusive).'),
-      branch: z.string().optional().describe('Optional branch to disambiguate the file path.'),
-    },
-    loggedHandler(snippet.toolDef.name, (args) => snippet.handler(db, args)),
-  );
-
-  // ── lore_metrics ─────────────────────────────────────────────────────────────
-  server.tool(
-    metrics.toolDef.name,
-    metrics.toolDef.description,
-    {
-      mode: z
-        .enum(metrics.toolDef.inputSchema.properties.mode.enum)
-        .optional()
-        .describe(metrics.toolDef.inputSchema.properties.mode.description),
-      limit: z
-        .number()
-        .optional()
-        .describe(metrics.toolDef.inputSchema.properties.limit.description),
-      min_cyclomatic: z
-        .number()
-        .optional()
-        .describe(metrics.toolDef.inputSchema.properties.min_cyclomatic.description),
-    },
-    loggedHandler(metrics.toolDef.name, (args: metrics.MetricsArgs = {}) => metrics.handler(db, args)),
-  );
-
-  // ── lore_coverage ────────────────────────────────────────────────────────────
-  server.tool(
-    coverage.toolDef.name,
-    coverage.toolDef.description,
-    {
-      symbol_id: z.number().optional().describe('Optional symbol id to fetch exact coverage for.'),
-      symbol_name: z.string().optional().describe('Optional symbol name filter (case-insensitive).'),
-      path: z.string().optional().describe('Optional file path filter.'),
-      branch: z.string().optional().describe('Optional branch filter.'),
-      limit: z.number().optional().describe('Maximum symbols to return (default 50).'),
-    },
-    loggedHandler(coverage.toolDef.name, (args) => coverage.handler(db, args)),
-  );
-
-  // ── lore_blame ───────────────────────────────────────────────────────────────
-  server.tool(
-    blame.toolDef.name,
-    blame.toolDef.description,
-    {
-      path: z.string().optional().describe('Absolute file path as stored in the index.'),
-      line: z.number().optional().describe('Single line to blame (1-based).'),
-      start_line: z.number().optional().describe('Range start line (1-based).'),
-      end_line: z.number().optional().describe('Range end line (1-based).'),
-      ref: z.string().optional().describe('Git ref to blame against (default HEAD).'),
-      branch: z.string().optional().describe('Optional branch to disambiguate indexed file path.'),
-      mode: z
-        .enum(['blame', 'history', 'ownership'])
-        .optional()
-        .describe('Query mode (default: "blame").'),
-      symbol: z
-        .string()
-        .optional()
-        .describe('Optional symbol name to resolve to an indexed file + line range.'),
-      scope: z
-        .enum(['file', 'directory'])
-        .optional()
-        .describe('Ownership mode scope. If omitted, inferred from `path`.'),
-    },
-    loggedHandler(blame.toolDef.name, (args) => blame.handler(db, args)),
-  );
-
-  // ── lore_writeback ───────────────────────────────────────────────────────────
-  server.tool(
-    writeback.toolDef.name,
-    writeback.toolDef.description,
-    {
-      symbol_id: z.number().describe('Symbol id to attach the summary to.'),
-      summary: z.string().describe('Natural-language summary text.'),
-      model: z.string().describe('Model identifier that generated the summary.'),
-      branch: z.string().optional().describe('Optional branch to validate the symbol belongs to.'),
-    },
-    loggedHandler(writeback.toolDef.name, (args) => writeback.handler(dbPath, args)),
-  );
-
-  // ── lore_history ─────────────────────────────────────────────────────────────
-  server.tool(
-    history.toolDef.name,
-    history.toolDef.description,
-    {
-      mode: z
-        .enum(['file', 'commit', 'author', 'ref', 'semantic', 'recent'])
-        .describe('Query mode: file, commit, author, ref, semantic, or recent.'),
-      query: z.string().optional().describe('File path, commit SHA, author name/email, ref, or semantic query text.'),
-      limit: z.number().optional().describe('Max results (default 20, max 200).'),
-    },
-    loggedHandler(history.toolDef.name, (args) => history.handler(db, args, embedder)),
-  );
-
-  // ── lore_annotations ───────────────────────────────────────────────────────────
-  server.tool(
-    annotations.toolDef.name,
-    annotations.toolDef.description,
-    {
-      kind: z
-        .enum(['TODO', 'FIXME', 'HACK', 'XXX', 'NOTE', 'BUG', 'OPTIMIZE'])
-        .describe('Annotation kind/tag to filter by.'),
-      path: z.string().optional().describe('Optional exact file path filter.'),
-      limit: z.number().optional().describe('Maximum number of results to return (default 20).'),
-    },
-    loggedHandler(annotations.toolDef.name, (args) => annotations.handler(db, args)),
-  );
+  // The tool modules are built synchronously from eagerly-imported tool files
+  // at startup, then registered via the data-driven registry loop.
+  // NOTE: `buildToolModules()` is async but only because it uses dynamic
+  // imports.  The synchronous variant `createLoreMcpServerAsync()` should be
+  // preferred for new code.  For backward-compat we register eagerly here
+  // using a self-invoking async helper that blocks the server from being
+  // ready until registration completes.
+  //
+  // However, McpServer.tool() is synchronous, so we need to register modules
+  // synchronously.  We import tool modules eagerly at module scope instead.
+  const toolModules = buildToolModulesSync();
+  registerTools(server, toolModules, { db, dbPath, embedder, searchObserver: options?.searchObserver, logger: log });
 
   return server;
+}
+
+/**
+ * Async version of `createLoreMcpServer` that properly awaits dynamic tool
+ * module imports.  Preferred for new call-sites.
+ */
+export async function createLoreMcpServerAsync(
+  db: Database.Database,
+  dbPath: string,
+  embedder?: EmbeddingProvider,
+  options?: LoreServerOptions,
+): Promise<McpServer> {
+  const log = options?.logger ?? getLogger();
+
+  const server = new McpServer(
+    { name: 'lore-server', version: '0.1.0' },
+    { capabilities: { tools: {} } },
+  );
+
+  const toolModules = await buildToolModules();
+  registerTools(server, toolModules, { db, dbPath, embedder, searchObserver: options?.searchObserver, logger: log });
+
+  return server;
+}
+
+// ─── Synchronous tool module builder ──────────────────────────────────────────
+
+/**
+ * Eagerly import all tool modules and build the registration list.
+ * Used by the synchronous `createLoreMcpServer()` for backward compatibility.
+ */
+function buildToolModulesSync(): ToolModule[] {
+  return [
+    { def: lookup.toolDef, handlerFactory: (deps) => (args) => lookup.handler(deps.db, args, deps.embedder) },
+    { def: graph.toolDef, handlerFactory: (deps) => (args) => graph.handler(deps.db, args) },
+    { def: search.toolDef, handlerFactory: (deps) => (args) => search.handler(deps.db, args, deps.embedder, deps.searchObserver) },
+    { def: docsMod.toolDef, handlerFactory: (deps) => (args) => docsMod.handler(deps.db, args, deps.embedder) },
+    { def: routes.toolDef, handlerFactory: (deps) => (args) => routes.handler(deps.db, args) },
+    { def: notes.writeToolDef, handlerFactory: (deps) => (args) => notes.writeHandler(deps.dbPath, args) },
+    { def: notes.readToolDef, handlerFactory: (deps) => (args) => notes.readHandler(deps.db, args) },
+    { def: architecture.toolDef, handlerFactory: (deps) => (args) => architecture.handler(deps.db, args) },
+    { def: testMap.toolDef, handlerFactory: (deps) => (args) => testMap.handler(deps.db, args) },
+    { def: snippet.toolDef, handlerFactory: (deps) => (args) => snippet.handler(deps.db, args) },
+    { def: blame.toolDef, handlerFactory: (deps) => (args) => blame.handler(deps.db, args) },
+    { def: metrics.toolDef, handlerFactory: (deps) => (args) => metrics.handler(deps.db, args ?? {}) },
+    { def: coverage.toolDef, handlerFactory: (deps) => (args) => coverage.handler(deps.db, args) },
+    { def: writeback.toolDef, handlerFactory: (deps) => (args) => writeback.handler(deps.dbPath, args) },
+    { def: history.toolDef, handlerFactory: (deps) => (args) => history.handler(deps.db, args, deps.embedder) },
+    { def: annotationsMod.toolDef, handlerFactory: (deps) => (args) => annotationsMod.handler(deps.db, args) },
+  ];
 }
 
 // ─── Embedding helper ─────────────────────────────────────────────────────────

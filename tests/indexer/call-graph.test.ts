@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeTypeName, resolveSymbolEdges, topoSort, detectCycles, buildCallGraph } from '../../src/indexer/call-graph.js';
+import { normalizeTypeName, resolveSymbolEdges, topoSort, detectCycles } from '../../src/indexer/call-graph.js';
 import { openDb } from '../../src/indexer/db.js';
 import type { Database } from '../../src/indexer/db.js';
 
@@ -429,27 +429,6 @@ describe('resolveSymbolEdges – name-based fallback', () => {
     // LSP wins — resolves to file2's Widget, not file1's
     expect(ref.callee_id).toBe(lspTarget);
     expect(ref.resolution_method).toBe('lsp_definition');
-  });
-});
-
-// ─── buildCallGraph (deprecated alias) ────────────────────────────────────────
-
-describe('buildCallGraph (deprecated alias)', () => {
-  it('should be a function that delegates to resolveSymbolEdges', () => {
-    const db = createDb();
-    const file1 = insertFile(db, 'src/a.ts');
-    const target = insertSymbol(db, file1, 'Alpha', 'class', 1, 10);
-
-    const caller = insertSymbol(db, file1, 'main', 'function', 20, 30);
-    db.prepare(
-      `INSERT INTO symbol_refs (caller_id, file_id, callee_name, call_line, definition_path, definition_line)
-       VALUES (?, ?, 'Alpha', 22, ?, ?)`,
-    ).run(caller, file1, 'src/a.ts', 5);
-
-    buildCallGraph(db);
-
-    const ref = db.prepare('SELECT callee_id FROM symbol_refs WHERE caller_id = ?').get(caller) as { callee_id: number | null };
-    expect(ref.callee_id).toBe(target);
   });
 });
 
