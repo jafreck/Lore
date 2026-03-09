@@ -65,6 +65,10 @@ describe('public API surface', () => {
     expect(publicApi.openReadOnly).toBeDefined();
   });
 
+  it('should export listResolvedEdges for pre-resolved call-graph edges', () => {
+    expect(publicApi.listResolvedEdges).toBeDefined();
+  });
+
   it('should NOT export internal stage helpers', () => {
     expect((publicApi as any).processFile).toBeUndefined();
     expect((publicApi as any).enrichProjectRefs).toBeUndefined();
