@@ -1,8 +1,20 @@
+/**
+ * @module index
+ *
+ * Public API surface for the Lore knowledge-base toolkit.
+ *
+ * Exports are intentional and small. Internal helpers like `ParserPool`,
+ * `normalizeTypeName`, etc., are not exposed. `buildCallGraph` has been
+ * removed — use `resolveSymbolEdges` instead.
+ *
+ * Layering: runtime → domain services → storage → shared types
+ */
+
+// ── Indexing API ──────────────────────────────────────────────────────────────
 export { IndexBuilder } from './indexer/index.js';
 export { openDb, setLoreMeta, getLoreMeta, createVec0Tables } from './indexer/db.js';
 export type { Database } from './indexer/db.js';
 export { resolveSymbolEdges, topoSort, detectCycles } from './indexer/call-graph.js';
-export { normalizeTypeName } from './indexer/call-graph.js';
 export { walkFiles, detectLanguageForPath } from './indexer/walker.js';
 export type { WalkerConfig, FileEntry } from './indexer/walker.js';
 export { ImportResolver } from './indexer/resolver.js';
@@ -20,15 +32,27 @@ export type {
   SymbolExtractor,
 } from './indexer/extractors/types.js';
 
-// ── Resolution method taxonomy ────────────────────────────────────────────────
+// ── Resolution method taxonomy (shared constant) ─────────────────────────────
 export { RESOLUTION_METHODS, RESOLVED_METHODS, UNRESOLVED_METHODS } from './indexer/resolution-method.js';
 export type { ResolutionMethod } from './indexer/resolution-method.js';
 
-// ── Pipeline ──────────────────────────────────────────────────────────────────
+// ── Pipeline (composable indexing stages) ─────────────────────────────────────
 export { IndexPipeline } from './indexer/pipeline.js';
 export type { PipelineContext, PipelineStage } from './indexer/pipeline.js';
-export { LspEnrichmentStage, ResolutionStage } from './indexer/stages/index.js';
+export {
+  SourceIndexStage,
+  DocsIndexStage,
+  ImportResolutionStage,
+  DependencyApiStage,
+  LspEnrichmentStage,
+  ResolutionStage,
+  TestMapStage,
+  HistoryStage,
+  CoverageStage,
+  EmbeddingStage,
+} from './indexer/stages/index.js';
 export { enrichProjectRefs } from './indexer/stages/lsp-enrichment.js';
+export { processFile } from './indexer/stages/source-index.js';
 
 // ── Runtime ───────────────────────────────────────────────────────────────────
 export { LoreRuntime } from './runtime.js';

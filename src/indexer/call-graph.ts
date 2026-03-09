@@ -132,11 +132,6 @@ export function resolveSymbolEdges(db: Database.Database): void {
   runInTransaction();
 }
 
-/** @deprecated Use `resolveSymbolEdges` instead. */
-export function buildCallGraph(db: Database.Database): void {
-  resolveSymbolEdges(db);
-}
-
 // ─── Containment-based resolution ─────────────────────────────────────────────
 
 interface UnresolvedRefRow {

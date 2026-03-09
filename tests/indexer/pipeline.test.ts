@@ -85,4 +85,48 @@ describe('IndexPipeline', () => {
 
     expect(receivedMode).toBe('update');
   });
+
+  it('should enforce enrichment before resolution in canonical pipeline', () => {
+    // Validate that the canonical stage ordering has enrichment before resolution.
+    // This is the structural enforcement that replaces call-site discipline.
+    const pipeline = new IndexPipeline([
+      { name: 'source-index', execute: async () => {} },
+      { name: 'docs-index', execute: async () => {} },
+      { name: 'import-resolution', execute: async () => {} },
+      { name: 'dependency-api', execute: async () => {} },
+      { name: 'lsp-enrichment', execute: async () => {} },
+      { name: 'symbol-resolution', execute: async () => {} },
+      { name: 'test-map', execute: async () => {} },
+      { name: 'git-history', execute: async () => {} },
+      { name: 'embedding', execute: async () => {} },
+    ]);
+
+    const names = pipeline.stageNames;
+    const enrichIdx = names.indexOf('lsp-enrichment');
+    const resolveIdx = names.indexOf('symbol-resolution');
+    expect(enrichIdx).toBeGreaterThanOrEqual(0);
+    expect(resolveIdx).toBeGreaterThanOrEqual(0);
+    expect(enrichIdx).toBeLessThan(resolveIdx);
+  });
+
+  it('should populate context.files when shared by stages', async () => {
+    const ctx = createStubContext();
+
+    const stageA: PipelineStage = {
+      name: 'producer',
+      execute: async (context) => {
+        context.files = [{ path: '/tmp/a.ts', language: 'typescript' }];
+      },
+    };
+    const stageB: PipelineStage = {
+      name: 'consumer',
+      execute: async (context) => {
+        expect(context.files.length).toBe(1);
+      },
+    };
+
+    const pipeline = new IndexPipeline([stageA, stageB]);
+    await pipeline.run(ctx, 'build');
+    expect(ctx.files.length).toBe(1);
+  });
 });

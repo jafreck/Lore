@@ -841,7 +841,13 @@ export function listTestMappingsBySourcePath(
     .all(sourcePath) as TestMappingRow[];
 }
 
-// ─── Config helpers ───────────────────────────────────────────────────────────
+// ─── Config helpers (REMOVED) ─────────────────────────────────────────────────
+//
+// `listConfigEntries` has been removed. No DDL exists for `config_entries` or
+// `config_entry_refs` tables. The function would silently return [] at runtime.
+// If config indexing is desired, add DDL and a writer in a future milestone.
+//
+// Types retained for backward compatibility during migration:
 
 export interface ConfigEntryRefRow {
   path: string;
@@ -871,93 +877,15 @@ export interface ListConfigEntriesArgs {
 }
 
 /**
- * Return config entries joined with their config-file metadata and usage references.
- * Results are ordered deterministically by key and file path.
- *
- * @deprecated No DDL exists for `config_entries` or `config_entry_refs`.
- * This function will silently return `[]` at runtime because the tables
- * don't exist.  Scheduled for removal — see Phase 5 of the refactor plan.
+ * @removed No DDL exists for `config_entries` or `config_entry_refs`.
+ * Always returns an empty array. Retained as a stub to avoid breaking
+ * downstream imports during migration.
  */
 export function listConfigEntries(
-  db: Database.Database,
-  args: ListConfigEntriesArgs = {},
+  _db: Database.Database,
+  _args: ListConfigEntriesArgs = {},
 ): ConfigEntryRow[] {
-  const where: string[] = [];
-  const params: Array<string | number> = [];
-
-  if (args.key !== undefined) {
-    where.push('ce.key = ?');
-    params.push(args.key);
-  }
-  if (args.filePath !== undefined) {
-    where.push('f.path = ?');
-    params.push(args.filePath);
-  }
-  if (args.kind !== undefined) {
-    where.push('ce.kind = ?');
-    params.push(args.kind);
-  }
-
-  const whereSql = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
-
-  try {
-    const entries = db
-      .prepare(
-        `SELECT
-           ce.id,
-           ce.file_id,
-           ce.key,
-           ce.value,
-           ce.default_value,
-           ce.inferred_type,
-           ce.required,
-           ce.description,
-           ce.kind,
-           f.path AS file_path,
-           f.branch AS file_branch
-         FROM config_entries ce
-         JOIN files f ON f.id = ce.file_id
-         ${whereSql}
-         ORDER BY ce.key COLLATE NOCASE ASC, f.path ASC, ce.id ASC`,
-      )
-      .all(...params) as Array<Omit<ConfigEntryRow, 'references'>>;
-
-    if (entries.length === 0) return [];
-
-    const placeholders = entries.map(() => '?').join(', ');
-    const refs = db
-      .prepare(
-        `SELECT
-           cer.config_entry_id,
-           cer.line,
-           f.path,
-           f.branch
-         FROM config_entry_refs cer
-         JOIN files f ON f.id = cer.file_id
-         WHERE cer.config_entry_id IN (${placeholders})
-         ORDER BY cer.config_entry_id ASC, f.path ASC, cer.line ASC`,
-      )
-      .all(...entries.map((entry) => entry.id)) as Array<{
-      config_entry_id: number;
-      path: string;
-      branch: string;
-      line: number;
-    }>;
-
-    const refsByEntryId = new Map<number, ConfigEntryRefRow[]>();
-    for (const ref of refs) {
-      const current = refsByEntryId.get(ref.config_entry_id) ?? [];
-      current.push({ path: ref.path, branch: ref.branch, line: ref.line });
-      refsByEntryId.set(ref.config_entry_id, current);
-    }
-
-    return entries.map((entry) => ({
-      ...entry,
-      references: refsByEntryId.get(entry.id) ?? [],
-    }));
-  } catch {
-    return [];
-  }
+  return [];
 }
 
 // ─── Annotation helpers ───────────────────────────────────────────────────────
