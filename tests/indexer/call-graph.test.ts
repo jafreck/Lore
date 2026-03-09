@@ -281,6 +281,157 @@ describe('resolveSymbolEdges – containment mapping', () => {
   });
 });
 
+// ─── resolveSymbolEdges: name-based fallback ──────────────────────────────────
+
+describe('resolveSymbolEdges – name-based fallback', () => {
+  it('should resolve symbol_ref via name_same_file when callee is in the same file', () => {
+    const db = createDb();
+    const file1 = insertFile(db, 'src/file1.ts');
+    const file2 = insertFile(db, 'src/file2.ts');
+
+    const target = insertSymbol(db, file1, 'handle', 'function', 1, 10);
+    insertSymbol(db, file2, 'handle', 'function', 1, 10); // same name, different file
+
+    const caller = insertSymbol(db, file1, 'dispatch', 'function', 20, 30);
+
+    // No definition_path/definition_line — will use name fallback
+    db.prepare(
+      `INSERT INTO symbol_refs (caller_id, file_id, callee_name, call_line) VALUES (?, ?, 'handle', 22)`,
+    ).run(caller, file1);
+
+    resolveSymbolEdges(db);
+
+    const ref = db.prepare('SELECT callee_id, resolution_method FROM symbol_refs WHERE caller_id = ?').get(caller) as { callee_id: number | null; resolution_method: string };
+    expect(ref.callee_id).toBe(target);
+    expect(ref.resolution_method).toBe('name_same_file');
+  });
+
+  it('should resolve symbol_ref via name_unique when callee name is globally unique', () => {
+    const db = createDb();
+    const file1 = insertFile(db, 'src/file1.ts');
+    const file2 = insertFile(db, 'src/file2.ts');
+
+    const target = insertSymbol(db, file2, 'UniqueHelper', 'function', 1, 10);
+    const caller = insertSymbol(db, file1, 'main', 'function', 1, 10);
+
+    db.prepare(
+      `INSERT INTO symbol_refs (caller_id, file_id, callee_name, call_line) VALUES (?, ?, 'UniqueHelper', 5)`,
+    ).run(caller, file1);
+
+    resolveSymbolEdges(db);
+
+    const ref = db.prepare('SELECT callee_id, resolution_method FROM symbol_refs WHERE caller_id = ?').get(caller) as { callee_id: number | null; resolution_method: string };
+    expect(ref.callee_id).toBe(target);
+    expect(ref.resolution_method).toBe('name_unique');
+  });
+
+  it('should leave unresolved when name has non-unique cross-file matches', () => {
+    const db = createDb();
+    const file1 = insertFile(db, 'src/file1.ts');
+    const file2 = insertFile(db, 'src/file2.ts');
+    const file3 = insertFile(db, 'src/file3.ts');
+
+    insertSymbol(db, file2, 'handler', 'function', 1, 10);
+    insertSymbol(db, file3, 'handler', 'function', 1, 10);
+
+    const caller = insertSymbol(db, file1, 'router', 'function', 1, 10);
+
+    db.prepare(
+      `INSERT INTO symbol_refs (caller_id, file_id, callee_name, call_line) VALUES (?, ?, 'handler', 5)`,
+    ).run(caller, file1);
+
+    resolveSymbolEdges(db);
+
+    const ref = db.prepare('SELECT callee_id, resolution_method FROM symbol_refs WHERE caller_id = ?').get(caller) as { callee_id: number | null; resolution_method: string };
+    expect(ref.callee_id).toBeNull();
+    expect(ref.resolution_method).toBe('unresolved');
+  });
+
+  it('should resolve type_ref via name_same_file when no LSP data', () => {
+    const db = createDb();
+    const file1 = insertFile(db, 'src/file1.ts');
+    const file2 = insertFile(db, 'src/file2.ts');
+
+    const widget1 = insertSymbol(db, file1, 'Widget', 'class', 1, 20);
+    insertSymbol(db, file2, 'Widget', 'class', 1, 20);
+
+    const consumer = insertSymbol(db, file1, 'render', 'function', 25, 35);
+
+    db.prepare(
+      `INSERT INTO type_refs (file_id, symbol_id, type_name, type_name_bare, ref_kind, ref_line)
+       VALUES (?, ?, 'Widget', 'Widget', 'parameter', 27)`,
+    ).run(file1, consumer);
+
+    resolveSymbolEdges(db);
+
+    const ref = db.prepare('SELECT type_id, resolution_method FROM type_refs WHERE symbol_id = ?').get(consumer) as { type_id: number | null; resolution_method: string };
+    expect(ref.type_id).toBe(widget1);
+    expect(ref.resolution_method).toBe('name_same_file');
+  });
+
+  it('should resolve symbol_relationships via name_same_file fallback', () => {
+    const db = createDb();
+    const file1 = insertFile(db, 'src/a.ts');
+
+    const parent = insertSymbol(db, file1, 'BaseClass', 'class', 1, 15);
+    const child = insertSymbol(db, file1, 'ChildClass', 'class', 20, 35);
+
+    db.prepare(
+      `INSERT INTO symbol_relationships (file_id, source_symbol_id, target_symbol_name, relationship_type, line)
+       VALUES (?, ?, 'BaseClass', 'extends', 20)`,
+    ).run(file1, child);
+
+    resolveSymbolEdges(db);
+
+    const rel = db.prepare('SELECT target_symbol_id, resolution_method FROM symbol_relationships WHERE source_symbol_id = ?').get(child) as { target_symbol_id: number | null; resolution_method: string };
+    expect(rel.target_symbol_id).toBe(parent);
+    expect(rel.resolution_method).toBe('name_same_file');
+  });
+
+  it('should resolve symbol_relationships with normalizeTypeName fallback', () => {
+    const db = createDb();
+    const file1 = insertFile(db, 'src/a.ts');
+
+    const target = insertSymbol(db, file1, 'Widget', 'class', 1, 15);
+    const source = insertSymbol(db, file1, 'ChildWidget', 'class', 20, 35);
+
+    db.prepare(
+      `INSERT INTO symbol_relationships (file_id, source_symbol_id, target_symbol_name, relationship_type, line)
+       VALUES (?, ?, 'const Widget*', 'extends', 20)`,
+    ).run(file1, source);
+
+    resolveSymbolEdges(db);
+
+    const rel = db.prepare('SELECT target_symbol_id, resolution_method FROM symbol_relationships WHERE source_symbol_id = ?').get(source) as { target_symbol_id: number | null; resolution_method: string };
+    expect(rel.target_symbol_id).toBe(target);
+    expect(rel.resolution_method).toBe('name_same_file');
+  });
+
+  it('should prefer LSP containment over name fallback when both could match', () => {
+    const db = createDb();
+    const file1 = insertFile(db, 'src/file1.ts');
+    const file2 = insertFile(db, 'src/file2.ts');
+
+    const sameFileTarget = insertSymbol(db, file1, 'Widget', 'class', 1, 10);
+    const lspTarget = insertSymbol(db, file2, 'Widget', 'class', 1, 30);
+
+    const caller = insertSymbol(db, file1, 'main', 'function', 20, 30);
+
+    // Has LSP definition data pointing to file2
+    db.prepare(
+      `INSERT INTO symbol_refs (caller_id, file_id, callee_name, call_line, definition_path, definition_line)
+       VALUES (?, ?, 'Widget', 22, ?, ?)`,
+    ).run(caller, file1, 'src/file2.ts', 10);
+
+    resolveSymbolEdges(db);
+
+    const ref = db.prepare('SELECT callee_id, resolution_method FROM symbol_refs WHERE caller_id = ?').get(caller) as { callee_id: number | null; resolution_method: string };
+    // LSP wins — resolves to file2's Widget, not file1's
+    expect(ref.callee_id).toBe(lspTarget);
+    expect(ref.resolution_method).toBe('lsp_definition');
+  });
+});
+
 // ─── buildCallGraph (deprecated alias) ────────────────────────────────────────
 
 describe('buildCallGraph (deprecated alias)', () => {

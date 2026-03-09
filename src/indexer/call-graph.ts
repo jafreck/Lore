@@ -63,21 +63,69 @@ export function normalizeTypeName(raw: string): string {
 
 /**
  * Resolves unresolved edges in `symbol_refs`, `type_refs`, and
- * `symbol_relationships` using LSP definition locations and containment
- * mapping. Replaces the old heuristic name-based and path-based resolution.
+ * `symbol_relationships` using a layered resolution strategy:
  *
- * For each ref with a populated `definition_path` + `definition_line`:
- *   1. If the definition is outside the project (no matching file) → `external_definition`
- *   2. Find all symbols in the target file containing `definition_line`
- *   3. Pick the narrowest enclosing symbol → `lsp_definition`
- *   4. If ambiguous (multiple equally-narrow) → `ambiguous_definition`
- *   5. If no definition data → `unresolved`
+ *   1. **LSP containment mapping** (`lsp_definition`) — when `definition_path`
+ *      + `definition_line` are populated, map to the narrowest enclosing symbol.
+ *   2. **Same-file name match** (`name_same_file`) — if the ref name matches
+ *      exactly one symbol in the same file, resolve it.
+ *   3. **Globally unique name** (`name_unique`) — if the ref name matches
+ *      exactly one symbol across the entire index, resolve it.
+ *   4. Leave as `unresolved` / `external_definition` otherwise.
  */
 export function resolveSymbolEdges(db: Database.Database): void {
   const runInTransaction = db.transaction(() => {
+    // Pass 1: LSP containment mapping (highest confidence)
     resolveByContainment(db, 'symbol_refs', 'callee_id', 'definition_path', 'definition_line');
     resolveByContainment(db, 'type_refs', 'type_id', 'definition_path', 'definition_line');
     resolveByContainment(db, 'symbol_relationships', 'target_symbol_id', 'definition_path', 'definition_line');
+
+    // Pass 2: Name-based fallback for remaining unresolved refs
+    const nameMap = buildNameMap(db);
+
+    resolveByNameFallback(db, nameMap, {
+      tableName: 'symbol_refs',
+      targetIdColumn: 'callee_id',
+      selectUnresolved: db.prepare(
+        `SELECT sr.id, sr.callee_name AS target_name, s.file_id AS source_file_id
+         FROM symbol_refs sr
+         JOIN symbols s ON s.id = sr.caller_id
+         WHERE sr.callee_id IS NULL AND sr.resolution_method = 'unresolved'`,
+      ),
+    });
+
+    resolveByNameFallback(db, nameMap, {
+      tableName: 'type_refs',
+      targetIdColumn: 'type_id',
+      selectUnresolved: db.prepare(
+        `SELECT tr.id, tr.type_name AS target_name, COALESCE(s.file_id, tr.file_id) AS source_file_id
+         FROM type_refs tr LEFT JOIN symbols s ON s.id = tr.symbol_id
+         WHERE tr.type_id IS NULL AND tr.resolution_method = 'unresolved'`,
+      ),
+    });
+
+    // type_refs bare-name fallback pass
+    resolveByNameFallback(db, nameMap, {
+      tableName: 'type_refs',
+      targetIdColumn: 'type_id',
+      selectUnresolved: db.prepare(
+        `SELECT tr.id, tr.type_name_bare AS target_name, COALESCE(s.file_id, tr.file_id) AS source_file_id
+         FROM type_refs tr LEFT JOIN symbols s ON s.id = tr.symbol_id
+         WHERE tr.type_id IS NULL AND tr.resolution_method = 'unresolved'
+           AND tr.type_name_bare != tr.type_name`,
+      ),
+    });
+
+    resolveByNameFallback(db, nameMap, {
+      tableName: 'symbol_relationships',
+      targetIdColumn: 'target_symbol_id',
+      selectUnresolved: db.prepare(
+        `SELECT sr.id, sr.target_symbol_name AS target_name, COALESCE(s.file_id, sr.file_id) AS source_file_id
+         FROM symbol_relationships sr LEFT JOIN symbols s ON s.id = sr.source_symbol_id
+         WHERE sr.target_symbol_id IS NULL AND sr.resolution_method = 'unresolved'`,
+      ),
+      normalizeTargetName: normalizeTypeName,
+    });
   });
 
   runInTransaction();
@@ -192,6 +240,92 @@ function resolveByContainment(
      WHERE ${targetIdColumn} IS NULL AND resolution_method = 'unresolved'
        AND (${defPathColumn} IS NULL OR ${defLineColumn} IS NULL)`,
   ).run();
+}
+
+// ─── Name-based fallback resolution ───────────────────────────────────────────
+
+/**
+ * Builds a map from symbol name → array of { id, file_id } for all symbols.
+ * Used by the name-based fallback pass.
+ */
+function buildNameMap(db: Database.Database): Map<string, Array<{ id: number; file_id: number }>> {
+  const nameToSymbols = new Map<string, Array<{ id: number; file_id: number }>>();
+  const allSymbols = db
+    .prepare('SELECT id, name, file_id FROM symbols')
+    .all() as Array<{ id: number; name: string; file_id: number }>;
+  for (const row of allSymbols) {
+    let list = nameToSymbols.get(row.name);
+    if (!list) {
+      list = [];
+      nameToSymbols.set(row.name, list);
+    }
+    list.push({ id: row.id, file_id: row.file_id });
+  }
+  return nameToSymbols;
+}
+
+interface NameFallbackConfig {
+  tableName: string;
+  targetIdColumn: string;
+  selectUnresolved: Database.Statement;
+  /** Optional normalizer for the target name (e.g. normalizeTypeName). */
+  normalizeTargetName?: (raw: string) => string;
+}
+
+/**
+ * Resolves remaining unresolved refs by name matching with two confidence tiers:
+ *
+ * - `name_same_file`: target name matches exactly one symbol in the same file
+ * - `name_unique`: target name matches exactly one symbol in the entire index
+ *
+ * Non-unique cross-file matches are left as `unresolved`.
+ */
+function resolveByNameFallback(
+  db: Database.Database,
+  nameToSymbols: Map<string, Array<{ id: number; file_id: number }>>,
+  config: NameFallbackConfig,
+): void {
+  const unresolved = config.selectUnresolved.all() as Array<{
+    id: number;
+    target_name: string;
+    source_file_id: number;
+  }>;
+
+  if (unresolved.length === 0) return;
+
+  const updateResolved = db.prepare(
+    `UPDATE ${config.tableName} SET ${config.targetIdColumn} = ?, resolution_method = ? WHERE id = ?`,
+  );
+
+  for (const ref of unresolved) {
+    // Look up candidates by name
+    let candidates = nameToSymbols.get(ref.target_name);
+
+    // Try normalized name if direct match fails
+    if ((!candidates || candidates.length === 0) && config.normalizeTargetName) {
+      const normalized = config.normalizeTargetName(ref.target_name);
+      if (normalized && normalized !== ref.target_name) {
+        candidates = nameToSymbols.get(normalized);
+      }
+    }
+
+    if (!candidates || candidates.length === 0) continue;
+
+    // Tier 1: same-file unique match
+    const sameFile = candidates.filter(c => c.file_id === ref.source_file_id);
+    if (sameFile.length === 1) {
+      updateResolved.run(sameFile[0]!.id, 'name_same_file', ref.id);
+      continue;
+    }
+
+    // Tier 2: globally unique match (exactly one symbol with this name)
+    if (candidates.length === 1) {
+      updateResolved.run(candidates[0]!.id, 'name_unique', ref.id);
+      continue;
+    }
+
+    // Non-unique cross-file: leave as unresolved (option B)
+  }
 }
 
 // ─── topoSort ─────────────────────────────────────────────────────────────────
