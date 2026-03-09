@@ -481,12 +481,22 @@ export function getFileByPath(db: Database.Database, path: string, branch?: stri
   return db.prepare('SELECT * FROM files WHERE path = ?').get(path) as FileRow | undefined;
 }
 
-/** Return all indexed files, optionally limited to `limit` rows. */
-export function listFiles(db: Database.Database, limit = 100, branch?: string): FileRow[] {
+/**
+ * Return all indexed files, optionally filtered and paginated.
+ *
+ * By default no row limit is applied — consumers receive the full file list
+ * without needing to know about an internal pagination ceiling.  Pass an
+ * explicit `limit` to cap the result set.
+ */
+export function listFiles(db: Database.Database, limit?: number, branch?: string): FileRow[] {
   if (branch !== undefined) {
-    return db.prepare('SELECT * FROM files WHERE branch = ? LIMIT ?').all(branch, limit) as FileRow[];
+    return limit !== undefined
+      ? db.prepare('SELECT * FROM files WHERE branch = ? LIMIT ?').all(branch, limit) as FileRow[]
+      : db.prepare('SELECT * FROM files WHERE branch = ?').all(branch) as FileRow[];
   }
-  return db.prepare('SELECT * FROM files LIMIT ?').all(limit) as FileRow[];
+  return limit !== undefined
+    ? db.prepare('SELECT * FROM files LIMIT ?').all(limit) as FileRow[]
+    : db.prepare('SELECT * FROM files').all() as FileRow[];
 }
 
 /** Return indexed files matching an exact path or directory prefix. */
@@ -518,6 +528,102 @@ export function listFilesByPathPrefix(
        LIMIT ?`,
     )
     .all(normalized, likePattern, limit) as FileRow[];
+}
+
+// ─── Resolved call-graph edges ────────────────────────────────────────────────
+
+export interface ResolvedEdge {
+  ref_id: number;
+  caller_id: number;
+  caller_name: string;
+  caller_kind: string;
+  caller_file_id: number;
+  caller_file_path: string;
+  callee_id: number | null;
+  callee_name: string;
+  callee_kind: string | null;
+  callee_file_id: number | null;
+  callee_file_path: string | null;
+  call_line: number;
+  call_character: number | null;
+  call_kind: string;
+  resolution_method: string;
+}
+
+export interface ListResolvedEdgesOptions {
+  /** Only include edges where `callee_id` is resolved (non-NULL). Default: false. */
+  resolvedOnly?: boolean;
+  /** Restrict to edges whose caller belongs to this file. */
+  fileId?: number;
+  /** Filter by caller branch. */
+  branch?: string;
+  /** Maximum rows to return. Default: 100 000. */
+  limit?: number;
+}
+
+/**
+ * Returns pre-resolved call-graph edges from `symbol_refs`, joining through
+ * `symbols` and `files` to denormalize caller/callee metadata.
+ *
+ * Consumers get a ready-to-use edge list without needing to re-resolve
+ * `callee_name` by hand.  The query:
+ *
+ *  - Prefers `callee_id` when populated (LSP-resolved or name-resolved)
+ *  - Includes `resolution_method` so callers can filter by confidence
+ *  - Optionally restricts to a single file (file-scoped queries)
+ *  - Defaults to a high limit (100 000) to avoid silent truncation
+ */
+export function listResolvedEdges(
+  db: Database.Database,
+  options: ListResolvedEdgesOptions = {},
+): ResolvedEdge[] {
+  const where: string[] = [];
+  const params: Array<string | number> = [];
+
+  if (options.resolvedOnly) {
+    where.push('sr.callee_id IS NOT NULL');
+  }
+  if (options.fileId !== undefined) {
+    where.push('sr.file_id = ?');
+    params.push(options.fileId);
+  }
+  if (options.branch !== undefined) {
+    where.push('f_caller.branch = ?');
+    params.push(options.branch);
+  }
+
+  const limit = options.limit ?? 100_000;
+  params.push(limit);
+
+  const whereClause = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
+
+  return db
+    .prepare(
+      `SELECT sr.id          AS ref_id,
+              sr.caller_id,
+              s_caller.name  AS caller_name,
+              s_caller.kind  AS caller_kind,
+              s_caller.file_id AS caller_file_id,
+              f_caller.path  AS caller_file_path,
+              sr.callee_id,
+              sr.callee_name,
+              s_callee.kind  AS callee_kind,
+              s_callee.file_id AS callee_file_id,
+              f_callee.path  AS callee_file_path,
+              sr.call_line,
+              sr.call_character,
+              sr.call_kind,
+              sr.resolution_method
+         FROM symbol_refs sr
+         JOIN symbols s_caller  ON s_caller.id = sr.caller_id
+         JOIN files   f_caller  ON f_caller.id = s_caller.file_id
+         LEFT JOIN symbols s_callee ON s_callee.id = sr.callee_id
+         LEFT JOIN files   f_callee ON f_callee.id = s_callee.file_id
+         ${whereClause}
+         ORDER BY sr.caller_id ASC, sr.call_line ASC
+         LIMIT ?`,
+    )
+    .all(...params) as ResolvedEdge[];
 }
 
 // ─── Documentation helpers ─────────────────────────────────────────────────────
