@@ -63,70 +63,68 @@ export function normalizeTypeName(raw: string): string {
 
 /**
  * Resolves unresolved edges in `symbol_refs`, `type_refs`, and
- * `symbol_relationships` using name-based and definition-path-based passes.
+ * `symbol_relationships` using a layered resolution strategy:
  *
- * Replaces the old `buildCallGraph()`.
+ *   1. **LSP containment mapping** (`lsp_definition`) — when `definition_path`
+ *      + `definition_line` are populated, map to the narrowest enclosing symbol.
+ *   2. **Same-file name match** (`name_same_file`) — if the ref name matches
+ *      exactly one symbol in the same file, resolve it.
+ *   3. **Globally unique name** (`name_unique`) — if the ref name matches
+ *      exactly one symbol across the entire index, resolve it.
+ *   4. Leave as `unresolved` / `external_definition` otherwise.
  */
 export function resolveSymbolEdges(db: Database.Database): void {
-  const nameToSymbols = buildNameMap(db);
-  const pathToSymbols = buildPathMap(db);
-
   const runInTransaction = db.transaction(() => {
-    // ── symbol_refs: name-based, then definition-path ──
-    resolveByNameGeneric(nameToSymbols, {
+    // Pass 1: LSP containment mapping (highest confidence)
+    resolveByContainment(db, 'symbol_refs', 'callee_id', 'definition_path', 'definition_line');
+    resolveByContainment(db, 'type_refs', 'type_id', 'definition_path', 'definition_line');
+    resolveByContainment(db, 'symbol_relationships', 'target_symbol_id', 'definition_path', 'definition_line');
+
+    // Pass 2: Name-based fallback for remaining unresolved refs
+    const nameMap = buildNameMap(db);
+
+    resolveByNameFallback(db, nameMap, {
+      tableName: 'symbol_refs',
+      targetIdColumn: 'callee_id',
       selectUnresolved: db.prepare(
         `SELECT sr.id, sr.callee_name AS target_name, s.file_id AS source_file_id
-         FROM symbol_refs sr JOIN symbols s ON s.id = sr.caller_id
-         WHERE sr.callee_id IS NULL`,
+         FROM symbol_refs sr
+         JOIN symbols s ON s.id = sr.caller_id
+         WHERE sr.callee_id IS NULL AND sr.resolution_method = 'unresolved'`,
       ),
-      update: db.prepare('UPDATE symbol_refs SET callee_id = ? WHERE id = ?'),
-    });
-    resolveByDefinitionPathGeneric(pathToSymbols, {
-      selectUnresolved: db.prepare(
-        `SELECT id, definition_path FROM symbol_refs WHERE callee_id IS NULL AND definition_path IS NOT NULL`,
-      ),
-      update: db.prepare('UPDATE symbol_refs SET callee_id = ? WHERE id = ?'),
     });
 
-    // ── type_refs: qualified name first, then bare fallback ──
-    resolveByNameGeneric(nameToSymbols, {
+    resolveByNameFallback(db, nameMap, {
+      tableName: 'type_refs',
+      targetIdColumn: 'type_id',
       selectUnresolved: db.prepare(
         `SELECT tr.id, tr.type_name AS target_name, COALESCE(s.file_id, tr.file_id) AS source_file_id
          FROM type_refs tr LEFT JOIN symbols s ON s.id = tr.symbol_id
-         WHERE tr.type_id IS NULL`,
+         WHERE tr.type_id IS NULL AND tr.resolution_method = 'unresolved'`,
       ),
-      update: db.prepare('UPDATE type_refs SET type_id = ? WHERE id = ?'),
     });
-    resolveByNameGeneric(nameToSymbols, {
+
+    // type_refs bare-name fallback pass
+    resolveByNameFallback(db, nameMap, {
+      tableName: 'type_refs',
+      targetIdColumn: 'type_id',
       selectUnresolved: db.prepare(
         `SELECT tr.id, tr.type_name_bare AS target_name, COALESCE(s.file_id, tr.file_id) AS source_file_id
          FROM type_refs tr LEFT JOIN symbols s ON s.id = tr.symbol_id
-         WHERE tr.type_id IS NULL AND tr.type_name_bare != tr.type_name`,
+         WHERE tr.type_id IS NULL AND tr.resolution_method = 'unresolved'
+           AND tr.type_name_bare != tr.type_name`,
       ),
-      update: db.prepare('UPDATE type_refs SET type_id = ? WHERE id = ?'),
-    });
-    resolveByDefinitionPathGeneric(pathToSymbols, {
-      selectUnresolved: db.prepare(
-        `SELECT id, definition_path FROM type_refs WHERE type_id IS NULL AND definition_path IS NOT NULL`,
-      ),
-      update: db.prepare('UPDATE type_refs SET type_id = ? WHERE id = ?'),
     });
 
-    // ── symbol_relationships ──
-    resolveByNameGeneric(nameToSymbols, {
+    resolveByNameFallback(db, nameMap, {
+      tableName: 'symbol_relationships',
+      targetIdColumn: 'target_symbol_id',
       selectUnresolved: db.prepare(
         `SELECT sr.id, sr.target_symbol_name AS target_name, COALESCE(s.file_id, sr.file_id) AS source_file_id
          FROM symbol_relationships sr LEFT JOIN symbols s ON s.id = sr.source_symbol_id
-         WHERE sr.target_symbol_id IS NULL`,
+         WHERE sr.target_symbol_id IS NULL AND sr.resolution_method = 'unresolved'`,
       ),
-      update: db.prepare('UPDATE symbol_relationships SET target_symbol_id = ? WHERE id = ?'),
       normalizeTargetName: normalizeTypeName,
-    });
-    resolveByDefinitionPathGeneric(pathToSymbols, {
-      selectUnresolved: db.prepare(
-        `SELECT id, definition_path FROM symbol_relationships WHERE target_symbol_id IS NULL AND definition_path IS NOT NULL`,
-      ),
-      update: db.prepare('UPDATE symbol_relationships SET target_symbol_id = ? WHERE id = ?'),
     });
   });
 
@@ -138,8 +136,118 @@ export function buildCallGraph(db: Database.Database): void {
   resolveSymbolEdges(db);
 }
 
-// ─── Shared lookup maps ───────────────────────────────────────────────────────
+// ─── Containment-based resolution ─────────────────────────────────────────────
 
+interface UnresolvedRefRow {
+  id: number;
+  definition_path: string;
+  definition_line: number;
+}
+
+interface SymbolCandidate {
+  id: number;
+  start_line: number;
+  end_line: number;
+}
+
+/**
+ * Resolves refs in `tableName` by mapping `definition_path`+`definition_line`
+ * to the narrowest enclosing symbol in the indexed files.
+ */
+function resolveByContainment(
+  db: Database.Database,
+  tableName: string,
+  targetIdColumn: string,
+  defPathColumn: string,
+  defLineColumn: string,
+): void {
+  // 1. Select rows with definition info but no target yet
+  const unresolvedWithDef = db.prepare(
+    `SELECT id, ${defPathColumn} AS definition_path, ${defLineColumn} AS definition_line
+     FROM ${tableName}
+     WHERE ${targetIdColumn} IS NULL
+       AND ${defPathColumn} IS NOT NULL
+       AND ${defLineColumn} IS NOT NULL`,
+  ).all() as UnresolvedRefRow[];
+
+  if (unresolvedWithDef.length === 0) {
+    // Mark remaining null-target rows as unresolved
+    db.prepare(
+      `UPDATE ${tableName} SET resolution_method = 'unresolved'
+       WHERE ${targetIdColumn} IS NULL AND resolution_method = 'unresolved'`,
+    ).run();
+    return;
+  }
+
+  // Prepare statements
+  const findFileByPath = db.prepare('SELECT id FROM files WHERE path = ? LIMIT 1');
+  const findSymbolsContaining = db.prepare(
+    `SELECT id, start_line, end_line FROM symbols
+     WHERE file_id = ? AND start_line <= ? AND end_line >= ?
+     ORDER BY (end_line - start_line) ASC`,
+  );
+  const updateResolved = db.prepare(
+    `UPDATE ${tableName} SET ${targetIdColumn} = ?, resolution_method = ? WHERE id = ?`,
+  );
+  const updateMethod = db.prepare(
+    `UPDATE ${tableName} SET resolution_method = ? WHERE id = ?`,
+  );
+
+  for (const ref of unresolvedWithDef) {
+    // Find the file in the index
+    const fileRow = findFileByPath.get(ref.definition_path) as { id: number } | undefined;
+
+    if (!fileRow) {
+      // Definition path not in index → external (node_modules, stdlib, etc.)
+      updateMethod.run('external_definition', ref.id);
+      continue;
+    }
+
+    // Find symbols containing the definition line
+    const candidates = findSymbolsContaining.all(
+      fileRow.id,
+      ref.definition_line,
+      ref.definition_line,
+    ) as SymbolCandidate[];
+
+    if (candidates.length === 0) {
+      // No symbol contains this line (e.g. top-level code)
+      updateMethod.run('unresolved', ref.id);
+      continue;
+    }
+
+    // Candidates are already sorted by (end_line - start_line) ASC (narrowest first)
+    const narrowest = candidates[0]!;
+    const narrowestSpan = narrowest.end_line - narrowest.start_line;
+
+    // Check for ambiguity: multiple candidates with identical span width
+    const equallyNarrow = candidates.filter(
+      c => (c.end_line - c.start_line) === narrowestSpan,
+    );
+
+    if (equallyNarrow.length === 1) {
+      // Unique best match
+      updateResolved.run(narrowest.id, 'lsp_definition', ref.id);
+    } else {
+      // Ambiguous: multiple symbols with the same span
+      updateMethod.run('ambiguous_definition', ref.id);
+    }
+  }
+
+  // Mark remaining rows with no definition data as unresolved
+  db.prepare(
+    `UPDATE ${tableName} SET resolution_method = 'unresolved'
+     WHERE ${targetIdColumn} IS NULL AND resolution_method = 'unresolved'
+       AND (${defPathColumn} IS NULL OR ${defLineColumn} IS NULL)`,
+  ).run();
+}
+
+// ─── Name-based fallback resolution ───────────────────────────────────────────
+
+/**
+ * Builds a map from symbol name → array of { id, file_id } for all symbols.
+ * Used by the name-based fallback pass.
+ */
 function buildNameMap(db: Database.Database): Map<string, Array<{ id: number; file_id: number }>> {
   const nameToSymbols = new Map<string, Array<{ id: number; file_id: number }>>();
   const allSymbols = db
@@ -156,37 +264,26 @@ function buildNameMap(db: Database.Database): Map<string, Array<{ id: number; fi
   return nameToSymbols;
 }
 
-function buildPathMap(db: Database.Database): Map<string, Array<{ id: number; start_line: number }>> {
-  const pathToSymbols = new Map<string, Array<{ id: number; start_line: number }>>();
-  const allSymbols = db
-    .prepare(
-      `SELECT s.id, s.start_line, f.path
-       FROM symbols s
-       JOIN files f ON f.id = s.file_id`,
-    )
-    .all() as Array<{ id: number; start_line: number; path: string }>;
-  for (const row of allSymbols) {
-    let list = pathToSymbols.get(row.path);
-    if (!list) {
-      list = [];
-      pathToSymbols.set(row.path, list);
-    }
-    list.push({ id: row.id, start_line: row.start_line });
-  }
-  return pathToSymbols;
-}
-
-// ─── Generic resolution helpers ─────────────────────────────────────────────
-
-interface ResolutionConfig {
+interface NameFallbackConfig {
+  tableName: string;
+  targetIdColumn: string;
   selectUnresolved: Database.Statement;
-  update: Database.Statement;
+  /** Optional normalizer for the target name (e.g. normalizeTypeName). */
   normalizeTargetName?: (raw: string) => string;
 }
 
-function resolveByNameGeneric(
+/**
+ * Resolves remaining unresolved refs by name matching with two confidence tiers:
+ *
+ * - `name_same_file`: target name matches exactly one symbol in the same file
+ * - `name_unique`: target name matches exactly one symbol in the entire index
+ *
+ * Non-unique cross-file matches are left as `unresolved`.
+ */
+function resolveByNameFallback(
+  db: Database.Database,
   nameToSymbols: Map<string, Array<{ id: number; file_id: number }>>,
-  config: ResolutionConfig,
+  config: NameFallbackConfig,
 ): void {
   const unresolved = config.selectUnresolved.all() as Array<{
     id: number;
@@ -194,48 +291,40 @@ function resolveByNameGeneric(
     source_file_id: number;
   }>;
 
-  const updateMany = () => {
-    for (const ref of unresolved) {
-      let candidates = nameToSymbols.get(ref.target_name);
-      if ((!candidates || candidates.length === 0) && config.normalizeTargetName) {
-        const normalized = config.normalizeTargetName(ref.target_name);
-        if (normalized && normalized !== ref.target_name) {
-          candidates = nameToSymbols.get(normalized);
-        }
-      }
-      if (!candidates || candidates.length === 0) continue;
-
-      const sameFile = candidates.find(c => c.file_id === ref.source_file_id);
-      const best = sameFile ?? candidates[0]!;
-      config.update.run(best.id, ref.id);
-    }
-  };
-
-  updateMany();
-}
-
-function resolveByDefinitionPathGeneric(
-  pathToSymbols: Map<string, Array<{ id: number; start_line: number }>>,
-  config: ResolutionConfig,
-): void {
-  const unresolved = config.selectUnresolved.all() as Array<{
-    id: number;
-    definition_path: string;
-  }>;
-
   if (unresolved.length === 0) return;
 
+  const updateResolved = db.prepare(
+    `UPDATE ${config.tableName} SET ${config.targetIdColumn} = ?, resolution_method = ? WHERE id = ?`,
+  );
+
   for (const ref of unresolved) {
-    const candidates = pathToSymbols.get(ref.definition_path);
+    // Look up candidates by name
+    let candidates = nameToSymbols.get(ref.target_name);
+
+    // Try normalized name if direct match fails
+    if ((!candidates || candidates.length === 0) && config.normalizeTargetName) {
+      const normalized = config.normalizeTargetName(ref.target_name);
+      if (normalized && normalized !== ref.target_name) {
+        candidates = nameToSymbols.get(normalized);
+      }
+    }
+
     if (!candidates || candidates.length === 0) continue;
 
-    if (candidates.length === 1) {
-      config.update.run(candidates[0]!.id, ref.id);
+    // Tier 1: same-file unique match
+    const sameFile = candidates.filter(c => c.file_id === ref.source_file_id);
+    if (sameFile.length === 1) {
+      updateResolved.run(sameFile[0]!.id, 'name_same_file', ref.id);
       continue;
     }
 
-    const sorted = [...candidates].sort((a, b) => a.start_line - b.start_line);
-    config.update.run(sorted[0]!.id, ref.id);
+    // Tier 2: globally unique match (exactly one symbol with this name)
+    if (candidates.length === 1) {
+      updateResolved.run(candidates[0]!.id, 'name_unique', ref.id);
+      continue;
+    }
+
+    // Non-unique cross-file: leave as unresolved (option B)
   }
 }
 

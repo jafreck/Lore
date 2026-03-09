@@ -1382,7 +1382,7 @@ describe('IndexBuilder — call graph resolution during indexing', () => {
     expect(resolveSymbolEdges).toHaveBeenCalledTimes(2);
   });
 
-  it('should resolve symbol_refs.callee_id for known symbol names during build()', async () => {
+  it('should resolve symbol_refs.callee_id via containment when definition data is present during build()', async () => {
     writeFileSync(srcFile, 'export function target() { return "ok"; }\nexport function caller() { return target(); }\n');
     const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
     await builder.build();
@@ -1397,8 +1397,20 @@ describe('IndexBuilder — call graph resolution during indexing', () => {
       )
       .get(srcFile, 'main', 'caller') as { id: number } | undefined;
     expect(caller).toBeDefined();
-    db.prepare('INSERT INTO symbol_refs (caller_id, callee_name, call_line) VALUES (?, ?, ?)')
-      .run(caller!.id, 'target', 1);
+
+    // Provide definition_path + definition_line to enable containment resolution
+    const targetSym = db
+      .prepare(
+        `SELECT s.id, s.start_line
+         FROM symbols s
+         JOIN files f ON f.id = s.file_id
+         WHERE f.path = ? AND f.branch = ? AND s.name = ?`,
+      )
+      .get(srcFile, 'main', 'target') as { id: number; start_line: number } | undefined;
+    expect(targetSym).toBeDefined();
+
+    db.prepare('INSERT INTO symbol_refs (caller_id, callee_name, call_line, definition_path, definition_line) VALUES (?, ?, ?, ?, ?)')
+      .run(caller!.id, 'target', 1, srcFile, targetSym!.start_line);
 
     buildCallGraph(db);
     const row = db
