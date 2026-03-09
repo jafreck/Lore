@@ -5,7 +5,7 @@ import * as docs from '../../src/lore-server/tools/docs.js';
 import * as history from '../../src/lore-server/tools/history.js';
 import * as lookup from '../../src/lore-server/tools/lookup.js';
 import * as graph from '../../src/lore-server/tools/graph.js';
-import { EmbedderRef, type EmbeddingProvider } from '../../src/indexer/embedder.js';
+import type { EmbeddingProvider } from '../../src/indexer/embedder.js';
 import * as routes from '../../src/lore-server/tools/routes.js';
 import * as notes from '../../src/lore-server/tools/notes.js';
 import * as architecture from '../../src/lore-server/tools/architecture.js';
@@ -224,10 +224,9 @@ describe('createLoreMcpServer', () => {
   it('should route lore_docs tool calls through docs.handler', async () => {
     const db = new Database(':memory:');
     const embedder = createStubEmbedder();
-    const embedderRef = new EmbedderRef(embedder);
     const docsResult = { action: 'list', docs: [], count: 0 };
     const docsHandlerSpy = vi.spyOn(docs, 'handler').mockResolvedValue(docsResult);
-    createLoreMcpServer(db, '/tmp/test.db', embedderRef);
+    createLoreMcpServer(db, '/tmp/test.db', embedder);
 
     const docsToolCall = mockTool.mock.calls.find((call) => call[0] === 'lore_docs');
     expect(docsToolCall).toBeDefined();
@@ -349,12 +348,11 @@ describe('createLoreMcpServer', () => {
       init: vi.fn(async () => {}),
       dispose: vi.fn(async () => {}),
     };
-    const embedderRef = new EmbedderRef(embedder);
     const searchResult = { results: [], mode_used: 'structural' };
     const searchHandlerSpy = vi.spyOn(search, 'handler').mockResolvedValue(searchResult);
 
     try {
-      createLoreMcpServer(db, '/tmp/test.db', embedderRef, { searchObserver: observer });
+      createLoreMcpServer(db, '/tmp/test.db', embedder, { searchObserver: observer });
 
       const searchToolCall = mockTool.mock.calls.find((call) => call[0] === 'lore_search');
       expect(searchToolCall).toBeDefined();
@@ -522,11 +520,10 @@ describe('createLoreMcpServer', () => {
   it('should route lore_lookup tool calls through lookup.handler with embedder', async () => {
     const db = new Database(':memory:');
     const embedder = createStubEmbedder();
-    const embedderRef = new EmbedderRef(embedder);
     const lookupResult = { results: [], mode_used: 'exact' };
     const lookupHandlerSpy = vi.spyOn(lookup, 'handler').mockResolvedValue(lookupResult);
 
-    createLoreMcpServer(db, '/tmp/test.db', embedderRef);
+    createLoreMcpServer(db, '/tmp/test.db', embedder);
 
     const lookupToolCall = mockTool.mock.calls.find((call) => call[0] === 'lore_lookup');
     expect(lookupToolCall).toBeDefined();
@@ -644,11 +641,10 @@ describe('createLoreMcpServer', () => {
       init: vi.fn(async () => {}),
       dispose: vi.fn(async () => {}),
     };
-    const embedderRef = new EmbedderRef(embedder);
     const historyResult = { mode: 'semantic', results: [], count: 0 };
     const historyHandlerSpy = vi.spyOn(history, 'handler').mockResolvedValue(historyResult);
 
-    createLoreMcpServer(db, '/tmp/test.db', embedderRef);
+    createLoreMcpServer(db, '/tmp/test.db', embedder);
 
     const historyToolCall = mockTool.mock.calls.find((call) => call[0] === 'lore_history');
     expect(historyToolCall).toBeDefined();
@@ -744,11 +740,10 @@ describe('createLoreMcpServer', () => {
   it('should route lore_history tool calls through history.handler', async () => {
     const db = new Database(':memory:');
     const embedder = createStubEmbedder();
-    const embedderRef = new EmbedderRef(embedder);
     const historyResult = { commits: [], count: 0 };
     const historyHandlerSpy = vi.spyOn(history, 'handler').mockResolvedValue(historyResult);
 
-    createLoreMcpServer(db, '/tmp/test.db', embedderRef);
+    createLoreMcpServer(db, '/tmp/test.db', embedder);
 
     const callback = getToolCall('lore_history')[3] as (args: unknown) => Promise<{
       content: Array<{ type: string; text: string }>;
@@ -766,11 +761,10 @@ describe('createLoreMcpServer', () => {
   it('should route lore_lookup tool calls through lookup.handler', async () => {
     const db = new Database(':memory:');
     const embedder = createStubEmbedder();
-    const embedderRef = new EmbedderRef(embedder);
     const lookupResult = { kind: 'symbol', results: [] };
     const lookupHandlerSpy = vi.spyOn(lookup, 'handler').mockResolvedValue(lookupResult);
 
-    createLoreMcpServer(db, '/tmp/test.db', embedderRef);
+    createLoreMcpServer(db, '/tmp/test.db', embedder);
 
     const callback = getToolCall('lore_lookup')[3] as (args: unknown) => Promise<{
       content: Array<{ type: string; text: string }>;

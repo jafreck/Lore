@@ -529,7 +529,7 @@ describe('lookup toolDef', () => {
     expect(toolDef.inputSchema.properties.symbol_kind.type).toBe('string');
     expect(toolDef.inputSchema.properties.path_prefix.type).toBe('string');
     expect(toolDef.inputSchema.properties.language.type).toBe('string');
-    expect(toolDef.inputSchema.properties.limit.type).toBe('number');
-    expect(toolDef.inputSchema.properties.offset.type).toBe('number');
+    expect(toolDef.inputSchema.properties.limit.type).toBe('integer');
+    expect(toolDef.inputSchema.properties.offset.type).toBe('integer');
   });
 });

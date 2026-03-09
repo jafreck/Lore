@@ -36,13 +36,16 @@ export const toolDef = {
       query: {
         type: 'string',
         description:
-          'For kind="symbol": the symbol name to look up (case-insensitive). ' +
-          'For kind="file": the exact file path stored in the index.',
+          'Symbol name or file path to look up (includes persisted enrichment metadata when available).',
       },
       mode: {
         type: 'string',
         enum: ['exact', 'semantic', 'fused'],
         description: 'For kind="symbol", choose exact, semantic, or fused retrieval mode (default: "exact").',
+      },
+      branch: {
+        type: 'string',
+        description: 'Optional branch to filter results.',
       },
       match_mode: {
         type: 'string',
@@ -64,12 +67,14 @@ export const toolDef = {
         description: 'For kind="symbol": optional indexed file language filter.',
       },
       limit: {
-        type: 'number',
+        type: 'integer',
+        minimum: 0,
         description:
           'For kind="symbol" with empty query: maximum rows to return (default 20).',
       },
       offset: {
-        type: 'number',
+        type: 'integer',
+        minimum: 0,
         description:
           'For kind="symbol" with empty query: rows to skip before returning results (default 0).',
       },

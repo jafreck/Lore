@@ -22,6 +22,7 @@ import {
   resolveEffectiveLspSettings,
 } from './indexer/lsp/config.js';
 import { initLogger, LogLevel, LOG_LEVEL_NAMES } from './logger.js';
+import { LoreRuntime } from './runtime.js';
 
 // ─── Argument helpers ─────────────────────────────────────────────────────────
 
@@ -62,7 +63,6 @@ Options:
   --file <path>            Coverage report path (required for ingest-coverage)
   --format <name>          Coverage format: lcov or cobertura (required for ingest-coverage)
   --commit <sha>           Commit SHA to associate with coverage ingestion (default: HEAD)
-  --blocking-embedder      Block the MCP server READY signal until the embedding model is loaded
   --log-level <level>      Log level: debug, info, warn, error, silent (default: info)
   --log-file <path>        Path to the structured log file (default: lore.log next to the DB)
   --help, -h               Show this help message`,
@@ -289,135 +289,77 @@ async function main(): Promise<void> {
     const { openReadOnly } = await import('./lore-server/db.js');
     const { createLoreMcpServer } = await import('./lore-server/server.js');
     const { getLoreMeta } = await import('./indexer/db.js');
-    const {
-      SentenceTransformersProvider,
-      EmbedderRef,
-    } = await import('./indexer/embedder.js');
 
-    const blockingEmbedder = args.includes('--blocking-embedder');
     const db = openReadOnly(dbPath);
 
-    // Gather DB stats for startup log (deferred to background when non-blocking)
-    const gatherDbStats = () => {
-      const totalFiles = (db.prepare('SELECT COUNT(*) AS cnt FROM files').get() as { cnt: number }).cnt;
-      const totalSymbols = (db.prepare('SELECT COUNT(*) AS cnt FROM symbols').get() as { cnt: number }).cnt;
-      let totalEdges = 0;
-      try {
-        totalEdges = (db.prepare('SELECT COUNT(*) AS cnt FROM call_graph').get() as { cnt: number }).cnt;
-      } catch { /* table may not exist */ }
-      let totalDocs = 0;
-      try {
-        totalDocs = (db.prepare('SELECT COUNT(*) AS cnt FROM documentation').get() as { cnt: number }).cnt;
-      } catch { /* table may not exist */ }
-      let commitCount: number | undefined;
-      try {
-        commitCount = (db.prepare('SELECT COUNT(*) AS cnt FROM commits').get() as { cnt: number }).cnt;
-      } catch { /* commits table may not exist */ }
-      const dbSizeBytes = fs.existsSync(dbPath) ? fs.statSync(dbPath).size : undefined;
-      return { totalFiles, totalSymbols, totalEdges, totalDocs, commitCount, dbSizeBytes };
-    };
+    // Gather DB stats for startup log
+    const totalFiles = (db.prepare('SELECT COUNT(*) AS cnt FROM files').get() as { cnt: number }).cnt;
+    const totalSymbols = (db.prepare('SELECT COUNT(*) AS cnt FROM symbols').get() as { cnt: number }).cnt;
+    let totalEdges = 0;
+    try {
+      totalEdges = (db.prepare('SELECT COUNT(*) AS cnt FROM call_graph').get() as { cnt: number }).cnt;
+    } catch { /* table may not exist */ }
+    let totalDocs = 0;
+    try {
+      totalDocs = (db.prepare('SELECT COUNT(*) AS cnt FROM documentation').get() as { cnt: number }).cnt;
+    } catch { /* table may not exist */ }
+    let commitCount: number | undefined;
+    try {
+      commitCount = (db.prepare('SELECT COUNT(*) AS cnt FROM commits').get() as { cnt: number }).cnt;
+    } catch { /* commits table may not exist */ }
+    const dbSizeBytes = fs.existsSync(dbPath) ? fs.statSync(dbPath).size : undefined;
 
-    // ── Shared mutable embedder reference ─────────────────────────────────
-    // Tool handlers read embedderRef.current at invocation time, so the
-    // server can start accepting requests immediately while the (potentially
-    // slow) embedding model loads in the background.
-    const embedderRef = new EmbedderRef();
+    // Build optional embedder from model recorded at index time.
+    let embedder: import('./indexer/embedder.js').EmbeddingProvider | undefined;
     const modelName = getLoreMeta(db, 'embedding_model') as string | undefined;
-
-    /**
-     * Initialise the embedding provider.  On success, populates
-     * `embedderRef.current` so that subsequent tool calls gain semantic
-     * search capabilities.
-     */
-    const initEmbedder = async (): Promise<void> => {
-      if (!modelName) return;
-      const provider = new SentenceTransformersProvider(modelName);
-      try {
-        await provider.init();
-        embedderRef.current = provider;
-        log.startup('embedding model loaded', { embeddingModel: modelName, embeddingReady: true });
-      } catch {
-        log.warn('startup', 'embedding model unavailable, falling back to structural search', { embeddingModel: modelName });
-        try { await provider.dispose(); } catch { /* ignore */ }
-      }
-    };
-
-    // ── Blocking path: wait for embedder before server ────────────────────
-    if (blockingEmbedder) {
-      await initEmbedder();
-    }
-
-    // ── Start MCP server ─────────────────────────────────────────────────
-    const server = createLoreMcpServer(db, dbPath, embedderRef, { logger: log });
-
-    const transport = new StdioServerTransport();
-    await server.connect(transport);
-
-    log.startup('mcp server ready', { transport: 'stdio', embeddingReady: !!embedderRef.current });
-
-    // ── Non-blocking path: load embedder in background after READY ───────
-    if (!blockingEmbedder) {
-      // Fire-and-forget — tool calls degrade to structural-only until done.
-      initEmbedder().catch(() => { /* already logged inside initEmbedder */ });
-    }
 
     // ── Optional live-index watcher/poller (shares the same embedder) ────
     const watchMode = args.includes('--watch');
     const pollMode = args.includes('--poll');
     const rootDir = flag(args, '--root');
 
-    type StoppableRefresher = { stop(): void };
-    let refresher: StoppableRefresher | undefined;
+    const runtime = new LoreRuntime({
+      dbPath,
+      rootDir: rootDir ?? '.',
+      walkerConfig: { rootDir: rootDir ?? '.' },
+      lsp: null,
+      history: false,
+      indexDependencies: false,
+      docsAutoNotes: true,
+      embeddingModel: modelName ?? undefined,
+      refreshMode: (watchMode && rootDir) ? 'watch' : (pollMode && rootDir) ? 'poll' : 'none',
+    }, log);
 
-    if (watchMode || pollMode) {
-      if (!rootDir) {
-        log.warn('startup', '--root <dir> is required when using --watch or --poll with mcp; live indexing disabled');
-      } else {
-        const walkerConfig = { rootDir };
-        // Watcher/poller reads embedderRef.current at refresh time.
-        const refreshOptions = { embedder: embedderRef.current };
+    await runtime.start();
+    embedder = runtime.embedder;
 
-        if (watchMode) {
-          const { FileWatcher } = await import('./indexer/watcher.js');
-          const watcher = new FileWatcher(dbPath, walkerConfig, refreshOptions);
-          watcher.start();
-          refresher = watcher;
-          log.startup('watch mode started (shared embedder)', { rootDir, embeddingEnabled: !!embedderRef.current });
-        } else {
-          const { FilePoller } = await import('./indexer/poller.js');
-          const poller = new FilePoller(dbPath, walkerConfig, refreshOptions);
-          poller.start();
-          refresher = poller;
-          log.startup('poll mode started (shared embedder)', { rootDir, embeddingEnabled: !!embedderRef.current });
-        }
-      }
+    if ((watchMode || pollMode) && !rootDir) {
+      log.warn('startup', '--root <dir> is required when using --watch or --poll with mcp; live indexing disabled');
     }
+
+    log.startup('db stats', {
+      dbPath,
+      dbSizeBytes,
+      embeddingModel: modelName ?? null,
+      embeddingReady: !!embedder,
+      totalFiles,
+      totalSymbols,
+      totalDocs,
+      totalEdges,
+      commitCount,
+    });
+
+    const server = createLoreMcpServer(db, dbPath, embedder, { logger: log });
+
+    const transport = new StdioServerTransport();
+    await server.connect(transport);
+
+    log.startup('mcp server ready', { transport: 'stdio' });
 
     // Signal readiness on stderr so parent processes can detect it.
     process.stderr.write('READY\n');
 
-    // Log DB stats after READY to avoid delaying the signal.
-    const stats = gatherDbStats();
-    log.startup('db stats', {
-      dbPath,
-      dbSizeBytes: stats.dbSizeBytes,
-      embeddingModel: modelName ?? null,
-      embeddingReady: !!embedderRef.current,
-      totalFiles: stats.totalFiles,
-      totalSymbols: stats.totalSymbols,
-      totalDocs: stats.totalDocs,
-      totalEdges: stats.totalEdges,
-      commitCount: stats.commitCount,
-    });
-
-    // Clean up on shutdown: stop the refresher, then dispose the shared embedder.
-    const shutdown = () => {
-      if (refresher) refresher.stop();
-      if (embedderRef.current) embedderRef.current.dispose().catch(() => { /* best-effort */ });
-      process.exit(0);
-    };
-    process.on('SIGINT', shutdown);
-    process.on('SIGTERM', shutdown);
+    runtime.installSignalHandlers();
   } else if (subcommand === 'refresh') {
     const dbPath = flag(args, '--db');
     const rootDir = flag(args, '--root');
@@ -497,52 +439,22 @@ async function main(): Promise<void> {
 
     // Build an optional long-lived embedder for watch/poll modes.
     const embeddingModel = flag(args, '--embedding-model');
-    let embedder: import('./indexer/embedder.js').EmbeddingProvider | undefined;
-    if ((watchMode || pollMode) && embeddingModel) {
-      const { SentenceTransformersProvider } = await import('./indexer/embedder.js');
-      const provider = new SentenceTransformersProvider(embeddingModel);
-      try {
-        await provider.init();
-        embedder = provider;
-        process.stderr.write(
-          JSON.stringify({ level: 'info', source: 'cli', message: 'embedding model loaded for live updates', embeddingModel }) + '\n',
-        );
-      } catch (err) {
-        process.stderr.write(
-          JSON.stringify({ level: 'warn', source: 'cli', message: 'embedding model unavailable, continuing without embeddings', embeddingModel, error: String(err) }) + '\n',
-        );
-        try { await provider.dispose(); } catch { /* ignore */ }
-      }
-    }
 
-    if (watchMode) {
-      const { FileWatcher } = await import('./indexer/watcher.js');
-      const watcher = new FileWatcher(dbPath, walkerConfig, { ...refreshOptions, embedder });
-      watcher.start();
-      process.stderr.write(
-        JSON.stringify({ level: 'info', source: 'cli', message: 'watch mode started', rootDir, embeddingEnabled: !!embedder }) + '\n',
-      );
-      const shutdown = () => {
-        watcher.stop();
-        if (embedder) embedder.dispose().catch(() => { /* best-effort */ });
-        process.exit(0);
-      };
-      process.on('SIGINT', shutdown);
-      process.on('SIGTERM', shutdown);
-    } else if (pollMode) {
-      const { FilePoller } = await import('./indexer/poller.js');
-      const poller = new FilePoller(dbPath, walkerConfig, { ...refreshOptions, embedder });
-      poller.start();
-      process.stderr.write(
-        JSON.stringify({ level: 'info', source: 'cli', message: 'poll mode started', rootDir, embeddingEnabled: !!embedder }) + '\n',
-      );
-      const shutdown = () => {
-        poller.stop();
-        if (embedder) embedder.dispose().catch(() => { /* best-effort */ });
-        process.exit(0);
-      };
-      process.on('SIGINT', shutdown);
-      process.on('SIGTERM', shutdown);
+    if (watchMode || pollMode) {
+      const runtime = new LoreRuntime({
+        dbPath,
+        rootDir,
+        walkerConfig,
+        lsp: lspSettings,
+        history: shouldEnableHistory ? historyOption : false,
+        indexDependencies,
+        docsAutoNotes,
+        embeddingModel: embeddingModel ?? undefined,
+        refreshMode: watchMode ? 'watch' : 'poll',
+      }, log);
+
+      await runtime.start();
+      runtime.installSignalHandlers();
     } else {
       // Manual refresh: full build if DB doesn't exist yet, otherwise incremental update
       const { IndexBuilder } = await import('./indexer/index.js');

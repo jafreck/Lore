@@ -15,6 +15,7 @@
  */
 
 import type { Database } from './db.js';
+import type { ResolutionMethod } from './resolution-method.js';
 
 // ─── normalizeTypeName ────────────────────────────────────────────────────────
 
@@ -131,11 +132,6 @@ export function resolveSymbolEdges(db: Database.Database): void {
   runInTransaction();
 }
 
-/** @deprecated Use `resolveSymbolEdges` instead. */
-export function buildCallGraph(db: Database.Database): void {
-  resolveSymbolEdges(db);
-}
-
 // ─── Containment-based resolution ─────────────────────────────────────────────
 
 interface UnresolvedRefRow {
@@ -164,7 +160,6 @@ function resolveByContainment(
   defPathColumn: string,
   defLineColumn: string,
 ): void {
-  // 1. Select rows with definition info but no target yet
   const unresolvedWithDef = db.prepare(
     `SELECT id, ${defPathColumn} AS definition_path, ${defLineColumn} AS definition_line
      FROM ${tableName}
@@ -211,9 +206,8 @@ function resolveByContainment(
   for (const [defPath, refs] of refsByPath) {
     const fileId = fileIdByPath.get(defPath);
     if (fileId === undefined) {
-      // Definition path not in index → external
       for (const ref of refs) {
-        updateMethod.run('external_definition', ref.id);
+        updateMethod.run('external_definition' satisfies ResolutionMethod, ref.id);
       }
       continue;
     }
@@ -222,17 +216,15 @@ function resolveByContainment(
     const symbols = findSymbolsByFile.all(fileId) as SymbolCandidate[];
 
     for (const ref of refs) {
-      // Find symbols containing the definition line.
       const candidates = symbols.filter(
         s => s.start_line <= ref.definition_line && s.end_line >= ref.definition_line,
       );
 
       if (candidates.length === 0) {
-        updateMethod.run('unresolved', ref.id);
+        updateMethod.run('unresolved' satisfies ResolutionMethod, ref.id);
         continue;
       }
 
-      // candidates are already sorted narrowest-first from the query
       const narrowest = candidates[0]!;
       const narrowestSpan = narrowest.end_line - narrowest.start_line;
       const equallyNarrow = candidates.filter(
@@ -240,9 +232,9 @@ function resolveByContainment(
       );
 
       if (equallyNarrow.length === 1) {
-        updateResolved.run(narrowest.id, 'lsp_definition', ref.id);
+        updateResolved.run(narrowest.id, 'lsp_definition' satisfies ResolutionMethod, ref.id);
       } else {
-        updateMethod.run('ambiguous_definition', ref.id);
+        updateMethod.run('ambiguous_definition' satisfies ResolutionMethod, ref.id);
       }
     }
   }
@@ -327,13 +319,13 @@ function resolveByNameFallback(
     // Tier 1: same-file unique match
     const sameFile = candidates.filter(c => c.file_id === ref.source_file_id);
     if (sameFile.length === 1) {
-      updateResolved.run(sameFile[0]!.id, 'name_same_file', ref.id);
+      updateResolved.run(sameFile[0]!.id, 'name_same_file' satisfies ResolutionMethod, ref.id);
       continue;
     }
 
     // Tier 2: globally unique match (exactly one symbol with this name)
     if (candidates.length === 1) {
-      updateResolved.run(candidates[0]!.id, 'name_unique', ref.id);
+      updateResolved.run(candidates[0]!.id, 'name_unique' satisfies ResolutionMethod, ref.id);
       continue;
     }
 

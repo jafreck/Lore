@@ -9,6 +9,7 @@
 
 import type { Database } from '../db.js';
 import { getCoveragePercentBySymbolIds, semanticSearchSymbols } from '../db.js';
+import type { ResolutionMethod } from '../../indexer/resolution-method.js';
 
 // ─── Tool definition ──────────────────────────────────────────────────────────
 
@@ -90,7 +91,7 @@ export interface GraphEdge {
   ref_kind?: string;
   line?: number;
   character?: number | null;
-  resolution_method?: string;
+  resolution_method?: ResolutionMethod;
   definition_path?: string | null;
   definition_line?: number | null;
   definition_character?: number | null;
@@ -228,7 +229,10 @@ function getStructuralEdges(
 
     return edges;
   } else if (args.kind === 'module') {
-    // Module-level: inferred from file_imports + file_modules
+    // Module-level: inferred from file_imports + file_modules.
+    // NOTE: No writer populates `modules`/`file_modules` — this query returns
+    // empty results until a module-detection writer is implemented.
+    // The INNER JOIN on file_modules ensures graceful empty results.
     const hasFilter = args.source_id !== undefined;
     const branchClause = args.branch !== undefined ? ' AND f_src.branch = ?' : '';
     const sql = hasFilter

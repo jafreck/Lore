@@ -89,6 +89,10 @@ export const toolDef = {
         type: 'string',
         description: 'Optional documentation kind filter for semantic/fused doc-section results.',
       },
+      branch: {
+        type: 'string',
+        description: 'Optional branch to filter results. Query-time retrieval uses SQLite-only persisted data.',
+      },
     },
     required: ['query'],
   },
