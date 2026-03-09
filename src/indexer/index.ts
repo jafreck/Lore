@@ -264,9 +264,9 @@ export class IndexBuilder {
       let totalSymbols = 0;
       try { totalSymbols = (db.prepare('SELECT COUNT(*) AS cnt FROM symbols').get() as { cnt: number }).cnt; } catch { /* table may not exist */ }
       let totalEdges = 0;
-      try { totalEdges = (db.prepare('SELECT COUNT(*) AS cnt FROM call_graph').get() as { cnt: number }).cnt; } catch { /* table may not exist */ }
+      try { totalEdges = (db.prepare('SELECT COUNT(*) AS cnt FROM symbol_refs').get() as { cnt: number }).cnt; } catch { /* table may not exist */ }
       let totalDocs = 0;
-      try { totalDocs = (db.prepare('SELECT COUNT(*) AS cnt FROM documentation').get() as { cnt: number }).cnt; } catch { /* table may not exist */ }
+      try { totalDocs = (db.prepare('SELECT COUNT(*) AS cnt FROM docs').get() as { cnt: number }).cnt; } catch { /* table may not exist */ }
       let commitCount: number | undefined;
       try {
         commitCount = (db.prepare('SELECT COUNT(*) AS cnt FROM commits').get() as { cnt: number }).cnt;
@@ -521,6 +521,8 @@ export class IndexBuilder {
       db.prepare('DELETE FROM file_imports WHERE file_id = ?').run(fileId);
       db.prepare('DELETE FROM external_deps WHERE file_id = ?').run(fileId);
       db.prepare('DELETE FROM api_routes WHERE file_id = ?').run(fileId);
+      // Delete stale annotations so cascade-independent re-index doesn't accumulate duplicates.
+      db.prepare('DELETE FROM annotations WHERE file_id = ?').run(fileId);
     } else {
       const info = db
         .prepare(

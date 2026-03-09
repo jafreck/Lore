@@ -49,6 +49,7 @@ import * as metrics from './tools/metrics.js';
 import * as coverage from './tools/coverage.js';
 import * as writeback from './tools/writeback.js';
 import * as history from './tools/history.js';
+import * as annotations from './tools/annotations.js';
 
 // ─── Server options ───────────────────────────────────────────────────────────
 
@@ -150,8 +151,8 @@ export function createLoreMcpServer(
     graph.toolDef.description,
     {
       kind: z
-        .enum(['call', 'import', 'module', 'inheritance'])
-        .describe('"call", "import", "module", or "inheritance" graph edges.'),
+        .enum(['call', 'import', 'module', 'inheritance', 'type_dependency'])
+        .describe('"call", "import", "module", "inheritance", or "type_dependency" graph edges.'),
       source_id: z.number().optional().describe('Filter edges by source node id.'),
       limit: z.number().optional().describe('Max edges to return (default 200).'),
       branch: z.string().optional().describe('Optional branch to filter edges.'),
@@ -396,6 +397,20 @@ export function createLoreMcpServer(
       limit: z.number().optional().describe('Max results (default 20, max 200).'),
     },
     loggedHandler(history.toolDef.name, (args) => history.handler(db, args, embedder)),
+  );
+
+  // ── lore_annotations ───────────────────────────────────────────────────────────
+  server.tool(
+    annotations.toolDef.name,
+    annotations.toolDef.description,
+    {
+      kind: z
+        .enum(['TODO', 'FIXME', 'HACK', 'XXX', 'NOTE', 'BUG', 'OPTIMIZE'])
+        .describe('Annotation kind/tag to filter by.'),
+      path: z.string().optional().describe('Optional exact file path filter.'),
+      limit: z.number().optional().describe('Maximum number of results to return (default 20).'),
+    },
+    loggedHandler(annotations.toolDef.name, (args) => annotations.handler(db, args)),
   );
 
   return server;

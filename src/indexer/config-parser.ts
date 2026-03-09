@@ -295,5 +295,10 @@ function isPlainObject(value: unknown): value is ConfigObject {
 
 function isMetadataObject(value: unknown): value is MetadataObject {
   if (!isPlainObject(value)) return false;
-  return ['value', 'default', 'type', 'required', 'description'].some((field) => Object.prototype.hasOwnProperty.call(value, field));
+  const metaKeys = ['value', 'default', 'type', 'required', 'description'];
+  const matchCount = metaKeys.filter((field) => Object.prototype.hasOwnProperty.call(value, field)).length;
+  // Require at least two metadata-like keys to avoid false-positives on
+  // normal config objects that happen to contain common property names like
+  // "type" or "description".
+  return matchCount >= 2;
 }

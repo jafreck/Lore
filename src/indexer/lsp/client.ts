@@ -101,6 +101,10 @@ export class LspClient {
     this.started = true;
     this.exited = false;
 
+    // Drain stderr to prevent the 64 KB pipe buffer from filling up and
+    // deadlocking verbose LSP servers.
+    child.stderr.resume();
+
     this.exitPromise = new Promise((resolve) => {
       child.once('exit', (code) => {
         this.exited = true;
@@ -110,6 +114,7 @@ export class LspClient {
     });
 
     child.once('error', (error) => {
+      this.exited = true;
       this.rejectPendingRequests(new Error(`Failed to spawn LSP server: ${error.message}`));
     });
 
@@ -117,17 +122,26 @@ export class LspClient {
       this.consumeStdout(chunk);
     });
 
-    const rootUri = this.options.rootUri ?? 'file:///';
-    await this.request('initialize', {
-      processId: process.pid,
-      rootUri,
-      capabilities: {},
-      clientInfo: {
-        name: this.options.clientName ?? 'lore-indexer',
-        version: this.options.clientVersion ?? '0.0.0',
-      },
-    });
-    this.notify('initialized', {});
+    try {
+      const rootUri = this.options.rootUri ?? 'file:///';
+      await this.request('initialize', {
+        processId: process.pid,
+        rootUri,
+        capabilities: {},
+        clientInfo: {
+          name: this.options.clientName ?? 'lore-indexer',
+          version: this.options.clientVersion ?? '0.0.0',
+        },
+      });
+      this.notify('initialized', {});
+    } catch (initErr) {
+      // If initialization fails, kill the orphan process and reset state.
+      try { child.kill(); } catch { /* ignore */ }
+      this.child = null;
+      this.started = false;
+      this.exited = true;
+      throw initErr;
+    }
   }
 
   didOpen(document: TextDocumentItem): void {
@@ -173,13 +187,17 @@ export class LspClient {
 
     const child = this.child;
     if (!this.exited) {
-      await this.request('shutdown', null);
-      this.notify('exit');
-      child.stdin.end();
+      try {
+        await this.request('shutdown', null);
+        this.notify('exit');
+      } catch {
+        // Server may have already exited after shutdown — legal per LSP spec.
+      }
+      try { child.stdin.end(); } catch { /* ignore */ }
       await this.waitForExit(this.options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS);
     }
 
-    this.pending.clear();
+    this.rejectPendingRequests(new Error('LSP client closed'));
     this.buffer = Buffer.alloc(0);
     this.child = null;
     this.exitPromise = null;

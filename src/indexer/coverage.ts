@@ -85,7 +85,9 @@ function parseLcov(source: string, rootDir: string): Map<string, Map<number, num
 
 function parseCobertura(source: string, rootDir: string): Map<string, Map<number, number>> {
   const result = new Map<string, Map<number, number>>();
-  const classPattern = /<class\b[^>]*\bfilename="([^"]+)"[^>]*>([\s\S]*?)<\/class>/g;
+  // Use a greedy match up to matched </class> while handling nested <class> elements.
+  // We match <class ...>...</class> by consuming content that does not start a new <class tag.
+  const classPattern = /<class\b[^>]*\bfilename="([^"]+)"[^>]*>((?:(?!<class\b)[\s\S])*?)<\/class>/g;
 
   let classMatch: RegExpExecArray | null;
   while ((classMatch = classPattern.exec(source)) !== null) {
