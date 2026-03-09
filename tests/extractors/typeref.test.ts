@@ -204,8 +204,10 @@ describe('C# extractor type refs', () => {
       'test.cs',
     );
     if (!result) return; // skip if grammar not available
-    const extendsRels = result.relationships.filter(r => r.kind === 'extends');
-    expect(extendsRels.length).toBeGreaterThan(0);
+    // C# base-list items are tagged as 'implements' since we can't syntactically
+    // distinguish base class from interface without semantic analysis.
+    const implRels = result.relationships.filter(r => r.kind === 'implements');
+    expect(implRels.length).toBeGreaterThan(0);
   });
 
   test('should extract method parameter type refs', () => {
@@ -217,7 +219,7 @@ describe('C# extractor type refs', () => {
     );
     if (!result) return;
     const paramRefs = result.typeRefs.filter(r => r.refKind === 'parameter');
-    expect(paramRefs.length).toBeGreaterThanOrEqual(0);
+    expect(paramRefs.length).toBeGreaterThan(0);
   });
 });
 
@@ -270,7 +272,7 @@ describe('Java extractor type refs', () => {
     );
     if (!result) return;
     const genericRefs = result.typeRefs.filter(r => r.refKind === 'generic_arg');
-    expect(genericRefs.length).toBeGreaterThanOrEqual(0);
+    expect(genericRefs.length).toBeGreaterThan(0);
   });
 
   test('should extract field type ref from class', () => {
@@ -340,7 +342,7 @@ describe('C# extractor type refs (expanded)', () => {
     );
     if (!result) return;
     const implRels = result.relationships.filter(r => r.kind === 'implements');
-    expect(implRels.length).toBeGreaterThanOrEqual(0);
+    expect(implRels.length).toBeGreaterThan(0);
   });
 
   test('should extract method return type ref', () => {
@@ -364,7 +366,7 @@ describe('C# extractor type refs (expanded)', () => {
     );
     if (!result) return;
     const fieldRefs = result.typeRefs.filter(r => r.refKind === 'field');
-    expect(fieldRefs.length).toBeGreaterThanOrEqual(0);
+    expect(fieldRefs.length).toBeGreaterThan(0);
   });
 
   test('should extract variable type ref', () => {
@@ -376,7 +378,7 @@ describe('C# extractor type refs (expanded)', () => {
     );
     if (!result) return;
     const varRefs = result.typeRefs.filter(r => r.refKind === 'variable');
-    expect(varRefs.length).toBeGreaterThanOrEqual(0);
+    expect(varRefs.length).toBeGreaterThan(0);
   });
 
   test('should emit bound type ref for extends', () => {

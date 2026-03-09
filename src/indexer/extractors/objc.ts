@@ -259,7 +259,7 @@ function extractObjcClassInheritance(
   if (superclass) {
     const superName = superclass.namedChildren.find(c => c.type === 'identifier')?.text ?? superclass.text;
     if (superName) {
-      relationships.push({ kind: 'extends', fromSymbol: name, toSymbol: superName, line: superclass.startPosition.row });
+      relationships.push({ kind: 'extends', fromSymbol: name, toSymbol: superName, line: superclass.startPosition.row, character: superclass.startPosition.column });
       typeRefs.push({ enclosingSymbol: name, typeRaw: superName, refKind: 'bound', line: superclass.startPosition.row, character: superclass.startPosition.column });
     }
   }
@@ -268,7 +268,7 @@ function extractObjcClassInheritance(
   if (protocols) {
     for (const child of protocols.namedChildren) {
       if (child.type === 'identifier') {
-        relationships.push({ kind: 'implements', fromSymbol: name, toSymbol: child.text, line: child.startPosition.row });
+        relationships.push({ kind: 'implements', fromSymbol: name, toSymbol: child.text, line: child.startPosition.row, character: child.startPosition.column });
         typeRefs.push({ enclosingSymbol: name, typeRaw: child.text, refKind: 'bound', line: child.startPosition.row, character: child.startPosition.column });
       }
     }
@@ -287,7 +287,7 @@ function extractObjcProtocolInheritance(
   if (protocols) {
     for (const child of protocols.namedChildren) {
       if (child.type === 'identifier') {
-        relationships.push({ kind: 'extends', fromSymbol: name, toSymbol: child.text, line: child.startPosition.row });
+        relationships.push({ kind: 'extends', fromSymbol: name, toSymbol: child.text, line: child.startPosition.row, character: child.startPosition.column });
         typeRefs.push({ enclosingSymbol: name, typeRaw: child.text, refKind: 'bound', line: child.startPosition.row, character: child.startPosition.column });
       }
     }

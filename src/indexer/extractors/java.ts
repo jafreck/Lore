@@ -52,6 +52,10 @@ export class JavaExtractor implements SymbolExtractor {
           result.symbols.push(extractMethod(node));
           extractJavaMethodTypeRefs(node, result.typeRefs);
           break;
+        case 'constructor_declaration':
+          result.symbols.push(extractMethod(node));
+          extractJavaMethodTypeRefs(node, result.typeRefs);
+          break;
         case 'import_declaration':
           result.imports.push(extractImport(node));
           break;
@@ -159,7 +163,7 @@ function extractJavaClassRelationships(
     // The superclass node wraps the type — look at its first named child
     const typeNode = superclass.namedChildren[0];
     if (typeNode) {
-      relationships.push({ kind: 'extends', fromSymbol: className, toSymbol: typeNode.text, line: typeNode.startPosition.row });
+      relationships.push({ kind: 'extends', fromSymbol: className, toSymbol: typeNode.text, line: typeNode.startPosition.row, character: typeNode.startPosition.column });
       typeRefs.push({ enclosingSymbol: className, typeRaw: typeNode.text, refKind: 'bound', line: typeNode.startPosition.row, character: typeNode.startPosition.column });
     }
   }
@@ -170,11 +174,11 @@ function extractJavaClassRelationships(
     for (const child of interfaces.namedChildren) {
       if (child.type === 'type_list') {
         for (const iface of child.namedChildren) {
-          relationships.push({ kind: 'implements', fromSymbol: className, toSymbol: iface.text, line: iface.startPosition.row });
+          relationships.push({ kind: 'implements', fromSymbol: className, toSymbol: iface.text, line: iface.startPosition.row, character: iface.startPosition.column });
           typeRefs.push({ enclosingSymbol: className, typeRaw: iface.text, refKind: 'bound', line: iface.startPosition.row, character: iface.startPosition.column });
         }
       } else {
-        relationships.push({ kind: 'implements', fromSymbol: className, toSymbol: child.text, line: child.startPosition.row });
+        relationships.push({ kind: 'implements', fromSymbol: className, toSymbol: child.text, line: child.startPosition.row, character: child.startPosition.column });
         typeRefs.push({ enclosingSymbol: className, typeRaw: child.text, refKind: 'bound', line: child.startPosition.row, character: child.startPosition.column });
       }
     }
@@ -193,7 +197,7 @@ function extractJavaInterfaceRelationships(
   for (const child of extendsNode.namedChildren) {
     if (child.type === 'type_list') {
       for (const iface of child.namedChildren) {
-        relationships.push({ kind: 'extends', fromSymbol: name, toSymbol: iface.text, line: iface.startPosition.row });
+        relationships.push({ kind: 'extends', fromSymbol: name, toSymbol: iface.text, line: iface.startPosition.row, character: iface.startPosition.column });
         typeRefs.push({ enclosingSymbol: name, typeRaw: iface.text, refKind: 'bound', line: iface.startPosition.row, character: iface.startPosition.column });
       }
     }

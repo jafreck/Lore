@@ -40,8 +40,8 @@ export function normalizeTypeName(raw: string): string {
   s = s.replace(/^&'[a-zA-Z_]\w*\s+(mut\s+)?/, '');
   s = s.replace(/^&mut\s+/, '');
   s = s.replace(/^&/, '');
-  // 4. Strip pointer/reference suffixes
-  s = s.replace(/[\*&\[\]]+$/, '');
+  // 4. Strip pointer/reference suffixes and nullable `?` (Kotlin, C#, Swift)
+  s = s.replace(/[\*&\[\]?]+$/, '');
   // 4b. Function pointer syntax — if there's a remaining (*) pattern, it's not a named type
   if (/\(\s*\*\s*\)/.test(s)) return '';
   // 5. Truncate at first `<`
@@ -71,62 +71,66 @@ export function resolveSymbolEdges(db: Database.Database): void {
   const nameToSymbols = buildNameMap(db);
   const pathToSymbols = buildPathMap(db);
 
-  // ── symbol_refs: name-based, then definition-path ──
-  resolveByNameGeneric(nameToSymbols, {
-    selectUnresolved: db.prepare(
-      `SELECT sr.id, sr.callee_name AS target_name, s.file_id AS source_file_id
-       FROM symbol_refs sr JOIN symbols s ON s.id = sr.caller_id
-       WHERE sr.callee_id IS NULL`,
-    ),
-    update: db.prepare('UPDATE symbol_refs SET callee_id = ? WHERE id = ?'),
-  });
-  resolveByDefinitionPathGeneric(pathToSymbols, {
-    selectUnresolved: db.prepare(
-      `SELECT id, definition_path FROM symbol_refs WHERE callee_id IS NULL AND definition_path IS NOT NULL`,
-    ),
-    update: db.prepare('UPDATE symbol_refs SET callee_id = ? WHERE id = ?'),
+  const runInTransaction = db.transaction(() => {
+    // ── symbol_refs: name-based, then definition-path ──
+    resolveByNameGeneric(nameToSymbols, {
+      selectUnresolved: db.prepare(
+        `SELECT sr.id, sr.callee_name AS target_name, s.file_id AS source_file_id
+         FROM symbol_refs sr JOIN symbols s ON s.id = sr.caller_id
+         WHERE sr.callee_id IS NULL`,
+      ),
+      update: db.prepare('UPDATE symbol_refs SET callee_id = ? WHERE id = ?'),
+    });
+    resolveByDefinitionPathGeneric(pathToSymbols, {
+      selectUnresolved: db.prepare(
+        `SELECT id, definition_path FROM symbol_refs WHERE callee_id IS NULL AND definition_path IS NOT NULL`,
+      ),
+      update: db.prepare('UPDATE symbol_refs SET callee_id = ? WHERE id = ?'),
+    });
+
+    // ── type_refs: qualified name first, then bare fallback ──
+    resolveByNameGeneric(nameToSymbols, {
+      selectUnresolved: db.prepare(
+        `SELECT tr.id, tr.type_name AS target_name, COALESCE(s.file_id, tr.file_id) AS source_file_id
+         FROM type_refs tr LEFT JOIN symbols s ON s.id = tr.symbol_id
+         WHERE tr.type_id IS NULL`,
+      ),
+      update: db.prepare('UPDATE type_refs SET type_id = ? WHERE id = ?'),
+    });
+    resolveByNameGeneric(nameToSymbols, {
+      selectUnresolved: db.prepare(
+        `SELECT tr.id, tr.type_name_bare AS target_name, COALESCE(s.file_id, tr.file_id) AS source_file_id
+         FROM type_refs tr LEFT JOIN symbols s ON s.id = tr.symbol_id
+         WHERE tr.type_id IS NULL AND tr.type_name_bare != tr.type_name`,
+      ),
+      update: db.prepare('UPDATE type_refs SET type_id = ? WHERE id = ?'),
+    });
+    resolveByDefinitionPathGeneric(pathToSymbols, {
+      selectUnresolved: db.prepare(
+        `SELECT id, definition_path FROM type_refs WHERE type_id IS NULL AND definition_path IS NOT NULL`,
+      ),
+      update: db.prepare('UPDATE type_refs SET type_id = ? WHERE id = ?'),
+    });
+
+    // ── symbol_relationships ──
+    resolveByNameGeneric(nameToSymbols, {
+      selectUnresolved: db.prepare(
+        `SELECT sr.id, sr.target_symbol_name AS target_name, COALESCE(s.file_id, sr.file_id) AS source_file_id
+         FROM symbol_relationships sr LEFT JOIN symbols s ON s.id = sr.source_symbol_id
+         WHERE sr.target_symbol_id IS NULL`,
+      ),
+      update: db.prepare('UPDATE symbol_relationships SET target_symbol_id = ? WHERE id = ?'),
+      normalizeTargetName: normalizeTypeName,
+    });
+    resolveByDefinitionPathGeneric(pathToSymbols, {
+      selectUnresolved: db.prepare(
+        `SELECT id, definition_path FROM symbol_relationships WHERE target_symbol_id IS NULL AND definition_path IS NOT NULL`,
+      ),
+      update: db.prepare('UPDATE symbol_relationships SET target_symbol_id = ? WHERE id = ?'),
+    });
   });
 
-  // ── type_refs: qualified name first, then bare fallback ──
-  resolveByNameGeneric(nameToSymbols, {
-    selectUnresolved: db.prepare(
-      `SELECT tr.id, tr.type_name AS target_name, COALESCE(s.file_id, tr.file_id) AS source_file_id
-       FROM type_refs tr LEFT JOIN symbols s ON s.id = tr.symbol_id
-       WHERE tr.type_id IS NULL`,
-    ),
-    update: db.prepare('UPDATE type_refs SET type_id = ? WHERE id = ?'),
-  });
-  resolveByNameGeneric(nameToSymbols, {
-    selectUnresolved: db.prepare(
-      `SELECT tr.id, tr.type_name_bare AS target_name, COALESCE(s.file_id, tr.file_id) AS source_file_id
-       FROM type_refs tr LEFT JOIN symbols s ON s.id = tr.symbol_id
-       WHERE tr.type_id IS NULL AND tr.type_name_bare != tr.type_name`,
-    ),
-    update: db.prepare('UPDATE type_refs SET type_id = ? WHERE id = ?'),
-  });
-  resolveByDefinitionPathGeneric(pathToSymbols, {
-    selectUnresolved: db.prepare(
-      `SELECT id, definition_path FROM type_refs WHERE type_id IS NULL AND definition_path IS NOT NULL`,
-    ),
-    update: db.prepare('UPDATE type_refs SET type_id = ? WHERE id = ?'),
-  });
-
-  // ── symbol_relationships ──
-  resolveByNameGeneric(nameToSymbols, {
-    selectUnresolved: db.prepare(
-      `SELECT sr.id, sr.target_symbol_name AS target_name, COALESCE(s.file_id, sr.file_id) AS source_file_id
-       FROM symbol_relationships sr LEFT JOIN symbols s ON s.id = sr.source_symbol_id
-       WHERE sr.target_symbol_id IS NULL`,
-    ),
-    update: db.prepare('UPDATE symbol_relationships SET target_symbol_id = ? WHERE id = ?'),
-    normalizeTargetName: normalizeTypeName,
-  });
-  resolveByDefinitionPathGeneric(pathToSymbols, {
-    selectUnresolved: db.prepare(
-      `SELECT id, definition_path FROM symbol_relationships WHERE target_symbol_id IS NULL AND definition_path IS NOT NULL`,
-    ),
-    update: db.prepare('UPDATE symbol_relationships SET target_symbol_id = ? WHERE id = ?'),
-  });
+  runInTransaction();
 }
 
 /** @deprecated Use `resolveSymbolEdges` instead. */

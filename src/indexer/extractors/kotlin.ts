@@ -147,7 +147,7 @@ function extractKotlinInheritance(
     if (typeNode) {
       const baseName = typeNode.text;
       const kind = first ? 'extends' : 'implements';
-      relationships.push({ kind, fromSymbol: name, toSymbol: baseName, line: typeNode.startPosition.row });
+      relationships.push({ kind, fromSymbol: name, toSymbol: baseName, line: typeNode.startPosition.row, character: typeNode.startPosition.column });
       typeRefs.push({ enclosingSymbol: name, typeRaw: baseName, refKind: 'bound', line: typeNode.startPosition.row, character: typeNode.startPosition.column });
       first = false;
     }
@@ -192,8 +192,10 @@ function extractKotlinFunctionTypeRefs(funcNode: Parser.SyntaxNode, refs: RawTyp
       }
     }
   }
-  // Return type
-  const returnType = funcNode.namedChildren.find(c => c.type === 'user_type' && c !== funcNode.childForFieldName('name'));
+  // Return type — prefer childForFieldName('return_type') for robustness;
+  // fall back to first user_type not equal to the name for older grammar versions
+  const returnType = funcNode.childForFieldName('return_type')
+    ?? funcNode.namedChildren.find(c => c.type === 'user_type' && c !== funcNode.childForFieldName('name'));
   if (returnType) {
     const typeName = extractKotlinTypeName(returnType);
     if (typeName) {

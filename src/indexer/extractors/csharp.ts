@@ -56,6 +56,10 @@ export class CSharpExtractor implements SymbolExtractor {
           result.symbols.push(extractMethod(node));
           extractCsMethodTypeRefs(node, result.typeRefs);
           break;
+        case 'constructor_declaration':
+          result.symbols.push(extractMethod(node));
+          extractCsMethodTypeRefs(node, result.typeRefs);
+          break;
         case 'using_directive':
           result.imports.push(extractUsingDirective(node));
           break;
@@ -169,16 +173,17 @@ function extractCsBaseListRelationships(
   if (!name) return;
   const baseList = node.namedChildren.find(c => c.type === 'base_list');
   if (!baseList) return;
-  let first = true;
   for (const child of baseList.namedChildren) {
     if (child.type === 'identifier' || child.type === 'generic_name' || child.type === 'qualified_name') {
       const baseName = child.text;
-      // In C#, the first item in a class base list is the superclass (extends),
-      // subsequent items are interfaces (implements). For interfaces, all are extends.
-      const kind = (declKind === 'interface' || !first) ? 'implements' : 'extends';
-      relationships.push({ kind, fromSymbol: name, toSymbol: baseName, line: child.startPosition.row });
+      // In C#, there is no syntactic distinction between a base class and an
+      // implemented interface in the base list.  For interfaces and structs all
+      // entries are always `implements`.  For classes we conservatively default
+      // to `implements` since we can't distinguish class-from-interface without
+      // semantic analysis and interface-only base lists are very common.
+      const kind = declKind === 'interface' ? 'extends' : 'implements';
+      relationships.push({ kind, fromSymbol: name, toSymbol: baseName, line: child.startPosition.row, character: child.startPosition.column });
       typeRefs.push({ enclosingSymbol: name, typeRaw: baseName, refKind: 'bound', line: child.startPosition.row, character: child.startPosition.column });
-      first = false;
     }
   }
 }

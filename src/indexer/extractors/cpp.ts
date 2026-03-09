@@ -109,6 +109,18 @@ export class CppExtractor implements SymbolExtractor {
           extractCppNamedCastTypeRef(node, result.typeRefs);
           break;
         }
+        case 'sizeof_expression': {
+          extractCppSizeofTypeRef(node, result.typeRefs, 'sizeof');
+          break;
+        }
+        case 'alignof_expression': {
+          extractCppSizeofTypeRef(node, result.typeRefs, 'sizeof');
+          break;
+        }
+        case 'sizeof_pack_expression': {
+          extractCppSizeofTypeRef(node, result.typeRefs, 'sizeof');
+          break;
+        }
       }
     }
 
@@ -340,6 +352,7 @@ function extractBaseClassRelationships(
             fromSymbol: className,
             toSymbol: baseName,
             line: base.startPosition.row,
+            character: base.startPosition.column,
           });
           typeRefs.push({
             enclosingSymbol: className,
@@ -466,4 +479,16 @@ function extractCppNamedCastTypeRef(node: Parser.SyntaxNode, refs: RawTypeRef[])
   if (!typeNode) return;
   const enclosing = findEnclosingSymbolName(node, CPP_SYMBOL_NODE_TYPES);
   emitCppTypeRef(refs, enclosing, typeNode, 'cast');
+}
+
+function extractCppSizeofTypeRef(node: Parser.SyntaxNode, refs: RawTypeRef[], refKind: TypeRefKind): void {
+  // sizeof(Type), alignof(Type), sizeof...(Pack)
+  const valueNode = node.childForFieldName('value') ?? node.childForFieldName('type');
+  if (valueNode) {
+    const typeName = extractCppTypeName(valueNode);
+    if (typeName) {
+      const enclosing = findEnclosingSymbolName(node, CPP_SYMBOL_NODE_TYPES);
+      emitCppTypeRef(refs, enclosing, valueNode, refKind);
+    }
+  }
 }

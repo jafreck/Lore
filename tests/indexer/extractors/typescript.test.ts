@@ -24,7 +24,7 @@ describe('TypeScriptExtractor', () => {
     `);
 
     expect(result.relationships).toEqual([
-      { kind: 'extends', fromSymbol: 'Child', toSymbol: 'Base', line: 2 },
+      { kind: 'extends', fromSymbol: 'Child', toSymbol: 'Base', line: 2, character: 26 },
     ]);
   });
 

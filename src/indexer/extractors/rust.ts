@@ -176,6 +176,7 @@ function extractImplRelationships(
     fromSymbol: `${traitName} for ${typeName}`,
     toSymbol: traitName,
     line: traitNode.startPosition.row,
+    character: traitNode.startPosition.column,
   });
   typeRefs.push({
     enclosingSymbol: `${traitName} for ${typeName}`,

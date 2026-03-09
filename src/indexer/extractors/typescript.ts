@@ -78,6 +78,7 @@ export class TypeScriptExtractor implements SymbolExtractor {
           result.relationships.push(...extractClassInheritance(node));
           extractTsClassInheritanceTypeRefs(node, result.typeRefs);
           extractTsClassFieldTypeRefs(node, result.typeRefs);
+          extractTsClassMethodTypeRefs(node, result.typeRefs);
           break;
         case 'interface_declaration':
           result.symbols.push(extractNamedDecl(node, 'interface', source, declarationMode));
@@ -133,6 +134,7 @@ function extractClassInheritance(node: Parser.SyntaxNode): RawRelationship[] {
       fromSymbol: nameNode.text,
       toSymbol: target.text,
       line: extendsClause.startPosition.row,
+      character: target.startPosition.column,
     },
   ];
 }
@@ -351,6 +353,16 @@ function extractTsClassFieldTypeRefs(classNode: Parser.SyntaxNode, refs: RawType
         const actualType = typeAnnotation.type === 'type_annotation' ? typeAnnotation.namedChildren[0] : typeAnnotation;
         if (actualType) emitTsTypeRef(refs, className, actualType, 'field');
       }
+    }
+  }
+}
+
+function extractTsClassMethodTypeRefs(classNode: Parser.SyntaxNode, refs: RawTypeRef[]): void {
+  const body = classNode.childForFieldName('body');
+  if (!body) return;
+  for (const child of body.namedChildren) {
+    if (child.type === 'method_definition') {
+      extractTsFunctionTypeRefs(child, refs);
     }
   }
 }

@@ -170,7 +170,7 @@ function extractSwiftInheritance(
     if (child.type === 'type_identifier' || child.type === 'user_type') {
       const baseName = child.text;
       const kind = (isClass && first) ? 'extends' : 'implements';
-      relationships.push({ kind, fromSymbol: name, toSymbol: baseName, line: child.startPosition.row });
+      relationships.push({ kind, fromSymbol: name, toSymbol: baseName, line: child.startPosition.row, character: child.startPosition.column });
       typeRefs.push({ enclosingSymbol: name, typeRaw: baseName, refKind: 'bound', line: child.startPosition.row, character: child.startPosition.column });
       first = false;
     }

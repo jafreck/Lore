@@ -228,7 +228,7 @@ function extractPhpClassRelationships(
   if (baseClause) {
     for (const child of baseClause.namedChildren) {
       if (child.type === 'name' || child.type === 'qualified_name') {
-        relationships.push({ kind: 'extends', fromSymbol: name, toSymbol: child.text, line: child.startPosition.row });
+        relationships.push({ kind: 'extends', fromSymbol: name, toSymbol: child.text, line: child.startPosition.row, character: child.startPosition.column });
         typeRefs.push({ enclosingSymbol: name, typeRaw: child.text, refKind: 'bound', line: child.startPosition.row, character: child.startPosition.column });
       }
     }
@@ -238,7 +238,7 @@ function extractPhpClassRelationships(
   if (classInterfaceClause) {
     for (const child of classInterfaceClause.namedChildren) {
       if (child.type === 'name' || child.type === 'qualified_name') {
-        relationships.push({ kind: 'implements', fromSymbol: name, toSymbol: child.text, line: child.startPosition.row });
+        relationships.push({ kind: 'implements', fromSymbol: name, toSymbol: child.text, line: child.startPosition.row, character: child.startPosition.column });
         typeRefs.push({ enclosingSymbol: name, typeRaw: child.text, refKind: 'bound', line: child.startPosition.row, character: child.startPosition.column });
       }
     }
@@ -262,12 +262,21 @@ function extractPhpClassFieldTypeRefs(classNode: Parser.SyntaxNode, refs: RawTyp
   }
 }
 
+/** PHP cast types that are always primitives and will never resolve to a user-defined symbol. */
+const PHP_PRIMITIVE_CAST_TYPES = new Set([
+  'int', 'integer', 'float', 'double', 'real',
+  'string', 'binary', 'bool', 'boolean',
+  'array', 'object', 'unset',
+]);
+
 function extractPhpCastTypeRef(node: Parser.SyntaxNode, refs: RawTypeRef[]): void {
   // (Type)$expr — the cast type is the first child
   const typeNode = node.childForFieldName('type') ?? node.namedChildren[0];
   if (!typeNode) return;
   const typeName = typeNode.text;
   if (!typeName) return;
+  // PHP casts are always primitives (int, string, etc.) — skip them since they never resolve
+  if (PHP_PRIMITIVE_CAST_TYPES.has(typeName.toLowerCase())) return;
   const enclosing = findEnclosingSymbolName(node, PHP_SYMBOL_NODE_TYPES);
   refs.push({ enclosingSymbol: enclosing, typeRaw: typeName, refKind: 'cast', line: typeNode.startPosition.row, character: typeNode.startPosition.column });
 }

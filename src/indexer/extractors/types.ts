@@ -95,6 +95,8 @@ export interface RawRelationship {
   toSymbol: string;
   /** 0-indexed line where the relationship is declared. */
   line: number;
+  /** 0-indexed character of the target type identifier (best-effort, optional). */
+  character?: number;
 }
 
 /**
