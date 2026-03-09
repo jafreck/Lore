@@ -1,5 +1,74 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`Bash extractor > callRefs 1`] = `
+[
+  {
+    "calleeRaw": "greet",
+    "callerSymbol": "main",
+    "character": 4,
+    "line": 30,
+  },
+  {
+    "calleeRaw": "add",
+    "callerSymbol": "main",
+    "character": 4,
+    "line": 31,
+  },
+  {
+    "calleeRaw": "main",
+    "callerSymbol": "",
+    "character": 0,
+    "line": 34,
+  },
+]
+`;
+
+exports[`Bash extractor > imports 1`] = `
+[
+  {
+    "importedNames": [],
+    "source": "./utils.sh",
+  },
+  {
+    "importedNames": [],
+    "source": "./config.sh",
+  },
+]
+`;
+
+exports[`Bash extractor > symbols 1`] = `
+[
+  {
+    "endLine": 8,
+    "kind": "function",
+    "name": "greet",
+    "signature": "greet()",
+    "startLine": 5,
+  },
+  {
+    "endLine": 14,
+    "kind": "function",
+    "name": "add",
+    "signature": "add()",
+    "startLine": 10,
+  },
+  {
+    "endLine": 27,
+    "kind": "function",
+    "name": "clamp",
+    "signature": "clamp()",
+    "startLine": 16,
+  },
+  {
+    "endLine": 32,
+    "kind": "function",
+    "name": "main",
+    "signature": "main()",
+    "startLine": 29,
+  },
+]
+`;
+
 exports[`Kotlin extractor > callRefs 1`] = `
 [
   {
@@ -268,6 +337,147 @@ exports[`Objective-C extractor > symbols 1`] = `
     "name": "Circle",
     "signature": "@implementation Circle",
     "startLine": 13,
+  },
+]
+`;
+
+exports[`PHP extractor > callRefs 1`] = `
+[
+  {
+    "calleeRaw": "greet",
+    "callerSymbol": "main",
+    "character": 11,
+    "line": 37,
+  },
+  {
+    "calleeRaw": "add",
+    "callerSymbol": "main",
+    "character": 11,
+    "line": 38,
+  },
+  {
+    "calleeRaw": "new Circle",
+    "callerSymbol": "main",
+    "character": 9,
+    "line": 39,
+  },
+  {
+    "calleeRaw": "area",
+    "callerSymbol": "main",
+    "character": 9,
+    "line": 40,
+  },
+]
+`;
+
+exports[`PHP extractor > imports 1`] = `
+[
+  {
+    "importedNames": [
+      "User",
+    ],
+    "source": "App\\Models\\User",
+  },
+  {
+    "importedNames": [
+      "Mailer",
+    ],
+    "source": "Mailer",
+  },
+  {
+    "importedNames": [
+      "Logger",
+    ],
+    "source": "Logger",
+  },
+]
+`;
+
+exports[`PHP extractor > symbols 1`] = `
+[
+  {
+    "endLine": 7,
+    "kind": "function",
+    "name": "greet",
+    "signature": "function greet(string $name): string",
+    "startLine": 5,
+  },
+  {
+    "endLine": 11,
+    "kind": "function",
+    "name": "add",
+    "signature": "function add(int $a, int $b): int",
+    "startLine": 9,
+  },
+  {
+    "endLine": 16,
+    "kind": "interface",
+    "name": "Shape",
+    "signature": "interface Shape",
+    "startLine": 13,
+  },
+  {
+    "endLine": 14,
+    "kind": "function",
+    "name": "area",
+    "signature": "public function area(): float;",
+    "startLine": 14,
+  },
+  {
+    "endLine": 15,
+    "kind": "function",
+    "name": "perimeter",
+    "signature": "public function perimeter(): float;",
+    "startLine": 15,
+  },
+  {
+    "endLine": 28,
+    "kind": "class",
+    "name": "Circle",
+    "signature": "class Circle implements Shape",
+    "startLine": 18,
+  },
+  {
+    "endLine": 19,
+    "kind": "function",
+    "name": "__construct",
+    "signature": "public function __construct(private float $radius)",
+    "startLine": 19,
+  },
+  {
+    "endLine": 23,
+    "kind": "function",
+    "name": "area",
+    "signature": "public function area(): float",
+    "startLine": 21,
+  },
+  {
+    "endLine": 27,
+    "kind": "function",
+    "name": "perimeter",
+    "signature": "public function perimeter(): float",
+    "startLine": 25,
+  },
+  {
+    "endLine": 34,
+    "kind": "trait",
+    "name": "Greetable",
+    "signature": "trait Greetable",
+    "startLine": 30,
+  },
+  {
+    "endLine": 33,
+    "kind": "function",
+    "name": "greetUser",
+    "signature": "public function greetUser(): string",
+    "startLine": 31,
+  },
+  {
+    "endLine": 41,
+    "kind": "function",
+    "name": "main",
+    "signature": "function main(): void",
+    "startLine": 36,
   },
 ]
 `;
