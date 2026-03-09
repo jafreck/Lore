@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { IndexPipeline, STAGE_ORDER } from '../../src/indexer/pipeline.js';
+import { IndexPipeline } from '../../src/indexer/pipeline.js';
 import type { PipelineContext, PipelineStage } from '../../src/indexer/pipeline.js';
 import { initLogger, LogLevel } from '../../src/logger.js';
 
@@ -70,20 +70,6 @@ describe('IndexPipeline', () => {
       { name: 'bar', execute: async () => {} },
     ]);
     expect(pipeline.stageNames).toEqual(['foo', 'bar']);
-  });
-
-  it('should define the correct stage order constant', () => {
-    expect(STAGE_ORDER).toEqual([
-      'source-index',
-      'docs-index',
-      'import-resolution',
-      'dependency-api',
-      'lsp-enrichment',
-      'symbol-resolution',
-      'test-map',
-      'history',
-      'embedding',
-    ]);
   });
 
   it('should pass mode to stages', async () => {

@@ -25,6 +25,7 @@
 
 import * as fs from 'node:fs';
 import type { PipelineContext, PipelineStage } from '../pipeline.js';
+import type { Database } from '../db.js';
 import { LspEnrichmentCoordinator } from '../lsp/enrichment.js';
 import { buildStructuralEmbeddingText } from '../embedder.js';
 
@@ -49,7 +50,7 @@ export class LspEnrichmentStage implements PipelineStage {
     if (context.indexDependencies) languages.add('typescript');
     await this.coordinator.start(languages);
 
-    await enrichProjectRefs(context, this.coordinator);
+    await enrichProjectRefs(context.db, context.branch, context.files, this.coordinator);
   }
 
   async dispose(): Promise<void> {
@@ -66,13 +67,16 @@ export class LspEnrichmentStage implements PipelineStage {
  * Enrich symbols, call refs, type refs, and relationships for every file in
  * the context with LSP-derived metadata.
  *
- * This is a direct extraction of `IndexBuilder.enrichProjectRefs()`.
+ * Extracted from `IndexBuilder.enrichProjectRefs()`. Used both by
+ * `LspEnrichmentStage` and directly by `IndexBuilder` (until the full
+ * pipeline migration is complete).
  */
-async function enrichProjectRefs(
-  context: PipelineContext,
+export async function enrichProjectRefs(
+  db: Database.Database,
+  branch: string,
+  files: Array<{ path: string; language: string }>,
   coordinator: LspEnrichmentCoordinator,
 ): Promise<void> {
-  const { db, branch, files, log } = context;
 
   const selectSymbols = db.prepare(
     `SELECT s.id, s.name, s.signature, s.start_line

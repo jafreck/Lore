@@ -25,19 +25,10 @@ export { RESOLUTION_METHODS, RESOLVED_METHODS, UNRESOLVED_METHODS } from './inde
 export type { ResolutionMethod } from './indexer/resolution-method.js';
 
 // ── Pipeline ──────────────────────────────────────────────────────────────────
-export { IndexPipeline, STAGE_ORDER } from './indexer/pipeline.js';
-export type { PipelineContext, PipelineStage, StageName } from './indexer/pipeline.js';
-export {
-  SourceIndexStage,
-  DocsIndexStage,
-  ImportResolutionStage,
-  DependencyApiStage,
-  LspEnrichmentStage,
-  ResolutionStage,
-  TestMapStage,
-  HistoryStage,
-  EmbeddingStage,
-} from './indexer/stages/index.js';
+export { IndexPipeline } from './indexer/pipeline.js';
+export type { PipelineContext, PipelineStage } from './indexer/pipeline.js';
+export { LspEnrichmentStage, ResolutionStage } from './indexer/stages/index.js';
+export { enrichProjectRefs } from './indexer/stages/lsp-enrichment.js';
 
 // ── Runtime ───────────────────────────────────────────────────────────────────
 export { LoreRuntime } from './runtime.js';
@@ -53,8 +44,8 @@ export type { PollerOptions } from './indexer/poller.js';
 export { createLoreMcpServer, createLoreMcpServerAsync } from './lore-server/server.js';
 export type { LoreServerOptions } from './lore-server/server.js';
 export type { SearchObservation, SearchObserver } from './lore-server/tools/search.js';
-export { registerTools, inputSchemaToZodShape, buildToolModules } from './lore-server/tool-registry.js';
-export type { ToolModule, ToolDefinition, ToolDependencies } from './lore-server/tool-registry.js';
+export { registerTools } from './lore-server/tool-registry.js';
+export type { ToolModule, ToolDefinition } from './lore-server/tool-registry.js';
 export {
   openReadOnly,
   getSymbolById,

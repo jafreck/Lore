@@ -140,6 +140,9 @@ export class LoreRuntime {
         rootDir: this.config.rootDir,
         embeddingEnabled: !!this._embedder,
       });
+      process.stderr.write(
+        JSON.stringify({ level: 'info', source: 'cli', message: 'watch mode started', rootDir: this.config.rootDir, embeddingEnabled: !!this._embedder }) + '\n',
+      );
     } else if (this.config.refreshMode === 'poll') {
       const { FilePoller } = await import('./indexer/poller.js');
       const poller = new FilePoller(this.config.dbPath, this.config.walkerConfig, {
@@ -154,6 +157,9 @@ export class LoreRuntime {
         rootDir: this.config.rootDir,
         embeddingEnabled: !!this._embedder,
       });
+      process.stderr.write(
+        JSON.stringify({ level: 'info', source: 'cli', message: 'poll mode started', rootDir: this.config.rootDir, embeddingEnabled: !!this._embedder }) + '\n',
+      );
     }
   }
 
@@ -187,9 +193,18 @@ export class LoreRuntime {
    */
   installSignalHandlers(): void {
     const handler = () => {
-      this.shutdown()
-        .catch(() => { /* best-effort */ })
-        .finally(() => process.exit(0));
+      // Stop refresher synchronously to match CLI expectations.
+      if (this._refresher) {
+        this._refresher.stop();
+        this._refresher = null;
+      }
+      // Dispose embedder best-effort in background, then exit.
+      if (this._embedder) {
+        this._embedder.dispose().catch(() => { /* best-effort */ });
+        this._embedder = null;
+      }
+      this._started = false;
+      process.exit(0);
     };
     process.on('SIGINT', handler);
     process.on('SIGTERM', handler);

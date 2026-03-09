@@ -86,23 +86,6 @@ export interface PipelineStage {
   dispose?(): Promise<void>;
 }
 
-// ─── Stage registry ───────────────────────────────────────────────────────────
-
-/** Well-known stage names, in execution order. */
-export const STAGE_ORDER = [
-  'source-index',
-  'docs-index',
-  'import-resolution',
-  'dependency-api',
-  'lsp-enrichment',
-  'symbol-resolution',
-  'test-map',
-  'history',
-  'embedding',
-] as const;
-
-export type StageName = (typeof STAGE_ORDER)[number];
-
 // ─── IndexPipeline ────────────────────────────────────────────────────────────
 
 /**
