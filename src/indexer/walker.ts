@@ -103,7 +103,6 @@ export const EXT_TO_LANG: Record<string, string> = {
   '.ex':   'elixir',
   '.exs':  'elixir',
   '.zig':  'zig',
-  '.dart': 'dart',
   '.ml':   'ocaml',
   '.mli':  'ocaml',
   '.hs':   'haskell',

@@ -27,6 +27,9 @@ const DART_SYMBOL_NODE_TYPES = [
   'function_signature',
   'method_signature',
   'class_definition',
+  'mixin_declaration',
+  'enum_declaration',
+  'extension_declaration',
 ] as const;
 
 // ─── DartExtractor ────────────────────────────────────────────────────────────

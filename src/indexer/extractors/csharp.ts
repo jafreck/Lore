@@ -26,6 +26,9 @@ const CS_SYMBOL_NODE_TYPES = [
   'method_declaration',
   'constructor_declaration',
   'class_declaration',
+  'interface_declaration',
+  'struct_declaration',
+  'enum_declaration',
 ] as const;
 
 // ─── CSharpExtractor ──────────────────────────────────────────────────────────

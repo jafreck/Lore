@@ -27,6 +27,7 @@ import {
 const GO_SYMBOL_NODE_TYPES = [
   'function_declaration',
   'method_declaration',
+  'type_declaration',
 ] as const;
 
 // ─── GoExtractor ──────────────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 import { describe, test, expect } from 'vitest';
 import path from 'node:path';
-import { parseAndExtract } from '../helpers/extractorHelper.js';
+import { parseAndExtractStrict as parseAndExtract } from '../helpers/extractorHelper.js';
 import { KotlinExtractor } from '../../src/indexer/extractors/kotlin.js';
 import { LuaExtractor } from '../../src/indexer/extractors/lua.js';
 import { ObjcExtractor } from '../../src/indexer/extractors/objc.js';
@@ -78,19 +78,19 @@ const zigResult = parseAndExtract(
 // ─── Kotlin ───────────────────────────────────────────────────────────────────
 
 describe('Kotlin extractor', () => {
-  test.skipIf(!kotlinResult)('symbols', () => {
+  test('symbols', () => {
     expect(kotlinResult!.symbols).toMatchSnapshot();
   });
 
-  test.skipIf(!kotlinResult)('imports', () => {
+  test('imports', () => {
     expect(kotlinResult!.imports).toMatchSnapshot();
   });
 
-  test.skipIf(!kotlinResult)('callRefs', () => {
+  test('callRefs', () => {
     expect(kotlinResult!.callRefs).toMatchSnapshot();
   });
 
-  test.skipIf(!kotlinResult)('callRefs are non-empty', () => {
+  test('callRefs are non-empty', () => {
     expect(kotlinResult!.callRefs.length).toBeGreaterThan(0);
   });
 });
@@ -98,19 +98,19 @@ describe('Kotlin extractor', () => {
 // ─── Lua ──────────────────────────────────────────────────────────────────────
 
 describe('Lua extractor', () => {
-  test.skipIf(!luaResult)('symbols', () => {
+  test('symbols', () => {
     expect(luaResult!.symbols).toMatchSnapshot();
   });
 
-  test.skipIf(!luaResult)('imports', () => {
+  test('imports', () => {
     expect(luaResult!.imports).toMatchSnapshot();
   });
 
-  test.skipIf(!luaResult)('callRefs', () => {
+  test('callRefs', () => {
     expect(luaResult!.callRefs).toMatchSnapshot();
   });
 
-  test.skipIf(!luaResult)('callRefs are non-empty', () => {
+  test('callRefs are non-empty', () => {
     expect(luaResult!.callRefs.length).toBeGreaterThan(0);
   });
 });
@@ -118,19 +118,19 @@ describe('Lua extractor', () => {
 // ─── Objective-C ──────────────────────────────────────────────────────────────
 
 describe('Objective-C extractor', () => {
-  test.skipIf(!objcResult)('symbols', () => {
+  test('symbols', () => {
     expect(objcResult!.symbols).toMatchSnapshot();
   });
 
-  test.skipIf(!objcResult)('imports', () => {
+  test('imports', () => {
     expect(objcResult!.imports).toMatchSnapshot();
   });
 
-  test.skipIf(!objcResult)('callRefs', () => {
+  test('callRefs', () => {
     expect(objcResult!.callRefs).toMatchSnapshot();
   });
 
-  test.skipIf(!objcResult)('callRefs are non-empty', () => {
+  test('callRefs are non-empty', () => {
     expect(objcResult!.callRefs.length).toBeGreaterThan(0);
   });
 });
@@ -138,19 +138,19 @@ describe('Objective-C extractor', () => {
 // ─── OCaml ────────────────────────────────────────────────────────────────────
 
 describe('OCaml extractor', () => {
-  test.skipIf(!ocamlResult)('symbols', () => {
+  test('symbols', () => {
     expect(ocamlResult!.symbols).toMatchSnapshot();
   });
 
-  test.skipIf(!ocamlResult)('imports', () => {
+  test('imports', () => {
     expect(ocamlResult!.imports).toMatchSnapshot();
   });
 
-  test.skipIf(!ocamlResult)('callRefs', () => {
+  test('callRefs', () => {
     expect(ocamlResult!.callRefs).toMatchSnapshot();
   });
 
-  test.skipIf(!ocamlResult)('callRefs are non-empty', () => {
+  test('callRefs are non-empty', () => {
     expect(ocamlResult!.callRefs.length).toBeGreaterThan(0);
   });
 });
@@ -158,19 +158,19 @@ describe('OCaml extractor', () => {
 // ─── PHP ──────────────────────────────────────────────────────────────────────
 
 describe('PHP extractor', () => {
-  test.skipIf(!phpResult)('symbols', () => {
+  test('symbols', () => {
     expect(phpResult!.symbols).toMatchSnapshot();
   });
 
-  test.skipIf(!phpResult)('imports', () => {
+  test('imports', () => {
     expect(phpResult!.imports).toMatchSnapshot();
   });
 
-  test.skipIf(!phpResult)('callRefs', () => {
+  test('callRefs', () => {
     expect(phpResult!.callRefs).toMatchSnapshot();
   });
 
-  test.skipIf(!phpResult)('callRefs are non-empty', () => {
+  test('callRefs are non-empty', () => {
     expect(phpResult!.callRefs.length).toBeGreaterThan(0);
   });
 });
@@ -178,19 +178,19 @@ describe('PHP extractor', () => {
 // ─── Ruby ─────────────────────────────────────────────────────────────────────
 
 describe('Ruby extractor', () => {
-  test.skipIf(!rubyResult)('symbols', () => {
+  test('symbols', () => {
     expect(rubyResult!.symbols).toMatchSnapshot();
   });
 
-  test.skipIf(!rubyResult)('imports', () => {
+  test('imports', () => {
     expect(rubyResult!.imports).toMatchSnapshot();
   });
 
-  test.skipIf(!rubyResult)('callRefs', () => {
+  test('callRefs', () => {
     expect(rubyResult!.callRefs).toMatchSnapshot();
   });
 
-  test.skipIf(!rubyResult)('callRefs are non-empty', () => {
+  test('callRefs are non-empty', () => {
     expect(rubyResult!.callRefs.length).toBeGreaterThan(0);
   });
 });
@@ -198,19 +198,19 @@ describe('Ruby extractor', () => {
 // ─── Scala ────────────────────────────────────────────────────────────────────
 
 describe('Scala extractor', () => {
-  test.skipIf(!scalaResult)('symbols', () => {
+  test('symbols', () => {
     expect(scalaResult!.symbols).toMatchSnapshot();
   });
 
-  test.skipIf(!scalaResult)('imports', () => {
+  test('imports', () => {
     expect(scalaResult!.imports).toMatchSnapshot();
   });
 
-  test.skipIf(!scalaResult)('callRefs', () => {
+  test('callRefs', () => {
     expect(scalaResult!.callRefs).toMatchSnapshot();
   });
 
-  test.skipIf(!scalaResult)('callRefs are non-empty', () => {
+  test('callRefs are non-empty', () => {
     expect(scalaResult!.callRefs.length).toBeGreaterThan(0);
   });
 });
@@ -218,19 +218,19 @@ describe('Scala extractor', () => {
 // ─── Swift ────────────────────────────────────────────────────────────────────
 
 describe('Swift extractor', () => {
-  test.skipIf(!swiftResult)('symbols', () => {
+  test('symbols', () => {
     expect(swiftResult!.symbols).toMatchSnapshot();
   });
 
-  test.skipIf(!swiftResult)('imports', () => {
+  test('imports', () => {
     expect(swiftResult!.imports).toMatchSnapshot();
   });
 
-  test.skipIf(!swiftResult)('callRefs', () => {
+  test('callRefs', () => {
     expect(swiftResult!.callRefs).toMatchSnapshot();
   });
 
-  test.skipIf(!swiftResult)('callRefs are non-empty', () => {
+  test('callRefs are non-empty', () => {
     expect(swiftResult!.callRefs.length).toBeGreaterThan(0);
   });
 });
@@ -238,19 +238,19 @@ describe('Swift extractor', () => {
 // ─── Bash ─────────────────────────────────────────────────────────────────────
 
 describe('Bash extractor', () => {
-  test.skipIf(!bashResult)('symbols', () => {
+  test('symbols', () => {
     expect(bashResult!.symbols).toMatchSnapshot();
   });
 
-  test.skipIf(!bashResult)('imports', () => {
+  test('imports', () => {
     expect(bashResult!.imports).toMatchSnapshot();
   });
 
-  test.skipIf(!bashResult)('callRefs', () => {
+  test('callRefs', () => {
     expect(bashResult!.callRefs).toMatchSnapshot();
   });
 
-  test.skipIf(!bashResult)('callRefs are non-empty', () => {
+  test('callRefs are non-empty', () => {
     expect(bashResult!.callRefs.length).toBeGreaterThan(0);
   });
 });
@@ -258,19 +258,19 @@ describe('Bash extractor', () => {
 // ─── Zig ──────────────────────────────────────────────────────────────────────
 
 describe('Zig extractor', () => {
-  test.skipIf(!zigResult)('symbols', () => {
+  test('symbols', () => {
     expect(zigResult!.symbols).toMatchSnapshot();
   });
 
-  test.skipIf(!zigResult)('imports', () => {
+  test('imports', () => {
     expect(zigResult!.imports).toMatchSnapshot();
   });
 
-  test.skipIf(!zigResult)('callRefs', () => {
+  test('callRefs', () => {
     expect(zigResult!.callRefs).toMatchSnapshot();
   });
 
-  test.skipIf(!zigResult)('callRefs are non-empty', () => {
+  test('callRefs are non-empty', () => {
     expect(zigResult!.callRefs.length).toBeGreaterThan(0);
   });
 });

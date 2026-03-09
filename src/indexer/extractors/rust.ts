@@ -25,6 +25,9 @@ import {
 const RUST_SYMBOL_NODE_TYPES = [
   'function_item',
   'impl_item',
+  'struct_item',
+  'enum_item',
+  'trait_item',
 ] as const;
 
 // ─── RustExtractor ────────────────────────────────────────────────────────────

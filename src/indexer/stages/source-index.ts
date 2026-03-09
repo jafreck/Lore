@@ -334,6 +334,8 @@ function processFileWithSource(
   const symbolIdMap = new Map<string, number>();
 
   for (const sym of result.symbols) {
+    // Guard: skip symbols with empty names (malformed AST nodes).
+    if (!sym.name) continue;
     const info = insertSymbol.run(
       fileId,
       sym.name,

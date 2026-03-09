@@ -14,6 +14,7 @@ import {
   type SymbolExtractor,
   emptyResult,
   findEnclosingSymbolName,
+  findFirst,
   nodeSignature,
   walk,
 } from './types.js';
@@ -21,6 +22,10 @@ import {
 const JULIA_SYMBOL_NODE_TYPES = [
   'function_definition',
   'short_function_definition',
+  'struct_definition',
+  'abstract_definition',
+  'module_definition',
+  'macro_definition',
 ] as const;
 
 // ─── JuliaExtractor ──────────────────────────────────────────────────────────
@@ -70,7 +75,15 @@ export class JuliaExtractor implements SymbolExtractor {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function extractFunction(node: Parser.SyntaxNode): RawSymbol {
-  const nameNode = node.childForFieldName('name');
+  // tree-sitter-julia puts the name inside a `signature` child, not a
+  // direct `name` field.  Drill in: signature → call_expression → identifier.
+  let nameNode = node.childForFieldName('name');
+  if (!nameNode) {
+    const sig = node.namedChildren.find(c => c.type === 'signature');
+    if (sig) {
+      nameNode = findFirst(sig, 'identifier');
+    }
+  }
   return {
     name: nameNode?.text ?? '',
     kind: 'function',
@@ -93,7 +106,18 @@ function extractShortFunction(node: Parser.SyntaxNode): RawSymbol {
 }
 
 function extractNamedNode(node: Parser.SyntaxNode, kind: string): RawSymbol {
-  const nameNode = node.childForFieldName('name');
+  // tree-sitter-julia may nest the name inside a `type_head` child (structs)
+  // rather than exposing a top-level `name` field.
+  let nameNode = node.childForFieldName('name');
+  if (!nameNode) {
+    const typeHead = node.namedChildren.find(c => c.type === 'type_head');
+    if (typeHead) {
+      nameNode = findFirst(typeHead, 'identifier');
+    }
+  }
+  if (!nameNode) {
+    nameNode = findFirst(node, 'identifier');
+  }
   return {
     name: nameNode?.text ?? '',
     kind,

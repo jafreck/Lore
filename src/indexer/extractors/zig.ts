@@ -25,29 +25,39 @@ export class ZigExtractor implements SymbolExtractor {
 
     for (const node of walk(tree.rootNode)) {
       switch (node.type) {
+        // Old grammar (tree-sitter-zig 0.2.x, PascalCase)
         case 'FnProto':
+        // New grammar (@tree-sitter-grammars/tree-sitter-zig 1.x, snake_case)
+        case 'function_declaration':
           result.symbols.push(extractFn(node));
           break;
         case 'TestDecl':
+        case 'test_declaration':
           result.symbols.push(extractTest(node));
           break;
         case 'ContainerDecl':
+        case 'container_declaration':
           // struct/enum/union — try to find enclosing VarDecl for the name
           break;
-        case 'VarDecl': {
+        case 'VarDecl':
+        case 'variable_declaration': {
           const sym = extractVarDecl(node);
           if (sym) result.symbols.push(sym);
           break;
         }
-        case 'BUILTIN': {
-          if (node.text === '@import') {
+        case 'BUILTIN':
+        case 'builtin_call_expression': {
+          const builtinName = node.type === 'BUILTIN' ? node.text : node.namedChildren[0]?.text;
+          if (builtinName === '@import') {
             const imp = tryExtractImport(node);
             if (imp) result.imports.push(imp);
           }
           break;
         }
         case 'SuffixOp':
-        case 'BuiltinCallExpr': {
+        case 'BuiltinCallExpr':
+        case 'call_expression':
+        case 'builtin_call_expr': {
           const ref = extractCallRef(node);
           if (ref) result.callRefs.push(ref);
           break;
@@ -62,7 +72,7 @@ export class ZigExtractor implements SymbolExtractor {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function extractFn(node: Parser.SyntaxNode): RawSymbol {
-  const nameNode = node.namedChildren.find(c => c.type === 'IDENTIFIER');
+  const nameNode = node.namedChildren.find(c => c.type === 'IDENTIFIER' || c.type === 'identifier');
   return {
     name: nameNode?.text ?? '',
     kind: 'function',
@@ -74,7 +84,7 @@ function extractFn(node: Parser.SyntaxNode): RawSymbol {
 
 function extractTest(node: Parser.SyntaxNode): RawSymbol {
   // test "name" { ... }
-  const nameNode = node.namedChildren.find(c => c.type === 'STRINGLITERALSINGLE');
+  const nameNode = node.namedChildren.find(c => c.type === 'STRINGLITERALSINGLE' || c.type === 'string_literal');
   return {
     name: nameNode?.text.replace(/^"|"$/g, '') ?? 'test',
     kind: 'test',
@@ -90,12 +100,13 @@ function extractTest(node: Parser.SyntaxNode): RawSymbol {
  * are otherwise significant.
  */
 function extractVarDecl(node: Parser.SyntaxNode): RawSymbol | null {
-  const nameNode = node.namedChildren.find(c => c.type === 'IDENTIFIER');
+  const nameNode = node.namedChildren.find(c => c.type === 'IDENTIFIER' || c.type === 'identifier');
   if (!nameNode) return null;
 
   // Check if this is a type definition (assigned a struct/enum/union)
   const hasContainer = node.namedChildren.some(
-    c => c.type === 'ContainerDecl' || c.type === 'ErrorSetDecl',
+    c => c.type === 'ContainerDecl' || c.type === 'ErrorSetDecl' ||
+         c.type === 'container_declaration' || c.type === 'error_set_declaration',
   );
 
   const kind = hasContainer ? 'type' : 'const';
@@ -112,12 +123,12 @@ function extractCallRef(node: Parser.SyntaxNode): RawCallRef | null {
   // Zig call expressions: fn or method calls
   const fnNode = node.namedChildren[0];
   if (!fnNode) return null;
-  // Find enclosing FnProto
+  // Find enclosing FnProto / function_declaration
   let callerSymbol = '';
   let current: Parser.SyntaxNode | null = node.parent;
   while (current) {
-    if (current.type === 'FnProto') {
-      const nameNode = current.namedChildren.find(c => c.type === 'IDENTIFIER');
+    if (current.type === 'FnProto' || current.type === 'function_declaration') {
+      const nameNode = current.namedChildren.find(c => c.type === 'IDENTIFIER' || c.type === 'identifier');
       callerSymbol = nameNode?.text ?? '';
       break;
     }
