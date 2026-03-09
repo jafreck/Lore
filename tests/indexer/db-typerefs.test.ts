@@ -179,66 +179,73 @@ describe('resolveSymbolEdges', () => {
     db = createDb();
   });
 
-  it('should resolve type_refs.type_id by exact type_name match', () => {
+  it('should resolve type_refs.type_id via containment when definition_path and definition_line match a symbol', () => {
     const fileId = insertFile(db, 'src/a.ts');
-    const widgetId = insertSymbol(db, fileId, 'Widget', 'struct');
-    const processId = insertSymbol(db, fileId, 'process');
+    const widgetId = insertSymbol(db, fileId, 'Widget', 'struct', 1);
+    const processId = insertSymbol(db, fileId, 'process', 'function', 10);
 
     db.prepare(
-      'INSERT INTO type_refs (file_id, symbol_id, type_name, type_name_bare, ref_kind, ref_line) VALUES (?, ?, ?, ?, ?, ?)',
-    ).run(fileId, processId, 'Widget', 'Widget', 'parameter', 3);
+      'INSERT INTO type_refs (file_id, symbol_id, type_name, type_name_bare, ref_kind, ref_line, definition_path, definition_line) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    ).run(fileId, processId, 'Widget', 'Widget', 'parameter', 12, 'src/a.ts', 3);
 
     resolveSymbolEdges(db);
 
-    const row = db.prepare('SELECT type_id FROM type_refs WHERE file_id = ?').get(fileId) as { type_id: number | null };
+    const row = db.prepare('SELECT type_id, resolution_method FROM type_refs WHERE file_id = ?').get(fileId) as { type_id: number | null; resolution_method: string };
     expect(row.type_id).toBe(widgetId);
+    expect(row.resolution_method).toBe('lsp_definition');
   });
 
-  it('should resolve type_refs.type_id by type_name_bare fallback', () => {
+  it('should resolve type_refs.type_id via containment with narrowest match', () => {
     const fileId = insertFile(db, 'src/a.ts');
-    const fooId = insertSymbol(db, fileId, 'Foo', 'struct');
+    // OuterModule spans lines 1-50 (wide), Foo spans lines 3-8 (narrow)
+    db.prepare('INSERT INTO symbols (file_id, name, kind, start_line, end_line, signature) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(fileId, 'OuterModule', 'module', 1, 50, 'module OuterModule');
+    const fooId = insertSymbol(db, fileId, 'Foo', 'struct', 3);
 
     db.prepare(
-      'INSERT INTO type_refs (file_id, type_name, type_name_bare, ref_kind, ref_line) VALUES (?, ?, ?, ?, ?)',
-    ).run(fileId, 'crate::types::Foo', 'Foo', 'variable', 1);
+      'INSERT INTO type_refs (file_id, type_name, type_name_bare, ref_kind, ref_line, definition_path, definition_line) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    ).run(fileId, 'crate::types::Foo', 'Foo', 'variable', 1, 'src/a.ts', 4);
 
     resolveSymbolEdges(db);
 
-    const row = db.prepare('SELECT type_id FROM type_refs WHERE file_id = ?').get(fileId) as { type_id: number | null };
+    const row = db.prepare('SELECT type_id, resolution_method FROM type_refs WHERE file_id = ?').get(fileId) as { type_id: number | null; resolution_method: string };
     expect(row.type_id).toBe(fooId);
+    expect(row.resolution_method).toBe('lsp_definition');
   });
 
-  it('should resolve symbol_relationships.target_symbol_id by name match', () => {
+  it('should resolve symbol_relationships.target_symbol_id via containment', () => {
     const fileId = insertFile(db, 'src/a.ts');
-    const baseId = insertSymbol(db, fileId, 'Base', 'class');
-    const derivedId = insertSymbol(db, fileId, 'Derived', 'class');
+    const baseId = insertSymbol(db, fileId, 'Base', 'class', 1);
+    const derivedId = insertSymbol(db, fileId, 'Derived', 'class', 10);
 
     db.prepare(
-      'INSERT INTO symbol_relationships (file_id, source_symbol_id, target_symbol_name, relationship_type, line) VALUES (?, ?, ?, ?, ?)',
-    ).run(fileId, derivedId, 'Base', 'extends', 5);
+      'INSERT INTO symbol_relationships (file_id, source_symbol_id, target_symbol_name, relationship_type, line, definition_path, definition_line) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    ).run(fileId, derivedId, 'Base', 'extends', 10, 'src/a.ts', 3);
 
     resolveSymbolEdges(db);
 
-    const row = db.prepare('SELECT target_symbol_id FROM symbol_relationships WHERE file_id = ?').get(fileId) as { target_symbol_id: number | null };
+    const row = db.prepare('SELECT target_symbol_id, resolution_method FROM symbol_relationships WHERE file_id = ?').get(fileId) as { target_symbol_id: number | null; resolution_method: string };
     expect(row.target_symbol_id).toBe(baseId);
+    expect(row.resolution_method).toBe('lsp_definition');
   });
 
-  it('should resolve symbol_refs.callee_id (backward compat)', () => {
+  it('should resolve symbol_refs.callee_id via containment', () => {
     const fileId = insertFile(db, 'src/a.ts');
-    const callerId = insertSymbol(db, fileId, 'caller');
-    const calleeId = insertSymbol(db, fileId, 'callee');
+    const callerId = insertSymbol(db, fileId, 'caller', 'function', 10);
+    const calleeId = insertSymbol(db, fileId, 'callee', 'function', 1);
 
     db.prepare(
-      'INSERT INTO symbol_refs (caller_id, callee_name, call_line) VALUES (?, ?, ?)',
-    ).run(callerId, 'callee', 10);
+      'INSERT INTO symbol_refs (caller_id, file_id, callee_name, call_line, definition_path, definition_line) VALUES (?, ?, ?, ?, ?, ?)',
+    ).run(callerId, fileId, 'callee', 12, 'src/a.ts', 3);
 
     resolveSymbolEdges(db);
 
-    const row = db.prepare('SELECT callee_id FROM symbol_refs').get() as { callee_id: number | null };
+    const row = db.prepare('SELECT callee_id, resolution_method FROM symbol_refs').get() as { callee_id: number | null; resolution_method: string };
     expect(row.callee_id).toBe(calleeId);
+    expect(row.resolution_method).toBe('lsp_definition');
   });
 
-  it('should leave type_id null when type name does not match any symbol', () => {
+  it('should leave type_id null and mark unresolved when no definition data is present', () => {
     const fileId = insertFile(db, 'src/a.ts');
     insertSymbol(db, fileId, 'process');
 
@@ -248,25 +255,24 @@ describe('resolveSymbolEdges', () => {
 
     resolveSymbolEdges(db);
 
-    const row = db.prepare('SELECT type_id FROM type_refs WHERE file_id = ?').get(fileId) as { type_id: number | null };
+    const row = db.prepare('SELECT type_id, resolution_method FROM type_refs WHERE file_id = ?').get(fileId) as { type_id: number | null; resolution_method: string };
     expect(row.type_id).toBeNull();
+    expect(row.resolution_method).toBe('unresolved');
   });
 
-  it('should prefer same-file match when multiple symbols have the same name', () => {
+  it('should mark external_definition when definition_path is not in index', () => {
     const fileA = insertFile(db, 'src/a.ts');
-    const fileB = insertFile(db, 'src/b.ts');
-    const widgetA = insertSymbol(db, fileA, 'Widget', 'struct');
-    const widgetB = insertSymbol(db, fileB, 'Widget', 'struct');
     const processId = insertSymbol(db, fileA, 'process');
 
     db.prepare(
-      'INSERT INTO type_refs (file_id, symbol_id, type_name, type_name_bare, ref_kind, ref_line) VALUES (?, ?, ?, ?, ?, ?)',
-    ).run(fileA, processId, 'Widget', 'Widget', 'parameter', 3);
+      'INSERT INTO type_refs (file_id, symbol_id, type_name, type_name_bare, ref_kind, ref_line, definition_path, definition_line) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    ).run(fileA, processId, 'Widget', 'Widget', 'parameter', 3, 'node_modules/widget/index.d.ts', 10);
 
     resolveSymbolEdges(db);
 
-    const row = db.prepare('SELECT type_id FROM type_refs WHERE symbol_id = ?').get(processId) as { type_id: number | null };
-    expect(row.type_id).toBe(widgetA);
+    const row = db.prepare('SELECT type_id, resolution_method FROM type_refs WHERE symbol_id = ?').get(processId) as { type_id: number | null; resolution_method: string };
+    expect(row.type_id).toBeNull();
+    expect(row.resolution_method).toBe('external_definition');
   });
 });
 

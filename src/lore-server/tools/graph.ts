@@ -88,6 +88,12 @@ export interface GraphEdge {
   target_name: string;
   callee_coverage_percent?: number | null;
   ref_kind?: string;
+  line?: number;
+  character?: number | null;
+  resolution_method?: string;
+  definition_path?: string | null;
+  definition_line?: number | null;
+  definition_character?: number | null;
 }
 
 export interface GraphResult {
@@ -138,7 +144,16 @@ function getStructuralEdges(
                 f_caller.branch AS source_branch,
                 sr.callee_id  AS target_id,
                 sr.callee_name AS target_name,
-                sr.call_kind  AS call_kind
+                sr.call_kind  AS call_kind,
+                sr.call_line + 1 AS line,
+                CASE
+                  WHEN sr.call_character IS NULL THEN NULL
+                  ELSE sr.call_character + 1
+                END AS character,
+                sr.resolution_method AS resolution_method,
+                sr.definition_path AS definition_path,
+                sr.definition_line AS definition_line,
+                sr.definition_character AS definition_character
            FROM symbol_refs sr
            JOIN symbols s_caller ON s_caller.id = sr.caller_id
            JOIN files f_caller ON f_caller.id = s_caller.file_id
@@ -149,7 +164,16 @@ function getStructuralEdges(
                 f_caller.branch AS source_branch,
                 sr.callee_id  AS target_id,
                 sr.callee_name AS target_name,
-                sr.call_kind  AS call_kind
+                sr.call_kind  AS call_kind,
+                sr.call_line + 1 AS line,
+                CASE
+                  WHEN sr.call_character IS NULL THEN NULL
+                  ELSE sr.call_character + 1
+                END AS character,
+                sr.resolution_method AS resolution_method,
+                sr.definition_path AS definition_path,
+                sr.definition_line AS definition_line,
+                sr.definition_character AS definition_character
            FROM symbol_refs sr
            JOIN symbols s_caller ON s_caller.id = sr.caller_id
            JOIN files f_caller ON f_caller.id = s_caller.file_id
@@ -254,7 +278,16 @@ function getStructuralEdges(
                 s_src.name AS source_name,
                 f_src.branch AS source_branch,
                 rel.target_symbol_id AS target_id,
-                COALESCE(s_dst.name, rel.target_symbol_name) AS target_name
+                COALESCE(s_dst.name, rel.target_symbol_name) AS target_name,
+                rel.line + 1 AS line,
+                CASE
+                  WHEN rel.character IS NULL THEN NULL
+                  ELSE rel.character + 1
+                END AS character,
+                rel.resolution_method AS resolution_method,
+                rel.definition_path AS definition_path,
+                rel.definition_line AS definition_line,
+                rel.definition_character AS definition_character
            FROM symbol_relationships rel
            JOIN symbols s_src ON s_src.id = rel.source_symbol_id
            JOIN files f_src ON f_src.id = s_src.file_id
@@ -266,7 +299,16 @@ function getStructuralEdges(
                 s_src.name AS source_name,
                 f_src.branch AS source_branch,
                 rel.target_symbol_id AS target_id,
-                COALESCE(s_dst.name, rel.target_symbol_name) AS target_name
+                COALESCE(s_dst.name, rel.target_symbol_name) AS target_name,
+                rel.line + 1 AS line,
+                CASE
+                  WHEN rel.character IS NULL THEN NULL
+                  ELSE rel.character + 1
+                END AS character,
+                rel.resolution_method AS resolution_method,
+                rel.definition_path AS definition_path,
+                rel.definition_line AS definition_line,
+                rel.definition_character AS definition_character
            FROM symbol_relationships rel
            JOIN symbols s_src ON s_src.id = rel.source_symbol_id
            JOIN files f_src ON f_src.id = s_src.file_id
@@ -290,7 +332,16 @@ function getStructuralEdges(
                 f_src.branch AS source_branch,
                 tr.type_id AS target_id,
                 COALESCE(s_dst.name, tr.type_name) AS target_name,
-                tr.ref_kind AS ref_kind
+                tr.ref_kind AS ref_kind,
+                tr.ref_line + 1 AS line,
+                CASE
+                  WHEN tr.ref_character IS NULL THEN NULL
+                  ELSE tr.ref_character + 1
+                END AS character,
+                tr.resolution_method AS resolution_method,
+                tr.definition_path AS definition_path,
+                tr.definition_line AS definition_line,
+                tr.definition_character AS definition_character
            FROM type_refs tr
            JOIN files f_src ON f_src.id = tr.file_id
            LEFT JOIN symbols s_src ON s_src.id = tr.symbol_id
@@ -302,7 +353,16 @@ function getStructuralEdges(
                 f_src.branch AS source_branch,
                 tr.type_id AS target_id,
                 COALESCE(s_dst.name, tr.type_name) AS target_name,
-                tr.ref_kind AS ref_kind
+                tr.ref_kind AS ref_kind,
+                tr.ref_line + 1 AS line,
+                CASE
+                  WHEN tr.ref_character IS NULL THEN NULL
+                  ELSE tr.ref_character + 1
+                END AS character,
+                tr.resolution_method AS resolution_method,
+                tr.definition_path AS definition_path,
+                tr.definition_line AS definition_line,
+                tr.definition_character AS definition_character
            FROM type_refs tr
            JOIN files f_src ON f_src.id = tr.file_id
            LEFT JOIN symbols s_src ON s_src.id = tr.symbol_id

@@ -478,7 +478,10 @@ describe('openDb', () => {
       expect.arrayContaining(['resolved_type_signature', 'resolved_return_type', 'definition_uri', 'definition_path']),
     );
     expect(refColumns).toEqual(
-      expect.arrayContaining(['resolved_type_signature', 'resolved_return_type', 'definition_uri', 'definition_path']),
+      expect.arrayContaining([
+        'resolved_type_signature', 'resolved_return_type', 'definition_uri', 'definition_path',
+        'file_id', 'definition_line', 'definition_character', 'resolution_method',
+      ]),
     );
     expect(externalColumns).toEqual(
       expect.arrayContaining(['resolved_type_signature', 'resolved_return_type', 'definition_uri', 'definition_path']),

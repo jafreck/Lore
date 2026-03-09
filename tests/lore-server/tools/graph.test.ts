@@ -34,12 +34,13 @@ function insertCallEdge(
   callerId: number,
   calleeId: number | null,
   calleeName: string,
+  line = 0,
+  character?: number,
+  resolutionMethod = 'unresolved',
 ): void {
-  db.prepare('INSERT INTO symbol_refs (caller_id, callee_id, callee_name, call_line) VALUES (?, ?, ?, 1)').run(
-    callerId,
-    calleeId,
-    calleeName,
-  );
+  db.prepare(
+    'INSERT INTO symbol_refs (caller_id, callee_id, callee_name, call_line, call_character, resolution_method) VALUES (?, ?, ?, ?, ?, ?)',
+  ).run(callerId, calleeId, calleeName, line, character ?? null, resolutionMethod);
 }
 
 function insertImportEdge(
@@ -513,5 +514,75 @@ describe('graph handler – kind=type_dependency', () => {
   it('should filter type dependency edges by source_id', () => {
     const result = handler(db, { kind: 'type_dependency', source_id: symbolId });
     expect(result.edges.length).toBe(1);
+  });
+});
+
+// ─── Provenance fields on edges ───────────────────────────────────────────────
+
+describe('graph handler – provenance fields', () => {
+  it('should expose resolution_method and definition location on call edges', () => {
+    const db = createTestDb();
+    const fileId = insertFile(db, 'src/main.ts', 'main');
+    const callerId = insertSymbol(db, fileId, 'caller');
+    const calleeId = insertSymbol(db, fileId, 'callee');
+    db.prepare(
+      `INSERT INTO symbol_refs (caller_id, callee_id, callee_name, call_line, call_character, resolution_method, definition_path, definition_line, definition_character)
+       VALUES (?, ?, 'callee', 5, 10, 'lsp_definition', 'src/main.ts', 20, 4)`,
+    ).run(callerId, calleeId);
+
+    const result = handler(db, { kind: 'call', branch: 'main' });
+    expect(result.edges).toHaveLength(1);
+    expect(result.edges[0]).toMatchObject({
+      line: 6,
+      character: 11,
+      resolution_method: 'lsp_definition',
+      definition_path: 'src/main.ts',
+      definition_line: 20,
+      definition_character: 4,
+    });
+  });
+
+  it('should expose resolution_method on type dependency edges', () => {
+    const db = createTestDb();
+    const fileId = insertFile(db, 'src/main.ts', 'main');
+    const symbolId = insertSymbol(db, fileId, 'process');
+    const targetId = insertSymbol(db, fileId, 'MyType', 'class');
+    db.prepare(
+      `INSERT INTO type_refs (file_id, symbol_id, type_id, type_name, type_name_bare, ref_kind, ref_line, ref_character, resolution_method, definition_path, definition_line, definition_character)
+       VALUES (?, ?, ?, 'MyType', 'MyType', 'parameter', 8, 4, 'lsp_definition', 'src/main.ts', 1, 0)`,
+    ).run(fileId, symbolId, targetId);
+
+    const result = handler(db, { kind: 'type_dependency', branch: 'main' });
+    expect(result.edges).toHaveLength(1);
+    expect(result.edges[0]).toMatchObject({
+      line: 9,
+      character: 5,
+      resolution_method: 'lsp_definition',
+      definition_path: 'src/main.ts',
+      definition_line: 1,
+      definition_character: 0,
+    });
+  });
+
+  it('should expose resolution_method on inheritance edges', () => {
+    const db = createTestDb();
+    const fileId = insertFile(db, 'src/main.ts', 'main');
+    const baseId = insertSymbol(db, fileId, 'Base', 'class');
+    const derivedId = insertSymbol(db, fileId, 'Derived', 'class');
+    db.prepare(
+      `INSERT INTO symbol_relationships (file_id, source_symbol_id, target_symbol_id, target_symbol_name, relationship_type, line, character, resolution_method, definition_path, definition_line, definition_character)
+       VALUES (?, ?, ?, 'Base', 'extends', 10, 5, 'lsp_definition', 'src/main.ts', 1, 0)`,
+    ).run(fileId, derivedId, baseId);
+
+    const result = handler(db, { kind: 'inheritance', branch: 'main' });
+    expect(result.edges).toHaveLength(1);
+    expect(result.edges[0]).toMatchObject({
+      line: 11,
+      character: 6,
+      resolution_method: 'lsp_definition',
+      definition_path: 'src/main.ts',
+      definition_line: 1,
+      definition_character: 0,
+    });
   });
 });

@@ -106,194 +106,329 @@ function insertFile(db: Database.Database, path: string): number {
   );
 }
 
-function insertSymbol(db: Database.Database, fileId: number, name: string, kind = 'class', startLine = 1): number {
+function insertSymbol(db: Database.Database, fileId: number, name: string, kind = 'class', startLine = 1, endLine?: number): number {
   return Number(
     db.prepare('INSERT INTO symbols (file_id, name, kind, start_line, end_line, signature) VALUES (?, ?, ?, ?, ?, ?)')
-      .run(fileId, name, kind, startLine, startLine + 10, `${kind} ${name}`).lastInsertRowid,
+      .run(fileId, name, kind, startLine, endLine ?? startLine + 10, `${kind} ${name}`).lastInsertRowid,
   );
 }
 
-// ─── resolveSymbolEdges: bare-name collision (same-file preference) ───────────
+// ─── resolveSymbolEdges: containment-based resolution ─────────────────────────
 
-describe('resolveSymbolEdges – bare-name collision across files', () => {
-  it('should prefer the Widget in the same file as the referencing symbol', () => {
+describe('resolveSymbolEdges – containment mapping', () => {
+  it('should resolve symbol_ref when definition_path + definition_line point into a symbol', () => {
     const db = createDb();
     const file1 = insertFile(db, 'src/file1.ts');
     const file2 = insertFile(db, 'src/file2.ts');
 
-    const widget1 = insertSymbol(db, file1, 'Widget', 'class', 1);
-    const widget2 = insertSymbol(db, file2, 'Widget', 'class', 1);
+    const target = insertSymbol(db, file2, 'Widget', 'class', 1, 20);
+    const caller = insertSymbol(db, file1, 'renderWidget', 'function', 1, 10);
 
-    // Create a symbol in file1 that references Widget
-    const consumer = insertSymbol(db, file1, 'renderWidget', 'function', 20);
+    db.prepare(
+      `INSERT INTO symbol_refs (caller_id, file_id, callee_name, call_line, definition_path, definition_line)
+       VALUES (?, ?, 'Widget', 5, ?, ?)`,
+    ).run(caller, file1, 'src/file2.ts', 5);
 
-    // Insert a type_ref from the consumer in file1 referencing 'Widget'
+    resolveSymbolEdges(db);
+
+    const ref = db.prepare('SELECT callee_id, resolution_method FROM symbol_refs WHERE caller_id = ?').get(caller) as { callee_id: number | null; resolution_method: string };
+    expect(ref.callee_id).toBe(target);
+    expect(ref.resolution_method).toBe('lsp_definition');
+  });
+
+  it('should pick the narrowest enclosing symbol when multiple contain the definition line', () => {
+    const db = createDb();
+    const file1 = insertFile(db, 'src/file1.ts');
+    const file2 = insertFile(db, 'src/file2.ts');
+
+    // Outer class spans 1-50, inner method spans 10-20
+    insertSymbol(db, file2, 'OuterClass', 'class', 1, 50);
+    const innerMethod = insertSymbol(db, file2, 'doStuff', 'function', 10, 20);
+
+    const caller = insertSymbol(db, file1, 'main', 'function', 1, 10);
+
+    db.prepare(
+      `INSERT INTO symbol_refs (caller_id, file_id, callee_name, call_line, definition_path, definition_line)
+       VALUES (?, ?, 'doStuff', 5, ?, ?)`,
+    ).run(caller, file1, 'src/file2.ts', 15);
+
+    resolveSymbolEdges(db);
+
+    const ref = db.prepare('SELECT callee_id, resolution_method FROM symbol_refs WHERE caller_id = ?').get(caller) as { callee_id: number | null; resolution_method: string };
+    expect(ref.callee_id).toBe(innerMethod);
+    expect(ref.resolution_method).toBe('lsp_definition');
+  });
+
+  it('should mark external_definition when definition_path is not in indexed files', () => {
+    const db = createDb();
+    const file1 = insertFile(db, 'src/file1.ts');
+
+    const caller = insertSymbol(db, file1, 'main', 'function', 1, 10);
+
+    db.prepare(
+      `INSERT INTO symbol_refs (caller_id, file_id, callee_name, call_line, definition_path, definition_line)
+       VALUES (?, ?, 'console', 5, ?, ?)`,
+    ).run(caller, file1, 'node_modules/typescript/lib/lib.dom.d.ts', 100);
+
+    resolveSymbolEdges(db);
+
+    const ref = db.prepare('SELECT callee_id, resolution_method FROM symbol_refs WHERE caller_id = ?').get(caller) as { callee_id: number | null; resolution_method: string };
+    expect(ref.callee_id).toBeNull();
+    expect(ref.resolution_method).toBe('external_definition');
+  });
+
+  it('should mark unresolved when no definition data is present', () => {
+    const db = createDb();
+    const file1 = insertFile(db, 'src/file1.ts');
+
+    const caller = insertSymbol(db, file1, 'main', 'function', 1, 10);
+
+    db.prepare(
+      `INSERT INTO symbol_refs (caller_id, file_id, callee_name, call_line) VALUES (?, ?, 'unknown', 5)`,
+    ).run(caller, file1);
+
+    resolveSymbolEdges(db);
+
+    const ref = db.prepare('SELECT callee_id, resolution_method FROM symbol_refs WHERE caller_id = ?').get(caller) as { callee_id: number | null; resolution_method: string };
+    expect(ref.callee_id).toBeNull();
+    expect(ref.resolution_method).toBe('unresolved');
+  });
+
+  it('should mark ambiguous_definition when multiple equally-narrow symbols contain the line', () => {
+    const db = createDb();
+    const file1 = insertFile(db, 'src/file1.ts');
+    const file2 = insertFile(db, 'src/file2.ts');
+
+    // Two symbols on the same line with identical spans
+    insertSymbol(db, file2, 'alpha', 'function', 5, 5);
+    insertSymbol(db, file2, 'beta', 'function', 5, 5);
+
+    const caller = insertSymbol(db, file1, 'main', 'function', 1, 10);
+
+    db.prepare(
+      `INSERT INTO symbol_refs (caller_id, file_id, callee_name, call_line, definition_path, definition_line)
+       VALUES (?, ?, 'something', 3, ?, ?)`,
+    ).run(caller, file1, 'src/file2.ts', 5);
+
+    resolveSymbolEdges(db);
+
+    const ref = db.prepare('SELECT callee_id, resolution_method FROM symbol_refs WHERE caller_id = ?').get(caller) as { callee_id: number | null; resolution_method: string };
+    expect(ref.callee_id).toBeNull();
+    expect(ref.resolution_method).toBe('ambiguous_definition');
+  });
+
+  it('should resolve type_ref via containment mapping', () => {
+    const db = createDb();
+    const file1 = insertFile(db, 'src/file1.ts');
+    const file2 = insertFile(db, 'src/file2.ts');
+
+    const targetType = insertSymbol(db, file2, 'Widget', 'class', 1, 30);
+    const consumer = insertSymbol(db, file1, 'render', 'function', 1, 10);
+
+    db.prepare(
+      `INSERT INTO type_refs (file_id, symbol_id, type_name, type_name_bare, ref_kind, ref_line, definition_path, definition_line)
+       VALUES (?, ?, 'Widget', 'Widget', 'parameter', 5, ?, ?)`,
+    ).run(file1, consumer, 'src/file2.ts', 10);
+
+    resolveSymbolEdges(db);
+
+    const ref = db.prepare('SELECT type_id, resolution_method FROM type_refs WHERE symbol_id = ?').get(consumer) as { type_id: number | null; resolution_method: string };
+    expect(ref.type_id).toBe(targetType);
+    expect(ref.resolution_method).toBe('lsp_definition');
+  });
+
+  it('should resolve symbol_relationships via containment mapping', () => {
+    const db = createDb();
+    const file1 = insertFile(db, 'src/a.ts');
+    const file2 = insertFile(db, 'src/b.ts');
+
+    const parent = insertSymbol(db, file2, 'BaseClass', 'class', 1, 30);
+    const child = insertSymbol(db, file1, 'ChildClass', 'class', 1, 20);
+
+    db.prepare(
+      `INSERT INTO symbol_relationships (file_id, source_symbol_id, target_symbol_name, relationship_type, line, definition_path, definition_line)
+       VALUES (?, ?, 'BaseClass', 'extends', 1, ?, ?)`,
+    ).run(file1, child, 'src/b.ts', 5);
+
+    resolveSymbolEdges(db);
+
+    const rel = db.prepare('SELECT target_symbol_id, resolution_method FROM symbol_relationships WHERE source_symbol_id = ?').get(child) as { target_symbol_id: number | null; resolution_method: string };
+    expect(rel.target_symbol_id).toBe(parent);
+    expect(rel.resolution_method).toBe('lsp_definition');
+  });
+
+  it('should mark unresolved when definition_line does not fall within any symbol', () => {
+    const db = createDb();
+    const file1 = insertFile(db, 'src/file1.ts');
+    const file2 = insertFile(db, 'src/file2.ts');
+
+    // The only symbol in file2 spans lines 10-20
+    insertSymbol(db, file2, 'Foo', 'class', 10, 20);
+
+    const caller = insertSymbol(db, file1, 'main', 'function', 1, 10);
+
+    // definition_line 5 is outside Foo's range
+    db.prepare(
+      `INSERT INTO symbol_refs (caller_id, file_id, callee_name, call_line, definition_path, definition_line)
+       VALUES (?, ?, 'something', 3, ?, ?)`,
+    ).run(caller, file1, 'src/file2.ts', 5);
+
+    resolveSymbolEdges(db);
+
+    const ref = db.prepare('SELECT callee_id, resolution_method FROM symbol_refs WHERE caller_id = ?').get(caller) as { callee_id: number | null; resolution_method: string };
+    expect(ref.callee_id).toBeNull();
+    expect(ref.resolution_method).toBe('unresolved');
+  });
+});
+
+// ─── resolveSymbolEdges: name-based fallback ──────────────────────────────────
+
+describe('resolveSymbolEdges – name-based fallback', () => {
+  it('should resolve symbol_ref via name_same_file when callee is in the same file', () => {
+    const db = createDb();
+    const file1 = insertFile(db, 'src/file1.ts');
+    const file2 = insertFile(db, 'src/file2.ts');
+
+    const target = insertSymbol(db, file1, 'handle', 'function', 1, 10);
+    insertSymbol(db, file2, 'handle', 'function', 1, 10); // same name, different file
+
+    const caller = insertSymbol(db, file1, 'dispatch', 'function', 20, 30);
+
+    // No definition_path/definition_line — will use name fallback
+    db.prepare(
+      `INSERT INTO symbol_refs (caller_id, file_id, callee_name, call_line) VALUES (?, ?, 'handle', 22)`,
+    ).run(caller, file1);
+
+    resolveSymbolEdges(db);
+
+    const ref = db.prepare('SELECT callee_id, resolution_method FROM symbol_refs WHERE caller_id = ?').get(caller) as { callee_id: number | null; resolution_method: string };
+    expect(ref.callee_id).toBe(target);
+    expect(ref.resolution_method).toBe('name_same_file');
+  });
+
+  it('should resolve symbol_ref via name_unique when callee name is globally unique', () => {
+    const db = createDb();
+    const file1 = insertFile(db, 'src/file1.ts');
+    const file2 = insertFile(db, 'src/file2.ts');
+
+    const target = insertSymbol(db, file2, 'UniqueHelper', 'function', 1, 10);
+    const caller = insertSymbol(db, file1, 'main', 'function', 1, 10);
+
+    db.prepare(
+      `INSERT INTO symbol_refs (caller_id, file_id, callee_name, call_line) VALUES (?, ?, 'UniqueHelper', 5)`,
+    ).run(caller, file1);
+
+    resolveSymbolEdges(db);
+
+    const ref = db.prepare('SELECT callee_id, resolution_method FROM symbol_refs WHERE caller_id = ?').get(caller) as { callee_id: number | null; resolution_method: string };
+    expect(ref.callee_id).toBe(target);
+    expect(ref.resolution_method).toBe('name_unique');
+  });
+
+  it('should leave unresolved when name has non-unique cross-file matches', () => {
+    const db = createDb();
+    const file1 = insertFile(db, 'src/file1.ts');
+    const file2 = insertFile(db, 'src/file2.ts');
+    const file3 = insertFile(db, 'src/file3.ts');
+
+    insertSymbol(db, file2, 'handler', 'function', 1, 10);
+    insertSymbol(db, file3, 'handler', 'function', 1, 10);
+
+    const caller = insertSymbol(db, file1, 'router', 'function', 1, 10);
+
+    db.prepare(
+      `INSERT INTO symbol_refs (caller_id, file_id, callee_name, call_line) VALUES (?, ?, 'handler', 5)`,
+    ).run(caller, file1);
+
+    resolveSymbolEdges(db);
+
+    const ref = db.prepare('SELECT callee_id, resolution_method FROM symbol_refs WHERE caller_id = ?').get(caller) as { callee_id: number | null; resolution_method: string };
+    expect(ref.callee_id).toBeNull();
+    expect(ref.resolution_method).toBe('unresolved');
+  });
+
+  it('should resolve type_ref via name_same_file when no LSP data', () => {
+    const db = createDb();
+    const file1 = insertFile(db, 'src/file1.ts');
+    const file2 = insertFile(db, 'src/file2.ts');
+
+    const widget1 = insertSymbol(db, file1, 'Widget', 'class', 1, 20);
+    insertSymbol(db, file2, 'Widget', 'class', 1, 20);
+
+    const consumer = insertSymbol(db, file1, 'render', 'function', 25, 35);
+
     db.prepare(
       `INSERT INTO type_refs (file_id, symbol_id, type_name, type_name_bare, ref_kind, ref_line)
-       VALUES (?, ?, 'Widget', 'Widget', 'parameter', 22)`,
+       VALUES (?, ?, 'Widget', 'Widget', 'parameter', 27)`,
     ).run(file1, consumer);
 
     resolveSymbolEdges(db);
 
-    const ref = db.prepare('SELECT type_id FROM type_refs WHERE symbol_id = ?').get(consumer) as { type_id: number | null };
+    const ref = db.prepare('SELECT type_id, resolution_method FROM type_refs WHERE symbol_id = ?').get(consumer) as { type_id: number | null; resolution_method: string };
     expect(ref.type_id).toBe(widget1);
+    expect(ref.resolution_method).toBe('name_same_file');
   });
 
-  it('should resolve to the other Widget when source_file_id differs', () => {
+  it('should resolve symbol_relationships via name_same_file fallback', () => {
+    const db = createDb();
+    const file1 = insertFile(db, 'src/a.ts');
+
+    const parent = insertSymbol(db, file1, 'BaseClass', 'class', 1, 15);
+    const child = insertSymbol(db, file1, 'ChildClass', 'class', 20, 35);
+
+    db.prepare(
+      `INSERT INTO symbol_relationships (file_id, source_symbol_id, target_symbol_name, relationship_type, line)
+       VALUES (?, ?, 'BaseClass', 'extends', 20)`,
+    ).run(file1, child);
+
+    resolveSymbolEdges(db);
+
+    const rel = db.prepare('SELECT target_symbol_id, resolution_method FROM symbol_relationships WHERE source_symbol_id = ?').get(child) as { target_symbol_id: number | null; resolution_method: string };
+    expect(rel.target_symbol_id).toBe(parent);
+    expect(rel.resolution_method).toBe('name_same_file');
+  });
+
+  it('should resolve symbol_relationships with normalizeTypeName fallback', () => {
+    const db = createDb();
+    const file1 = insertFile(db, 'src/a.ts');
+
+    const target = insertSymbol(db, file1, 'Widget', 'class', 1, 15);
+    const source = insertSymbol(db, file1, 'ChildWidget', 'class', 20, 35);
+
+    db.prepare(
+      `INSERT INTO symbol_relationships (file_id, source_symbol_id, target_symbol_name, relationship_type, line)
+       VALUES (?, ?, 'const Widget*', 'extends', 20)`,
+    ).run(file1, source);
+
+    resolveSymbolEdges(db);
+
+    const rel = db.prepare('SELECT target_symbol_id, resolution_method FROM symbol_relationships WHERE source_symbol_id = ?').get(source) as { target_symbol_id: number | null; resolution_method: string };
+    expect(rel.target_symbol_id).toBe(target);
+    expect(rel.resolution_method).toBe('name_same_file');
+  });
+
+  it('should prefer LSP containment over name fallback when both could match', () => {
     const db = createDb();
     const file1 = insertFile(db, 'src/file1.ts');
     const file2 = insertFile(db, 'src/file2.ts');
 
-    insertSymbol(db, file1, 'Widget', 'class', 1);
-    const widget2 = insertSymbol(db, file2, 'Widget', 'class', 1);
+    const sameFileTarget = insertSymbol(db, file1, 'Widget', 'class', 1, 10);
+    const lspTarget = insertSymbol(db, file2, 'Widget', 'class', 1, 30);
 
-    // Create a symbol in file2 that references Widget
-    const consumer = insertSymbol(db, file2, 'renderWidget', 'function', 20);
+    const caller = insertSymbol(db, file1, 'main', 'function', 20, 30);
 
+    // Has LSP definition data pointing to file2
     db.prepare(
-      `INSERT INTO type_refs (file_id, symbol_id, type_name, type_name_bare, ref_kind, ref_line)
-       VALUES (?, ?, 'Widget', 'Widget', 'parameter', 22)`,
-    ).run(file2, consumer);
+      `INSERT INTO symbol_refs (caller_id, file_id, callee_name, call_line, definition_path, definition_line)
+       VALUES (?, ?, 'Widget', 22, ?, ?)`,
+    ).run(caller, file1, 'src/file2.ts', 10);
 
     resolveSymbolEdges(db);
 
-    const ref = db.prepare('SELECT type_id FROM type_refs WHERE symbol_id = ?').get(consumer) as { type_id: number | null };
-    expect(ref.type_id).toBe(widget2);
-  });
-
-  it('should resolve symbol_refs with same-file preference on bare-name collision', () => {
-    const db = createDb();
-    const file1 = insertFile(db, 'src/file1.ts');
-    const file2 = insertFile(db, 'src/file2.ts');
-
-    const handler1 = insertSymbol(db, file1, 'handle', 'function', 1);
-    insertSymbol(db, file2, 'handle', 'function', 1);
-
-    const caller = insertSymbol(db, file1, 'dispatch', 'function', 20);
-
-    db.prepare(
-      `INSERT INTO symbol_refs (caller_id, callee_name, call_line) VALUES (?, 'handle', 22)`,
-    ).run(caller);
-
-    resolveSymbolEdges(db);
-
-    const ref = db.prepare('SELECT callee_id FROM symbol_refs WHERE caller_id = ?').get(caller) as { callee_id: number | null };
-    expect(ref.callee_id).toBe(handler1);
-  });
-});
-
-// ─── resolveSymbolEdges: definition_path-based resolution ─────────────────────
-
-describe('resolveSymbolEdges – definition_path-based resolution', () => {
-  it('should resolve type_ref via definition_path when name-based fails', () => {
-    const db = createDb();
-    const file1 = insertFile(db, 'src/file1.ts');
-    const file2 = insertFile(db, 'src/file2.ts');
-
-    insertSymbol(db, file1, 'Widget', 'class', 1);
-    const widget2 = insertSymbol(db, file2, 'Widget', 'class', 1);
-
-    const consumer = insertSymbol(db, file1, 'renderWidget', 'function', 20);
-
-    // Insert a type_ref with a mangled name that won't match by name,
-    // but has definition_path pointing to file2
-    db.prepare(
-      `INSERT INTO type_refs (file_id, symbol_id, type_name, type_name_bare, ref_kind, ref_line, definition_path)
-       VALUES (?, ?, 'com.example.Widget', 'com.example.Widget', 'parameter', 22, ?)`,
-    ).run(file1, consumer, 'src/file2.ts');
-
-    resolveSymbolEdges(db);
-
-    const ref = db.prepare('SELECT type_id FROM type_refs WHERE symbol_id = ?').get(consumer) as { type_id: number | null };
-    expect(ref.type_id).toBe(widget2);
-  });
-
-  it('should resolve type_ref via definition_path to file2 Widget even when file1 Widget matches by name', () => {
-    const db = createDb();
-    const file1 = insertFile(db, 'src/file1.ts');
-    const file2 = insertFile(db, 'src/file2.ts');
-
-    insertSymbol(db, file1, 'Widget', 'class', 1);
-    const widget2 = insertSymbol(db, file2, 'Widget', 'class', 1);
-
-    const consumer = insertSymbol(db, file1, 'renderWidget', 'function', 20);
-
-    // This type_ref has a name that doesn't match any symbol ('UnknownWidget'),
-    // plus a definition_path pointing to file2 — should resolve via path
-    db.prepare(
-      `INSERT INTO type_refs (file_id, symbol_id, type_name, type_name_bare, ref_kind, ref_line, definition_path)
-       VALUES (?, ?, 'UnknownWidget', 'UnknownWidget', 'parameter', 22, ?)`,
-    ).run(file1, consumer, 'src/file2.ts');
-
-    resolveSymbolEdges(db);
-
-    const ref = db.prepare('SELECT type_id FROM type_refs WHERE symbol_id = ?').get(consumer) as { type_id: number | null };
-    expect(ref.type_id).toBe(widget2);
-  });
-
-  it('should resolve symbol_ref via definition_path when callee_name has no match', () => {
-    const db = createDb();
-    const file1 = insertFile(db, 'src/file1.ts');
-    const file2 = insertFile(db, 'src/file2.ts');
-
-    const target = insertSymbol(db, file2, 'WidgetImpl', 'class', 5);
-
-    const caller = insertSymbol(db, file1, 'bootstrap', 'function', 1);
-
-    // callee_name 'NoMatch' won't match any symbol; definition_path resolves it
-    db.prepare(
-      `INSERT INTO symbol_refs (caller_id, callee_name, call_line, definition_path) VALUES (?, 'NoMatch', 10, ?)`,
-    ).run(caller, 'src/file2.ts');
-
-    resolveSymbolEdges(db);
-
-    const ref = db.prepare('SELECT callee_id FROM symbol_refs WHERE caller_id = ?').get(caller) as { callee_id: number | null };
-    expect(ref.callee_id).toBe(target);
-  });
-
-  it('should pick the first symbol by start_line when definition_path matches multiple symbols', () => {
-    const db = createDb();
-    const file1 = insertFile(db, 'src/file1.ts');
-    const file2 = insertFile(db, 'src/file2.ts');
-
-    // Two symbols in file2 at different lines
-    const first = insertSymbol(db, file2, 'Alpha', 'class', 1);
-    insertSymbol(db, file2, 'Beta', 'class', 50);
-
-    const caller = insertSymbol(db, file1, 'main', 'function', 1);
-
-    db.prepare(
-      `INSERT INTO symbol_refs (caller_id, callee_name, call_line, definition_path) VALUES (?, 'NoMatch', 10, ?)`,
-    ).run(caller, 'src/file2.ts');
-
-    resolveSymbolEdges(db);
-
-    const ref = db.prepare('SELECT callee_id FROM symbol_refs WHERE caller_id = ?').get(caller) as { callee_id: number | null };
-    expect(ref.callee_id).toBe(first);
-  });
-
-  it('should not overwrite an already-resolved ref via definition_path', () => {
-    const db = createDb();
-    const file1 = insertFile(db, 'src/file1.ts');
-    const file2 = insertFile(db, 'src/file2.ts');
-
-    const widget1 = insertSymbol(db, file1, 'Widget', 'class', 1);
-    insertSymbol(db, file2, 'Widget', 'class', 1);
-
-    const consumer = insertSymbol(db, file1, 'renderWidget', 'function', 20);
-
-    // type_ref with name 'Widget' — will resolve by name to widget1 (same file)
-    // Also has definition_path to file2 — but since it's already resolved, the path pass should skip it
-    db.prepare(
-      `INSERT INTO type_refs (file_id, symbol_id, type_name, type_name_bare, ref_kind, ref_line, definition_path)
-       VALUES (?, ?, 'Widget', 'Widget', 'parameter', 22, ?)`,
-    ).run(file1, consumer, 'src/file2.ts');
-
-    resolveSymbolEdges(db);
-
-    const ref = db.prepare('SELECT type_id FROM type_refs WHERE symbol_id = ?').get(consumer) as { type_id: number | null };
-    // Name-based resolves first to widget1 (same-file), definition_path pass shouldn't override
-    expect(ref.type_id).toBe(widget1);
+    const ref = db.prepare('SELECT callee_id, resolution_method FROM symbol_refs WHERE caller_id = ?').get(caller) as { callee_id: number | null; resolution_method: string };
+    // LSP wins — resolves to file2's Widget, not file1's
+    expect(ref.callee_id).toBe(lspTarget);
+    expect(ref.resolution_method).toBe('lsp_definition');
   });
 });
 
@@ -303,77 +438,18 @@ describe('buildCallGraph (deprecated alias)', () => {
   it('should be a function that delegates to resolveSymbolEdges', () => {
     const db = createDb();
     const file1 = insertFile(db, 'src/a.ts');
-    insertSymbol(db, file1, 'Alpha', 'class', 1);
+    const target = insertSymbol(db, file1, 'Alpha', 'class', 1, 10);
 
-    const caller = insertSymbol(db, file1, 'main', 'function', 10);
+    const caller = insertSymbol(db, file1, 'main', 'function', 20, 30);
     db.prepare(
-      `INSERT INTO symbol_refs (caller_id, callee_name, call_line) VALUES (?, 'Alpha', 12)`,
-    ).run(caller);
+      `INSERT INTO symbol_refs (caller_id, file_id, callee_name, call_line, definition_path, definition_line)
+       VALUES (?, ?, 'Alpha', 22, ?, ?)`,
+    ).run(caller, file1, 'src/a.ts', 5);
 
     buildCallGraph(db);
 
     const ref = db.prepare('SELECT callee_id FROM symbol_refs WHERE caller_id = ?').get(caller) as { callee_id: number | null };
-    expect(ref.callee_id).not.toBeNull();
-  });
-});
-
-// ─── resolveSymbolEdges – symbol_relationships ────────────────────────────────
-
-describe('resolveSymbolEdges – symbol_relationships', () => {
-  it('should resolve symbol_relationships target_symbol_id by name', () => {
-    const db = createDb();
-    const file1 = insertFile(db, 'src/a.ts');
-
-    const parent = insertSymbol(db, file1, 'BaseClass', 'class', 1);
-    const child = insertSymbol(db, file1, 'ChildClass', 'class', 20);
-
-    db.prepare(
-      `INSERT INTO symbol_relationships (file_id, source_symbol_id, target_symbol_name, relationship_type, line)
-       VALUES (?, ?, 'BaseClass', 'extends', 20)`,
-    ).run(file1, child);
-
-    resolveSymbolEdges(db);
-
-    const rel = db.prepare('SELECT target_symbol_id FROM symbol_relationships WHERE source_symbol_id = ?').get(child) as { target_symbol_id: number | null };
-    expect(rel.target_symbol_id).toBe(parent);
-  });
-
-  it('should resolve symbol_relationships with normalizeTypeName fallback', () => {
-    const db = createDb();
-    const file1 = insertFile(db, 'src/a.ts');
-
-    const target = insertSymbol(db, file1, 'Widget', 'class', 1);
-    const source = insertSymbol(db, file1, 'ChildWidget', 'class', 20);
-
-    // The target name includes qualifier that won't directly match
-    db.prepare(
-      `INSERT INTO symbol_relationships (file_id, source_symbol_id, target_symbol_name, relationship_type, line)
-       VALUES (?, ?, 'const Widget*', 'extends', 20)`,
-    ).run(file1, source);
-
-    resolveSymbolEdges(db);
-
-    const rel = db.prepare('SELECT target_symbol_id FROM symbol_relationships WHERE source_symbol_id = ?').get(source) as { target_symbol_id: number | null };
-    expect(rel.target_symbol_id).toBe(target);
-  });
-
-  it('should resolve symbol_relationships via definition_path when name-based fails', () => {
-    const db = createDb();
-    const file1 = insertFile(db, 'src/a.ts');
-    const file2 = insertFile(db, 'src/b.ts');
-
-    const target = insertSymbol(db, file2, 'BaseImpl', 'class', 1);
-    const source = insertSymbol(db, file1, 'Child', 'class', 1);
-
-    db.prepare(
-      `INSERT INTO symbol_relationships (file_id, source_symbol_id, target_symbol_name, relationship_type, line, definition_path)
-       VALUES (?, ?, 'NoMatch', 'implements', 1, ?)`,
-    ).run(file1, source, 'src/b.ts');
-
-    resolveSymbolEdges(db);
-
-    const rel = db.prepare('SELECT target_symbol_id FROM symbol_relationships WHERE source_symbol_id = ?').get(source) as { target_symbol_id: number | null };
-    expect(rel.target_symbol_id).toBe(target);
+    expect(ref.callee_id).toBe(target);
   });
 });
 

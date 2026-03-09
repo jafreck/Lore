@@ -606,13 +606,13 @@ export class IndexBuilder {
 
     // Insert call refs (callee_id resolved in call-graph phase)
     const insertCallRef = db.prepare(
-      `INSERT INTO symbol_refs (caller_id, callee_name, call_line, call_character, call_kind)
-       VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO symbol_refs (caller_id, file_id, callee_name, call_line, call_character, call_kind)
+       VALUES (?, ?, ?, ?, ?, ?)`,
     );
     for (const ref of result.callRefs) {
       const callerId = symbolIdMap.get(ref.callerSymbol);
       if (callerId !== undefined) {
-        insertCallRef.run(callerId, ref.calleeRaw, ref.line, ref.character ?? null, ref.callKind ?? 'direct');
+        insertCallRef.run(callerId, fileId, ref.calleeRaw, ref.line, ref.character ?? null, ref.callKind ?? 'direct');
       }
     }
 
@@ -971,17 +971,17 @@ export class IndexBuilder {
     );
     const updateCallRef = db.prepare(
       `UPDATE symbol_refs
-       SET resolved_type_signature = ?, resolved_return_type = ?, definition_uri = ?, definition_path = ?
+       SET resolved_type_signature = ?, resolved_return_type = ?, definition_uri = ?, definition_path = ?, definition_line = ?, definition_character = ?
        WHERE id = ?`,
     );
     const updateTypeRef = db.prepare(
       `UPDATE type_refs
-       SET resolved_type_signature = ?, definition_uri = ?, definition_path = ?
+       SET resolved_type_signature = ?, definition_uri = ?, definition_path = ?, definition_line = ?, definition_character = ?
        WHERE id = ?`,
     );
     const updateRelationship = db.prepare(
       `UPDATE symbol_relationships
-       SET definition_uri = ?, definition_path = ?
+       SET definition_uri = ?, definition_path = ?, definition_line = ?, definition_character = ?
        WHERE id = ?`,
     );
 
@@ -1081,6 +1081,8 @@ export class IndexBuilder {
               m.resolvedReturnType,
               m.definitionUri,
               m.definitionPath,
+              m.definitionLine,
+              m.definitionCharacter,
               tag.rowId,
             );
             break;
@@ -1089,6 +1091,8 @@ export class IndexBuilder {
               m.resolvedTypeSignature,
               m.definitionUri,
               m.definitionPath,
+              m.definitionLine,
+              m.definitionCharacter,
               tag.rowId,
             );
             break;
@@ -1096,6 +1100,8 @@ export class IndexBuilder {
             updateRelationship.run(
               m.definitionUri,
               m.definitionPath,
+              m.definitionLine,
+              m.definitionCharacter,
               tag.rowId,
             );
             break;
