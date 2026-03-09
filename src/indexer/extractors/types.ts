@@ -308,6 +308,34 @@ export function extractGenericTypeArgs(
 }
 
 /**
+ * Unwraps wrapper types (nullable, reference, pointer, array, optional, slice)
+ * to find the inner type node that may carry generic arguments.
+ *
+ * When `extractTypeName` descends through these wrappers internally but
+ * `extractGenericTypeArgs` is called on the outer node, generic args would be
+ * lost because the outer node's type doesn't match `genericNodeType`.
+ */
+const WRAPPER_NODE_TYPES = new Set([
+  'nullable_type',
+  'optional_type',
+  'reference_type',
+  'pointer_type',
+  'slice_type',
+  'array_type',
+]);
+
+function unwrapToGenericNode(node: Parser.SyntaxNode, genericNodeType: string): Parser.SyntaxNode {
+  let current = node;
+  while (WRAPPER_NODE_TYPES.has(current.type) && current.type !== genericNodeType) {
+    const inner = current.namedChildren.find(c =>
+      c.type !== 'mutable_specifier' && c.type !== 'lifetime');
+    if (!inner) break;
+    current = inner;
+  }
+  return current;
+}
+
+/**
  * Creates a type-ref emitter function that encapsulates the standard
  * three-step pattern used by most language extractors:
  *
@@ -352,7 +380,11 @@ export function createTypeRefEmitter(config: {
       line: typeNode.startPosition.row,
       character: typeNode.startPosition.column,
     });
-    const genericArgs = extractGenericTypeArgs(typeNode, genericNodeType, argListNodeType);
+    // Unwrap wrapper types (nullable, optional, reference, etc.) before
+    // checking for generic args — extractTypeName may have already descended
+    // through these wrappers, so the outer node won't match genericNodeType.
+    const innerNode = unwrapToGenericNode(typeNode, genericNodeType);
+    const genericArgs = extractGenericTypeArgs(innerNode, genericNodeType, argListNodeType);
     for (const arg of genericArgs) {
       refs.push({
         enclosingSymbol: enclosing,

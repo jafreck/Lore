@@ -253,8 +253,6 @@ function extractJavaFieldTypeRefs(classNode: Parser.SyntaxNode, refs: RawTypeRef
 function extractJavaLocalVarTypeRefs(node: Parser.SyntaxNode, refs: RawTypeRef[]): void {
   const typeNode = node.childForFieldName('type');
   if (!typeNode) return;
-  const typeName = extractJavaTypeName(typeNode);
-  if (!typeName) return;
   const enclosing = findEnclosingSymbolName(node, JAVA_SYMBOL_NODE_TYPES);
   emitJavaTypeRef(refs, enclosing, typeNode, 'variable');
 }

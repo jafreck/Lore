@@ -81,7 +81,7 @@ export interface GraphArgs {
 }
 
 export interface GraphEdge {
-  source_id: number;
+  source_id: number | null;
   source_name: string;
   source_branch: string;
   target_id: number | null;

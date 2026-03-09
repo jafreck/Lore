@@ -13,7 +13,6 @@ import {
   type RawRelationship,
   type RawSymbol,
   type RawTypeRef,
-  type TypeRefKind,
   type SymbolExtractor,
   emptyResult,
   findEnclosingSymbolName,
@@ -69,10 +68,6 @@ export class PhpExtractor implements SymbolExtractor {
         case 'object_creation_expression': {
           const ref = extractNewCallRef(node);
           if (ref) result.callRefs.push(ref);
-          break;
-        }
-        case 'cast_expression': {
-          extractPhpCastTypeRef(node, result.typeRefs);
           break;
         }
       }
@@ -260,23 +255,4 @@ function extractPhpClassFieldTypeRefs(classNode: Parser.SyntaxNode, refs: RawTyp
       }
     }
   }
-}
-
-/** PHP cast types that are always primitives and will never resolve to a user-defined symbol. */
-const PHP_PRIMITIVE_CAST_TYPES = new Set([
-  'int', 'integer', 'float', 'double', 'real',
-  'string', 'binary', 'bool', 'boolean',
-  'array', 'object', 'unset',
-]);
-
-function extractPhpCastTypeRef(node: Parser.SyntaxNode, refs: RawTypeRef[]): void {
-  // (Type)$expr — the cast type is the first child
-  const typeNode = node.childForFieldName('type') ?? node.namedChildren[0];
-  if (!typeNode) return;
-  const typeName = typeNode.text;
-  if (!typeName) return;
-  // PHP casts are always primitives (int, string, etc.) — skip them since they never resolve
-  if (PHP_PRIMITIVE_CAST_TYPES.has(typeName.toLowerCase())) return;
-  const enclosing = findEnclosingSymbolName(node, PHP_SYMBOL_NODE_TYPES);
-  refs.push({ enclosingSymbol: enclosing, typeRaw: typeName, refKind: 'cast', line: typeNode.startPosition.row, character: typeNode.startPosition.column });
 }
