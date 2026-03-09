@@ -187,14 +187,15 @@ describe('ImportResolver', () => {
       expect(result.isExternal).toBe(true);
     });
 
-    it('should mark relative imports as external when no matching file exists', () => {
+    it('should keep unresolved relative imports internal when no matching file exists', () => {
       const result = resolver.resolve(
         { source: './nonexistent', kind: 'import', line: 1 },
         path.join(tmpDir, 'src/app.ts'),
         tmpDir,
         'typescript',
       );
-      expect(result.isExternal).toBe(true);
+      expect(result.isExternal).toBe(false);
+      expect(result.resolvedPath).toBeUndefined();
     });
 
     it('should resolve .js extension import', () => {
@@ -437,14 +438,15 @@ describe('ImportResolver', () => {
       expect(result.isExternal).toBe(true);
     });
 
-    it('should mark unresolvable relative imports as external', () => {
+    it('should keep unresolvable relative imports internal', () => {
       const result = resolver.resolve(
         { source: '.nonexistent', kind: 'import', line: 1 },
         path.join(tmpDir, 'app.py'),
         tmpDir,
         'python',
       );
-      expect(result.isExternal).toBe(true);
+      expect(result.isExternal).toBe(false);
+      expect(result.resolvedPath).toBeUndefined();
     });
   });
 
