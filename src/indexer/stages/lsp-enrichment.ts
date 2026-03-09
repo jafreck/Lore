@@ -136,6 +136,10 @@ export async function enrichProjectRefs(
     signature?: string | null;
   }
 
+  const runInTransaction = db.transaction((updates: Array<() => void>) => {
+    for (const fn of updates) fn();
+  });
+
   for (const file of files) {
     if (!file || !fs.existsSync(file.path)) continue;
     let source: string;
@@ -193,60 +197,71 @@ export async function enrichProjectRefs(
       targets: tagged.map(t => ({ line: t.line, character: t.character })),
     });
 
+    // Batch all per-file writes in a single transaction.
+    const updates: Array<() => void> = [];
     for (let i = 0; i < tagged.length; i++) {
       const tag = tagged[i]!;
       const m = metadata[i];
       if (!m) continue;
       switch (tag.table) {
         case 'symbol':
-          updateSymbol.run(
-            m.resolvedTypeSignature,
-            m.resolvedReturnType,
-            m.definitionUri,
-            m.definitionPath,
-            tag.rowId,
-          );
-          updateSymbolFts.run(
-            buildStructuralEmbeddingText({
-              name: tag.name!,
-              signature: tag.signature ?? null,
-              resolvedTypeSignature: m.resolvedTypeSignature,
-              resolvedReturnType: m.resolvedReturnType,
-            }),
-            tag.rowId,
-          );
+          updates.push(() => {
+            updateSymbol.run(
+              m.resolvedTypeSignature,
+              m.resolvedReturnType,
+              m.definitionUri,
+              m.definitionPath,
+              tag.rowId,
+            );
+            updateSymbolFts.run(
+              buildStructuralEmbeddingText({
+                name: tag.name!,
+                signature: tag.signature ?? null,
+                resolvedTypeSignature: m.resolvedTypeSignature,
+                resolvedReturnType: m.resolvedReturnType,
+              }),
+              tag.rowId,
+            );
+          });
           break;
         case 'callRef':
-          updateCallRef.run(
-            m.resolvedTypeSignature,
-            m.resolvedReturnType,
-            m.definitionUri,
-            m.definitionPath,
-            m.definitionLine,
-            m.definitionCharacter,
-            tag.rowId,
-          );
+          updates.push(() => {
+            updateCallRef.run(
+              m.resolvedTypeSignature,
+              m.resolvedReturnType,
+              m.definitionUri,
+              m.definitionPath,
+              m.definitionLine,
+              m.definitionCharacter,
+              tag.rowId,
+            );
+          });
           break;
         case 'typeRef':
-          updateTypeRef.run(
-            m.resolvedTypeSignature,
-            m.definitionUri,
-            m.definitionPath,
-            m.definitionLine,
-            m.definitionCharacter,
-            tag.rowId,
-          );
+          updates.push(() => {
+            updateTypeRef.run(
+              m.resolvedTypeSignature,
+              m.definitionUri,
+              m.definitionPath,
+              m.definitionLine,
+              m.definitionCharacter,
+              tag.rowId,
+            );
+          });
           break;
         case 'relationship':
-          updateRelationship.run(
-            m.definitionUri,
-            m.definitionPath,
-            m.definitionLine,
-            m.definitionCharacter,
-            tag.rowId,
-          );
+          updates.push(() => {
+            updateRelationship.run(
+              m.definitionUri,
+              m.definitionPath,
+              m.definitionLine,
+              m.definitionCharacter,
+              tag.rowId,
+            );
+          });
           break;
       }
     }
+    if (updates.length > 0) runInTransaction(updates);
   }
 }

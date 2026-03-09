@@ -98,24 +98,26 @@ export class DependencyApiStage implements PipelineStage {
             })
             : declarationSymbols.map(() => null);
 
-          for (let i = 0; i < declarationSymbols.length; i++) {
-            const symbol = declarationSymbols[i];
-            if (!symbol) continue;
-            const metadata = enrichmentRows[i];
-            insertExternalSymbol.run(
-              packageName,
-              packageVersion,
-              declarationFile,
-              symbol.name,
-              symbol.kind,
-              symbol.signature,
-              symbol.docComment ?? null,
-              metadata?.resolvedTypeSignature ?? null,
-              metadata?.resolvedReturnType ?? null,
-              metadata?.definitionUri ?? null,
-              metadata?.definitionPath ?? null,
-            );
-          }
+          db.transaction(() => {
+            for (let i = 0; i < declarationSymbols.length; i++) {
+              const symbol = declarationSymbols[i];
+              if (!symbol) continue;
+              const metadata = enrichmentRows[i];
+              insertExternalSymbol.run(
+                packageName,
+                packageVersion,
+                declarationFile,
+                symbol.name,
+                symbol.kind,
+                symbol.signature,
+                symbol.docComment ?? null,
+                metadata?.resolvedTypeSignature ?? null,
+                metadata?.resolvedReturnType ?? null,
+                metadata?.definitionUri ?? null,
+                metadata?.definitionPath ?? null,
+              );
+            }
+          })();
         }
       }
     } finally {
