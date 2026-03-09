@@ -48,7 +48,6 @@ export {
   ResolutionStage,
   TestMapStage,
   HistoryStage,
-  CoverageStage,
   EmbeddingStage,
 } from './indexer/stages/index.js';
 export { enrichProjectRefs } from './indexer/stages/lsp-enrichment.js';

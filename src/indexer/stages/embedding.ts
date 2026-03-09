@@ -22,15 +22,28 @@ const EMBED_BATCH_SIZE = 64;
 export class EmbeddingStage implements PipelineStage {
   readonly name = 'embedding';
 
-  async execute(context: PipelineContext, _mode: 'build' | 'update'): Promise<void> {
+  async execute(context: PipelineContext, mode: 'build' | 'update'): Promise<void> {
     if (!context.embedder) return;
 
     const { db, embedder } = context;
     context.log.indexing('embedding started', { model: embedder.modelName });
 
     await embedder.init();
-    await embedStructural(db, embedder);
-    await embedDocumentation(db, embedder);
+
+    if (mode === 'update') {
+      // Clean up orphaned symbol embeddings for symbols that were deleted/replaced.
+      deleteSymbolEmbeddings(db, context.staleSymbolIds);
+
+      // Resolve scoped file/doc IDs for incremental embedding.
+      const changedFileIds = resolveFileIds(db, context.changedSourcePaths, context.branch);
+      const changedDocIds = resolveDocIds(db, context.changedDocPaths, context.branch);
+
+      await embedStructural(db, embedder, changedFileIds);
+      await embedDocumentation(db, embedder, changedDocIds);
+    } else {
+      await embedStructural(db, embedder);
+      await embedDocumentation(db, embedder);
+    }
 
     if (context.history) {
       await embedCommitMessages(db, embedder);
@@ -184,4 +197,35 @@ async function embedCommitMessages(
       }
     })();
   }
+}
+
+// ─── Update-mode helpers ──────────────────────────────────────────────────────
+
+function deleteSymbolEmbeddings(db: Database.Database, symbolIds: number[]): void {
+  if (symbolIds.length === 0) return;
+  const hasTable = db.prepare(
+    "SELECT 1 AS present FROM sqlite_master WHERE type IN ('table', 'virtual table') AND name = 'symbol_embeddings'",
+  ).get() as { present: number } | undefined;
+  if (!hasTable) return;
+  db.prepare(
+    `DELETE FROM symbol_embeddings WHERE rowid IN (${symbolIds.map(() => '?').join(', ')})`,
+  ).run(...symbolIds);
+}
+
+function resolveFileIds(db: Database.Database, paths: string[], branch: string): number[] {
+  const ids: number[] = [];
+  for (const p of paths) {
+    const row = db.prepare('SELECT id FROM files WHERE path = ? AND branch = ?').get(p, branch) as { id: number } | undefined;
+    if (row) ids.push(row.id);
+  }
+  return ids;
+}
+
+function resolveDocIds(db: Database.Database, paths: string[], branch: string): number[] {
+  const ids: number[] = [];
+  for (const p of paths) {
+    const row = db.prepare('SELECT id FROM docs WHERE path = ? AND branch = ?').get(p, branch) as { id: number } | undefined;
+    if (row) ids.push(row.id);
+  }
+  return ids;
 }

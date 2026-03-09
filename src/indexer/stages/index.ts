@@ -12,5 +12,4 @@ export { LspEnrichmentStage, enrichProjectRefs } from './lsp-enrichment.js';
 export { ResolutionStage } from './resolution.js';
 export { TestMapStage } from './test-map.js';
 export { HistoryStage } from './history.js';
-export { CoverageStage } from './coverage.js';
 export { EmbeddingStage } from './embedding.js';

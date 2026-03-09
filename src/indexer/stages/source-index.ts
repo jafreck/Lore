@@ -16,7 +16,7 @@ import {
   getLoreMeta,
   LORE_META_INDEX_CHECKPOINT,
 } from '../db.js';
-import { walkFiles } from '../walker.js';
+import { walkFiles, detectLanguageForPath } from '../walker.js';
 import { ParserPool } from '../parser.js';
 import { buildStructuralEmbeddingText } from '../embedder.js';
 import { normalizeTypeName } from '../call-graph.js';
@@ -109,20 +109,18 @@ export class SourceIndexStage implements PipelineStage {
 
   async execute(context: PipelineContext, mode: 'build' | 'update'): Promise<void> {
     this.pool = new ParserPool();
-    const files = await walkFiles(context.walkerConfig);
-    context.files = files;
-
-    context.log.indexing('walk complete', { fileCount: files.length });
 
     // Save docs auto-notes setting.
     setLoreMeta(context.db, 'docs_auto_notes', context.docsAutoNotes ? '1' : '0');
 
     if (mode === 'build') {
+      const files = await walkFiles(context.walkerConfig);
+      context.files = files;
+      context.log.indexing('walk complete', { fileCount: files.length });
       await this.processBuild(context, files);
+    } else {
+      await this.processUpdate(context);
     }
-    // In 'update' mode, file processing is handled by the caller (IndexBuilder.update)
-    // which manages the changed-file list. The stage populates context.files for
-    // later stages to iterate.
   }
 
   async dispose(): Promise<void> {
@@ -153,6 +151,58 @@ export class SourceIndexStage implements PipelineStage {
     })();
 
     saveBuildCheckpoint(db, branch, context.walkerConfig.rootDir, files.length, files.length);
+  }
+
+  // ─── Update mode ─────────────────────────────────────────────────────────
+
+  private async processUpdate(context: PipelineContext): Promise<void> {
+    const { db, branch, walkerConfig } = context;
+    const changedFiles = context.changedFiles ?? [];
+    const pool = this.pool!;
+    const enrichedFiles: Array<{ path: string; language: string }> = [];
+
+    db.transaction(() => {
+      for (const filePath of changedFiles) {
+        // If the file no longer exists, remove it from the DB
+        if (!fs.existsSync(filePath)) {
+          const row = db.prepare('SELECT id FROM files WHERE path = ? AND branch = ?').get(filePath, branch) as
+            | { id: number }
+            | undefined;
+          if (row) {
+            const symRows = db.prepare('SELECT id FROM symbols WHERE file_id = ?').all(row.id) as Array<{ id: number }>;
+            for (const s of symRows) context.staleSymbolIds.push(s.id);
+            db.prepare('UPDATE file_imports SET resolved_id = NULL WHERE resolved_id = ?').run(row.id);
+            db.prepare('DELETE FROM symbols_fts WHERE rowid IN (SELECT id FROM symbols WHERE file_id = ?)').run(row.id);
+            db.prepare('DELETE FROM files WHERE id = ?').run(row.id);
+          }
+          continue;
+        }
+
+        const language = detectLanguageForPath(filePath, walkerConfig);
+        if (language) {
+          enrichedFiles.push({ path: filePath, language });
+          context.changedSourcePaths.push(filePath);
+          const existingRow = db.prepare('SELECT id FROM files WHERE path = ? AND branch = ?').get(filePath, branch) as
+            | { id: number }
+            | undefined;
+          if (existingRow) {
+            const symRows = db.prepare('SELECT id FROM symbols WHERE file_id = ?').all(existingRow.id) as Array<{ id: number }>;
+            for (const s of symRows) context.staleSymbolIds.push(s.id);
+            db.prepare('UPDATE file_imports SET resolved_id = NULL WHERE resolved_id = ?').run(existingRow.id);
+            db.prepare('UPDATE symbol_refs SET callee_id = NULL WHERE callee_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(existingRow.id);
+            db.prepare('UPDATE type_refs SET type_id = NULL WHERE type_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(existingRow.id);
+            db.prepare('UPDATE symbol_relationships SET target_symbol_id = NULL WHERE target_symbol_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(existingRow.id);
+            db.prepare('DELETE FROM symbols_fts WHERE rowid IN (SELECT id FROM symbols WHERE file_id = ?)').run(existingRow.id);
+          }
+
+          db.prepare('DELETE FROM files WHERE path = ? AND branch = ?').run(filePath, branch);
+          processFile(db, pool, filePath, language, branch);
+        }
+      }
+    })();
+
+    // In update mode, context.files = only the changed/enriched files
+    context.files = enrichedFiles;
   }
 }
 

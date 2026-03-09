@@ -49,6 +49,8 @@ export interface PipelineContext {
 
   /**
    * File list populated by SourceIndexStage.
+   * In build mode: all walked files.
+   * In update mode: only the changed files that were (re-)indexed.
    * Later stages (enrichment, resolution, embedding) iterate over this.
    */
   files: Array<{ path: string; language: string }>;
@@ -59,6 +61,32 @@ export interface PipelineContext {
   history: boolean | { depth?: number; all?: boolean };
   /** Whether to auto-seed documentation notes. */
   docsAutoNotes: boolean;
+
+  // ── Update-mode fields (populated by stages during incremental updates) ──
+
+  /**
+   * Absolute paths of changed files supplied by the caller for incremental
+   * updates.  Undefined in build mode.
+   */
+  changedFiles?: string[];
+
+  /**
+   * Symbol IDs whose embeddings should be removed (stale from deleted /
+   * re-processed files).  Accumulated by SourceIndexStage in update mode.
+   */
+  staleSymbolIds: number[];
+
+  /**
+   * Paths of changed source files — used to look up new file IDs for
+   * scoped embedding.  Accumulated by SourceIndexStage in update mode.
+   */
+  changedSourcePaths: string[];
+
+  /**
+   * Paths of changed doc files — used to look up new doc IDs for scoped
+   * embedding.  Accumulated by DocsIndexStage in update mode.
+   */
+  changedDocPaths: string[];
 }
 
 /**

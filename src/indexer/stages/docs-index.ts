@@ -33,23 +33,43 @@ interface SeededNoteRow {
 export class DocsIndexStage implements PipelineStage {
   readonly name = 'docs-index';
 
-  async execute(context: PipelineContext, _mode: 'build' | 'update'): Promise<void> {
+  async execute(context: PipelineContext, mode: 'build' | 'update'): Promise<void> {
     const docs = await walkDocumentationFiles(context.walkerConfig);
     context.log.indexing('docs walk complete', { docCount: docs.length });
 
     const { db, branch } = context;
 
-    db.transaction(() => {
-      const seenDocPaths = new Set<string>();
-      for (const doc of docs) {
-        seenDocPaths.add(doc.path);
-        processDocumentationFile(db, doc, branch);
-        if (context.docsAutoNotes) {
-          upsertSeededDocumentationNote(db, doc, branch);
+    if (mode === 'build') {
+      db.transaction(() => {
+        const seenDocPaths = new Set<string>();
+        for (const doc of docs) {
+          seenDocPaths.add(doc.path);
+          processDocumentationFile(db, doc, branch);
+          if (context.docsAutoNotes) {
+            upsertSeededDocumentationNote(db, doc, branch);
+          }
         }
-      }
-      removeStaleDocumentation(db, branch, seenDocPaths);
-    })();
+        removeStaleDocumentation(db, branch, seenDocPaths);
+      })();
+    } else {
+      // Update mode: only process docs that are in the changed-file list
+      const changedFiles = context.changedFiles ?? [];
+      const changedSet = new Set(changedFiles);
+      const docsByPath = new Map(docs.map(doc => [doc.path, doc]));
+
+      db.transaction(() => {
+        for (const filePath of changedFiles) {
+          const changedDoc = docsByPath.get(filePath);
+          if (changedDoc) {
+            processDocumentationFile(db, changedDoc, branch);
+            if (context.docsAutoNotes) upsertSeededDocumentationNote(db, changedDoc, branch);
+            context.changedDocPaths.push(filePath);
+          } else {
+            deleteDocumentationByPath(db, filePath, branch);
+          }
+        }
+      })();
+    }
   }
 }
 
@@ -157,6 +177,13 @@ export function upsertSeededDocumentationNote(
        source_hash = excluded.source_hash,
        updated_at = unixepoch()`,
   ).run(key, scope, doc.content, 'system:auto-doc-seed', doc.hash);
+}
+
+export function deleteDocumentationByPath(db: Database.Database, docPath: string, branch: string): void {
+  const row = db.prepare('SELECT id FROM docs WHERE path = ? AND branch = ?')
+    .get(docPath, branch) as { id: number } | undefined;
+  if (!row) return;
+  deleteDocumentationById(db, row.id);
 }
 
 function removeStaleDocumentation(db: Database.Database, branch: string, retainedPaths: Set<string>): void {

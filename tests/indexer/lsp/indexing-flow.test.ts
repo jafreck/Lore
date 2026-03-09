@@ -135,16 +135,17 @@ describe('IndexBuilder LSP indexing flow', () => {
     );
     await updateBuilder.update([fileA, fileB]);
 
-    expect(coordinatorInstances).toHaveLength(3);
+    expect(coordinatorInstances).toHaveLength(4);
     // build() creates 2 coordinators: DependencyApiStage + LspEnrichmentStage
     expect(coordinatorInstances[0]?.start).toHaveBeenCalledTimes(1);
     expect(coordinatorInstances[0]?.dispose).toHaveBeenCalledTimes(1);
     expect(coordinatorInstances[1]?.start).toHaveBeenCalledTimes(1);
     expect(coordinatorInstances[1]?.dispose).toHaveBeenCalledTimes(1);
-    // update() creates 1 coordinator (inline handling)
+    // update() also runs through the pipeline: DependencyApiStage + LspEnrichmentStage
     expect(coordinatorInstances[2]?.start).toHaveBeenCalledTimes(1);
     expect(coordinatorInstances[2]?.dispose).toHaveBeenCalledTimes(1);
-    expect(coordinatorInstances[2]?.enrich.mock.calls.length).toBeGreaterThan(0);
+    expect(coordinatorInstances[3]?.start).toHaveBeenCalledTimes(1);
+    expect(coordinatorInstances[3]?.dispose).toHaveBeenCalledTimes(1);
 
     const db = new Database(dbPath, { readonly: true });
     const enrichedSymbolCount = db.prepare(
