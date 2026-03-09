@@ -45,9 +45,6 @@ export {
   ImportResolutionStage,
   DependencyApiStage,
   LspEnrichmentStage,
-  ResolutionStage,
-  TestMapStage,
-  HistoryStage,
   EmbeddingStage,
 } from './indexer/stages/index.js';
 

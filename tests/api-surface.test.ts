@@ -44,9 +44,6 @@ describe('public API surface', () => {
     expect(publicApi.ImportResolutionStage).toBeDefined();
     expect(publicApi.DependencyApiStage).toBeDefined();
     expect(publicApi.LspEnrichmentStage).toBeDefined();
-    expect(publicApi.ResolutionStage).toBeDefined();
-    expect(publicApi.TestMapStage).toBeDefined();
-    expect(publicApi.HistoryStage).toBeDefined();
     expect(publicApi.EmbeddingStage).toBeDefined();
   });
 

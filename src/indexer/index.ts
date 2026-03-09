@@ -34,18 +34,18 @@ import type { EmbeddingProvider } from './embedder.js';
 import { DEFAULT_EMBEDDING_MODEL } from './embedder.js';
 import { ingestCoverageReport, type CoverageFormat } from './coverage.js';
 import type { EffectiveLspSettings } from './lsp/config.js';
+import { resolveSymbolEdges } from './call-graph.js';
+import { refreshTestMappings } from './test-mapper.js';
+import { ingestGitHistory } from './git-history.js';
 import { getLogger } from '../logger.js';
 import { IndexPipeline } from './pipeline.js';
-import type { PipelineContext } from './pipeline.js';
+import type { PipelineContext, PipelineStage } from './pipeline.js';
 import {
   SourceIndexStage,
   DocsIndexStage,
   ImportResolutionStage,
   DependencyApiStage,
   LspEnrichmentStage,
-  ResolutionStage,
-  TestMapStage,
-  HistoryStage,
   EmbeddingStage,
 } from './stages/index.js';
 
@@ -134,9 +134,9 @@ export class IndexBuilder {
       new ImportResolutionStage(),
       new DependencyApiStage(),
       new LspEnrichmentStage(),
-      new ResolutionStage(),
-      new TestMapStage(),
-      new HistoryStage(),
+      resolutionStage(),
+      testMapStage(),
+      historyStage(),
       new EmbeddingStage(),
     ]);
 
@@ -197,9 +197,9 @@ export class IndexBuilder {
       new ImportResolutionStage(),
       new DependencyApiStage(),
       new LspEnrichmentStage(),
-      new ResolutionStage(),
-      new TestMapStage(),
-      new HistoryStage(),
+      resolutionStage(),
+      testMapStage(),
+      historyStage(),
       new EmbeddingStage(),
     ]);
 
@@ -306,4 +306,37 @@ export class IndexBuilder {
     try { commitCount = (db.prepare('SELECT COUNT(*) AS cnt FROM commits').get() as { cnt: number }).cnt; } catch { /* */ }
     return { totalSymbols, totalEdges, totalDocs, commitCount };
   }
+}
+
+// ─── Trivial inline stages ────────────────────────────────────────────────────
+// These are single-function-call stages that don't warrant their own files.
+
+/** Resolve symbol edges (must run after LspEnrichmentStage). */
+function resolutionStage(): PipelineStage {
+  return {
+    name: 'symbol-resolution',
+    execute: async (ctx) => { resolveSymbolEdges(ctx.db); },
+  };
+}
+
+/** Refresh test-to-source file mappings. */
+function testMapStage(): PipelineStage {
+  return {
+    name: 'test-map',
+    execute: async (ctx) => { refreshTestMappings(ctx.db, ctx.branch); },
+  };
+}
+
+/** Ingest git history. */
+function historyStage(): PipelineStage {
+  return {
+    name: 'git-history',
+    execute: async (ctx) => {
+      if (!ctx.history) return;
+      ctx.log.indexing('git history ingestion started');
+      const opts = typeof ctx.history === 'object' ? ctx.history : undefined;
+      await ingestGitHistory(ctx.db, ctx.walkerConfig.rootDir, opts);
+      ctx.log.indexing('git history ingestion complete');
+    },
+  };
 }
