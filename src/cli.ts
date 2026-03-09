@@ -22,6 +22,7 @@ import {
   resolveEffectiveLspSettings,
 } from './indexer/lsp/config.js';
 import { initLogger, LogLevel, LOG_LEVEL_NAMES } from './logger.js';
+import { LoreRuntime } from './runtime.js';
 
 // ─── Argument helpers ─────────────────────────────────────────────────────────
 
@@ -288,9 +289,6 @@ async function main(): Promise<void> {
     const { openReadOnly } = await import('./lore-server/db.js');
     const { createLoreMcpServer } = await import('./lore-server/server.js');
     const { getLoreMeta } = await import('./indexer/db.js');
-    const {
-      SentenceTransformersProvider,
-    } = await import('./indexer/embedder.js');
 
     const db = openReadOnly(dbPath);
 
@@ -314,20 +312,29 @@ async function main(): Promise<void> {
     // Build optional embedder from model recorded at index time.
     let embedder: import('./indexer/embedder.js').EmbeddingProvider | undefined;
     const modelName = getLoreMeta(db, 'embedding_model') as string | undefined;
-    if (modelName) {
-      const provider = new SentenceTransformersProvider(modelName);
-      try {
-        await provider.init();
-        embedder = provider;
-        log.startup('embedding model loaded', { embeddingModel: modelName, embeddingReady: true });
-      } catch {
-        log.warn('startup', 'embedding model unavailable, falling back to structural search', { embeddingModel: modelName });
-        try {
-          await provider.dispose();
-        } catch {
-          /* ignore */
-        }
-      }
+
+    // ── Optional live-index watcher/poller (shares the same embedder) ────
+    const watchMode = args.includes('--watch');
+    const pollMode = args.includes('--poll');
+    const rootDir = flag(args, '--root');
+
+    const runtime = new LoreRuntime({
+      dbPath,
+      rootDir: rootDir ?? '.',
+      walkerConfig: { rootDir: rootDir ?? '.' },
+      lsp: null,
+      history: false,
+      indexDependencies: false,
+      docsAutoNotes: true,
+      embeddingModel: modelName ?? undefined,
+      refreshMode: (watchMode && rootDir) ? 'watch' : (pollMode && rootDir) ? 'poll' : 'none',
+    }, log);
+
+    await runtime.start();
+    embedder = runtime.embedder;
+
+    if ((watchMode || pollMode) && !rootDir) {
+      log.warn('startup', '--root <dir> is required when using --watch or --poll with mcp; live indexing disabled');
     }
 
     log.startup('db stats', {
@@ -349,48 +356,10 @@ async function main(): Promise<void> {
 
     log.startup('mcp server ready', { transport: 'stdio' });
 
-    // ── Optional live-index watcher/poller (shares the same embedder) ────
-    const watchMode = args.includes('--watch');
-    const pollMode = args.includes('--poll');
-    const rootDir = flag(args, '--root');
-
-    type StoppableRefresher = { stop(): void };
-    let refresher: StoppableRefresher | undefined;
-
-    if (watchMode || pollMode) {
-      if (!rootDir) {
-        log.warn('startup', '--root <dir> is required when using --watch or --poll with mcp; live indexing disabled');
-      } else {
-        const walkerConfig = { rootDir };
-        const refreshOptions = { embedder };
-
-        if (watchMode) {
-          const { FileWatcher } = await import('./indexer/watcher.js');
-          const watcher = new FileWatcher(dbPath, walkerConfig, refreshOptions);
-          watcher.start();
-          refresher = watcher;
-          log.startup('watch mode started (shared embedder)', { rootDir, embeddingEnabled: !!embedder });
-        } else {
-          const { FilePoller } = await import('./indexer/poller.js');
-          const poller = new FilePoller(dbPath, walkerConfig, refreshOptions);
-          poller.start();
-          refresher = poller;
-          log.startup('poll mode started (shared embedder)', { rootDir, embeddingEnabled: !!embedder });
-        }
-      }
-    }
-
     // Signal readiness on stderr so parent processes can detect it.
     process.stderr.write('READY\n');
 
-    // Clean up on shutdown: stop the refresher, then dispose the shared embedder.
-    const shutdown = () => {
-      if (refresher) refresher.stop();
-      if (embedder) embedder.dispose().catch(() => { /* best-effort */ });
-      process.exit(0);
-    };
-    process.on('SIGINT', shutdown);
-    process.on('SIGTERM', shutdown);
+    runtime.installSignalHandlers();
   } else if (subcommand === 'refresh') {
     const dbPath = flag(args, '--db');
     const rootDir = flag(args, '--root');
@@ -470,52 +439,22 @@ async function main(): Promise<void> {
 
     // Build an optional long-lived embedder for watch/poll modes.
     const embeddingModel = flag(args, '--embedding-model');
-    let embedder: import('./indexer/embedder.js').EmbeddingProvider | undefined;
-    if ((watchMode || pollMode) && embeddingModel) {
-      const { SentenceTransformersProvider } = await import('./indexer/embedder.js');
-      const provider = new SentenceTransformersProvider(embeddingModel);
-      try {
-        await provider.init();
-        embedder = provider;
-        process.stderr.write(
-          JSON.stringify({ level: 'info', source: 'cli', message: 'embedding model loaded for live updates', embeddingModel }) + '\n',
-        );
-      } catch (err) {
-        process.stderr.write(
-          JSON.stringify({ level: 'warn', source: 'cli', message: 'embedding model unavailable, continuing without embeddings', embeddingModel, error: String(err) }) + '\n',
-        );
-        try { await provider.dispose(); } catch { /* ignore */ }
-      }
-    }
 
-    if (watchMode) {
-      const { FileWatcher } = await import('./indexer/watcher.js');
-      const watcher = new FileWatcher(dbPath, walkerConfig, { ...refreshOptions, embedder });
-      watcher.start();
-      process.stderr.write(
-        JSON.stringify({ level: 'info', source: 'cli', message: 'watch mode started', rootDir, embeddingEnabled: !!embedder }) + '\n',
-      );
-      const shutdown = () => {
-        watcher.stop();
-        if (embedder) embedder.dispose().catch(() => { /* best-effort */ });
-        process.exit(0);
-      };
-      process.on('SIGINT', shutdown);
-      process.on('SIGTERM', shutdown);
-    } else if (pollMode) {
-      const { FilePoller } = await import('./indexer/poller.js');
-      const poller = new FilePoller(dbPath, walkerConfig, { ...refreshOptions, embedder });
-      poller.start();
-      process.stderr.write(
-        JSON.stringify({ level: 'info', source: 'cli', message: 'poll mode started', rootDir, embeddingEnabled: !!embedder }) + '\n',
-      );
-      const shutdown = () => {
-        poller.stop();
-        if (embedder) embedder.dispose().catch(() => { /* best-effort */ });
-        process.exit(0);
-      };
-      process.on('SIGINT', shutdown);
-      process.on('SIGTERM', shutdown);
+    if (watchMode || pollMode) {
+      const runtime = new LoreRuntime({
+        dbPath,
+        rootDir,
+        walkerConfig,
+        lsp: lspSettings,
+        history: shouldEnableHistory ? historyOption : false,
+        indexDependencies,
+        docsAutoNotes,
+        embeddingModel: embeddingModel ?? undefined,
+        refreshMode: watchMode ? 'watch' : 'poll',
+      }, log);
+
+      await runtime.start();
+      runtime.installSignalHandlers();
     } else {
       // Manual refresh: full build if DB doesn't exist yet, otherwise incremental update
       const { IndexBuilder } = await import('./indexer/index.js');

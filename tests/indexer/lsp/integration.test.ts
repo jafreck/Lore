@@ -99,7 +99,7 @@ describe('LSP integration', () => {
         await builder.build();
 
         const db = new Database(dbPath, { readonly: true });
-        const lookupResult = lookupHandler(db, { kind: 'symbol', query: 'greet' });
+        const lookupResult = await lookupHandler(db, { kind: 'symbol', query: 'greet' });
         const lookupSymbol = lookupResult.results.find((row) =>
           Object.prototype.hasOwnProperty.call(row, 'name'),
         ) as

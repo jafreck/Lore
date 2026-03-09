@@ -15,6 +15,7 @@
  */
 
 import type { Database } from './db.js';
+import type { ResolutionMethod } from './resolution-method.js';
 
 // ─── normalizeTypeName ────────────────────────────────────────────────────────
 
@@ -131,11 +132,6 @@ export function resolveSymbolEdges(db: Database.Database): void {
   runInTransaction();
 }
 
-/** @deprecated Use `resolveSymbolEdges` instead. */
-export function buildCallGraph(db: Database.Database): void {
-  resolveSymbolEdges(db);
-}
-
 // ─── Containment-based resolution ─────────────────────────────────────────────
 
 interface UnresolvedRefRow {
@@ -199,7 +195,7 @@ function resolveByContainment(
 
     if (!fileRow) {
       // Definition path not in index → external (node_modules, stdlib, etc.)
-      updateMethod.run('external_definition', ref.id);
+      updateMethod.run('external_definition' satisfies ResolutionMethod, ref.id);
       continue;
     }
 
@@ -212,7 +208,7 @@ function resolveByContainment(
 
     if (candidates.length === 0) {
       // No symbol contains this line (e.g. top-level code)
-      updateMethod.run('unresolved', ref.id);
+      updateMethod.run('unresolved' satisfies ResolutionMethod, ref.id);
       continue;
     }
 
@@ -227,10 +223,10 @@ function resolveByContainment(
 
     if (equallyNarrow.length === 1) {
       // Unique best match
-      updateResolved.run(narrowest.id, 'lsp_definition', ref.id);
+      updateResolved.run(narrowest.id, 'lsp_definition' satisfies ResolutionMethod, ref.id);
     } else {
       // Ambiguous: multiple symbols with the same span
-      updateMethod.run('ambiguous_definition', ref.id);
+      updateMethod.run('ambiguous_definition' satisfies ResolutionMethod, ref.id);
     }
   }
 
@@ -314,13 +310,13 @@ function resolveByNameFallback(
     // Tier 1: same-file unique match
     const sameFile = candidates.filter(c => c.file_id === ref.source_file_id);
     if (sameFile.length === 1) {
-      updateResolved.run(sameFile[0]!.id, 'name_same_file', ref.id);
+      updateResolved.run(sameFile[0]!.id, 'name_same_file' satisfies ResolutionMethod, ref.id);
       continue;
     }
 
     // Tier 2: globally unique match (exactly one symbol with this name)
     if (candidates.length === 1) {
-      updateResolved.run(candidates[0]!.id, 'name_unique', ref.id);
+      updateResolved.run(candidates[0]!.id, 'name_unique' satisfies ResolutionMethod, ref.id);
       continue;
     }
 
