@@ -184,12 +184,13 @@ function extractDartInheritance(
 
 function extractDartTypeName(typeNode: Parser.SyntaxNode): string | null {
   if (typeNode.type === 'type_identifier' || typeNode.type === 'identifier') return typeNode.text;
+  if (typeNode.type === 'type_name') return typeNode.text;
   return null;
 }
 
 const emitDartTypeRef = createTypeRefEmitter({
   extractTypeName: extractDartTypeName,
-  genericNodeType: 'type_identifier',
+  genericNodeType: 'type_name',
   argListNodeType: 'type_arguments',
 });
 
@@ -197,8 +198,8 @@ function extractDartFunctionTypeRefs(funcNode: Parser.SyntaxNode, refs: RawTypeR
   const funcName = funcNode.childForFieldName('name')?.text ??
     funcNode.namedChildren.find(c => c.type === 'identifier')?.text ?? '';
   // Return type  
-  const returnType = funcNode.childForFieldName('type') ?? funcNode.namedChildren.find(c => c.type === 'type_identifier');
-  if (returnType && returnType.type === 'type_identifier') {
+  const returnType = funcNode.childForFieldName('type') ?? funcNode.namedChildren.find(c => c.type === 'type_identifier' || c.type === 'type_name');
+  if (returnType) {
     emitDartTypeRef(refs, funcName, returnType, 'return');
   }
   // Parameters

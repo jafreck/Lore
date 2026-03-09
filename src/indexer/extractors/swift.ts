@@ -198,20 +198,16 @@ const emitSwiftTypeRef = createTypeRefEmitter({
 
 function extractSwiftFunctionTypeRefs(funcNode: Parser.SyntaxNode, refs: RawTypeRef[]): void {
   const funcName = funcNode.childForFieldName('name')?.text ?? '';
-  // Parameters
-  const params = funcNode.namedChildren.find(c => c.type === 'parameter');
-  if (!params) {
-    // Look for parameter clause
-    for (const child of funcNode.namedChildren) {
-      if (child.type === 'function_parameter' || child.type === 'parameter') {
-        const typeAnnotation = child.childForFieldName('type');
-        if (typeAnnotation) emitSwiftTypeRef(refs, funcName, typeAnnotation, 'parameter');
-      }
+  // Parameters — walk all children looking for parameter nodes
+  for (const child of funcNode.namedChildren) {
+    if (child.type === 'function_parameter' || child.type === 'parameter') {
+      const typeAnnotation = child.childForFieldName('type');
+      if (typeAnnotation) emitSwiftTypeRef(refs, funcName, typeAnnotation, 'parameter');
     }
   }
-  // Return type
-  const returnClause = funcNode.namedChildren.find(c => c.type === 'function_result' || c.type === 'type_identifier' || c.type === 'user_type');
-  if (returnClause?.type === 'function_result') {
+  // Return type — only match function_result to avoid grabbing parameter types
+  const returnClause = funcNode.namedChildren.find(c => c.type === 'function_result');
+  if (returnClause) {
     const typeNode = returnClause.namedChildren[0];
     if (typeNode) emitSwiftTypeRef(refs, funcName, typeNode, 'return');
   }

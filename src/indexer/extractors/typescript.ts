@@ -324,11 +324,20 @@ function extractTsClassInheritanceTypeRefs(classNode: Parser.SyntaxNode, refs: R
   if (!className) return;
   const heritageNode = classNode.namedChildren.find(c => c.type === 'class_heritage');
   if (!heritageNode) return;
+  // extends clause
   const extendsClause = heritageNode.namedChildren.find(c => c.type === 'extends_clause');
-  if (!extendsClause) return;
-  const target = extendsClause.namedChildren[0];
-  if (target) {
-    refs.push({ enclosingSymbol: className, typeRaw: target.text, refKind: 'bound', line: extendsClause.startPosition.row, character: extendsClause.startPosition.column });
+  if (extendsClause) {
+    const target = extendsClause.namedChildren[0];
+    if (target) {
+      refs.push({ enclosingSymbol: className, typeRaw: target.text, refKind: 'bound', line: extendsClause.startPosition.row, character: extendsClause.startPosition.column });
+    }
+  }
+  // implements clause
+  const implementsClause = heritageNode.namedChildren.find(c => c.type === 'implements_clause');
+  if (implementsClause) {
+    for (const child of implementsClause.namedChildren) {
+      refs.push({ enclosingSymbol: className, typeRaw: child.text, refKind: 'bound', line: child.startPosition.row, character: child.startPosition.column });
+    }
   }
 }
 
@@ -359,6 +368,15 @@ function extractTsClassMethodTypeRefs(classNode: Parser.SyntaxNode, refs: RawTyp
 
 function extractTsInterfaceTypeRefs(ifaceNode: Parser.SyntaxNode, refs: RawTypeRef[]): void {
   const name = ifaceNode.childForFieldName('name')?.text ?? '';
+  // Interface extends clause: interface Foo extends Bar, Baz
+  const heritageNode = ifaceNode.namedChildren.find(c => c.type === 'extends_type_clause');
+  if (heritageNode) {
+    for (const child of heritageNode.namedChildren) {
+      if (child.type === 'type_identifier' || child.type === 'generic_type' || child.type === 'nested_type_identifier') {
+        refs.push({ enclosingSymbol: name, typeRaw: child.text, refKind: 'bound', line: child.startPosition.row, character: child.startPosition.column });
+      }
+    }
+  }
   const body = ifaceNode.childForFieldName('body');
   if (!body) return;
   for (const child of body.namedChildren) {

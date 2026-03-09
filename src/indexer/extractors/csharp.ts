@@ -260,9 +260,10 @@ function extractCsCastTypeRef(node: Parser.SyntaxNode, refs: RawTypeRef[]): void
 }
 
 function extractCsAsCastTypeRef(node: Parser.SyntaxNode, refs: RawTypeRef[]): void {
-  // expr as Type
-  const typeNode = node.namedChildren.find(c =>
+  // expr as Type — the type is the *last* matching child (first is the expression)
+  const candidates = node.namedChildren.filter(c =>
     c.type === 'identifier' || c.type === 'generic_name' || c.type === 'qualified_name' || c.type === 'nullable_type');
+  const typeNode = candidates[candidates.length - 1];
   if (!typeNode) return;
   const enclosing = findEnclosingSymbolName(node, CS_SYMBOL_NODE_TYPES);
   emitCsTypeRef(refs, enclosing, typeNode, 'cast');

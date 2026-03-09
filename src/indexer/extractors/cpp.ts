@@ -114,7 +114,7 @@ export class CppExtractor implements SymbolExtractor {
           break;
         }
         case 'alignof_expression': {
-          extractCppSizeofTypeRef(node, result.typeRefs, 'sizeof');
+          extractCppSizeofTypeRef(node, result.typeRefs, 'other');
           break;
         }
         case 'sizeof_pack_expression': {
@@ -257,7 +257,6 @@ function classifyCallee(
 
   // Field expression:  obj.method(...)  /  ptr->method(...)
   if (fnNode.type === 'field_expression') {
-    const fieldName = fnNode.childForFieldName('field')?.text ?? fnNode.text;
     return { calleeName: fnNode.text, isIndirect: false, callKind: 'direct' };
   }
 
