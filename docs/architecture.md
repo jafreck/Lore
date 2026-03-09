@@ -169,7 +169,7 @@ during the LSP enrichment stage.
 |--------|--------------|
 | `walker.ts` | Discovers source files via `fast-glob`, maps extensions to languages |
 | `parser.ts` | Lazily creates one tree-sitter 0.25 `Parser` per language, caches for reuse |
-| `extractors/*` | Language-specific AST visitors for symbols, imports, call refs, type refs, annotations, and API routes; all 24 supported languages extract call references |
+| `extractors/*` | Language-specific AST visitors for symbols, imports, call refs, type refs, annotations, and API routes; all 23 supported languages extract call references |
 | `resolver.ts` | Classifies each raw import as internal (resolved to a file ID) or external (third-party / stdlib) |
 | `call-graph.ts` | 3-tier symbol resolution with LSP-first ref resolution and name-based fallback; supports topo sort and cycle detection |
 | `docs.ts` | Discovers docs from default/configured globs, infers kind/title, chunks by heading hierarchy |

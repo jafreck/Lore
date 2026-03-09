@@ -1,7 +1,7 @@
 /**
  * @module tests/indexer/extractors/health
  *
- * Comprehensive health check for all 24 language extractors.
+ * Comprehensive health check for all 23 language extractors.
  *
  * For each language verifies:
  * 1. The parser successfully produces a tree from the fixture file (MUST pass — not skipped)

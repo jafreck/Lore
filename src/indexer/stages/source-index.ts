@@ -43,7 +43,6 @@ import { LuaExtractor } from '../extractors/lua.js';
 import { BashExtractor } from '../extractors/bash.js';
 import { ElixirExtractor } from '../extractors/elixir.js';
 import { ZigExtractor } from '../extractors/zig.js';
-import { DartExtractor } from '../extractors/dart.js';
 import { OcamlExtractor } from '../extractors/ocaml.js';
 import { HaskellExtractor } from '../extractors/haskell.js';
 import { JuliaExtractor } from '../extractors/julia.js';
@@ -71,7 +70,6 @@ const EXTRACTORS: Record<string, SymbolExtractor> = {
   bash: new BashExtractor(),
   elixir: new ElixirExtractor(),
   zig: new ZigExtractor(),
-  dart: new DartExtractor(),
   ocaml: new OcamlExtractor(),
   haskell: new HaskellExtractor(),
   julia: new JuliaExtractor(),

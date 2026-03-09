@@ -35,6 +35,7 @@
     "prepare": "npm run build",
     "prepublishOnly": "npm run clean && npm run build",
     "test": "vitest run",
+    "test:lsp-smoke": "vitest run tests/indexer/lsp/smoke.test.ts",
     "coverage": "vitest run --coverage"
   },
   "repository": {
@@ -92,7 +93,9 @@
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22",
     "@vitest/coverage-v8": "^4.0",
+    "pyright": "^1.1.406",
     "typescript": "^5.9",
+    "typescript-language-server": "^5.0.1",
     "vitest": "^4.0"
   },
   "engines": {

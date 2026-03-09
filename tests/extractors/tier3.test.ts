@@ -14,6 +14,22 @@ import { ZigExtractor } from '../../src/indexer/extractors/zig.js';
 
 const fixtureDir = path.join(import.meta.dirname, '../fixtures');
 
+function normalizeRelationships(
+  relationships: Array<{ kind: string; fromSymbol: string; toSymbol: string }>,
+) {
+  return relationships
+    .map(({ kind, fromSymbol, toSymbol }) => ({ kind, fromSymbol, toSymbol }))
+    .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+}
+
+function normalizeTypeRefs(
+  typeRefs: Array<{ enclosingSymbol: string; refKind: string; typeRaw: string }>,
+) {
+  return typeRefs
+    .map(({ enclosingSymbol, refKind, typeRaw }) => ({ enclosingSymbol, refKind, typeRaw }))
+    .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+}
+
 // Pre-extract results at module load time so test.skipIf can use them.
 const kotlinResult = parseAndExtract(
   'kotlin',
@@ -133,6 +149,26 @@ describe('Objective-C extractor', () => {
   test('callRefs are non-empty', () => {
     expect(objcResult!.callRefs.length).toBeGreaterThan(0);
   });
+
+  test('relationships', () => {
+    expect(normalizeRelationships(objcResult!.relationships)).toMatchSnapshot();
+  });
+
+  test('typeRefs', () => {
+    expect(normalizeTypeRefs(objcResult!.typeRefs)).toMatchSnapshot();
+  });
+
+  test('captures NSObject inheritance', () => {
+    expect(objcResult!.relationships).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'extends',
+          fromSymbol: 'Circle',
+          toSymbol: 'NSObject',
+        }),
+      ]),
+    );
+  });
 });
 
 // ─── OCaml ────────────────────────────────────────────────────────────────────
@@ -172,6 +208,19 @@ describe('PHP extractor', () => {
 
   test('callRefs are non-empty', () => {
     expect(phpResult!.callRefs.length).toBeGreaterThan(0);
+  });
+
+  test('relationships', () => {
+    expect(normalizeRelationships(phpResult!.relationships)).toMatchSnapshot();
+  });
+
+  test('typeRefs', () => {
+    expect(normalizeTypeRefs(phpResult!.typeRefs)).toMatchSnapshot();
+  });
+
+  test('captures trait and interface symbols', () => {
+    expect(phpResult!.symbols.some((symbol) => symbol.name === 'Greetable')).toBe(true);
+    expect(phpResult!.symbols.some((symbol) => symbol.name === 'Shape')).toBe(true);
   });
 });
 
@@ -213,6 +262,15 @@ describe('Scala extractor', () => {
   test('callRefs are non-empty', () => {
     expect(scalaResult!.callRefs.length).toBeGreaterThan(0);
   });
+
+  test('relationships', () => {
+    expect(normalizeRelationships(scalaResult!.relationships)).toMatchSnapshot();
+  });
+
+  test('captures class and object symbols', () => {
+    expect(scalaResult!.symbols.some((symbol) => symbol.name === 'Circle')).toBe(true);
+    expect(scalaResult!.symbols.some((symbol) => symbol.name === 'MathUtils')).toBe(true);
+  });
 });
 
 // ─── Swift ────────────────────────────────────────────────────────────────────
@@ -232,6 +290,18 @@ describe('Swift extractor', () => {
 
   test('callRefs are non-empty', () => {
     expect(swiftResult!.callRefs.length).toBeGreaterThan(0);
+  });
+
+  test('relationships', () => {
+    expect(normalizeRelationships(swiftResult!.relationships)).toMatchSnapshot();
+  });
+
+  test('typeRefs', () => {
+    expect(normalizeTypeRefs(swiftResult!.typeRefs)).toMatchSnapshot();
+  });
+
+  test('captures extension methods', () => {
+    expect(swiftResult!.symbols.some((symbol) => symbol.name === 'describe')).toBe(true);
   });
 });
 

@@ -25,6 +25,11 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: LSP smoke tests
+        env:
+          LORE_RUN_LSP_SMOKE: '1'
+        run: npm run test:lsp-smoke
+
       - name: Coverage
         run: npm run coverage
 
