@@ -32,7 +32,7 @@ import {
   type Database,
 } from './db.js';
 import { getLoreMeta } from '../indexer/db.js';
-import { SentenceTransformersProvider, type EmbeddingProvider } from '../indexer/embedder.js';
+import { SentenceTransformersProvider, EmbedderRef, type EmbeddingProvider } from '../indexer/embedder.js';
 import { getLogger, type LoreLogger } from '../logger.js';
 import * as lookup from './tools/lookup.js';
 import * as graph from './tools/graph.js';
@@ -66,15 +66,19 @@ export interface LoreServerOptions {
 /**
  * Create and return a fully-configured `McpServer` with all Lore tools registered.
  *
- * @param db       Read-only SQLite connection to the knowledge-base.
- * @param dbPath   Path to the DB file, needed by `lore_writeback` for write access.
- * @param embedder Optional live embedding provider for semantic/fused search.
- * @param options  Optional server configuration (e.g. search observer).
+ * The `embedderRef` parameter is a mutable container whose `.current` property
+ * is read at tool-invocation time.  This allows the server to start immediately
+ * while the (potentially slow) embedding model loads in the background.
+ *
+ * @param db          Read-only SQLite connection to the knowledge-base.
+ * @param dbPath      Path to the DB file, needed by `lore_writeback` for write access.
+ * @param embedderRef Mutable reference to an embedding provider (may be populated later).
+ * @param options     Optional server configuration (e.g. search observer).
  */
 export function createLoreMcpServer(
   db: Database.Database,
   dbPath: string,
-  embedder?: EmbeddingProvider,
+  embedderRef?: EmbedderRef,
   options?: LoreServerOptions,
 ): McpServer {
   const log = options?.logger ?? getLogger();
@@ -142,7 +146,7 @@ export function createLoreMcpServer(
       limit: z.number().int().nonnegative().optional().describe('For kind="symbol" with empty query: maximum rows to return.'),
       offset: z.number().int().nonnegative().optional().describe('For kind="symbol" with empty query: rows to skip before returning results.'),
     },
-    loggedHandler(lookup.toolDef.name, (args) => lookup.handler(db, args, embedder)),
+    loggedHandler(lookup.toolDef.name, (args) => lookup.handler(db, args, embedderRef?.current)),
   );
 
   // ── lore_graph ───────────────────────────────────────────────────────────────
@@ -200,7 +204,7 @@ export function createLoreMcpServer(
         .describe('Optional documentation kind filter for semantic/fused doc-section results.'),
       branch: z.string().optional().describe('Optional branch to filter results. Query-time retrieval uses SQLite-only persisted data.'),
     },
-    loggedHandler(search.toolDef.name, (args) => search.handler(db, args, embedder, options?.searchObserver)),
+    loggedHandler(search.toolDef.name, (args) => search.handler(db, args, embedderRef?.current, options?.searchObserver)),
   );
 
   // ── lore_docs ────────────────────────────────────────────────────────────────
@@ -227,7 +231,7 @@ export function createLoreMcpServer(
       limit: z.number().optional().describe('Max rows to return (defaults depend on action).'),
       branch: z.string().optional().describe('Optional branch to filter docs.'),
     },
-    loggedHandler(docs.toolDef.name, (args) => docs.handler(db, args, embedder)),
+    loggedHandler(docs.toolDef.name, (args) => docs.handler(db, args, embedderRef?.current)),
   );
 
   // ── lore_routes ──────────────────────────────────────────────────────────────
@@ -396,7 +400,7 @@ export function createLoreMcpServer(
       query: z.string().optional().describe('File path, commit SHA, author name/email, ref, or semantic query text.'),
       limit: z.number().optional().describe('Max results (default 20, max 200).'),
     },
-    loggedHandler(history.toolDef.name, (args) => history.handler(db, args, embedder)),
+    loggedHandler(history.toolDef.name, (args) => history.handler(db, args, embedderRef?.current)),
   );
 
   // ── lore_annotations ───────────────────────────────────────────────────────────
@@ -456,9 +460,8 @@ async function main(): Promise<void> {
   const { dbPath } = parseArgs();
 
   const db = openReadOnly(dbPath);
-  const embedder = await buildEmbedder(db);
-
-  const server = createLoreMcpServer(db, dbPath, embedder);
+  const embedderRef = new EmbedderRef();
+  const server = createLoreMcpServer(db, dbPath, embedderRef);
 
   // Connect via stdio transport (standalone/debug mode).
   const transport = new StdioServerTransport();
@@ -466,6 +469,13 @@ async function main(): Promise<void> {
 
   // Signal readiness to the parent process over stderr.
   process.stderr.write('READY\n');
+
+  // Load the embedding model in the background — semantic/fused search
+  // gracefully degrades to structural-only until the model is ready.
+  const embedder = await buildEmbedder(db);
+  if (embedder) {
+    embedderRef.current = embedder;
+  }
 }
 
 // Only run when executed as a standalone script, not when imported as a module.

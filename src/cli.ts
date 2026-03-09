@@ -62,6 +62,7 @@ Options:
   --file <path>            Coverage report path (required for ingest-coverage)
   --format <name>          Coverage format: lcov or cobertura (required for ingest-coverage)
   --commit <sha>           Commit SHA to associate with coverage ingestion (default: HEAD)
+  --blocking-embedder      Block the MCP server READY signal until the embedding model is loaded
   --log-level <level>      Log level: debug, info, warn, error, silent (default: info)
   --log-file <path>        Path to the structured log file (default: lore.log next to the DB)
   --help, -h               Show this help message`,
@@ -290,64 +291,75 @@ async function main(): Promise<void> {
     const { getLoreMeta } = await import('./indexer/db.js');
     const {
       SentenceTransformersProvider,
+      EmbedderRef,
     } = await import('./indexer/embedder.js');
 
+    const blockingEmbedder = args.includes('--blocking-embedder');
     const db = openReadOnly(dbPath);
 
-    // Gather DB stats for startup log
-    const totalFiles = (db.prepare('SELECT COUNT(*) AS cnt FROM files').get() as { cnt: number }).cnt;
-    const totalSymbols = (db.prepare('SELECT COUNT(*) AS cnt FROM symbols').get() as { cnt: number }).cnt;
-    let totalEdges = 0;
-    try {
-      totalEdges = (db.prepare('SELECT COUNT(*) AS cnt FROM call_graph').get() as { cnt: number }).cnt;
-    } catch { /* table may not exist */ }
-    let totalDocs = 0;
-    try {
-      totalDocs = (db.prepare('SELECT COUNT(*) AS cnt FROM documentation').get() as { cnt: number }).cnt;
-    } catch { /* table may not exist */ }
-    let commitCount: number | undefined;
-    try {
-      commitCount = (db.prepare('SELECT COUNT(*) AS cnt FROM commits').get() as { cnt: number }).cnt;
-    } catch { /* commits table may not exist */ }
-    const dbSizeBytes = fs.existsSync(dbPath) ? fs.statSync(dbPath).size : undefined;
+    // Gather DB stats for startup log (deferred to background when non-blocking)
+    const gatherDbStats = () => {
+      const totalFiles = (db.prepare('SELECT COUNT(*) AS cnt FROM files').get() as { cnt: number }).cnt;
+      const totalSymbols = (db.prepare('SELECT COUNT(*) AS cnt FROM symbols').get() as { cnt: number }).cnt;
+      let totalEdges = 0;
+      try {
+        totalEdges = (db.prepare('SELECT COUNT(*) AS cnt FROM call_graph').get() as { cnt: number }).cnt;
+      } catch { /* table may not exist */ }
+      let totalDocs = 0;
+      try {
+        totalDocs = (db.prepare('SELECT COUNT(*) AS cnt FROM documentation').get() as { cnt: number }).cnt;
+      } catch { /* table may not exist */ }
+      let commitCount: number | undefined;
+      try {
+        commitCount = (db.prepare('SELECT COUNT(*) AS cnt FROM commits').get() as { cnt: number }).cnt;
+      } catch { /* commits table may not exist */ }
+      const dbSizeBytes = fs.existsSync(dbPath) ? fs.statSync(dbPath).size : undefined;
+      return { totalFiles, totalSymbols, totalEdges, totalDocs, commitCount, dbSizeBytes };
+    };
 
-    // Build optional embedder from model recorded at index time.
-    let embedder: import('./indexer/embedder.js').EmbeddingProvider | undefined;
+    // ── Shared mutable embedder reference ─────────────────────────────────
+    // Tool handlers read embedderRef.current at invocation time, so the
+    // server can start accepting requests immediately while the (potentially
+    // slow) embedding model loads in the background.
+    const embedderRef = new EmbedderRef();
     const modelName = getLoreMeta(db, 'embedding_model') as string | undefined;
-    if (modelName) {
+
+    /**
+     * Initialise the embedding provider.  On success, populates
+     * `embedderRef.current` so that subsequent tool calls gain semantic
+     * search capabilities.
+     */
+    const initEmbedder = async (): Promise<void> => {
+      if (!modelName) return;
       const provider = new SentenceTransformersProvider(modelName);
       try {
         await provider.init();
-        embedder = provider;
+        embedderRef.current = provider;
         log.startup('embedding model loaded', { embeddingModel: modelName, embeddingReady: true });
       } catch {
         log.warn('startup', 'embedding model unavailable, falling back to structural search', { embeddingModel: modelName });
-        try {
-          await provider.dispose();
-        } catch {
-          /* ignore */
-        }
+        try { await provider.dispose(); } catch { /* ignore */ }
       }
+    };
+
+    // ── Blocking path: wait for embedder before server ────────────────────
+    if (blockingEmbedder) {
+      await initEmbedder();
     }
 
-    log.startup('db stats', {
-      dbPath,
-      dbSizeBytes,
-      embeddingModel: modelName ?? null,
-      embeddingReady: !!embedder,
-      totalFiles,
-      totalSymbols,
-      totalDocs,
-      totalEdges,
-      commitCount,
-    });
-
-    const server = createLoreMcpServer(db, dbPath, embedder, { logger: log });
+    // ── Start MCP server ─────────────────────────────────────────────────
+    const server = createLoreMcpServer(db, dbPath, embedderRef, { logger: log });
 
     const transport = new StdioServerTransport();
     await server.connect(transport);
 
-    log.startup('mcp server ready', { transport: 'stdio' });
+    log.startup('mcp server ready', { transport: 'stdio', embeddingReady: !!embedderRef.current });
+
+    // ── Non-blocking path: load embedder in background after READY ───────
+    if (!blockingEmbedder) {
+      // Fire-and-forget — tool calls degrade to structural-only until done.
+      initEmbedder().catch(() => { /* already logged inside initEmbedder */ });
+    }
 
     // ── Optional live-index watcher/poller (shares the same embedder) ────
     const watchMode = args.includes('--watch');
@@ -362,20 +374,21 @@ async function main(): Promise<void> {
         log.warn('startup', '--root <dir> is required when using --watch or --poll with mcp; live indexing disabled');
       } else {
         const walkerConfig = { rootDir };
-        const refreshOptions = { embedder };
+        // Watcher/poller reads embedderRef.current at refresh time.
+        const refreshOptions = { embedder: embedderRef.current };
 
         if (watchMode) {
           const { FileWatcher } = await import('./indexer/watcher.js');
           const watcher = new FileWatcher(dbPath, walkerConfig, refreshOptions);
           watcher.start();
           refresher = watcher;
-          log.startup('watch mode started (shared embedder)', { rootDir, embeddingEnabled: !!embedder });
+          log.startup('watch mode started (shared embedder)', { rootDir, embeddingEnabled: !!embedderRef.current });
         } else {
           const { FilePoller } = await import('./indexer/poller.js');
           const poller = new FilePoller(dbPath, walkerConfig, refreshOptions);
           poller.start();
           refresher = poller;
-          log.startup('poll mode started (shared embedder)', { rootDir, embeddingEnabled: !!embedder });
+          log.startup('poll mode started (shared embedder)', { rootDir, embeddingEnabled: !!embedderRef.current });
         }
       }
     }
@@ -383,10 +396,24 @@ async function main(): Promise<void> {
     // Signal readiness on stderr so parent processes can detect it.
     process.stderr.write('READY\n');
 
+    // Log DB stats after READY to avoid delaying the signal.
+    const stats = gatherDbStats();
+    log.startup('db stats', {
+      dbPath,
+      dbSizeBytes: stats.dbSizeBytes,
+      embeddingModel: modelName ?? null,
+      embeddingReady: !!embedderRef.current,
+      totalFiles: stats.totalFiles,
+      totalSymbols: stats.totalSymbols,
+      totalDocs: stats.totalDocs,
+      totalEdges: stats.totalEdges,
+      commitCount: stats.commitCount,
+    });
+
     // Clean up on shutdown: stop the refresher, then dispose the shared embedder.
     const shutdown = () => {
       if (refresher) refresher.stop();
-      if (embedder) embedder.dispose().catch(() => { /* best-effort */ });
+      if (embedderRef.current) embedderRef.current.dispose().catch(() => { /* best-effort */ });
       process.exit(0);
     };
     process.on('SIGINT', shutdown);

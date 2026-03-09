@@ -79,6 +79,7 @@ CREATE TABLE IF NOT EXISTS test_mappings (
 CREATE TABLE IF NOT EXISTS symbol_refs (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   caller_id   INTEGER NOT NULL REFERENCES symbols(id) ON DELETE CASCADE,
+  file_id     INTEGER REFERENCES files(id) ON DELETE CASCADE,
   callee_id   INTEGER REFERENCES symbols(id),
   callee_name TEXT    NOT NULL,
   call_line   INTEGER NOT NULL,
@@ -87,7 +88,10 @@ CREATE TABLE IF NOT EXISTS symbol_refs (
   resolved_type_signature TEXT,
   resolved_return_type TEXT,
   definition_uri TEXT,
-  definition_path TEXT
+  definition_path TEXT,
+  definition_line INTEGER,
+  definition_character INTEGER,
+  resolution_method TEXT NOT NULL DEFAULT 'unresolved'
 );
 
 -- Semantic relationships between symbols (extends, implements, etc.).
@@ -101,12 +105,16 @@ CREATE TABLE IF NOT EXISTS symbol_relationships (
   line               INTEGER NOT NULL,
   character          INTEGER,
   definition_uri     TEXT,
-  definition_path    TEXT
+  definition_path    TEXT,
+  definition_line    INTEGER,
+  definition_character INTEGER,
+  resolution_method  TEXT NOT NULL DEFAULT 'unresolved'
 );
 CREATE INDEX IF NOT EXISTS idx_symbol_rels_source ON symbol_relationships(source_symbol_id);
 CREATE INDEX IF NOT EXISTS idx_symbol_rels_target ON symbol_relationships(target_symbol_id);
 CREATE INDEX IF NOT EXISTS idx_symbol_rels_type ON symbol_relationships(relationship_type);
 CREATE INDEX IF NOT EXISTS idx_symbol_rels_file_id ON symbol_relationships(file_id);
+CREATE INDEX IF NOT EXISTS idx_symbol_rels_resolution_method ON symbol_relationships(resolution_method);
 
 -- Type-usage references from symbols to type definitions.
 CREATE TABLE IF NOT EXISTS type_refs (
@@ -121,7 +129,10 @@ CREATE TABLE IF NOT EXISTS type_refs (
   ref_character           INTEGER,
   resolved_type_signature TEXT,
   definition_uri          TEXT,
-  definition_path         TEXT
+  definition_path         TEXT,
+  definition_line         INTEGER,
+  definition_character    INTEGER,
+  resolution_method       TEXT NOT NULL DEFAULT 'unresolved'
 );
 CREATE INDEX IF NOT EXISTS idx_type_refs_type_name ON type_refs(type_name);
 CREATE INDEX IF NOT EXISTS idx_type_refs_type_name_bare ON type_refs(type_name_bare);
@@ -341,12 +352,27 @@ const ENRICHMENT_SCHEMA_MIGRATIONS: Array<{ table: string; column: string; sql: 
   { table: 'external_symbols', column: 'definition_uri', sql: 'ALTER TABLE external_symbols ADD COLUMN definition_uri TEXT' },
   { table: 'external_symbols', column: 'definition_path', sql: 'ALTER TABLE external_symbols ADD COLUMN definition_path TEXT' },
   { table: 'symbol_relationships', column: 'character', sql: 'ALTER TABLE symbol_relationships ADD COLUMN character INTEGER' },
+  // LSP-first ref resolution columns
+  { table: 'symbol_refs', column: 'file_id', sql: 'ALTER TABLE symbol_refs ADD COLUMN file_id INTEGER REFERENCES files(id) ON DELETE CASCADE' },
+  { table: 'symbol_refs', column: 'definition_line', sql: 'ALTER TABLE symbol_refs ADD COLUMN definition_line INTEGER' },
+  { table: 'symbol_refs', column: 'definition_character', sql: 'ALTER TABLE symbol_refs ADD COLUMN definition_character INTEGER' },
+  { table: 'symbol_refs', column: 'resolution_method', sql: "ALTER TABLE symbol_refs ADD COLUMN resolution_method TEXT NOT NULL DEFAULT 'unresolved'" },
+  { table: 'type_refs', column: 'definition_line', sql: 'ALTER TABLE type_refs ADD COLUMN definition_line INTEGER' },
+  { table: 'type_refs', column: 'definition_character', sql: 'ALTER TABLE type_refs ADD COLUMN definition_character INTEGER' },
+  { table: 'type_refs', column: 'resolution_method', sql: "ALTER TABLE type_refs ADD COLUMN resolution_method TEXT NOT NULL DEFAULT 'unresolved'" },
+  { table: 'symbol_relationships', column: 'definition_line', sql: 'ALTER TABLE symbol_relationships ADD COLUMN definition_line INTEGER' },
+  { table: 'symbol_relationships', column: 'definition_character', sql: 'ALTER TABLE symbol_relationships ADD COLUMN definition_character INTEGER' },
+  { table: 'symbol_relationships', column: 'resolution_method', sql: "ALTER TABLE symbol_relationships ADD COLUMN resolution_method TEXT NOT NULL DEFAULT 'unresolved'" },
 ];
 
 const ENRICHMENT_INDEX_MIGRATIONS = [
   'CREATE INDEX IF NOT EXISTS idx_symbols_definition_path ON symbols(definition_path)',
   'CREATE INDEX IF NOT EXISTS idx_symbol_refs_definition_path ON symbol_refs(definition_path)',
   'CREATE INDEX IF NOT EXISTS idx_external_symbols_definition_path ON external_symbols(definition_path)',
+  'CREATE INDEX IF NOT EXISTS idx_symbol_refs_file_id ON symbol_refs(file_id)',
+  'CREATE INDEX IF NOT EXISTS idx_symbol_refs_resolution_method ON symbol_refs(resolution_method)',
+  'CREATE INDEX IF NOT EXISTS idx_type_refs_resolution_method ON type_refs(resolution_method)',
+  'CREATE INDEX IF NOT EXISTS idx_symbol_rels_resolution_method ON symbol_relationships(resolution_method)',
 ];
 
 // ─── Public API ───────────────────────────────────────────────────────────────

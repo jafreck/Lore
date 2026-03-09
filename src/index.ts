@@ -10,7 +10,7 @@ export { ensurePythonDeps } from './indexer/ensure-python-deps.js';
 export { installGitHooks } from './indexer/git-hooks.js';
 export type { InstallGitHooksOptions } from './indexer/git-hooks.js';
 export type { EffectiveLspSettings, LspSettingsOverrides } from './indexer/lsp/config.js';
-export { SentenceTransformersProvider, Qwen3EmbeddingProvider, DEFAULT_EMBEDDING_MODEL } from './indexer/embedder.js';
+export { SentenceTransformersProvider, Qwen3EmbeddingProvider, EmbedderRef, DEFAULT_EMBEDDING_MODEL } from './indexer/embedder.js';
 export type { EmbeddingProvider } from './indexer/embedder.js';
 export type {
   ExtractionResult,

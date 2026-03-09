@@ -111,6 +111,7 @@ const EMBED_BATCH_SIZE = 64;
 interface FileRow {
   id: number;
   last_hash: string | null;
+  size_bytes: number;
 }
 
 interface DocumentationRow {
@@ -207,6 +208,7 @@ export class IndexBuilder {
     const lspCoordinator = this.createLspEnrichmentCoordinator();
     log.indexing('build started', { dbPath: this.dbPath, branch, rootDir: this.walkerConfig.rootDir });
     try {
+      this.initPreparedStatements(db);
       this.saveDocsAutoNotesSetting(db);
       const files = await walkFiles(this.walkerConfig);
       const docs = await walkDocumentationFiles(this.walkerConfig);
@@ -311,6 +313,7 @@ export class IndexBuilder {
     /** Paths of changed doc files — used to look up new doc IDs for scoped embedding. */
     const changedDocPaths: string[] = [];
     try {
+      this.initPreparedStatements(db);
       this.saveDocsAutoNotesSetting(db);
       const docs = await walkDocumentationFiles(this.walkerConfig);
       const docsByPath = new Map(docs.map(doc => [doc.path, doc]));
@@ -480,58 +483,156 @@ export class IndexBuilder {
 
   // ─── Private helpers ──────────────────────────────────────────────────────
 
+  // ─── Hoisted prepared statements ──────────────────────────────────────────
+  // Created once per build/update to avoid re-compiling SQL on every file.
+
+  private initPreparedStatements(db: Database.Database): void {
+    this._selectFile = db.prepare('SELECT id, last_hash, size_bytes FROM files WHERE path = ? AND branch = ?');
+    this._updateFile = db.prepare(
+      `UPDATE files SET language = ?, size_bytes = ?, last_hash = ?, source = ?, indexed_at = unixepoch() WHERE id = ?`,
+    );
+    this._insertFile = db.prepare(
+      `INSERT INTO files (path, branch, language, size_bytes, last_hash, source) VALUES (?, ?, ?, ?, ?, ?)`,
+    );
+    this._deleteFtsByFile = db.prepare(
+      `DELETE FROM symbols_fts WHERE rowid IN (SELECT id FROM symbols WHERE file_id = ?)`,
+    );
+    this._deleteRelsByFile = db.prepare('DELETE FROM symbol_relationships WHERE file_id = ?');
+    this._deleteTypeRefsByFile = db.prepare('DELETE FROM type_refs WHERE file_id = ?');
+    this._nullCalleeByFile = db.prepare(
+      'UPDATE symbol_refs SET callee_id = NULL WHERE callee_id IN (SELECT id FROM symbols WHERE file_id = ?)',
+    );
+    this._nullTypeIdByFile = db.prepare(
+      'UPDATE type_refs SET type_id = NULL WHERE type_id IN (SELECT id FROM symbols WHERE file_id = ?)',
+    );
+    this._nullRelTargetByFile = db.prepare(
+      'UPDATE symbol_relationships SET target_symbol_id = NULL WHERE target_symbol_id IN (SELECT id FROM symbols WHERE file_id = ?)',
+    );
+    this._deleteSymbolsByFile = db.prepare('DELETE FROM symbols WHERE file_id = ?');
+    this._deleteImportsByFile = db.prepare('DELETE FROM file_imports WHERE file_id = ?');
+    this._deleteExtDepsByFile = db.prepare('DELETE FROM external_deps WHERE file_id = ?');
+    this._deleteRoutesByFile = db.prepare('DELETE FROM api_routes WHERE file_id = ?');
+    this._deleteAnnotationsByFile = db.prepare('DELETE FROM annotations WHERE file_id = ?');
+    this._insertSymbol = db.prepare(
+      `INSERT INTO symbols (file_id, name, kind, start_line, end_line, signature, doc_comment) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    );
+    this._insertFts = db.prepare(
+      `INSERT INTO symbols_fts(rowid, name, signature, kind) VALUES (?, ?, ?, ?)`,
+    );
+    this._insertRoute = db.prepare(
+      `INSERT INTO api_routes (file_id, method, path, handler_id, handler_name, framework, line, middleware) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    );
+    this._insertImport = db.prepare(
+      `INSERT INTO file_imports (file_id, raw_import) VALUES (?, ?)`,
+    );
+    this._insertCallRef = db.prepare(
+      `INSERT INTO symbol_refs (caller_id, file_id, callee_name, call_line, call_character, call_kind) VALUES (?, ?, ?, ?, ?, ?)`,
+    );
+    this._insertRelationship = db.prepare(
+      `INSERT INTO symbol_relationships (file_id, source_symbol_id, target_symbol_name, relationship_type, line, character) VALUES (?, ?, ?, ?, ?, ?)`,
+    );
+    this._insertTypeRef = db.prepare(
+      `INSERT INTO type_refs (file_id, symbol_id, type_name, type_name_bare, ref_kind, ref_line, ref_character) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    );
+  }
+
+  // Statement references — initialised by initPreparedStatements.
+  private _selectFile!: Database.Statement;
+  private _updateFile!: Database.Statement;
+  private _insertFile!: Database.Statement;
+  private _deleteFtsByFile!: Database.Statement;
+  private _deleteRelsByFile!: Database.Statement;
+  private _deleteTypeRefsByFile!: Database.Statement;
+  private _nullCalleeByFile!: Database.Statement;
+  private _nullTypeIdByFile!: Database.Statement;
+  private _nullRelTargetByFile!: Database.Statement;
+  private _deleteSymbolsByFile!: Database.Statement;
+  private _deleteImportsByFile!: Database.Statement;
+  private _deleteExtDepsByFile!: Database.Statement;
+  private _deleteRoutesByFile!: Database.Statement;
+  private _deleteAnnotationsByFile!: Database.Statement;
+  private _insertSymbol!: Database.Statement;
+  private _insertFts!: Database.Statement;
+  private _insertRoute!: Database.Statement;
+  private _insertImport!: Database.Statement;
+  private _insertCallRef!: Database.Statement;
+  private _insertRelationship!: Database.Statement;
+  private _insertTypeRef!: Database.Statement;
+
   /** Parse one file, extract symbols/imports/callRefs, and insert into the DB. */
   private processFile(db: Database.Database, filePath: string, language: string, branch: string): void {
+    // P3: fast-path — check file size via stat before reading+hashing.
+    // If the size and stored hash match, skip the expensive read entirely.
+    const existing = this._selectFile.get(filePath, branch) as FileRow | undefined;
+    if (existing) {
+      try {
+        const stat = fs.statSync(filePath);
+        if (stat.size === existing.size_bytes && existing.last_hash !== null) {
+          // Size matches — read and hash to confirm (still cheaper than full re-parse
+          // when most files haven't changed because we can bail early).
+          let source: string;
+          try {
+            source = fs.readFileSync(filePath, 'utf8');
+          } catch {
+            return;
+          }
+          const hash = crypto.createHash('sha256').update(source).digest('hex');
+          if (existing.last_hash === hash) return;
+          // File changed — proceed with the already-read source.
+          this.processFileWithSource(db, filePath, language, branch, source, hash, existing);
+          return;
+        }
+      } catch {
+        return; // stat failed — skip
+      }
+    }
+
+    // New file or size changed — read and hash.
     let source: string;
     try {
       source = fs.readFileSync(filePath, 'utf8');
     } catch {
-      return; // Skip unreadable files
+      return;
     }
-
     const hash = crypto.createHash('sha256').update(source).digest('hex');
-
-    // Check if the file is already up-to-date
-    const existing = db.prepare('SELECT id, last_hash FROM files WHERE path = ? AND branch = ?').get(filePath, branch) as
-      | FileRow
-      | undefined;
     if (existing?.last_hash === hash) return;
+    this.processFileWithSource(db, filePath, language, branch, source, hash, existing);
+  }
 
+  /** Core file processing after source has been read and hashed. */
+  private processFileWithSource(
+    db: Database.Database,
+    filePath: string,
+    language: string,
+    branch: string,
+    source: string,
+    hash: string,
+    existing: FileRow | undefined,
+  ): void {
     const sizeBytes = Buffer.byteLength(source, 'utf8');
 
     // Upsert the file row
     let fileId: number;
     if (existing) {
-      db.prepare(
-        `UPDATE files SET language = ?, size_bytes = ?, last_hash = ?, source = ?, indexed_at = unixepoch()
-          WHERE id = ?`,
-      ).run(language, sizeBytes, hash, source, existing.id);
+      this._updateFile.run(language, sizeBytes, hash, source, existing.id);
       fileId = existing.id;
       // Remove stale symbols / imports / external deps (also clean up FTS5 index)
-      db.prepare(
-        `DELETE FROM symbols_fts WHERE rowid IN (SELECT id FROM symbols WHERE file_id = ?)`,
-      ).run(fileId);
-      db.prepare('DELETE FROM symbol_relationships WHERE file_id = ?').run(fileId);
-      db.prepare('DELETE FROM type_refs WHERE file_id = ?').run(fileId);
+      this._deleteFtsByFile.run(fileId);
+      this._deleteRelsByFile.run(fileId);
+      this._deleteTypeRefsByFile.run(fileId);
       // NULL out cross-file FK references that point to symbols in this file
-      db.prepare('UPDATE symbol_refs SET callee_id = NULL WHERE callee_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(fileId);
-      db.prepare('UPDATE type_refs SET type_id = NULL WHERE type_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(fileId);
-      db.prepare('UPDATE symbol_relationships SET target_symbol_id = NULL WHERE target_symbol_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(fileId);
-      db.prepare('DELETE FROM symbols WHERE file_id = ?').run(fileId);
-      db.prepare('DELETE FROM file_imports WHERE file_id = ?').run(fileId);
-      db.prepare('DELETE FROM external_deps WHERE file_id = ?').run(fileId);
-      db.prepare('DELETE FROM api_routes WHERE file_id = ?').run(fileId);
-      // Delete stale annotations so cascade-independent re-index doesn't accumulate duplicates.
-      db.prepare('DELETE FROM annotations WHERE file_id = ?').run(fileId);
+      this._nullCalleeByFile.run(fileId);
+      this._nullTypeIdByFile.run(fileId);
+      this._nullRelTargetByFile.run(fileId);
+      this._deleteSymbolsByFile.run(fileId);
+      this._deleteImportsByFile.run(fileId);
+      this._deleteExtDepsByFile.run(fileId);
+      this._deleteRoutesByFile.run(fileId);
+      this._deleteAnnotationsByFile.run(fileId);
     } else {
-      const info = db
-        .prepare(
-          `INSERT INTO files (path, branch, language, size_bytes, last_hash, source)
-           VALUES (?, ?, ?, ?, ?, ?)`,
-        )
-        .run(filePath, branch, language, sizeBytes, hash, source) as {
-          lastInsertRowid: number | bigint;
-        };
+      const info = this._insertFile.run(filePath, branch, language, sizeBytes, hash, source) as {
+        lastInsertRowid: number | bigint;
+      };
       fileId = Number(info.lastInsertRowid);
     }
 
@@ -544,20 +645,11 @@ export class IndexBuilder {
 
     const result: ExtractionResult = extractor.extract(tree, source, filePath);
 
-    // Insert symbols and keep FTS5 index in sync
-    const insertSymbol = db.prepare(
-      `INSERT INTO symbols (file_id, name, kind, start_line, end_line, signature, doc_comment)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    );
-    const insertFts = db.prepare(
-      `INSERT INTO symbols_fts(rowid, name, signature, kind) VALUES (?, ?, ?, ?)`,
-    );
-
     // Map from callerSymbol name → symbol row ID (for call refs)
     const symbolIdMap = new Map<string, number>();
 
     for (const sym of result.symbols) {
-      const info = insertSymbol.run(
+      const info = this._insertSymbol.run(
         fileId,
         sym.name,
         sym.kind,
@@ -568,7 +660,7 @@ export class IndexBuilder {
       ) as { lastInsertRowid: number | bigint };
       const symId = Number(info.lastInsertRowid);
       symbolIdMap.set(sym.name, symId);
-      insertFts.run(
+      this._insertFts.run(
         symId,
         sym.name,
         buildStructuralEmbeddingText({
@@ -579,12 +671,8 @@ export class IndexBuilder {
       );
     }
 
-    const insertRoute = db.prepare(
-      `INSERT INTO api_routes (file_id, method, path, handler_id, handler_name, framework, line, middleware)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    );
     for (const route of result.routes) {
-      insertRoute.run(
+      this._insertRoute.run(
         fileId,
         route.method,
         route.path,
@@ -596,44 +684,25 @@ export class IndexBuilder {
       );
     }
 
-    // Insert raw imports (resolved_id will be filled in resolveImports())
-    const insertImport = db.prepare(
-      `INSERT INTO file_imports (file_id, raw_import) VALUES (?, ?)`,
-    );
     for (const imp of result.imports) {
-      insertImport.run(fileId, imp.source);
+      this._insertImport.run(fileId, imp.source);
     }
 
-    // Insert call refs (callee_id resolved in call-graph phase)
-    const insertCallRef = db.prepare(
-      `INSERT INTO symbol_refs (caller_id, callee_name, call_line, call_character, call_kind)
-       VALUES (?, ?, ?, ?, ?)`,
-    );
     for (const ref of result.callRefs) {
       const callerId = symbolIdMap.get(ref.callerSymbol);
       if (callerId !== undefined) {
-        insertCallRef.run(callerId, ref.calleeRaw, ref.line, ref.character ?? null, ref.callKind ?? 'direct');
+        this._insertCallRef.run(callerId, fileId, ref.calleeRaw, ref.line, ref.character ?? null, ref.callKind ?? 'direct');
       }
     }
 
-    // Insert relationships (target_symbol_id resolved in resolveSymbolEdges phase)
-    const insertRelationship = db.prepare(
-      `INSERT INTO symbol_relationships (file_id, source_symbol_id, target_symbol_name, relationship_type, line, character)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-    );
     for (const rel of result.relationships) {
       const sourceId = symbolIdMap.get(rel.fromSymbol) ?? null;
-      insertRelationship.run(fileId, sourceId, rel.toSymbol, rel.kind, rel.line, rel.character ?? null);
+      this._insertRelationship.run(fileId, sourceId, rel.toSymbol, rel.kind, rel.line, rel.character ?? null);
     }
 
-    // Insert type refs (type_id resolved in resolveSymbolEdges phase)
-    const insertTypeRef = db.prepare(
-      `INSERT INTO type_refs (file_id, symbol_id, type_name, type_name_bare, ref_kind, ref_line, ref_character)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    );
     for (const ref of result.typeRefs) {
       const symId = symbolIdMap.get(ref.enclosingSymbol) ?? null;
-      insertTypeRef.run(fileId, symId, ref.typeRaw, normalizeTypeName(ref.typeRaw), ref.refKind, ref.line, ref.character ?? null);
+      this._insertTypeRef.run(fileId, symId, ref.typeRaw, normalizeTypeName(ref.typeRaw), ref.refKind, ref.line, ref.character ?? null);
     }
   }
 
@@ -811,6 +880,12 @@ export class IndexBuilder {
       )
       .all(branch) as Array<{ id: number; file_id: number; raw_import: string; path: string; language: string }>;
 
+    // P5: Build a bulk path→id map so we don't do N individual SELECT lookups.
+    const fileIdByPath = new Map<string, number>(
+      (db.prepare('SELECT id, path FROM files WHERE branch = ?').all(branch) as Array<{ id: number; path: string }>)
+        .map(r => [r.path, r.id]),
+    );
+
     const updateResolved = db.prepare(
       'UPDATE file_imports SET resolved_id = ? WHERE id = ?',
     );
@@ -827,11 +902,9 @@ export class IndexBuilder {
       );
 
       if (resolved.resolvedPath) {
-        const targetFile = db
-          .prepare('SELECT id FROM files WHERE path = ? AND branch = ?')
-          .get(resolved.resolvedPath, branch) as { id: number } | undefined;
-        if (targetFile) {
-          updateResolved.run(targetFile.id, row.id);
+        const targetId = fileIdByPath.get(resolved.resolvedPath);
+        if (targetId !== undefined) {
+          updateResolved.run(targetId, row.id);
         }
       } else if (resolved.isExternal && resolved.externalName) {
         insertExternalDep.run(row.file_id, resolved.externalName);
@@ -971,17 +1044,17 @@ export class IndexBuilder {
     );
     const updateCallRef = db.prepare(
       `UPDATE symbol_refs
-       SET resolved_type_signature = ?, resolved_return_type = ?, definition_uri = ?, definition_path = ?
+       SET resolved_type_signature = ?, resolved_return_type = ?, definition_uri = ?, definition_path = ?, definition_line = ?, definition_character = ?
        WHERE id = ?`,
     );
     const updateTypeRef = db.prepare(
       `UPDATE type_refs
-       SET resolved_type_signature = ?, definition_uri = ?, definition_path = ?
+       SET resolved_type_signature = ?, definition_uri = ?, definition_path = ?, definition_line = ?, definition_character = ?
        WHERE id = ?`,
     );
     const updateRelationship = db.prepare(
       `UPDATE symbol_relationships
-       SET definition_uri = ?, definition_path = ?
+       SET definition_uri = ?, definition_path = ?, definition_line = ?, definition_character = ?
        WHERE id = ?`,
     );
 
@@ -1081,6 +1154,8 @@ export class IndexBuilder {
               m.resolvedReturnType,
               m.definitionUri,
               m.definitionPath,
+              m.definitionLine,
+              m.definitionCharacter,
               tag.rowId,
             );
             break;
@@ -1089,6 +1164,8 @@ export class IndexBuilder {
               m.resolvedTypeSignature,
               m.definitionUri,
               m.definitionPath,
+              m.definitionLine,
+              m.definitionCharacter,
               tag.rowId,
             );
             break;
@@ -1096,6 +1173,8 @@ export class IndexBuilder {
             updateRelationship.run(
               m.definitionUri,
               m.definitionPath,
+              m.definitionLine,
+              m.definitionCharacter,
               tag.rowId,
             );
             break;
@@ -1292,6 +1371,10 @@ export class IndexBuilder {
       'INSERT OR REPLACE INTO symbol_embeddings(rowid, embedding) VALUES (CAST(? AS INTEGER), json(?))',
     );
 
+    // P4: Pipeline — start embedding the next batch while writing the current one.
+    let pendingEmbed: Promise<number[][]> | null = null;
+    let pendingBatch: typeof symbols = [];
+
     for (let i = 0; i < symbols.length; i += EMBED_BATCH_SIZE) {
       const batch = symbols.slice(i, i + EMBED_BATCH_SIZE);
       const texts = batch.map((symbol) =>
@@ -1302,11 +1385,28 @@ export class IndexBuilder {
           resolvedReturnType: symbol.resolved_return_type,
         }),
       );
-      const embeddings = await embedder.embed(texts);
 
+      if (pendingEmbed) {
+        // Write the previous batch while the new one is being computed.
+        const embeddings = await pendingEmbed;
+        db.transaction(() => {
+          for (let j = 0; j < pendingBatch.length; j++) {
+            const sym = pendingBatch[j];
+            if (sym) insertEmbed.run(sym.id, JSON.stringify(embeddings[j]));
+          }
+        })();
+      }
+
+      pendingEmbed = embedder.embed(texts);
+      pendingBatch = batch;
+    }
+
+    // Flush the last batch.
+    if (pendingEmbed) {
+      const embeddings = await pendingEmbed;
       db.transaction(() => {
-        for (let j = 0; j < batch.length; j++) {
-          const sym = batch[j];
+        for (let j = 0; j < pendingBatch.length; j++) {
+          const sym = pendingBatch[j];
           if (sym) insertEmbed.run(sym.id, JSON.stringify(embeddings[j]));
         }
       })();
@@ -1351,17 +1451,34 @@ export class IndexBuilder {
       'INSERT OR REPLACE INTO doc_section_embeddings(rowid, embedding) VALUES (CAST(? AS INTEGER), json(?))',
     );
 
+    // P4: Pipeline — start embedding the next batch while writing the current one.
+    let pendingEmbed: Promise<number[][]> | null = null;
+    let pendingBatch: typeof sections = [];
+
     for (let i = 0; i < sections.length; i += EMBED_BATCH_SIZE) {
       const batch = sections.slice(i, i + EMBED_BATCH_SIZE);
       const texts = batch.map(section => section.content || section.title);
-      const embeddings = await embedder.embed(texts);
 
-      db.transaction(() => {
-        for (let j = 0; j < batch.length; j++) {
-          const section = batch[j];
-          if (section) {
-            insertEmbed.run(section.id, JSON.stringify(embeddings[j]));
+      if (pendingEmbed) {
+        const embeddings = await pendingEmbed;
+        db.transaction(() => {
+          for (let j = 0; j < pendingBatch.length; j++) {
+            const section = pendingBatch[j];
+            if (section) insertEmbed.run(section.id, JSON.stringify(embeddings[j]));
           }
+        })();
+      }
+
+      pendingEmbed = embedder.embed(texts);
+      pendingBatch = batch;
+    }
+
+    if (pendingEmbed) {
+      const embeddings = await pendingEmbed;
+      db.transaction(() => {
+        for (let j = 0; j < pendingBatch.length; j++) {
+          const section = pendingBatch[j];
+          if (section) insertEmbed.run(section.id, JSON.stringify(embeddings[j]));
         }
       })();
     }
@@ -1391,16 +1508,33 @@ export class IndexBuilder {
       'INSERT OR REPLACE INTO commit_embeddings(rowid, embedding) VALUES (CAST(? AS INTEGER), json(?))',
     );
 
+    // P4: Pipeline — start embedding the next batch while writing the current one.
+    let pendingEmbed: Promise<number[][]> | null = null;
+    let pendingBatch: typeof commits = [];
+
     for (let i = 0; i < commits.length; i += EMBED_BATCH_SIZE) {
       const batch = commits.slice(i, i + EMBED_BATCH_SIZE);
-      const embeddings = await embedder.embed(batch.map((commit) => commit.message));
 
-      db.transaction(() => {
-        for (let j = 0; j < batch.length; j++) {
-          const commit = batch[j];
-          if (commit) {
-            insertEmbed.run(commit.rowid, JSON.stringify(embeddings[j]));
+      if (pendingEmbed) {
+        const embeddings = await pendingEmbed;
+        db.transaction(() => {
+          for (let j = 0; j < pendingBatch.length; j++) {
+            const commit = pendingBatch[j];
+            if (commit) insertEmbed.run(commit.rowid, JSON.stringify(embeddings[j]));
           }
+        })();
+      }
+
+      pendingEmbed = embedder.embed(batch.map((commit) => commit.message));
+      pendingBatch = batch;
+    }
+
+    if (pendingEmbed) {
+      const embeddings = await pendingEmbed;
+      db.transaction(() => {
+        for (let j = 0; j < pendingBatch.length; j++) {
+          const commit = pendingBatch[j];
+          if (commit) insertEmbed.run(commit.rowid, JSON.stringify(embeddings[j]));
         }
       })();
     }

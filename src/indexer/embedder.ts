@@ -224,6 +224,33 @@ export class SentenceTransformersProvider implements EmbeddingProvider {
   }
 }
 
+// ─── EmbedderRef — mutable, shareable reference ──────────────────────────────
+
+/**
+ * A mutable container for an `EmbeddingProvider` that can be swapped or
+ * populated after construction.  Tool handlers hold a reference to the
+ * `EmbedderRef` and call `ref.current` at invocation time, so the embedder
+ * can be loaded in the background without blocking server startup.
+ *
+ * When `current` is `undefined`, semantic / fused search degrades gracefully
+ * to structural-only mode.
+ *
+ * ```ts
+ * const ref = new EmbedderRef();           // starts empty
+ * const server = createLoreMcpServer(db, dbPath, ref);
+ * // … later, in the background:
+ * ref.current = await buildEmbedder(db);
+ * ```
+ */
+export class EmbedderRef {
+  /** The live embedding provider, or `undefined` when not yet available. */
+  current: EmbeddingProvider | undefined;
+
+  constructor(initial?: EmbeddingProvider) {
+    this.current = initial;
+  }
+}
+
 // ─── Qwen3 factory ────────────────────────────────────────────────────────────
 
 /** Default embedding model used when no model is explicitly specified. */
