@@ -73,8 +73,9 @@ export {
   getFileById,
   getFileByPath,
   listFiles,
+  listResolvedEdges,
 } from './lore-server/db.js';
-export type { SymbolRow, FileRow } from './lore-server/db.js';
+export type { SymbolRow, FileRow, ResolvedEdge, ListResolvedEdgesOptions } from './lore-server/db.js';
 
 // ── Logging ───────────────────────────────────────────────────────────────────
 export { LoreLogger, LogLevel, LOG_LEVEL_NAMES, initLogger, getLogger, resetLogger } from './logger.js';
