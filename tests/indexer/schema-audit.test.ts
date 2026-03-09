@@ -5,6 +5,7 @@
  * Also validates that the public API surface is stable.
  */
 
+import Database from 'better-sqlite3';
 import { describe, it, expect } from 'vitest';
 import {
   RESOLUTION_METHODS,
@@ -52,5 +53,35 @@ describe('resolution-method taxonomy', () => {
     expect(UNRESOLVED_METHODS.has('external_definition')).toBe(true);
     expect(UNRESOLVED_METHODS.has('ambiguous_definition')).toBe(true);
     expect(UNRESOLVED_METHODS.has('unresolved')).toBe(true);
+  });
+});
+
+describe('chunked IN-clause safety', () => {
+  it('should handle more than 999 placeholders by chunking (SQLite SQLITE_MAX_VARIABLE_NUMBER)', () => {
+    // Regression: embedding.ts built a single IN (?, ?, ...) with one
+    // placeholder per symbol ID, which could exceed SQLite's variable limit.
+    // The fix chunks into batches of 900. This test verifies the pattern
+    // works for >999 items.
+    const db = new Database(':memory:');
+    db.exec('CREATE TABLE t (id INTEGER PRIMARY KEY)');
+    const insert = db.prepare('INSERT INTO t (id) VALUES (?)');
+    const COUNT = 1200;
+    db.transaction(() => {
+      for (let i = 1; i <= COUNT; i++) insert.run(i);
+    })();
+
+    // Chunked delete — same pattern used in embedding.ts
+    const ids = Array.from({ length: COUNT }, (_, i) => i + 1);
+    const CHUNK = 900;
+    for (let i = 0; i < ids.length; i += CHUNK) {
+      const chunk = ids.slice(i, i + CHUNK);
+      db.prepare(
+        `DELETE FROM t WHERE id IN (${chunk.map(() => '?').join(', ')})`,
+      ).run(...chunk);
+    }
+
+    const remaining = db.prepare('SELECT COUNT(*) AS count FROM t').get() as { count: number };
+    expect(remaining.count).toBe(0);
+    db.close();
   });
 });
