@@ -1,6 +1,7 @@
 # Lore
 
 [![CI](https://github.com/jafreck/Lore/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/jafreck/Lore/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/jafreck/Lore/branch/main/graph/badge.svg)](https://codecov.io/gh/jafreck/Lore)
 [![npm version](https://img.shields.io/npm/v/@jafreck/lore)](https://www.npmjs.com/package/@jafreck/lore)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D22.0.0-brightgreen)](https://nodejs.org)
@@ -8,13 +9,13 @@
 
 **The teammate that has seen it all** 
 
-Lore is your agent's institutional knowledge over the codebase — it knows what was built, why it changed, and how it all connects. Lore indexes your code and git history into a structured knowledge base that agents query through MCP. It maps symbols, imports, call relationships, and git history — with optional embeddings for semantic search — so agents can reason about your codebase
+Lore is your agent's institutional knowledge over the codebase — it knows what was built, why it changed, and how it all connects. Lore indexes your code and git history into a structured knowledge base that agents query through MCP. It maps symbols, imports, call relationships, type relationships, routes, annotations, and git history — with optional embeddings for semantic search — so agents can reason about your codebase
 without re-reading it from scratch.
 
 ## What Lore does
 
-- Parses source files and extracts symbols, imports, and call refs across all 24 supported languages
-- Resolves internal vs external imports and builds call/import graph edges
+- Parses source files and extracts symbols, imports, call refs, type refs, annotations, and API routes across all 24 supported languages
+- Resolves internal vs external imports and builds call/import/module/inheritance/type-dependency graph edges
 - Discovers and indexes documentation (`.md`, `.rst`, `.adoc`, `.txt`) with inferred kinds/titles
 - Stores everything in a normalized SQL schema with optional vector search
 - Enables RAG-style retrieval with semantic/fused search across symbols and doc sections
@@ -35,9 +36,9 @@ flowchart LR
     end
 
     subgraph Lore Indexer
-        WALK[Walker] --> PARSE[Parser] --> EXTRACT[Extractors<br/>symbols · imports · call refs]
+      WALK[Walker] --> PARSE[Parser] --> EXTRACT[Extractors<br/>symbols · imports · call refs<br/>type refs · routes · annotations]
         EXTRACT --> RESOLVE[Import Resolver<br/>internal ↔ external]
-        EXTRACT --> CALLGRAPH[Call-Graph Builder]
+      EXTRACT --> CALLGRAPH[Relationship Resolver]
         EXTRACT -.-> LSPENRICH[LSP Enrichment<br/>type signatures · definition locations]
         DOCSINGEST[Docs Ingest<br/>sections · headings · notes]
         GITHIST[Git History Ingest<br/>commits · diffs · refs]
@@ -51,7 +52,11 @@ flowchart LR
         LOOKUP[lore_lookup]
         SEARCH[lore_search]
         DOCS_TOOL[lore_docs]
+      ANNOT[lore_annotations]
         GRAPH[lore_graph]
+      ROUTES[lore_routes]
+      NOTES[lore_notes_read/write]
+      ARCH[lore_architecture]
         TESTMAP[lore_test_map]
         SNIPPET[lore_snippet]
         BLAME[lore_blame]
@@ -79,10 +84,10 @@ flowchart LR
     RESOLVE -.->|optional| EMBED
     EMBED -.-> DB
 
-    DB --- LOOKUP & SEARCH & DOCS_TOOL & GRAPH & TESTMAP & SNIPPET & BLAME & HISTORY & METRICS & COVERAGE & WRITEBACK
+    DB --- LOOKUP & SEARCH & DOCS_TOOL & ANNOT & GRAPH & ROUTES & NOTES & ARCH & TESTMAP & SNIPPET & BLAME & HISTORY & METRICS & COVERAGE & WRITEBACK
     EMBED <-.->|semantic/fused| SEARCH
 
-    LOOKUP & SEARCH & DOCS_TOOL & GRAPH & TESTMAP & SNIPPET & BLAME & HISTORY & METRICS & COVERAGE & WRITEBACK <--> MCP_CLIENTS
+    LOOKUP & SEARCH & DOCS_TOOL & ANNOT & GRAPH & ROUTES & NOTES & ARCH & TESTMAP & SNIPPET & BLAME & HISTORY & METRICS & COVERAGE & WRITEBACK <--> MCP_CLIENTS
 ```
 
 Lore sits between your codebase and any LLM-powered tool. The **indexer**
@@ -159,11 +164,12 @@ await builder.build();
 | `lore_lookup` | Find symbols by name or files by path, including external dependency API symbols and LSP-resolved metadata when available |
 | `lore_search` | Structural BM25, semantic vector, or fused RRF search across symbols and doc sections |
 | `lore_docs` | List, fetch, or search indexed documentation with branch, kind, and path filters |
+| `lore_annotations` | Return indexed TODO/FIXME/HACK/NOTE-style annotations with optional path and limit filters |
 | `lore_routes` | Query extracted API routes/endpoints with optional method, path prefix, and framework filters |
 | `lore_notes_write` | Upsert agent-authored notes by key and scope, with optional source hash for staleness tracking |
 | `lore_notes_read` | Read notes by exact key or key prefix with scope-aware staleness metadata |
 | `lore_architecture` | Build a component-level architecture view with edges, entry/leaf nodes, and external dependency usage |
-| `lore_graph` | Query call/import/module/inheritance edges; call edges include `callee_coverage_percent` |
+| `lore_graph` | Query call/import/module/inheritance/type-dependency edges; call edges include `callee_coverage_percent` |
 | `lore_snippet` | Return snippets from indexed source snapshots by file path + line range or by symbol name; path/symbol resolution is branch-aware and responses include containing-symbol context metadata (name, kind, start/end lines) when available |
 | `lore_test_map` | Return mapped test files (with confidence) for a given source file path |
 | `lore_blame` | Query blame, line-range history, or ownership aggregates with optional symbol targeting, commit-context enrichment, and risk signals |
