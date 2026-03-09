@@ -1,11 +1,11 @@
 export { IndexBuilder } from './indexer/index.js';
 export { openDb, setLoreMeta, getLoreMeta, createVec0Tables } from './indexer/db.js';
 export type { Database } from './indexer/db.js';
-export { buildCallGraph, topoSort, detectCycles } from './indexer/call-graph.js';
+export { resolveSymbolEdges, topoSort, detectCycles } from './indexer/call-graph.js';
+export { normalizeTypeName } from './indexer/call-graph.js';
 export { walkFiles, detectLanguageForPath } from './indexer/walker.js';
 export type { WalkerConfig, FileEntry } from './indexer/walker.js';
 export { ImportResolver } from './indexer/resolver.js';
-export { ParserPool } from './indexer/parser.js';
 export { ensurePythonDeps } from './indexer/ensure-python-deps.js';
 export { installGitHooks } from './indexer/git-hooks.js';
 export type { InstallGitHooksOptions } from './indexer/git-hooks.js';
@@ -20,6 +20,29 @@ export type {
   SymbolExtractor,
 } from './indexer/extractors/types.js';
 
+// ── Resolution method taxonomy ────────────────────────────────────────────────
+export { RESOLUTION_METHODS, RESOLVED_METHODS, UNRESOLVED_METHODS } from './indexer/resolution-method.js';
+export type { ResolutionMethod } from './indexer/resolution-method.js';
+
+// ── Pipeline ──────────────────────────────────────────────────────────────────
+export { IndexPipeline, STAGE_ORDER } from './indexer/pipeline.js';
+export type { PipelineContext, PipelineStage, StageName } from './indexer/pipeline.js';
+export {
+  SourceIndexStage,
+  DocsIndexStage,
+  ImportResolutionStage,
+  DependencyApiStage,
+  LspEnrichmentStage,
+  ResolutionStage,
+  TestMapStage,
+  HistoryStage,
+  EmbeddingStage,
+} from './indexer/stages/index.js';
+
+// ── Runtime ───────────────────────────────────────────────────────────────────
+export { LoreRuntime } from './runtime.js';
+export type { RuntimeConfig, Refresher } from './runtime.js';
+
 // ── File watcher / poller ─────────────────────────────────────────────────────
 export { FileWatcher } from './indexer/watcher.js';
 export type { WatcherOptions } from './indexer/watcher.js';
@@ -27,9 +50,11 @@ export { FilePoller } from './indexer/poller.js';
 export type { PollerOptions } from './indexer/poller.js';
 
 // ── MCP server ────────────────────────────────────────────────────────────────
-export { createLoreMcpServer } from './lore-server/server.js';
+export { createLoreMcpServer, createLoreMcpServerAsync } from './lore-server/server.js';
 export type { LoreServerOptions } from './lore-server/server.js';
 export type { SearchObservation, SearchObserver } from './lore-server/tools/search.js';
+export { registerTools, inputSchemaToZodShape, buildToolModules } from './lore-server/tool-registry.js';
+export type { ToolModule, ToolDefinition, ToolDependencies } from './lore-server/tool-registry.js';
 export {
   openReadOnly,
   getSymbolById,

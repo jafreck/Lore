@@ -32,7 +32,7 @@ import { inferSeededDocNoteKey, buildDocNoteScope } from './docs.js';
 import { ingestGitHistory } from './git-history.js';
 import { ParserPool } from './parser.js';
 import { ImportResolver } from './resolver.js';
-import { buildCallGraph, resolveSymbolEdges, normalizeTypeName } from './call-graph.js';
+import { resolveSymbolEdges, normalizeTypeName } from './call-graph.js';
 import {
   type ExtractionResult,
   type RawCallRef,

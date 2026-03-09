@@ -9,6 +9,7 @@
 
 import type { Database } from '../db.js';
 import { getCoveragePercentBySymbolIds, semanticSearchSymbols } from '../db.js';
+import type { ResolutionMethod } from '../../indexer/resolution-method.js';
 
 // ─── Tool definition ──────────────────────────────────────────────────────────
 
@@ -90,7 +91,7 @@ export interface GraphEdge {
   ref_kind?: string;
   line?: number;
   character?: number | null;
-  resolution_method?: string;
+  resolution_method?: ResolutionMethod;
   definition_path?: string | null;
   definition_line?: number | null;
   definition_character?: number | null;

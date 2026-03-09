@@ -873,6 +873,10 @@ export interface ListConfigEntriesArgs {
 /**
  * Return config entries joined with their config-file metadata and usage references.
  * Results are ordered deterministically by key and file path.
+ *
+ * @deprecated No DDL exists for `config_entries` or `config_entry_refs`.
+ * This function will silently return `[]` at runtime because the tables
+ * don't exist.  Scheduled for removal — see Phase 5 of the refactor plan.
  */
 export function listConfigEntries(
   db: Database.Database,
