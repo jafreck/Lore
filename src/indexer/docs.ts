@@ -181,6 +181,10 @@ export function inferDocumentSections(filePath: string, content: string): Docume
     const depth = marker.length;
     const title = rawTitle.trim();
 
+    // Fill any skipped heading levels with empty strings to avoid undefined holes
+    for (let d = headingStack.length; d < depth - 1; d++) {
+      headingStack[d] = headingStack[d] ?? '';
+    }
     headingStack[depth - 1] = title;
     headingStack.length = depth;
 

@@ -13,6 +13,11 @@ const esmRequire = createRequire(import.meta.url);
 // Re-export the Database type so callers don't need to import better-sqlite3 directly.
 export type { Database };
 
+/** Escape SQL LIKE wildcard characters (`%` and `_`) so they match literally. */
+function escapeLikeWildcards(value: string): string {
+  return value.replace(/[%_]/g, (ch) => `\\${ch}`);
+}
+
 // ─── Connection helpers ───────────────────────────────────────────────────────
 
 /**
@@ -207,10 +212,10 @@ export function resolveSymbolRangeByName(
 
 function buildNameMatch(name: string, mode: SymbolMatchMode): { clause: string; value: string } {
   if (mode === 'prefix') {
-    return { clause: 's.name LIKE ? COLLATE NOCASE', value: `${name}%` };
+    return { clause: `s.name LIKE ? ESCAPE '\\' COLLATE NOCASE`, value: `${escapeLikeWildcards(name)}%` };
   }
   if (mode === 'contains') {
-    return { clause: 's.name LIKE ? COLLATE NOCASE', value: `%${name}%` };
+    return { clause: `s.name LIKE ? ESCAPE '\\' COLLATE NOCASE`, value: `%${escapeLikeWildcards(name)}%` };
   }
   return { clause: 's.name = ? COLLATE NOCASE', value: name };
 }
@@ -225,8 +230,8 @@ function applySymbolFilters(where: string[], params: Array<string | number>, opt
     params.push(options.kind);
   }
   if (options.pathPrefix !== undefined) {
-    where.push('f.path LIKE ?');
-    params.push(`${options.pathPrefix}%`);
+    where.push(`f.path LIKE ? ESCAPE '\\'`);
+    params.push(`${escapeLikeWildcards(options.pathPrefix)}%`);
   }
   if (options.language !== undefined) {
     where.push('f.language = ?');
@@ -441,11 +446,11 @@ export function searchExternalSymbolsByName(
     .prepare(
       `SELECT ${selectColumns}
          FROM external_symbols
-         WHERE symbol_name LIKE ? COLLATE NOCASE
+         WHERE symbol_name LIKE ? ESCAPE '\\' COLLATE NOCASE
          ORDER BY dependency_ecosystem ASC, package_name ASC, package_version ASC, symbol_kind ASC, signature ASC
          LIMIT ?`,
     )
-    .all(`%${nameQuery}%`, limit) as ExternalSymbolRow[];
+    .all(`%${escapeLikeWildcards(nameQuery)}%`, limit) as ExternalSymbolRow[];
 }
 
 // ─── File helpers ─────────────────────────────────────────────────────────────
@@ -494,12 +499,12 @@ export function listFilesByPathPrefix(
   const trimmed = pathPrefix.trim();
   if (!trimmed) return [];
   const normalized = trimmed.endsWith('/') && trimmed.length > 1 ? trimmed.slice(0, -1) : trimmed;
-  const likePattern = normalized === '/' ? '/%' : `${normalized}/%`;
+  const likePattern = normalized === '/' ? '/%' : `${escapeLikeWildcards(normalized)}/%`;
   if (branch !== undefined) {
     return db
       .prepare(
         `SELECT * FROM files
-         WHERE branch = ? AND (path = ? OR path LIKE ?)
+         WHERE branch = ? AND (path = ? OR path LIKE ? ESCAPE '\\')
          ORDER BY path ASC, branch ASC
          LIMIT ?`,
       )
@@ -508,7 +513,7 @@ export function listFilesByPathPrefix(
   return db
     .prepare(
       `SELECT * FROM files
-       WHERE path = ? OR path LIKE ?
+       WHERE path = ? OR path LIKE ? ESCAPE '\\'
        ORDER BY path ASC, branch ASC
        LIMIT ?`,
     )
@@ -693,9 +698,9 @@ export function searchDocSections(
   if (!query) return [];
 
   const where: string[] = [
-    '(ds.title LIKE ? OR ds.content LIKE ? OR ds.heading_path LIKE ?)',
+    `(ds.title LIKE ? ESCAPE '\\' OR ds.content LIKE ? ESCAPE '\\' OR ds.heading_path LIKE ? ESCAPE '\\')`,
   ];
-  const likeQuery = `%${query}%`;
+  const likeQuery = `%${escapeLikeWildcards(query)}%`;
   const params: Array<string | number> = [likeQuery, likeQuery, likeQuery];
 
   if (args.path !== undefined) {
@@ -747,8 +752,10 @@ export function semanticSearchDocSections(
 ): SemanticDocSectionRow[] {
   if (args.queryVector.length === 0) return [];
 
-  const where: string[] = [];
-  const params: Array<string | number> = [JSON.stringify(args.queryVector)];
+  const limit = args.limit ?? 20;
+
+  const where: string[] = ['dse.k = ?'];
+  const params: Array<string | number> = [JSON.stringify(args.queryVector), limit];
 
   if (args.path !== undefined) {
     where.push('d.path = ?');
@@ -766,7 +773,6 @@ export function semanticSearchDocSections(
   }
 
   const whereSql = where.length > 0 ? ` AND ${where.join(' AND ')}` : '';
-  const limit = args.limit ?? 20;
 
   return db
     .prepare(
@@ -1031,8 +1037,8 @@ export function listApiRoutes(db: Database.Database, args: ListApiRoutesArgs = {
     params.push(args.method);
   }
   if (args.pathPrefix !== undefined) {
-    clauses.push('ar.path LIKE ?');
-    params.push(`${args.pathPrefix}%`);
+    clauses.push(`ar.path LIKE ? ESCAPE '\\'`);
+    params.push(`${escapeLikeWildcards(args.pathPrefix)}%`);
   }
   if (args.framework !== undefined) {
     clauses.push('ar.framework = ? COLLATE NOCASE');
@@ -1179,8 +1185,8 @@ function buildCommitStatsWhere(filters: CommitStatsFilters): { where: string; pa
   }
 
   if (filters.author?.trim()) {
-    const pattern = `%${filters.author.trim()}%`;
-    conditions.push('(c.author LIKE ? OR c.author_email LIKE ?)');
+    const pattern = `%${escapeLikeWildcards(filters.author.trim())}%`;
+    conditions.push(`(c.author LIKE ? ESCAPE '\\' OR c.author_email LIKE ? ESCAPE '\\')`);
     params.push(pattern, pattern);
   }
 
@@ -1212,8 +1218,8 @@ function expandRenamePathVariants(path: string): string[] {
 /** Fetch a single commit by its SHA (full or prefix match). */
 export function getCommitBySha(db: Database.Database, sha: string): CommitRow | undefined {
   return db
-    .prepare('SELECT * FROM commits WHERE sha = ? OR sha LIKE ? LIMIT 1')
-    .get(sha, `${sha}%`) as CommitRow | undefined;
+    .prepare(`SELECT * FROM commits WHERE sha = ? OR sha LIKE ? ESCAPE '\\' LIMIT 1`)
+    .get(sha, `${escapeLikeWildcards(sha)}%`) as CommitRow | undefined;
 }
 
 /** Return the most recent commits ordered by timestamp DESC, limited to `limit` rows. */
@@ -1258,11 +1264,11 @@ export function listCommitsByFile(db: Database.Database, filePath: string, limit
 
 /** Return commits filtered by author name or email, ordered by timestamp DESC. */
 export function listCommitsByAuthor(db: Database.Database, author: string, limit = 50): CommitRow[] {
-  const pattern = `%${author}%`;
+  const pattern = `%${escapeLikeWildcards(author)}%`;
   return db
     .prepare(
       `SELECT * FROM commits
-       WHERE author LIKE ? OR author_email LIKE ?
+       WHERE author LIKE ? ESCAPE '\\' OR author_email LIKE ? ESCAPE '\\'
        ORDER BY timestamp DESC, sha ASC
        LIMIT ?`,
     )
@@ -1290,7 +1296,7 @@ export function listCommitRefs(db: Database.Database, commitSha: string): Commit
 /** Return commits associated with a branch/tag ref name or prefix. */
 export function listCommitsByRef(db: Database.Database, refQuery: string, limit = 50): CommitRow[] {
   const exact = refQuery;
-  const wildcard = `%${refQuery}%`;
+  const wildcard = `%${escapeLikeWildcards(refQuery)}%`;
   try {
     if (!refQuery) {
       return db
@@ -1306,7 +1312,7 @@ export function listCommitsByRef(db: Database.Database, refQuery: string, limit 
       .prepare(
         `SELECT DISTINCT c.* FROM commits c
          JOIN commit_refs cr ON cr.commit_sha = c.sha
-         WHERE cr.ref_name = ? OR cr.ref_name LIKE ?
+         WHERE cr.ref_name = ? OR cr.ref_name LIKE ? ESCAPE '\\'
          ORDER BY c.timestamp DESC, c.sha ASC
          LIMIT ?`,
       )

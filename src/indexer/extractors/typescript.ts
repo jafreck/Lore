@@ -87,6 +87,9 @@ export class TypeScriptExtractor implements SymbolExtractor {
         case 'type_alias_declaration':
           result.symbols.push(extractNamedDecl(node, 'type', source, declarationMode));
           break;
+        case 'enum_declaration':
+          result.symbols.push(extractNamedDecl(node, 'enum', source, declarationMode));
+          break;
         case 'lexical_declaration':
         case 'variable_declaration': {
           // Handle: const foo = () => {} or const foo = function() {}

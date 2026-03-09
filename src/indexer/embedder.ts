@@ -168,6 +168,10 @@ export class SentenceTransformersProvider implements EmbeddingProvider {
   async dispose(): Promise<void> {
     if (!this.proc) return;
     const proc = this.proc;
+    // Reject all pending requests before tearing down.
+    const pending = this.pendingRequests.splice(0);
+    const err = new Error('EmbeddingProvider disposed');
+    for (const r of pending) r.reject(err);
     this.proc = null;
     this.rl?.close();
     this.rl = null;

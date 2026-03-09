@@ -88,7 +88,7 @@ export function installGitHooks(options: InstallGitHooksOptions): { installed: s
     if (existing.trim().length > 0) {
       content = `${existing.trimEnd()}\n\n${loreBlock}`;
     } else {
-      content = loreBlock;
+      content = `#!/usr/bin/env sh\nset -e\n\n${loreBlock}`;
     }
 
     fs.writeFileSync(hookPath, content, 'utf8');
