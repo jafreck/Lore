@@ -26,6 +26,8 @@ const JAVA_SYMBOL_NODE_TYPES = [
   'method_declaration',
   'constructor_declaration',
   'class_declaration',
+  'interface_declaration',
+  'enum_declaration',
 ] as const;
 
 // ─── JavaExtractor ────────────────────────────────────────────────────────────

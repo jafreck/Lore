@@ -23,6 +23,10 @@ import {
 const PHP_SYMBOL_NODE_TYPES = [
   'function_definition',
   'method_declaration',
+  'class_declaration',
+  'interface_declaration',
+  'trait_declaration',
+  'enum_declaration',
 ] as const;
 
 // ─── PhpExtractor ─────────────────────────────────────────────────────────────

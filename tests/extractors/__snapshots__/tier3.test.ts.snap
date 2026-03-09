@@ -249,7 +249,7 @@ exports[`OCaml extractor > symbols 1`] = `
   {
     "endLine": 14,
     "kind": "type",
-    "name": "",
+    "name": "shape",
     "signature": "type shape =",
     "startLine": 12,
   },
@@ -263,7 +263,7 @@ exports[`OCaml extractor > symbols 1`] = `
   {
     "endLine": 26,
     "kind": "module",
-    "name": "",
+    "name": "MathUtils",
     "signature": "module MathUtils = struct",
     "startLine": 21,
   },
@@ -313,21 +313,21 @@ exports[`Objective-C extractor > symbols 1`] = `
   {
     "endLine": 7,
     "kind": "function",
-    "name": "",
+    "name": "initWithRadius",
     "signature": "- (instancetype)initWithRadius:(double)radius;",
     "startLine": 7,
   },
   {
     "endLine": 8,
     "kind": "function",
-    "name": "",
+    "name": "area",
     "signature": "- (double)area;",
     "startLine": 8,
   },
   {
     "endLine": 9,
     "kind": "function",
-    "name": "",
+    "name": "perimeter",
     "signature": "- (double)perimeter;",
     "startLine": 9,
   },
@@ -564,24 +564,10 @@ exports[`Ruby extractor > symbols 1`] = `
     "startLine": 3,
   },
   {
-    "endLine": 3,
-    "kind": "module",
-    "name": "",
-    "signature": "module",
-    "startLine": 3,
-  },
-  {
     "endLine": 24,
     "kind": "class",
     "name": "Circle",
     "signature": "class Circle",
-    "startLine": 6,
-  },
-  {
-    "endLine": 6,
-    "kind": "class",
-    "name": "",
-    "signature": "class",
     "startLine": 6,
   },
   {

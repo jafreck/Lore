@@ -40,10 +40,14 @@ export class RubyExtractor implements SymbolExtractor {
           result.symbols.push(extractSingletonMethod(node));
           break;
         case 'class':
-          result.symbols.push(extractClass(node));
-          break;
         case 'module':
-          result.symbols.push(extractModule(node));
+          // Guard: tree-sitter-ruby keyword tokens share their type name with
+          // the parent node (e.g. keyword `module` has type "module").  Skip
+          // leaf tokens that have no children.
+          if (node.namedChildCount === 0) break;
+          result.symbols.push(
+            node.type === 'class' ? extractClass(node) : extractModule(node),
+          );
           break;
         case 'call': {
           const imp = tryExtractRequire(node);

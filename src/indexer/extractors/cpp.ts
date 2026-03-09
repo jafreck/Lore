@@ -29,6 +29,8 @@ import {
 
 const CPP_SYMBOL_NODE_TYPES = [
   'function_definition',
+  'class_specifier',
+  'struct_specifier',
 ] as const;
 
 /**
@@ -80,6 +82,15 @@ export class CppExtractor implements SymbolExtractor {
             extractCppFieldTypeRefs(node, result.typeRefs);
           }
           break;
+        case 'enum_specifier':
+          if (node.childForFieldName('name')) {
+            result.symbols.push(extractSpecifier(node, 'enum'));
+          }
+          break;
+        case 'typedef_declaration':
+        case 'type_definition':
+          result.symbols.push(extractTypedef(node));
+          break;
         case 'preproc_function_def':
         case 'preproc_def': {
           const sym = extractMacro(node);
@@ -95,7 +106,12 @@ export class CppExtractor implements SymbolExtractor {
           break;
         }
         case 'declaration': {
-          extractCppVariableTypeRefs(node, result.typeRefs);
+          const funcDecl = extractCppFunctionDeclaration(node);
+          if (funcDecl) {
+            result.symbols.push(funcDecl);
+          } else {
+            extractCppVariableTypeRefs(node, result.typeRefs);
+          }
           break;
         }
         case 'cast_expression': {
@@ -155,9 +171,11 @@ function extractDeclaratorName(declarator: Parser.SyntaxNode): string {
   if (node?.type === 'function_declarator') {
     const inner = node.childForFieldName('declarator');
     if (inner) {
-      // Prefer qualified identifier (e.g. Foo::bar) over plain identifier
+      // Prefer qualified identifier (e.g. Foo::bar) over plain identifier.
+      // tree-sitter-cpp uses `field_identifier` for class member methods.
       return (
         findFirst(inner, 'qualified_identifier')?.text ??
+        findFirst(inner, 'field_identifier')?.text ??
         findFirst(inner, 'identifier')?.text ??
         ''
       );
@@ -175,6 +193,50 @@ function extractSpecifier(node: Parser.SyntaxNode, kind: string): RawSymbol {
     endLine: node.endPosition.row,
     signature: nodeSignature(node),
   };
+}
+
+function extractTypedef(node: Parser.SyntaxNode): RawSymbol {
+  const children = node.namedChildren;
+  const lastChild = children[children.length - 1] ?? null;
+  const name = lastChild
+    ? (lastChild.type === 'type_identifier'
+        ? lastChild.text
+        : findFirst(lastChild, 'type_identifier')?.text ?? lastChild.text)
+    : '';
+  return {
+    name,
+    kind: 'typedef',
+    startLine: node.startPosition.row,
+    endLine: node.endPosition.row,
+    signature: nodeSignature(node),
+  };
+}
+
+/**
+ * Checks whether a C++ `declaration` node is a function prototype and, if so,
+ * extracts it as a `RawSymbol`.  Returns `null` for plain variable declarations.
+ */
+function extractCppFunctionDeclaration(node: Parser.SyntaxNode): RawSymbol | null {
+  const declarator = node.childForFieldName('declarator');
+  if (!declarator) return null;
+  if (!hasCppFunctionDeclarator(declarator)) return null;
+  const name = extractDeclaratorName(declarator);
+  if (!name) return null;
+  return {
+    name,
+    kind: 'function',
+    startLine: node.startPosition.row,
+    endLine: node.endPosition.row,
+    signature: nodeSignature(node),
+  };
+}
+
+function hasCppFunctionDeclarator(node: Parser.SyntaxNode): boolean {
+  if (node.type === 'function_declarator') return true;
+  for (const child of node.namedChildren) {
+    if (hasCppFunctionDeclarator(child)) return true;
+  }
+  return false;
 }
 
 // ─── Macro extraction ─────────────────────────────────────────────────────────

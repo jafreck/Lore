@@ -24,6 +24,10 @@ const OBJC_SYMBOL_NODE_TYPES = [
   'method_declaration',
   'class_method_declaration',
   'instance_method_declaration',
+  'class_interface',
+  'class_implementation',
+  'protocol_declaration',
+  'category_interface',
 ] as const;
 
 // ─── ObjcExtractor ───────────────────────────────────────────────────────────
@@ -150,8 +154,12 @@ function extractProtocol(node: Parser.SyntaxNode): RawSymbol {
 }
 
 function extractMethod(node: Parser.SyntaxNode): RawSymbol {
+  // tree-sitter-objc v3+ uses plain `identifier` nodes for method names
+  // instead of `selector`/`keyword_selector`.
   const selectorNode = node.childForFieldName('selector') ??
-    node.namedChildren.find(c => c.type === 'selector' || c.type === 'keyword_selector');
+    node.namedChildren.find(c =>
+      c.type === 'selector' || c.type === 'keyword_selector' || c.type === 'identifier',
+    );
   return {
     name: selectorNode?.text ?? '',
     kind: 'function',
