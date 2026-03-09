@@ -149,6 +149,9 @@ interface SymbolCandidate {
 /**
  * Resolves refs in `tableName` by mapping `definition_path`+`definition_line`
  * to the narrowest enclosing symbol in the indexed files.
+ *
+ * Uses batched lookups: groups refs by definition_path, resolves the file and
+ * its symbols once per path, then resolves all refs for that path in memory.
  */
 function resolveByContainment(
   db: Database.Database,
@@ -157,7 +160,6 @@ function resolveByContainment(
   defPathColumn: string,
   defLineColumn: string,
 ): void {
-  // 1. Select rows with definition info but no target yet
   const unresolvedWithDef = db.prepare(
     `SELECT id, ${defPathColumn} AS definition_path, ${defLineColumn} AS definition_line
      FROM ${tableName}
@@ -167,7 +169,6 @@ function resolveByContainment(
   ).all() as UnresolvedRefRow[];
 
   if (unresolvedWithDef.length === 0) {
-    // Mark remaining null-target rows as unresolved
     db.prepare(
       `UPDATE ${tableName} SET resolution_method = 'unresolved'
        WHERE ${targetIdColumn} IS NULL AND resolution_method = 'unresolved'`,
@@ -175,12 +176,25 @@ function resolveByContainment(
     return;
   }
 
-  // Prepare statements
-  const findFileByPath = db.prepare('SELECT id FROM files WHERE path = ? LIMIT 1');
-  const findSymbolsContaining = db.prepare(
-    `SELECT id, start_line, end_line FROM symbols
-     WHERE file_id = ? AND start_line <= ? AND end_line >= ?
-     ORDER BY (end_line - start_line) ASC`,
+  // P6: Build a bulk path→fileId map so we do one query instead of N.
+  const fileIdByPath = new Map<string, number>(
+    (db.prepare('SELECT id, path FROM files').all() as Array<{ id: number; path: string }>)
+      .map(r => [r.path, r.id]),
+  );
+
+  // Group refs by definition_path for batched symbol lookup.
+  const refsByPath = new Map<string, UnresolvedRefRow[]>();
+  for (const ref of unresolvedWithDef) {
+    let list = refsByPath.get(ref.definition_path);
+    if (!list) {
+      list = [];
+      refsByPath.set(ref.definition_path, list);
+    }
+    list.push(ref);
+  }
+
+  const findSymbolsByFile = db.prepare(
+    `SELECT id, start_line, end_line FROM symbols WHERE file_id = ? ORDER BY (end_line - start_line) ASC`,
   );
   const updateResolved = db.prepare(
     `UPDATE ${tableName} SET ${targetIdColumn} = ?, resolution_method = ? WHERE id = ?`,
@@ -189,44 +203,39 @@ function resolveByContainment(
     `UPDATE ${tableName} SET resolution_method = ? WHERE id = ?`,
   );
 
-  for (const ref of unresolvedWithDef) {
-    // Find the file in the index
-    const fileRow = findFileByPath.get(ref.definition_path) as { id: number } | undefined;
-
-    if (!fileRow) {
-      // Definition path not in index → external (node_modules, stdlib, etc.)
-      updateMethod.run('external_definition' satisfies ResolutionMethod, ref.id);
+  for (const [defPath, refs] of refsByPath) {
+    const fileId = fileIdByPath.get(defPath);
+    if (fileId === undefined) {
+      for (const ref of refs) {
+        updateMethod.run('external_definition' satisfies ResolutionMethod, ref.id);
+      }
       continue;
     }
 
-    // Find symbols containing the definition line
-    const candidates = findSymbolsContaining.all(
-      fileRow.id,
-      ref.definition_line,
-      ref.definition_line,
-    ) as SymbolCandidate[];
+    // Load all symbols for this file once, sorted narrowest-first.
+    const symbols = findSymbolsByFile.all(fileId) as SymbolCandidate[];
 
-    if (candidates.length === 0) {
-      // No symbol contains this line (e.g. top-level code)
-      updateMethod.run('unresolved' satisfies ResolutionMethod, ref.id);
-      continue;
-    }
+    for (const ref of refs) {
+      const candidates = symbols.filter(
+        s => s.start_line <= ref.definition_line && s.end_line >= ref.definition_line,
+      );
 
-    // Candidates are already sorted by (end_line - start_line) ASC (narrowest first)
-    const narrowest = candidates[0]!;
-    const narrowestSpan = narrowest.end_line - narrowest.start_line;
+      if (candidates.length === 0) {
+        updateMethod.run('unresolved' satisfies ResolutionMethod, ref.id);
+        continue;
+      }
 
-    // Check for ambiguity: multiple candidates with identical span width
-    const equallyNarrow = candidates.filter(
-      c => (c.end_line - c.start_line) === narrowestSpan,
-    );
+      const narrowest = candidates[0]!;
+      const narrowestSpan = narrowest.end_line - narrowest.start_line;
+      const equallyNarrow = candidates.filter(
+        c => (c.end_line - c.start_line) === narrowestSpan,
+      );
 
-    if (equallyNarrow.length === 1) {
-      // Unique best match
-      updateResolved.run(narrowest.id, 'lsp_definition' satisfies ResolutionMethod, ref.id);
-    } else {
-      // Ambiguous: multiple symbols with the same span
-      updateMethod.run('ambiguous_definition' satisfies ResolutionMethod, ref.id);
+      if (equallyNarrow.length === 1) {
+        updateResolved.run(narrowest.id, 'lsp_definition' satisfies ResolutionMethod, ref.id);
+      } else {
+        updateMethod.run('ambiguous_definition' satisfies ResolutionMethod, ref.id);
+      }
     }
   }
 

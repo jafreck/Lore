@@ -84,6 +84,7 @@ const EXTRACTORS: Record<string, SymbolExtractor> = {
 interface FileRow {
   id: number;
   last_hash: string | null;
+  size_bytes: number;
 }
 
 interface BuildCheckpoint {
@@ -219,21 +220,53 @@ export function processFile(
   language: string,
   branch: string,
 ): void {
+  // P3: fast-path — check file size via stat before reading+hashing.
+  const existing = db.prepare('SELECT id, last_hash, size_bytes FROM files WHERE path = ? AND branch = ?').get(filePath, branch) as
+    | FileRow
+    | undefined;
+  if (existing) {
+    try {
+      const stat = fs.statSync(filePath);
+      if (stat.size === existing.size_bytes && existing.last_hash !== null) {
+        // Size matches — read and hash to confirm.
+        let source: string;
+        try {
+          source = fs.readFileSync(filePath, 'utf8');
+        } catch {
+          return;
+        }
+        const hash = crypto.createHash('sha256').update(source).digest('hex');
+        if (existing.last_hash === hash) return;
+        processFileWithSource(db, pool, filePath, language, branch, source, hash, existing);
+        return;
+      }
+    } catch {
+      return;
+    }
+  }
+
   let source: string;
   try {
     source = fs.readFileSync(filePath, 'utf8');
   } catch {
-    return; // Skip unreadable files
+    return;
   }
-
   const hash = crypto.createHash('sha256').update(source).digest('hex');
-
-  // Check if the file is already up-to-date
-  const existing = db.prepare('SELECT id, last_hash FROM files WHERE path = ? AND branch = ?').get(filePath, branch) as
-    | FileRow
-    | undefined;
   if (existing?.last_hash === hash) return;
+  processFileWithSource(db, pool, filePath, language, branch, source, hash, existing);
+}
 
+/** Core file processing after source has been read and hashed. */
+function processFileWithSource(
+  db: Database.Database,
+  pool: ParserPool,
+  filePath: string,
+  language: string,
+  branch: string,
+  source: string,
+  hash: string,
+  existing: FileRow | undefined,
+): void {
   const sizeBytes = Buffer.byteLength(source, 'utf8');
 
   // Upsert the file row

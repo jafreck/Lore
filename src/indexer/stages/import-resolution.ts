@@ -39,6 +39,12 @@ export class ImportResolutionStage implements PipelineStage {
         language: string;
       }>;
 
+    // P5: Build a bulk path→id map so we don't do N individual SELECT lookups.
+    const fileIdByPath = new Map<string, number>(
+      (db.prepare('SELECT id, path FROM files WHERE branch = ?').all(branch) as Array<{ id: number; path: string }>)
+        .map(r => [r.path, r.id]),
+    );
+
     const updateResolved = db.prepare(
       'UPDATE file_imports SET resolved_id = ? WHERE id = ?',
     );
@@ -55,11 +61,9 @@ export class ImportResolutionStage implements PipelineStage {
       );
 
       if (resolved.resolvedPath) {
-        const targetFile = db
-          .prepare('SELECT id FROM files WHERE path = ? AND branch = ?')
-          .get(resolved.resolvedPath, branch) as { id: number } | undefined;
-        if (targetFile) {
-          updateResolved.run(targetFile.id, row.id);
+        const targetId = fileIdByPath.get(resolved.resolvedPath);
+        if (targetId !== undefined) {
+          updateResolved.run(targetId, row.id);
         }
       } else if (resolved.isExternal && resolved.externalName) {
         insertExternalDep.run(row.file_id, resolved.externalName);
