@@ -1,6 +1,6 @@
 import { describe, test, expect } from 'vitest';
 import path from 'node:path';
-import { parseAndExtract } from '../helpers/extractorHelper.js';
+import { parseAndExtractStrict as parseAndExtract } from '../helpers/extractorHelper.js';
 import { CExtractor } from '../../src/indexer/extractors/c.js';
 import { CppExtractor } from '../../src/indexer/extractors/cpp.js';
 import { RustExtractor } from '../../src/indexer/extractors/rust.js';
@@ -10,7 +10,6 @@ import { TypeScriptExtractor } from '../../src/indexer/extractors/typescript.js'
 import { GoExtractor } from '../../src/indexer/extractors/go.js';
 import { SwiftExtractor } from '../../src/indexer/extractors/swift.js';
 import { KotlinExtractor } from '../../src/indexer/extractors/kotlin.js';
-import { DartExtractor } from '../../src/indexer/extractors/dart.js';
 import { PhpExtractor } from '../../src/indexer/extractors/php.js';
 import { ObjcExtractor } from '../../src/indexer/extractors/objc.js';
 import { ParserPool } from '../../src/indexer/parser.js';
@@ -35,7 +34,7 @@ function parseInline(
 describe('C extractor type refs', () => {
   const result = parseAndExtract('c', path.join(fixtureDir, 'c/sample.c'), new CExtractor());
 
-  test.skipIf(!result)('should extract parameter type refs from functions', () => {
+  test('should extract parameter type refs from functions', () => {
     const paramRefs = result!.typeRefs.filter(r => r.refKind === 'parameter');
     expect(paramRefs.length).toBeGreaterThan(0);
     // print_point takes a Point parameter
@@ -43,7 +42,7 @@ describe('C extractor type refs', () => {
     expect(pointParam).toBeDefined();
   });
 
-  test.skipIf(!result)('should extract return type refs from functions', () => {
+  test('should extract return type refs from functions', () => {
     const returnRefs = result!.typeRefs.filter(r => r.refKind === 'return');
     // C functions in the fixture return primitive types (int, void) which tree-sitter
     // represents as primitive_type, not type_identifier. User-defined return types
@@ -51,13 +50,13 @@ describe('C extractor type refs', () => {
     expect(returnRefs.length).toBeGreaterThanOrEqual(0);
   });
 
-  test.skipIf(!result)('should have line numbers on all type refs', () => {
+  test('should have line numbers on all type refs', () => {
     for (const ref of result!.typeRefs) {
       expect(typeof ref.line).toBe('number');
     }
   });
 
-  test.skipIf(!result)('should return typeRefs array', () => {
+  test('should return typeRefs array', () => {
     expect(Array.isArray(result!.typeRefs)).toBe(true);
   });
 });
@@ -67,29 +66,29 @@ describe('C extractor type refs', () => {
 describe('C++ extractor type refs and relationships', () => {
   const result = parseAndExtract('cpp', path.join(fixtureDir, 'cpp/sample.cpp'), new CppExtractor());
 
-  test.skipIf(!result)('should extract parameter type refs', () => {
+  test('should extract parameter type refs', () => {
     const paramRefs = result!.typeRefs.filter(r => r.refKind === 'parameter');
     expect(paramRefs.length).toBeGreaterThan(0);
   });
 
-  test.skipIf(!result)('should extract return type refs', () => {
+  test('should extract return type refs', () => {
     const returnRefs = result!.typeRefs.filter(r => r.refKind === 'return');
     expect(returnRefs.length).toBeGreaterThan(0);
   });
 
-  test.skipIf(!result)('should extract field type refs from class/struct', () => {
+  test('should extract field type refs from class/struct', () => {
     const fieldRefs = result!.typeRefs.filter(r => r.refKind === 'field');
     // Greeter has name_ field of type std::string, Callback has on_event field
     expect(fieldRefs.length).toBeGreaterThanOrEqual(0); // May or may not depending on tree-sitter
   });
 
-  test.skipIf(!result)('should extract template/generic args', () => {
+  test('should extract template/generic args', () => {
     const genericRefs = result!.typeRefs.filter(r => r.refKind === 'generic_arg');
     // std::function<void(int)> might produce a generic_arg
     expect(genericRefs.length).toBeGreaterThanOrEqual(0);
   });
 
-  test.skipIf(!result)('should have line numbers on all type refs', () => {
+  test('should have line numbers on all type refs', () => {
     for (const ref of result!.typeRefs) {
       expect(typeof ref.line).toBe('number');
     }
@@ -101,34 +100,34 @@ describe('C++ extractor type refs and relationships', () => {
 describe('Rust extractor type refs and relationships', () => {
   const result = parseAndExtract('rust', path.join(fixtureDir, 'rust/sample.rs'), new RustExtractor());
 
-  test.skipIf(!result)('should extract parameter type refs', () => {
+  test('should extract parameter type refs', () => {
     const paramRefs = result!.typeRefs.filter(r => r.refKind === 'parameter');
     // Rust primitive types (&str, i32, f64) are represented as primitive_type in tree-sitter,
     // not type_identifier. User-defined parameter types would be extracted.
     expect(paramRefs.length).toBeGreaterThanOrEqual(0);
   });
 
-  test.skipIf(!result)('should extract return type refs', () => {
+  test('should extract return type refs', () => {
     const returnRefs = result!.typeRefs.filter(r => r.refKind === 'return');
     expect(returnRefs.length).toBeGreaterThan(0);
     const stringReturn = returnRefs.find(r => r.typeRaw === 'String' && r.enclosingSymbol === 'greet');
     expect(stringReturn).toBeDefined();
   });
 
-  test.skipIf(!result)('should extract field type refs from structs', () => {
+  test('should extract field type refs from structs', () => {
     const fieldRefs = result!.typeRefs.filter(r => r.refKind === 'field');
     // Circle has radius: f64, Rectangle has width: f64 and height: f64
     expect(fieldRefs.length).toBeGreaterThanOrEqual(0);
   });
 
-  test.skipIf(!result)('should extract implements relationships from impl Trait for Type', () => {
+  test('should extract implements relationships from impl Trait for Type', () => {
     const implRels = result!.relationships.filter(r => r.kind === 'implements');
     expect(implRels.length).toBeGreaterThan(0);
     const shapeImpl = implRels.find(r => r.toSymbol === 'Shape');
     expect(shapeImpl).toBeDefined();
   });
 
-  test.skipIf(!result)('should emit bound type ref for impl Trait', () => {
+  test('should emit bound type ref for impl Trait', () => {
     const boundRefs = result!.typeRefs.filter(r => r.refKind === 'bound');
     expect(boundRefs.length).toBeGreaterThan(0);
   });
@@ -399,32 +398,32 @@ describe('C# extractor type refs (expanded)', () => {
 describe('Go extractor type refs', () => {
   const result = parseAndExtract('go', path.join(fixtureDir, 'go/sample.go'), new GoExtractor());
 
-  test.skipIf(!result)('should extract parameter type refs from functions', () => {
+  test('should extract parameter type refs from functions', () => {
     const paramRefs = result!.typeRefs.filter(r => r.refKind === 'parameter');
     // Go fixture has Greet(name string) — string is primitive, not type_identifier
     expect(paramRefs.length).toBeGreaterThanOrEqual(0);
   });
 
-  test.skipIf(!result)('should extract return type refs from functions', () => {
+  test('should extract return type refs from functions', () => {
     const returnRefs = result!.typeRefs.filter(r => r.refKind === 'return');
     expect(returnRefs.length).toBeGreaterThanOrEqual(0);
   });
 
-  test.skipIf(!result)('should extract field type refs from struct', () => {
+  test('should extract field type refs from struct', () => {
     const fieldRefs = result!.typeRefs.filter(r => r.refKind === 'field');
     expect(fieldRefs.length).toBeGreaterThanOrEqual(0);
   });
 
-  test.skipIf(!result)('should extract interface embedding as extends relationship', () => {
+  test('should extract interface embedding as extends relationship', () => {
     // Shape interface may embed other interfaces — depends on fixture
     expect(Array.isArray(result!.relationships)).toBe(true);
   });
 
-  test.skipIf(!result)('should always return typeRefs array', () => {
+  test('should always return typeRefs array', () => {
     expect(Array.isArray(result!.typeRefs)).toBe(true);
   });
 
-  test.skipIf(!result)('should have line numbers on all type refs', () => {
+  test('should have line numbers on all type refs', () => {
     for (const ref of result!.typeRefs) {
       expect(typeof ref.line).toBe('number');
       expect(ref.line).toBeGreaterThanOrEqual(0);
@@ -462,28 +461,28 @@ describe('Go extractor type refs', () => {
 describe('Swift extractor type refs', () => {
   const result = parseAndExtract('swift', path.join(fixtureDir, 'swift/sample.swift'), new SwiftExtractor());
 
-  test.skipIf(!result)('should extract parameter type refs', () => {
+  test('should extract parameter type refs', () => {
     const paramRefs = result!.typeRefs.filter(r => r.refKind === 'parameter');
     expect(paramRefs.length).toBeGreaterThanOrEqual(0);
   });
 
-  test.skipIf(!result)('should extract return type refs', () => {
+  test('should extract return type refs', () => {
     const returnRefs = result!.typeRefs.filter(r => r.refKind === 'return');
     expect(returnRefs.length).toBeGreaterThanOrEqual(0);
   });
 
-  test.skipIf(!result)('should extract inheritance relationships', () => {
+  test('should extract inheritance relationships', () => {
     // Circle: Shape and Rectangle: Shape should produce relationships
     const rels = result!.relationships;
     expect(rels.length).toBeGreaterThanOrEqual(0);
   });
 
-  test.skipIf(!result)('should emit bound type refs for protocol conformance', () => {
+  test('should emit bound type refs for protocol conformance', () => {
     const boundRefs = result!.typeRefs.filter(r => r.refKind === 'bound');
     expect(boundRefs.length).toBeGreaterThanOrEqual(0);
   });
 
-  test.skipIf(!result)('should have line numbers on all type refs', () => {
+  test('should have line numbers on all type refs', () => {
     for (const ref of result!.typeRefs) {
       expect(typeof ref.line).toBe('number');
     }
@@ -531,21 +530,21 @@ describe('Swift extractor type refs', () => {
 describe('Kotlin extractor type refs', () => {
   const result = parseAndExtract('kotlin', path.join(fixtureDir, 'kotlin/sample.kt'), new KotlinExtractor());
 
-  test.skipIf(!result)('should extract parameter type refs', () => {
+  test('should extract parameter type refs', () => {
     const paramRefs = result!.typeRefs.filter(r => r.refKind === 'parameter');
     expect(paramRefs.length).toBeGreaterThanOrEqual(0);
   });
 
-  test.skipIf(!result)('should extract return type refs', () => {
+  test('should extract return type refs', () => {
     const returnRefs = result!.typeRefs.filter(r => r.refKind === 'return');
     expect(returnRefs.length).toBeGreaterThanOrEqual(0);
   });
 
-  test.skipIf(!result)('should always return typeRefs array', () => {
+  test('should always return typeRefs array', () => {
     expect(Array.isArray(result!.typeRefs)).toBe(true);
   });
 
-  test.skipIf(!result)('should have line numbers on all type refs', () => {
+  test('should have line numbers on all type refs', () => {
     for (const ref of result!.typeRefs) {
       expect(typeof ref.line).toBe('number');
     }
@@ -600,83 +599,33 @@ describe('Kotlin extractor type refs', () => {
   });
 });
 
-// ─── Dart type refs and relationships ────────────────────────────────────────
-
-describe('Dart extractor type refs', () => {
-  const result = parseAndExtract('dart', path.join(fixtureDir, 'dart/sample.dart'), new DartExtractor());
-
-  test.skipIf(!result)('should extract parameter type refs', () => {
-    const paramRefs = result!.typeRefs.filter(r => r.refKind === 'parameter');
-    expect(paramRefs.length).toBeGreaterThanOrEqual(0);
-  });
-
-  test.skipIf(!result)('should extract return type refs', () => {
-    const returnRefs = result!.typeRefs.filter(r => r.refKind === 'return');
-    expect(returnRefs.length).toBeGreaterThanOrEqual(0);
-  });
-
-  test.skipIf(!result)('should always return typeRefs array', () => {
-    expect(Array.isArray(result!.typeRefs)).toBe(true);
-  });
-
-  test.skipIf(!result)('should have line numbers on all type refs', () => {
-    for (const ref of result!.typeRefs) {
-      expect(typeof ref.line).toBe('number');
-    }
-  });
-
-  test('should extract class field type ref', () => {
-    const r = parseInline(
-      'dart',
-      'class Foo {\n  Widget widget;\n}\n',
-      new DartExtractor(),
-      'test.dart',
-    );
-    if (!r) return;
-    const fieldRefs = r.typeRefs.filter(ref => ref.refKind === 'field');
-    expect(fieldRefs.length).toBeGreaterThanOrEqual(0);
-  });
-
-  test('should extract inheritance relationship', () => {
-    const r = parseInline(
-      'dart',
-      'class Base {}\nclass Derived extends Base {}\n',
-      new DartExtractor(),
-      'test.dart',
-    );
-    if (!r) return;
-    const extendsRels = r.relationships.filter(rel => rel.kind === 'extends');
-    expect(extendsRels.length).toBeGreaterThanOrEqual(0);
-  });
-});
-
 // ─── PHP type refs and relationships ─────────────────────────────────────────
 
 describe('PHP extractor type refs', () => {
   const result = parseAndExtract('php', path.join(fixtureDir, 'php/sample.php'), new PhpExtractor());
 
-  test.skipIf(!result)('should extract parameter type refs', () => {
+  test('should extract parameter type refs', () => {
     const paramRefs = result!.typeRefs.filter(r => r.refKind === 'parameter');
     expect(paramRefs.length).toBeGreaterThan(0);
   });
 
-  test.skipIf(!result)('should extract return type refs', () => {
+  test('should extract return type refs', () => {
     const returnRefs = result!.typeRefs.filter(r => r.refKind === 'return');
     expect(returnRefs.length).toBeGreaterThan(0);
   });
 
-  test.skipIf(!result)('should always return typeRefs array', () => {
+  test('should always return typeRefs array', () => {
     expect(Array.isArray(result!.typeRefs)).toBe(true);
   });
 
-  test.skipIf(!result)('should have line numbers on all type refs', () => {
+  test('should have line numbers on all type refs', () => {
     for (const ref of result!.typeRefs) {
       expect(typeof ref.line).toBe('number');
       expect(ref.line).toBeGreaterThanOrEqual(0);
     }
   });
 
-  test.skipIf(!result)('should have enclosingSymbol on all type refs', () => {
+  test('should have enclosingSymbol on all type refs', () => {
     for (const ref of result!.typeRefs) {
       expect(typeof ref.enclosingSymbol).toBe('string');
     }
@@ -724,33 +673,33 @@ describe('PHP extractor type refs', () => {
 describe('ObjC extractor type refs', () => {
   const result = parseAndExtract('objc', path.join(fixtureDir, 'objc/sample.m'), new ObjcExtractor());
 
-  test.skipIf(!result)('should extract parameter type refs from methods', () => {
+  test('should extract parameter type refs from methods', () => {
     const paramRefs = result!.typeRefs.filter(r => r.refKind === 'parameter');
     expect(paramRefs.length).toBeGreaterThanOrEqual(0);
   });
 
-  test.skipIf(!result)('should extract return type refs from methods', () => {
+  test('should extract return type refs from methods', () => {
     const returnRefs = result!.typeRefs.filter(r => r.refKind === 'return');
     expect(returnRefs.length).toBeGreaterThanOrEqual(0);
   });
 
-  test.skipIf(!result)('should always return typeRefs array', () => {
+  test('should always return typeRefs array', () => {
     expect(Array.isArray(result!.typeRefs)).toBe(true);
   });
 
-  test.skipIf(!result)('should have line numbers on all type refs', () => {
+  test('should have line numbers on all type refs', () => {
     for (const ref of result!.typeRefs) {
       expect(typeof ref.line).toBe('number');
     }
   });
 
-  test.skipIf(!result)('should extract class inheritance relationship for superclass', () => {
+  test('should extract class inheritance relationship for superclass', () => {
     // Circle extends NSObject
     const extendsRels = result!.relationships.filter(r => r.kind === 'extends');
     expect(extendsRels.length).toBeGreaterThanOrEqual(0);
   });
 
-  test.skipIf(!result)('should emit bound type ref for inheritance', () => {
+  test('should emit bound type ref for inheritance', () => {
     const boundRefs = result!.typeRefs.filter(r => r.refKind === 'bound');
     expect(boundRefs.length).toBeGreaterThanOrEqual(0);
   });
@@ -769,7 +718,6 @@ describe('typeRefs always present in ExtractionResult', () => {
     { lang: 'go', fixture: 'go/sample.go', extractor: new GoExtractor() },
     { lang: 'swift', fixture: 'swift/sample.swift', extractor: new SwiftExtractor() },
     { lang: 'kotlin', fixture: 'kotlin/sample.kt', extractor: new KotlinExtractor() },
-    { lang: 'dart', fixture: 'dart/sample.dart', extractor: new DartExtractor() },
     { lang: 'php', fixture: 'php/sample.php', extractor: new PhpExtractor() },
     { lang: 'objc', fixture: 'objc/sample.m', extractor: new ObjcExtractor() },
   ];

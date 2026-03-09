@@ -31,9 +31,13 @@ function parseInline(
   source: string,
   extractor: SymbolExtractor,
   filePath = 'test.file',
-): ExtractionResult | null {
+): ExtractionResult {
   const tree = pool.parse(language, source);
-  if (!tree) return null;
+  if (!tree) {
+    throw new Error(
+      `Grammar for '${language}' failed to load — run \`npm rebuild tree-sitter-${language}\``,
+    );
+  }
   return extractor.extract(tree, source, filePath);
 }
 
@@ -42,7 +46,7 @@ function parseInline(
 describe('TypeScript — type ref extraction', () => {
   const ext = new TypeScriptExtractor();
 
-  test.skipIf(!pool.parse('typescript', ''))('should extract parameter type refs', () => {
+  test('should extract parameter type refs', () => {
     const result = parseInline('typescript', `
 function greet(name: string, user: User): void {}
     `, ext);
@@ -51,7 +55,7 @@ function greet(name: string, user: User): void {}
     expect(paramRefs.some(r => r.typeRaw === 'User')).toBe(true);
   });
 
-  test.skipIf(!pool.parse('typescript', ''))('should extract return type refs', () => {
+  test('should extract return type refs', () => {
     const result = parseInline('typescript', `
 function getUser(): User { return {} as User; }
     `, ext);
@@ -60,7 +64,7 @@ function getUser(): User { return {} as User; }
     expect(returnRefs.some(r => r.typeRaw.includes('User'))).toBe(true);
   });
 
-  test.skipIf(!pool.parse('typescript', ''))('should extract variable type annotation refs', () => {
+  test('should extract variable type annotation refs', () => {
     const result = parseInline('typescript', `
 const config: AppConfig = { port: 3000 };
 let items: Item[] = [];
@@ -70,7 +74,7 @@ let items: Item[] = [];
     expect(varRefs.length).toBeGreaterThan(0);
   });
 
-  test.skipIf(!pool.parse('typescript', ''))('should extract as-cast type refs', () => {
+  test('should extract as-cast type refs', () => {
     const result = parseInline('typescript', `
 function cast(val: unknown) { return val as MyType; }
     `, ext);
@@ -79,7 +83,7 @@ function cast(val: unknown) { return val as MyType; }
     expect(castRefs.some(r => r.typeRaw.includes('MyType'))).toBe(true);
   });
 
-  test.skipIf(!pool.parse('typescript', ''))('should extract angle-bracket type assertions', () => {
+  test('should extract angle-bracket type assertions', () => {
     const result = parseInline('typescript', `
 function cast(val: any) { return <Widget>val; }
     `, ext);
@@ -89,7 +93,7 @@ function cast(val: any) { return <Widget>val; }
     expect(result!.symbols.length).toBeGreaterThanOrEqual(0);
   });
 
-  test.skipIf(!pool.parse('typescript', ''))('should extract class method return type refs', () => {
+  test('should extract class method return type refs', () => {
     const result = parseInline('typescript', `
 class Service {
   getUser(): User { return {} as User; }
@@ -101,7 +105,7 @@ class Service {
     expect(returnRefs.some(r => r.typeRaw.includes('User'))).toBe(true);
   });
 
-  test.skipIf(!pool.parse('typescript', ''))('should extract relationships from class hierarchy', () => {
+  test('should extract relationships from class hierarchy', () => {
     const result = parseInline('typescript', `
 interface Printable { print(): void; }
 class Doc implements Printable { print(): void {} }
@@ -121,7 +125,7 @@ interface Extended extends Base { name: string; }
 describe('JavaScript — import and require coverage', () => {
   const ext = new JavaScriptExtractor();
 
-  test.skipIf(!pool.parse('javascript', ''))('should extract CommonJS require imports', () => {
+  test('should extract CommonJS require imports', () => {
     const result = parseInline('javascript', `
 const fs = require('fs');
 const path = require('path');
@@ -131,7 +135,7 @@ const path = require('path');
     expect(result!.imports.some(i => i.source === 'path')).toBe(true);
   });
 
-  test.skipIf(!pool.parse('javascript', ''))('should extract ES module imports with named/namespace', () => {
+  test('should extract ES module imports with named/namespace', () => {
     const result = parseInline('javascript', `
 import { readFile, writeFile } from 'fs/promises';
 import * as path from 'path';
@@ -143,7 +147,7 @@ import defaultExport from 'lodash';
     expect(pathImport).toBeDefined();
   });
 
-  test.skipIf(!pool.parse('javascript', ''))('should extract arrow function symbols', () => {
+  test('should extract arrow function symbols', () => {
     const result = parseInline('javascript', `
 const greet = (name) => { return \`Hello \${name}\`; };
 const add = (a, b) => a + b;
@@ -152,7 +156,7 @@ const add = (a, b) => a + b;
     expect(result!.symbols.some(s => s.name === 'greet')).toBe(true);
   });
 
-  test.skipIf(!pool.parse('javascript', ''))('should extract call refs from function calls', () => {
+  test('should extract call refs from function calls', () => {
     const result = parseInline('javascript', `
 function main() { helper(); utils.process(); }
 function helper() {}
@@ -161,7 +165,7 @@ function helper() {}
     expect(result!.callRefs.some(r => r.calleeRaw === 'helper')).toBe(true);
   });
 
-  test.skipIf(!pool.parse('javascript', ''))('should extract express-style route declarations', () => {
+  test('should extract express-style route declarations', () => {
     const result = parseInline('javascript', `
 const app = { get() {}, post() {}, put() {}, delete() {} };
 app.get('/users', getUsers);
@@ -179,7 +183,7 @@ app.delete('/users/:id', deleteUser);
 describe('C++ — cast and sizeof type refs', () => {
   const ext = new CppExtractor();
 
-  test.skipIf(!pool.parse('cpp', ''))('should extract static_cast type refs', () => {
+  test('should extract static_cast type refs', () => {
     const result = parseInline('cpp', `
 class Widget {};
 void process(void* ptr) {
@@ -192,7 +196,7 @@ void process(void* ptr) {
     expect(result!.symbols.length).toBeGreaterThanOrEqual(1);
   });
 
-  test.skipIf(!pool.parse('cpp', ''))('should extract C-style cast type refs', () => {
+  test('should extract C-style cast type refs', () => {
     const result = parseInline('cpp', `
 class MyType {};
 void fn() {
@@ -205,7 +209,7 @@ void fn() {
     expect(castRefs.length).toBeGreaterThanOrEqual(0);
   });
 
-  test.skipIf(!pool.parse('cpp', ''))('should extract struct/class field type refs', () => {
+  test('should extract struct/class field type refs', () => {
     const result = parseInline('cpp', `
 class Widget {};
 struct Container {
@@ -218,7 +222,7 @@ struct Container {
     expect(fieldRefs.length).toBeGreaterThan(0);
   });
 
-  test.skipIf(!pool.parse('cpp', ''))('should extract template / inheritance relationships', () => {
+  test('should extract template / inheritance relationships', () => {
     const result = parseInline('cpp', `
 class Base {};
 class Derived : public Base {};
@@ -228,7 +232,7 @@ class Derived : public Base {};
     expect(extends_.length).toBeGreaterThan(0);
   });
 
-  test.skipIf(!pool.parse('cpp', ''))('should extract sizeof type refs', () => {
+  test('should extract sizeof type refs', () => {
     const result = parseInline('cpp', `
 struct Data { int x; };
 void fn() {
@@ -246,7 +250,7 @@ void fn() {
 describe('Go — interface/struct type refs', () => {
   const ext = new GoExtractor();
 
-  test.skipIf(!pool.parse('go', ''))('should extract interface embedding type refs', () => {
+  test('should extract interface embedding type refs', () => {
     const result = parseInline('go', `
 package main
 
@@ -265,7 +269,7 @@ type ReadWriter interface {
     expect(result!.typeRefs).toBeDefined();
   });
 
-  test.skipIf(!pool.parse('go', ''))('should extract struct field type refs', () => {
+  test('should extract struct field type refs', () => {
     const result = parseInline('go', `
 package main
 
@@ -284,7 +288,7 @@ type Logger struct {
     expect(fieldRefs.some(r => r.typeRaw === 'Logger')).toBe(true);
   });
 
-  test.skipIf(!pool.parse('go', ''))('should extract function parameter and return type refs', () => {
+  test('should extract function parameter and return type refs', () => {
     const result = parseInline('go', `
 package main
 
@@ -305,7 +309,7 @@ func ProcessUser(u User) error {
     expect(returnRefs.length).toBeGreaterThan(0);
   });
 
-  test.skipIf(!pool.parse('go', ''))('should extract interface method signatures with type refs', () => {
+  test('should extract interface method signatures with type refs', () => {
     const result = parseInline('go', `
 package main
 
@@ -327,7 +331,7 @@ type Response struct {}
 describe('Swift — type refs and relationships', () => {
   const ext = new SwiftExtractor();
 
-  test.skipIf(!pool.parse('swift', ''))('should extract function parameter type refs', () => {
+  test('should extract function parameter type refs', () => {
     const result = parseInline('swift', `
 struct User {}
 func greet(user: User, name: String) -> String {
@@ -339,7 +343,7 @@ func greet(user: User, name: String) -> String {
     expect(paramRefs.some(r => r.typeRaw.includes('User'))).toBe(true);
   });
 
-  test.skipIf(!pool.parse('swift', ''))('should extract function return type refs', () => {
+  test('should extract function return type refs', () => {
     const result = parseInline('swift', `
 class Widget {}
 func createWidget() -> Widget {
@@ -351,7 +355,7 @@ func createWidget() -> Widget {
     expect(result!.typeRefs).toBeDefined();
   });
 
-  test.skipIf(!pool.parse('swift', ''))('should extract protocol conformance', () => {
+  test('should extract protocol conformance', () => {
     const result = parseInline('swift', `
 protocol Printable {
   func description() -> String
@@ -365,7 +369,7 @@ class Doc: Printable {
     expect(rels.length).toBeGreaterThan(0);
   });
 
-  test.skipIf(!pool.parse('swift', ''))('should extract optional type refs', () => {
+  test('should extract optional type refs', () => {
     const result = parseInline('swift', `
 struct Config {}
 func getConfig() -> Config? {
@@ -383,7 +387,7 @@ func getConfig() -> Config? {
 describe('C# — inheritance and type refs', () => {
   const ext = new CSharpExtractor();
 
-  test.skipIf(!pool.parse('csharp', ''))('should extract class inheritance', () => {
+  test('should extract class inheritance', () => {
     const result = parseInline('csharp', `
 class Base {}
 class Derived : Base {}
@@ -393,7 +397,7 @@ class Derived : Base {}
     expect(result!.relationships).toBeDefined();
   });
 
-  test.skipIf(!pool.parse('csharp', ''))('should extract interface implementation', () => {
+  test('should extract interface implementation', () => {
     const result = parseInline('csharp', `
 interface IDisposable { void Dispose(); }
 class Resource : IDisposable {
@@ -405,7 +409,7 @@ class Resource : IDisposable {
     expect(rels.length).toBeGreaterThan(0);
   });
 
-  test.skipIf(!pool.parse('csharp', ''))('should extract parameter type refs', () => {
+  test('should extract parameter type refs', () => {
     const result = parseInline('csharp', `
 class User {}
 class Service {
@@ -417,7 +421,7 @@ class Service {
     expect(paramRefs.some(r => r.typeRaw === 'User')).toBe(true);
   });
 
-  test.skipIf(!pool.parse('csharp', ''))('should extract return type refs', () => {
+  test('should extract return type refs', () => {
     const result = parseInline('csharp', `
 class Widget {}
 class Factory {
@@ -429,7 +433,7 @@ class Factory {
     expect(result!.typeRefs).toBeDefined();
   });
 
-  test.skipIf(!pool.parse('csharp', ''))('should extract cast type refs', () => {
+  test('should extract cast type refs', () => {
     const result = parseInline('csharp', `
 class Widget {}
 class Factory {
@@ -449,7 +453,7 @@ class Factory {
 describe('Rust — type refs', () => {
   const ext = new RustExtractor();
 
-  test.skipIf(!pool.parse('rust', ''))('should extract function param and return type refs', () => {
+  test('should extract function param and return type refs', () => {
     const result = parseInline('rust', `
 struct Widget { name: String }
 fn create_widget(name: String) -> Widget { Widget { name } }
@@ -461,7 +465,7 @@ fn create_widget(name: String) -> Widget { Widget { name } }
     expect(returnRefs.some(r => r.typeRaw.includes('Widget'))).toBe(true);
   });
 
-  test.skipIf(!pool.parse('rust', ''))('should extract struct field type refs', () => {
+  test('should extract struct field type refs', () => {
     const result = parseInline('rust', `
 struct Config { port: u16, host: String }
 struct Server { config: Config }
@@ -471,7 +475,7 @@ struct Server { config: Config }
     expect(fieldRefs.some(r => r.typeRaw === 'Config')).toBe(true);
   });
 
-  test.skipIf(!pool.parse('rust', ''))('should extract trait implementation', () => {
+  test('should extract trait implementation', () => {
     const result = parseInline('rust', `
 trait Display { fn display(&self); }
 struct Item {}
@@ -482,7 +486,7 @@ impl Display for Item { fn display(&self) {} }
     expect(rels.some(r => r.kind === 'implements')).toBe(true);
   });
 
-  test.skipIf(!pool.parse('rust', ''))('should extract cast type refs from as-expression', () => {
+  test('should extract cast type refs from as-expression', () => {
     const result = parseInline('rust', `
 fn convert(x: i32) -> u64 {
   x as u64
@@ -499,7 +503,7 @@ fn convert(x: i32) -> u64 {
 describe('Java — type refs and inheritance', () => {
   const ext = new JavaExtractor();
 
-  test.skipIf(!pool.parse('java', ''))('should extract class extends', () => {
+  test('should extract class extends', () => {
     const result = parseInline('java', `
 class Base {}
 class Derived extends Base {}
@@ -509,7 +513,7 @@ class Derived extends Base {}
     expect(extends_.length).toBeGreaterThan(0);
   });
 
-  test.skipIf(!pool.parse('java', ''))('should extract interface implements', () => {
+  test('should extract interface implements', () => {
     const result = parseInline('java', `
 interface Runnable { void run(); }
 class Task implements Runnable { public void run() {} }
@@ -519,7 +523,7 @@ class Task implements Runnable { public void run() {} }
     expect(rels.length).toBeGreaterThan(0);
   });
 
-  test.skipIf(!pool.parse('java', ''))('should extract cast type refs', () => {
+  test('should extract cast type refs', () => {
     const result = parseInline('java', `
 class Widget {}
 class Factory {
@@ -533,7 +537,7 @@ class Factory {
     expect(castRefs.length).toBeGreaterThanOrEqual(0);
   });
 
-  test.skipIf(!pool.parse('java', ''))('should extract method parameter type refs', () => {
+  test('should extract method parameter type refs', () => {
     const result = parseInline('java', `
 class User {}
 class Service {
@@ -551,7 +555,7 @@ class Service {
 describe('Kotlin — type refs', () => {
   const ext = new KotlinExtractor();
 
-  test.skipIf(!pool.parse('kotlin', ''))('should extract function parameter type refs', () => {
+  test('should extract function parameter type refs', () => {
     const result = parseInline('kotlin', `
 data class User(val name: String)
 fun greet(user: User): String = "Hello"
@@ -561,7 +565,7 @@ fun greet(user: User): String = "Hello"
     expect(result!.typeRefs).toBeDefined();
   });
 
-  test.skipIf(!pool.parse('kotlin', ''))('should extract class property type refs', () => {
+  test('should extract class property type refs', () => {
     const result = parseInline('kotlin', `
 class Config(val host: String, val port: Int)
 class Server(val config: Config)
@@ -571,7 +575,7 @@ class Server(val config: Config)
     expect(result!.typeRefs).toBeDefined();
   });
 
-  test.skipIf(!pool.parse('kotlin', ''))('should extract as-cast type refs', () => {
+  test('should extract as-cast type refs', () => {
     const result = parseInline('kotlin', `
 open class Widget
 fun cast(obj: Any): Widget = obj as Widget
@@ -587,7 +591,7 @@ fun cast(obj: Any): Widget = obj as Widget
 describe('Python — routes and class hierarchy', () => {
   const ext = new PythonExtractor();
 
-  test.skipIf(!pool.parse('python', ''))('should extract Flask/FastAPI route decorators', () => {
+  test('should extract Flask/FastAPI route decorators', () => {
     const result = parseInline('python', `
 from flask import Flask
 app = Flask(__name__)
@@ -604,7 +608,7 @@ def create_item():
     expect(result!.routes.length).toBeGreaterThan(0);
   });
 
-  test.skipIf(!pool.parse('python', ''))('should extract class with type-hinted methods', () => {
+  test('should extract class with type-hinted methods', () => {
     const result = parseInline('python', `
 class User:
     name: str
@@ -624,7 +628,7 @@ class User:
 describe('Haskell — coverage paths', () => {
   const ext = new HaskellExtractor();
 
-  test.skipIf(!pool.parse('haskell', ''))('should extract type class instances', () => {
+  test('should extract type class instances', () => {
     const result = parseInline('haskell', `
 data Color = Red | Green | Blue
 
@@ -637,7 +641,7 @@ instance Show Color where
     expect(result!.symbols.length).toBeGreaterThan(0);
   });
 
-  test.skipIf(!pool.parse('haskell', ''))('should extract qualified imports', () => {
+  test('should extract qualified imports', () => {
     const result = parseInline('haskell', `
 import qualified Data.Map as Map
 import Data.List (sort, nub)
@@ -647,7 +651,7 @@ import Data.List (sort, nub)
     expect(result!.imports.some(i => i.source.includes('Data.List'))).toBe(true);
   });
 
-  test.skipIf(!pool.parse('haskell', ''))('should extract function call refs', () => {
+  test('should extract function call refs', () => {
     const result = parseInline('haskell', `
 increment :: Int -> Int
 increment x = x + 1
@@ -659,7 +663,7 @@ main = print (increment 5)
     expect(result!.callRefs.length).toBeGreaterThanOrEqual(0);
   });
 
-  test.skipIf(!pool.parse('haskell', ''))('should extract function symbols with type signatures', () => {
+  test('should extract function symbols with type signatures', () => {
     const result = parseInline('haskell', `
 factorial :: Integer -> Integer
 factorial 0 = 1
@@ -675,7 +679,7 @@ factorial n = n * factorial (n - 1)
 describe('Elixir — coverage paths', () => {
   const ext = new ElixirExtractor();
 
-  test.skipIf(!pool.parse('elixir', ''))('should extract module with functions', () => {
+  test('should extract module with functions', () => {
     const result = parseInline('elixir', `
 defmodule MyApp.Handler do
   def handle(request) do
@@ -691,7 +695,7 @@ end
     expect(result!.symbols.length).toBeGreaterThanOrEqual(1);
   });
 
-  test.skipIf(!pool.parse('elixir', ''))('should extract use/import/alias directives', () => {
+  test('should extract use/import/alias directives', () => {
     const result = parseInline('elixir', `
 defmodule MyApp.Web do
   use Plug.Router
@@ -703,7 +707,7 @@ end
     expect(result!.imports.length).toBeGreaterThan(0);
   });
 
-  test.skipIf(!pool.parse('elixir', ''))('should extract call refs from function bodies', () => {
+  test('should extract call refs from function bodies', () => {
     const result = parseInline('elixir', `
 defmodule MyApp do
   def run do
@@ -726,7 +730,7 @@ end
 describe('Objective-C — coverage paths', () => {
   const ext = new ObjcExtractor();
 
-  test.skipIf(!pool.parse('objc', ''))('should extract class with inheritance', () => {
+  test('should extract class with inheritance', () => {
     const result = parseInline('objc', `
 @interface Animal : NSObject
 @property (nonatomic, strong) NSString *name;
@@ -745,7 +749,7 @@ describe('Objective-C — coverage paths', () => {
     expect(rels.some(r => r.kind === 'extends')).toBe(true);
   });
 
-  test.skipIf(!pool.parse('objc', ''))('should extract protocol declarations', () => {
+  test('should extract protocol declarations', () => {
     const result = parseInline('objc', `
 @protocol Printable
 - (NSString *)description;
@@ -755,7 +759,7 @@ describe('Objective-C — coverage paths', () => {
     expect(result!.symbols.some(s => s.name === 'Printable')).toBe(true);
   });
 
-  test.skipIf(!pool.parse('objc', ''))('should extract protocol conformance', () => {
+  test('should extract protocol conformance', () => {
     const result = parseInline('objc', `
 @protocol Printable
 - (NSString *)description;
@@ -773,7 +777,7 @@ describe('Objective-C — coverage paths', () => {
     expect(result!.relationships).toBeDefined();
   });
 
-  test.skipIf(!pool.parse('objc', ''))('should extract method call refs', () => {
+  test('should extract method call refs', () => {
     const result = parseInline('objc', `
 @interface Helper : NSObject
 + (void)doWork;
@@ -791,7 +795,7 @@ void main() {
     expect(result!.callRefs.length).toBeGreaterThanOrEqual(0);
   });
 
-  test.skipIf(!pool.parse('objc', ''))('should extract imports', () => {
+  test('should extract imports', () => {
     const result = parseInline('objc', `
 #import <Foundation/Foundation.h>
 #import "MyHeader.h"
@@ -803,7 +807,7 @@ void main() {
     expect(result!.imports.length).toBeGreaterThanOrEqual(0);
   });
 
-  test.skipIf(!pool.parse('objc', ''))('should extract method parameter type refs', () => {
+  test('should extract method parameter type refs', () => {
     const result = parseInline('objc', `
 @interface Widget : NSObject
 @end
@@ -824,7 +828,7 @@ void main() {
 describe('OCaml — coverage paths', () => {
   const ext = new OcamlExtractor();
 
-  test.skipIf(!pool.parse('ocaml', ''))('should extract let bindings and type decls', () => {
+  test('should extract let bindings and type decls', () => {
     const result = parseInline('ocaml', `
 type point = { x: float; y: float }
 let origin = { x = 0.0; y = 0.0 }
@@ -834,7 +838,7 @@ let distance p1 p2 = sqrt ((p1.x -. p2.x) ** 2.0 +. (p1.y -. p2.y) ** 2.0)
     expect(result!.symbols.length).toBeGreaterThan(0);
   });
 
-  test.skipIf(!pool.parse('ocaml', ''))('should extract module open imports', () => {
+  test('should extract module open imports', () => {
     const result = parseInline('ocaml', `
 open Printf
 open List
@@ -851,7 +855,7 @@ let main () = printf "hello\n"
 describe('Scala — coverage paths', () => {
   const ext = new ScalaExtractor();
 
-  test.skipIf(!pool.parse('scala', ''))('should extract traits and extends', () => {
+  test('should extract traits and extends', () => {
     const result = parseInline('scala', `
 trait Animal {
   def speak(): String
@@ -866,7 +870,7 @@ class Dog extends Animal {
     expect(result!.symbols.some(s => s.name === 'Dog')).toBe(true);
   });
 
-  test.skipIf(!pool.parse('scala', ''))('should extract object companion', () => {
+  test('should extract object companion', () => {
     const result = parseInline('scala', `
 object Config {
   val defaultPort: Int = 8080
@@ -885,7 +889,7 @@ class Config(port: Int)
 describe('Julia — coverage paths', () => {
   const ext = new JuliaExtractor();
 
-  test.skipIf(!pool.parse('julia', ''))('should extract struct and function', () => {
+  test('should extract struct and function', () => {
     const result = parseInline('julia', `
 struct Point
     x::Float64
@@ -900,7 +904,7 @@ end
     expect(result!.symbols.length).toBeGreaterThanOrEqual(1);
   });
 
-  test.skipIf(!pool.parse('julia', ''))('should extract module imports', () => {
+  test('should extract module imports', () => {
     const result = parseInline('julia', `
 using LinearAlgebra
 import Base: show

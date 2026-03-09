@@ -618,6 +618,57 @@ exports[`Elixir extractor > symbols 1`] = `
 ]
 `;
 
+exports[`Elm extractor > callRefs 1`] = `[]`;
+
+exports[`Elm extractor > imports 1`] = `
+[
+  {
+    "importedNames": [
+      "Html",
+      "text",
+    ],
+    "source": "Html",
+  },
+  {
+    "importedNames": [],
+    "source": "String",
+  },
+]
+`;
+
+exports[`Elm extractor > symbols 1`] = `
+[
+  {
+    "endLine": 8,
+    "kind": "type",
+    "name": "Point",
+    "signature": "type alias Point =",
+    "startLine": 5,
+  },
+  {
+    "endLine": 12,
+    "kind": "type",
+    "name": "Shape",
+    "signature": "type Shape",
+    "startLine": 10,
+  },
+  {
+    "endLine": 16,
+    "kind": "function",
+    "name": "greet",
+    "signature": "greet name =",
+    "startLine": 15,
+  },
+  {
+    "endLine": 20,
+    "kind": "function",
+    "name": "add",
+    "signature": "add a b =",
+    "startLine": 19,
+  },
+]
+`;
+
 exports[`Haskell extractor > callRefs 1`] = `[]`;
 
 exports[`Haskell extractor > imports 1`] = `

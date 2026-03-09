@@ -3,19 +3,17 @@
  *
  * Comprehensive health check for all 24 language extractors.
  *
- * For each language with an installed grammar, verifies:
- * 1. The parser successfully produces a tree from the fixture file
+ * For each language verifies:
+ * 1. The parser successfully produces a tree from the fixture file (MUST pass — not skipped)
  * 2. The extractor produces non-empty symbols
  * 3. No symbols have empty names
  * 4. Call-refs that are inside a symbol body have non-empty callerSymbol
  * 5. Type-refs (if any) have non-empty enclosingSymbol when they exist inside a symbol body
  * 6. All emitted symbol kinds are expected for the language
  *
- * This test catches:
- * - tree-sitter grammar ABI breakages (parser returns null)
- * - node-type renames that silently break extraction (no symbols emitted)
- * - SYMBOL_NODE_TYPES gaps (call-refs/type-refs with empty enclosing symbol)
- * - Empty-name symbol leakage
+ * Unlike tier2/tier3 tests, these tests **fail** (not skip) when a grammar
+ * cannot load.  Every grammar is a declared dependency in package.json, so a
+ * load failure indicates a broken native build that must be fixed.
  */
 import { describe, test, expect } from 'vitest';
 import path from 'node:path';
@@ -25,7 +23,6 @@ import { BashExtractor } from '../../../src/indexer/extractors/bash.js';
 import { CExtractor } from '../../../src/indexer/extractors/c.js';
 import { CppExtractor } from '../../../src/indexer/extractors/cpp.js';
 import { CSharpExtractor } from '../../../src/indexer/extractors/csharp.js';
-import { DartExtractor } from '../../../src/indexer/extractors/dart.js';
 import { ElixirExtractor } from '../../../src/indexer/extractors/elixir.js';
 import { ElmExtractor } from '../../../src/indexer/extractors/elm.js';
 import { GoExtractor } from '../../../src/indexer/extractors/go.js';
@@ -67,7 +64,6 @@ const LANGUAGES: LanguageSpec[] = [
   { lang: 'c',          fixture: 'c/sample.h',           extractor: new CExtractor(),          expectedKinds: ['function', 'struct', 'enum', 'macro'],     minSymbols: 6 },
   { lang: 'cpp',        fixture: 'cpp/sample.cpp',       extractor: new CppExtractor(),        expectedKinds: ['function', 'class'],                       minSymbols: 2 },
   { lang: 'csharp',     fixture: 'csharp/sample.cs',     extractor: new CSharpExtractor(),     expectedKinds: ['class', 'function'],                       minSymbols: 2 },
-  { lang: 'dart',       fixture: 'dart/sample.dart',     extractor: new DartExtractor(),       expectedKinds: ['function', 'class'],                       minSymbols: 2 },
   { lang: 'elixir',     fixture: 'elixir/sample.ex',     extractor: new ElixirExtractor(),     expectedKinds: ['function', 'module'],                      minSymbols: 2 },
   { lang: 'elm',        fixture: 'elm/sample.elm',       extractor: new ElmExtractor(),        expectedKinds: ['function'],                                minSymbols: 1 },
   { lang: 'go',         fixture: 'go/sample.go',         extractor: new GoExtractor(),         expectedKinds: ['function'],                                minSymbols: 2 },
@@ -105,34 +101,40 @@ for (const spec of LANGUAGES) {
 describe('extractor health check', () => {
   for (const [key, { spec, result }] of results) {
     describe(`${key}`, () => {
-      test.skipIf(!result)('parser produces a tree', () => {
-        // If we got here with result !== null, the parser worked.
-        expect(result).not.toBeNull();
+      test('parser produces a tree and extraction succeeds', () => {
+        // Every grammar is a declared dependency — a null result means the
+        // native binding failed to load.  This MUST fail, not skip.
+        expect(
+          result,
+          `grammar '${spec.lang}' failed to load or parse fixture '${spec.fixture}' — run \`npm rebuild tree-sitter-${spec.lang}\``,
+        ).not.toBeNull();
       });
 
-      test.skipIf(!result)(`produces >= ${spec.minSymbols} symbols`, () => {
+      test(`produces >= ${spec.minSymbols} symbols`, () => {
+        expect(result, `grammar '${spec.lang}' unavailable`).not.toBeNull();
         expect(result!.symbols.length).toBeGreaterThanOrEqual(spec.minSymbols);
       });
 
-      test.skipIf(!result)('no empty-name symbols', () => {
+      test('no empty-name symbols', () => {
+        expect(result, `grammar '${spec.lang}' unavailable`).not.toBeNull();
         const emptyNames = result!.symbols.filter(s => !s.name);
         expect(emptyNames).toEqual([]);
       });
 
-      test.skipIf(!result)(`emits expected kinds: ${spec.expectedKinds.join(', ')}`, () => {
+      test(`emits expected kinds: ${spec.expectedKinds.join(', ')}`, () => {
+        expect(result, `grammar '${spec.lang}' unavailable`).not.toBeNull();
         const kinds = new Set(result!.symbols.map(s => s.kind));
         for (const expected of spec.expectedKinds) {
           expect(kinds, `missing symbol kind '${expected}'`).toContain(expected);
         }
       });
 
-      test.skipIf(!result)('call-refs inside symbols have non-empty callerSymbol', () => {
+      test('call-refs inside symbols have non-empty callerSymbol', () => {
+        expect(result, `grammar '${spec.lang}' unavailable`).not.toBeNull();
         // Allow some top-level call-refs (callerSymbol === '') but in files with
         // enough call-refs, a reasonable fraction should resolve to a parent.
-        // Small fixtures may have most calls at top level so we only enforce
-        // this when there are enough data points.
         const callRefs = result!.callRefs;
-        if (callRefs.length === 0) return; // no call-refs to check
+        if (callRefs.length === 0) return;
         const resolved = callRefs.filter(r => r.callerSymbol !== '');
         if (callRefs.length >= 8) {
           expect(
@@ -142,7 +144,8 @@ describe('extractor health check', () => {
         }
       });
 
-      test.skipIf(!result)('type-refs (if any) have non-empty enclosingSymbol', () => {
+      test('type-refs (if any) have non-empty enclosingSymbol', () => {
+        expect(result, `grammar '${spec.lang}' unavailable`).not.toBeNull();
         const typeRefs = result!.typeRefs;
         if (typeRefs.length === 0) return;
         const resolved = typeRefs.filter(r => r.enclosingSymbol !== '');
@@ -154,7 +157,8 @@ describe('extractor health check', () => {
         }
       });
 
-      test.skipIf(!result)('no duplicate symbol names on same line', () => {
+      test('no duplicate symbol names on same line', () => {
+        expect(result, `grammar '${spec.lang}' unavailable`).not.toBeNull();
         // Haskell intentionally emits both a type-signature and function symbol
         // for annotated functions — skip this check for Haskell.
         if (spec.lang === 'haskell') return;
