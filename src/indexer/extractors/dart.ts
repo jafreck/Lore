@@ -15,8 +15,8 @@ import {
   type RawTypeRef,
   type TypeRefKind,
   type SymbolExtractor,
+  createTypeRefEmitter,
   emptyResult,
-  extractGenericTypeArgs,
   findEnclosingSymbolName,
   nodeSignature,
   walk,
@@ -187,16 +187,11 @@ function extractDartTypeName(typeNode: Parser.SyntaxNode): string | null {
   return null;
 }
 
-function emitDartTypeRef(refs: RawTypeRef[], enclosing: string, typeNode: Parser.SyntaxNode, refKind: TypeRefKind): void {
-  const typeName = extractDartTypeName(typeNode);
-  if (!typeName) return;
-  refs.push({ enclosingSymbol: enclosing, typeRaw: typeName, refKind, line: typeNode.startPosition.row, character: typeNode.startPosition.column });
-  // Decompose generic args one level
-  const genericArgs = extractGenericTypeArgs(typeNode, 'type_identifier', 'type_arguments');
-  for (const arg of genericArgs) {
-    refs.push({ enclosingSymbol: enclosing, typeRaw: arg, refKind: 'generic_arg', line: typeNode.startPosition.row, character: typeNode.startPosition.column });
-  }
-}
+const emitDartTypeRef = createTypeRefEmitter({
+  extractTypeName: extractDartTypeName,
+  genericNodeType: 'type_identifier',
+  argListNodeType: 'type_arguments',
+});
 
 function extractDartFunctionTypeRefs(funcNode: Parser.SyntaxNode, refs: RawTypeRef[]): void {
   const funcName = funcNode.childForFieldName('name')?.text ??

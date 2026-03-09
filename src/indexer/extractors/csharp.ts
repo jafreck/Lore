@@ -15,8 +15,8 @@ import {
   type RawTypeRef,
   type TypeRefKind,
   type SymbolExtractor,
+  createTypeRefEmitter,
   emptyResult,
-  extractGenericTypeArgs,
   findEnclosingSymbolName,
   nodeSignature,
   walk,
@@ -204,15 +204,11 @@ function extractCsTypeName(typeNode: Parser.SyntaxNode): string | null {
   return null;
 }
 
-function emitCsTypeRef(refs: RawTypeRef[], enclosing: string, typeNode: Parser.SyntaxNode, refKind: TypeRefKind): void {
-  const typeName = extractCsTypeName(typeNode);
-  if (!typeName) return;
-  refs.push({ enclosingSymbol: enclosing, typeRaw: typeName, refKind, line: typeNode.startPosition.row, character: typeNode.startPosition.column });
-  const genericArgs = extractGenericTypeArgs(typeNode, 'generic_name', 'type_argument_list');
-  for (const arg of genericArgs) {
-    refs.push({ enclosingSymbol: enclosing, typeRaw: arg, refKind: 'generic_arg', line: typeNode.startPosition.row, character: typeNode.startPosition.column });
-  }
-}
+const emitCsTypeRef = createTypeRefEmitter({
+  extractTypeName: extractCsTypeName,
+  genericNodeType: 'generic_name',
+  argListNodeType: 'type_argument_list',
+});
 
 function extractCsMethodTypeRefs(methodNode: Parser.SyntaxNode, refs: RawTypeRef[]): void {
   const methodName = methodNode.childForFieldName('name')?.text ?? '';

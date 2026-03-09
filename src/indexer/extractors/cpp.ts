@@ -19,8 +19,8 @@ import {
   type RawTypeRef,
   type TypeRefKind,
   type SymbolExtractor,
+  createTypeRefEmitter,
   emptyResult,
-  extractGenericTypeArgs,
   findEnclosingSymbolName,
   findFirst,
   nodeSignature,
@@ -380,33 +380,11 @@ function extractCppTypeName(typeNode: Parser.SyntaxNode): string | null {
   return null;
 }
 
-function emitCppTypeRef(
-  refs: RawTypeRef[],
-  enclosing: string,
-  typeNode: Parser.SyntaxNode,
-  refKind: TypeRefKind,
-): void {
-  const typeName = extractCppTypeName(typeNode);
-  if (!typeName) return;
-  refs.push({
-    enclosingSymbol: enclosing,
-    typeRaw: typeName,
-    refKind,
-    line: typeNode.startPosition.row,
-    character: typeNode.startPosition.column,
-  });
-  // Decompose generic args one level
-  const genericArgs = extractGenericTypeArgs(typeNode, 'template_type', 'template_argument_list');
-  for (const arg of genericArgs) {
-    refs.push({
-      enclosingSymbol: enclosing,
-      typeRaw: arg,
-      refKind: 'generic_arg',
-      line: typeNode.startPosition.row,
-      character: typeNode.startPosition.column,
-    });
-  }
-}
+const emitCppTypeRef = createTypeRefEmitter({
+  extractTypeName: extractCppTypeName,
+  genericNodeType: 'template_type',
+  argListNodeType: 'template_argument_list',
+});
 
 function extractCppFunctionTypeRefs(funcNode: Parser.SyntaxNode, refs: RawTypeRef[]): void {
   const declarator = funcNode.childForFieldName('declarator');

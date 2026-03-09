@@ -15,8 +15,8 @@ import {
   type RawTypeRef,
   type TypeRefKind,
   type SymbolExtractor,
+  createTypeRefEmitter,
   emptyResult,
-  extractGenericTypeArgs,
   findEnclosingSymbolName,
   nodeSignature,
   walk,
@@ -199,33 +199,11 @@ function extractRustTypeName(typeNode: Parser.SyntaxNode): string | null {
   return null;
 }
 
-function emitRustTypeRef(
-  refs: RawTypeRef[],
-  enclosing: string,
-  typeNode: Parser.SyntaxNode,
-  refKind: TypeRefKind,
-): void {
-  const typeName = extractRustTypeName(typeNode);
-  if (!typeName) return;
-  refs.push({
-    enclosingSymbol: enclosing,
-    typeRaw: typeName,
-    refKind,
-    line: typeNode.startPosition.row,
-    character: typeNode.startPosition.column,
-  });
-  // Decompose generic args one level
-  const genericArgs = extractGenericTypeArgs(typeNode, 'generic_type', 'type_arguments');
-  for (const arg of genericArgs) {
-    refs.push({
-      enclosingSymbol: enclosing,
-      typeRaw: arg,
-      refKind: 'generic_arg',
-      line: typeNode.startPosition.row,
-      character: typeNode.startPosition.column,
-    });
-  }
-}
+const emitRustTypeRef = createTypeRefEmitter({
+  extractTypeName: extractRustTypeName,
+  genericNodeType: 'generic_type',
+  argListNodeType: 'type_arguments',
+});
 
 function extractRustFunctionTypeRefs(funcNode: Parser.SyntaxNode, refs: RawTypeRef[]): void {
   const funcName = funcNode.childForFieldName('name')?.text ?? '';

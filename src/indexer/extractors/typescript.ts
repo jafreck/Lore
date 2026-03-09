@@ -17,8 +17,8 @@ import {
   type RawTypeRef,
   type TypeRefKind,
   type SymbolExtractor,
+  createTypeRefEmitter,
   emptyResult,
-  extractGenericTypeArgs,
   findEnclosingSymbolName,
   nodeSignature,
   walk,
@@ -288,22 +288,12 @@ function extractTsTypeName(typeNode: Parser.SyntaxNode): string | null {
   return null;
 }
 
-function emitTsTypeRef(refs: RawTypeRef[], enclosing: string, typeNode: Parser.SyntaxNode, refKind: TypeRefKind): void {
-  // For union/intersection types, walk the children
-  if (typeNode.type === 'union_type' || typeNode.type === 'intersection_type') {
-    for (const child of typeNode.namedChildren) {
-      emitTsTypeRef(refs, enclosing, child, refKind);
-    }
-    return;
-  }
-  const typeName = extractTsTypeName(typeNode);
-  if (!typeName) return;
-  refs.push({ enclosingSymbol: enclosing, typeRaw: typeName, refKind, line: typeNode.startPosition.row, character: typeNode.startPosition.column });
-  const genericArgs = extractGenericTypeArgs(typeNode, 'generic_type', 'type_arguments');
-  for (const arg of genericArgs) {
-    refs.push({ enclosingSymbol: enclosing, typeRaw: arg, refKind: 'generic_arg', line: typeNode.startPosition.row, character: typeNode.startPosition.column });
-  }
-}
+const emitTsTypeRef = createTypeRefEmitter({
+  extractTypeName: extractTsTypeName,
+  genericNodeType: 'generic_type',
+  argListNodeType: 'type_arguments',
+  recurseIntoTypes: ['union_type', 'intersection_type'],
+});
 
 function extractTsFunctionTypeRefs(funcNode: Parser.SyntaxNode, refs: RawTypeRef[]): void {
   const funcName = funcNode.childForFieldName('name')?.text ?? '';

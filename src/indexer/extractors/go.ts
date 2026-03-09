@@ -16,8 +16,8 @@ import {
   type RawTypeRef,
   type TypeRefKind,
   type SymbolExtractor,
+  createTypeRefEmitter,
   emptyResult,
-  extractGenericTypeArgs,
   findEnclosingSymbolName,
   findFirst,
   nodeSignature,
@@ -234,24 +234,12 @@ function extractGoTypeName(typeNode: Parser.SyntaxNode): string | null {
   return null;
 }
 
-function emitGoTypeRef(refs: RawTypeRef[], enclosing: string, typeNode: Parser.SyntaxNode, refKind: TypeRefKind): void {
-  // Handle map_type specially — emit refs for both key and value types
-  if (typeNode.type === 'map_type') {
-    const keyNode = typeNode.childForFieldName('key');
-    const valueNode = typeNode.childForFieldName('value');
-    if (keyNode) emitGoTypeRef(refs, enclosing, keyNode, refKind);
-    if (valueNode) emitGoTypeRef(refs, enclosing, valueNode, refKind);
-    return;
-  }
-  const typeName = extractGoTypeName(typeNode);
-  if (!typeName) return;
-  refs.push({ enclosingSymbol: enclosing, typeRaw: typeName, refKind, line: typeNode.startPosition.row, character: typeNode.startPosition.column });
-  // Decompose generic args one level (Go 1.18+ type parameters)
-  const genericArgs = extractGenericTypeArgs(typeNode, 'generic_type', 'type_arguments');
-  for (const arg of genericArgs) {
-    refs.push({ enclosingSymbol: enclosing, typeRaw: arg, refKind: 'generic_arg', line: typeNode.startPosition.row, character: typeNode.startPosition.column });
-  }
-}
+const emitGoTypeRef = createTypeRefEmitter({
+  extractTypeName: extractGoTypeName,
+  genericNodeType: 'generic_type',
+  argListNodeType: 'type_arguments',
+  recurseIntoTypes: ['map_type'],
+});
 
 function extractGoFunctionTypeRefs(funcNode: Parser.SyntaxNode, refs: RawTypeRef[]): void {
   const funcName = funcNode.childForFieldName('name')?.text ?? '';

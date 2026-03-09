@@ -15,8 +15,8 @@ import {
   type RawTypeRef,
   type TypeRefKind,
   type SymbolExtractor,
+  createTypeRefEmitter,
   emptyResult,
-  extractGenericTypeArgs,
   findEnclosingSymbolName,
   nodeSignature,
   walk,
@@ -217,15 +217,11 @@ function extractJavaTypeName(typeNode: Parser.SyntaxNode): string | null {
   return null;
 }
 
-function emitJavaTypeRef(refs: RawTypeRef[], enclosing: string, typeNode: Parser.SyntaxNode, refKind: TypeRefKind): void {
-  const typeName = extractJavaTypeName(typeNode);
-  if (!typeName) return;
-  refs.push({ enclosingSymbol: enclosing, typeRaw: typeName, refKind, line: typeNode.startPosition.row, character: typeNode.startPosition.column });
-  const genericArgs = extractGenericTypeArgs(typeNode, 'generic_type', 'type_arguments');
-  for (const arg of genericArgs) {
-    refs.push({ enclosingSymbol: enclosing, typeRaw: arg, refKind: 'generic_arg', line: typeNode.startPosition.row, character: typeNode.startPosition.column });
-  }
-}
+const emitJavaTypeRef = createTypeRefEmitter({
+  extractTypeName: extractJavaTypeName,
+  genericNodeType: 'generic_type',
+  argListNodeType: 'type_arguments',
+});
 
 function extractJavaMethodTypeRefs(methodNode: Parser.SyntaxNode, refs: RawTypeRef[]): void {
   const methodName = methodNode.childForFieldName('name')?.text ?? '';
