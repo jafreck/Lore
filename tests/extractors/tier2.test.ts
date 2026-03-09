@@ -18,6 +18,12 @@ const cResult = parseAndExtract(
   new CExtractor(),
 );
 
+const cHeaderResult = parseAndExtract(
+  'c',
+  path.join(fixtureDir, 'c/sample.h'),
+  new CExtractor(),
+);
+
 const cppResult = parseAndExtract(
   'cpp',
   path.join(fixtureDir, 'cpp/sample.cpp'),
@@ -95,6 +101,40 @@ describe('C extractor', () => {
     const indirectRefs = cResult!.callRefs.filter(r => r.isIndirect === true);
     expect(indirectRefs.length).toBeGreaterThan(0);
     expect(indirectRefs.every(r => r.callKind === 'indirect')).toBe(true);
+  });
+});
+
+// ─── C header ─────────────────────────────────────────────────────────────────
+
+describe('C extractor (header)', () => {
+  test.skipIf(!cHeaderResult)('symbols', () => {
+    expect(cHeaderResult!.symbols).toMatchSnapshot();
+  });
+
+  test.skipIf(!cHeaderResult)('extracts function declarations (prototypes)', () => {
+    const funcs = cHeaderResult!.symbols.filter(s => s.kind === 'function');
+    expect(funcs.length).toBeGreaterThan(0);
+    expect(funcs.map(f => f.name)).toEqual(
+      expect.arrayContaining(['buffer_create', 'buffer_destroy', 'buffer_append', 'buffer_remaining', 'buffer_printf', 'buffer_is_empty']),
+    );
+  });
+
+  test.skipIf(!cHeaderResult)('extracts struct, enum, typedef, and macro symbols', () => {
+    expect(cHeaderResult!.symbols.some(s => s.kind === 'struct' && s.name === 'Buffer')).toBe(true);
+    expect(cHeaderResult!.symbols.some(s => s.kind === 'enum' && s.name === 'Status')).toBe(true);
+    expect(cHeaderResult!.symbols.some(s => s.kind === 'typedef')).toBe(true);
+    expect(cHeaderResult!.symbols.some(s => s.kind === 'macro' && s.name === 'MAX_SIZE')).toBe(true);
+    expect(cHeaderResult!.symbols.some(s => s.kind === 'macro' && s.name === 'ALIGN')).toBe(true);
+  });
+
+  test.skipIf(!cHeaderResult)('imports', () => {
+    expect(cHeaderResult!.imports).toMatchSnapshot();
+  });
+
+  test.skipIf(!cHeaderResult)('extracts type-refs from function declarations', () => {
+    expect(cHeaderResult!.typeRefs.length).toBeGreaterThan(0);
+    const typeNames = cHeaderResult!.typeRefs.map(r => r.typeRaw);
+    expect(typeNames).toEqual(expect.arrayContaining(['Buffer']));
   });
 });
 

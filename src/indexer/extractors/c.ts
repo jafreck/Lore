@@ -27,6 +27,9 @@ import {
 
 const C_SYMBOL_NODE_TYPES = [
   'function_definition',
+  'struct_specifier',
+  'enum_specifier',
+  'preproc_function_def',
 ] as const;
 
 /**
@@ -75,6 +78,7 @@ export class CExtractor implements SymbolExtractor {
           }
           break;
         case 'typedef_declaration':
+        case 'type_definition':
           result.symbols.push(extractTypedef(node));
           break;
         case 'preproc_function_def':
@@ -92,7 +96,13 @@ export class CExtractor implements SymbolExtractor {
           break;
         }
         case 'declaration': {
-          extractVariableTypeRefs(node, result.typeRefs);
+          const funcDecl = extractFunctionDeclaration(node);
+          if (funcDecl) {
+            result.symbols.push(funcDecl);
+            extractDeclarationTypeRefs(node, result.typeRefs);
+          } else {
+            extractVariableTypeRefs(node, result.typeRefs);
+          }
           break;
         }
         case 'sizeof_expression': {
@@ -160,14 +170,99 @@ function extractNamedSpecifier(node: Parser.SyntaxNode, kind: string): RawSymbol
 
 function extractTypedef(node: Parser.SyntaxNode): RawSymbol {
   const children = node.namedChildren;
-  const nameNode = children[children.length - 1] ?? null;
+  const lastChild = children[children.length - 1] ?? null;
+  // For simple typedefs the last child is a type_identifier with the alias name.
+  // For function-pointer typedefs (e.g. `typedef int (*Fn)(int)`) the last
+  // child is a function_declarator — dig for the innermost type_identifier.
+  const name = lastChild
+    ? (lastChild.type === 'type_identifier'
+        ? lastChild.text
+        : findFirst(lastChild, 'type_identifier')?.text ?? lastChild.text)
+    : '';
   return {
-    name: nameNode?.text ?? '',
+    name,
     kind: 'typedef',
     startLine: node.startPosition.row,
     endLine: node.endPosition.row,
     signature: nodeSignature(node),
   };
+}
+
+// ─── Function declaration extraction (prototypes in headers) ──────────────────
+
+/**
+ * Checks whether a `declaration` node contains a function declarator (i.e. a
+ * function prototype / forward declaration) and, if so, extracts it as a
+ * `RawSymbol`.  Returns `null` when the declaration is a plain variable.
+ */
+function extractFunctionDeclaration(node: Parser.SyntaxNode): RawSymbol | null {
+  // A function declaration looks like:
+  //   type_specifier function_declarator(params);
+  // The function_declarator is nested inside the declarator field.
+  const declarator = node.childForFieldName('declarator');
+  if (!declarator) return null;
+  if (!hasFunctionDeclarator(declarator)) return null;
+
+  const name = extractDeclaratorName(declarator);
+  if (!name) return null;
+
+  return {
+    name,
+    kind: 'function',
+    startLine: node.startPosition.row,
+    endLine: node.endPosition.row,
+    signature: nodeSignature(node),
+  };
+}
+
+/** Recursively checks if a node contains a `function_declarator` child. */
+function hasFunctionDeclarator(node: Parser.SyntaxNode): boolean {
+  if (node.type === 'function_declarator') return true;
+  for (const child of node.namedChildren) {
+    if (hasFunctionDeclarator(child)) return true;
+  }
+  return false;
+}
+
+/**
+ * Extracts type-refs from a function declaration (prototype) — return type +
+ * parameter types.
+ */
+function extractDeclarationTypeRefs(
+  declNode: Parser.SyntaxNode,
+  refs: RawTypeRef[],
+): void {
+  const declarator = declNode.childForFieldName('declarator');
+  if (!declarator) return;
+  const funcName = extractDeclaratorName(declarator);
+
+  // Return type
+  const typeNode = declNode.childForFieldName('type');
+  if (typeNode) {
+    const typeName = extractCTypeName(typeNode);
+    if (typeName) {
+      emitTypeRef(refs, funcName, typeName, 'return', typeNode.startPosition.row, typeNode.startPosition.column);
+    }
+  }
+
+  // Parameter types
+  const funcDecl = findFunctionDeclarator(declarator);
+  if (funcDecl) {
+    const params = funcDecl.childForFieldName('parameters');
+    if (params) {
+      for (const param of params.namedChildren) {
+        if (param.type === 'parameter_declaration') {
+          const paramType = param.childForFieldName('type');
+          if (paramType) {
+            const typeName = extractCTypeName(paramType);
+            if (typeName) {
+              emitTypeRef(refs, funcName, typeName, 'parameter', paramType.startPosition.row, paramType.startPosition.column);
+            }
+          }
+        }
+      }
+    }
+  }
 }
 
 // ─── Macro extraction ─────────────────────────────────────────────────────────

@@ -1,5 +1,117 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`C extractor (header) > imports 1`] = `
+[
+  {
+    "importedNames": [],
+    "source": "stddef.h",
+  },
+]
+`;
+
+exports[`C extractor (header) > symbols 1`] = `
+[
+  {
+    "endLine": 3,
+    "kind": "macro",
+    "name": "SAMPLE_H",
+    "signature": "#define SAMPLE_H",
+    "startLine": 2,
+  },
+  {
+    "endLine": 8,
+    "kind": "macro",
+    "name": "MAX_SIZE",
+    "signature": "#define MAX_SIZE 1024",
+    "startLine": 7,
+  },
+  {
+    "endLine": 9,
+    "kind": "macro",
+    "name": "ALIGN",
+    "signature": "#define ALIGN(x, a) (((x) + (a) - 1) & ~((a) - 1))",
+    "startLine": 8,
+  },
+  {
+    "endLine": 16,
+    "kind": "struct",
+    "name": "Buffer",
+    "signature": "struct Buffer",
+    "startLine": 12,
+  },
+  {
+    "endLine": 18,
+    "kind": "typedef",
+    "name": "Buffer",
+    "signature": "typedef struct Buffer Buffer;",
+    "startLine": 18,
+  },
+  {
+    "endLine": 18,
+    "kind": "struct",
+    "name": "Buffer",
+    "signature": "struct Buffer",
+    "startLine": 18,
+  },
+  {
+    "endLine": 19,
+    "kind": "typedef",
+    "name": "usize",
+    "signature": "typedef unsigned long usize;",
+    "startLine": 19,
+  },
+  {
+    "endLine": 25,
+    "kind": "enum",
+    "name": "Status",
+    "signature": "enum Status",
+    "startLine": 21,
+  },
+  {
+    "endLine": 29,
+    "kind": "function",
+    "name": "buffer_create",
+    "signature": "Buffer* buffer_create(size_t initial_capacity);",
+    "startLine": 29,
+  },
+  {
+    "endLine": 30,
+    "kind": "function",
+    "name": "buffer_destroy",
+    "signature": "void    buffer_destroy(Buffer* buf);",
+    "startLine": 30,
+  },
+  {
+    "endLine": 31,
+    "kind": "function",
+    "name": "buffer_append",
+    "signature": "int     buffer_append(Buffer* buf, const void* data, size_t len);",
+    "startLine": 31,
+  },
+  {
+    "endLine": 32,
+    "kind": "function",
+    "name": "buffer_remaining",
+    "signature": "size_t  buffer_remaining(const Buffer* buf);",
+    "startLine": 32,
+  },
+  {
+    "endLine": 35,
+    "kind": "function",
+    "name": "buffer_printf",
+    "signature": "int buffer_printf(Buffer* buf, const char* fmt, ...);",
+    "startLine": 35,
+  },
+  {
+    "endLine": 40,
+    "kind": "function",
+    "name": "buffer_is_empty",
+    "signature": "static inline int buffer_is_empty(const Buffer* buf)",
+    "startLine": 38,
+  },
+]
+`;
+
 exports[`C extractor > callRefs 1`] = `
 [
   {
@@ -107,10 +219,24 @@ exports[`C extractor > symbols 1`] = `
   },
   {
     "endLine": 14,
+    "kind": "typedef",
+    "name": "Point",
+    "signature": "typedef struct Point Point;",
+    "startLine": 14,
+  },
+  {
+    "endLine": 14,
     "kind": "struct",
     "name": "Point",
     "signature": "struct Point",
     "startLine": 14,
+  },
+  {
+    "endLine": 16,
+    "kind": "typedef",
+    "name": "BinaryOp",
+    "signature": "typedef int (*BinaryOp)(int, int);",
+    "startLine": 16,
   },
   {
     "endLine": 22,
