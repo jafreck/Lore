@@ -1180,6 +1180,69 @@ describe('IndexBuilder — branch support in update()', () => {
     expect(clearedResolvedCount.count).toBe(resolvedImportRows.length);
   });
 
+  it('should NULL cross-file callee_id, type_id, and target_symbol_id when a tracked file is deleted (FK safety)', async () => {
+    // Regression: the delete path only NULLed file_imports.resolved_id but
+    // not cross-file symbol_refs/type_refs/symbol_relationships references,
+    // causing an FK constraint violation on DELETE FROM files.
+    const otherFile = join(srcDir, 'other.ts');
+    writeFileSync(otherFile, 'export function other(): void {}\n');
+    const builderMain = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
+    await builderMain.update([otherFile]);
+
+    const writeDb = new Database(dbPath);
+    writeDb.pragma('foreign_keys = ON');
+
+    // Get file and symbol IDs for both files.
+    const srcFileRow = writeDb
+      .prepare('SELECT id FROM files WHERE path = ? AND branch = ?')
+      .get(srcFile, 'main') as { id: number };
+    const otherFileRow = writeDb
+      .prepare('SELECT id FROM files WHERE path = ? AND branch = ?')
+      .get(otherFile, 'main') as { id: number };
+    const srcSymbol = writeDb
+      .prepare('SELECT id FROM symbols WHERE file_id = ?')
+      .get(srcFileRow.id) as { id: number };
+    const otherSymbol = writeDb
+      .prepare('SELECT id FROM symbols WHERE file_id = ?')
+      .get(otherFileRow.id) as { id: number };
+
+    // Create cross-file references from other.ts symbols → srcFile symbols.
+    writeDb.prepare(
+      'INSERT INTO symbol_refs (caller_id, callee_id, callee_name, call_line, resolution_method) VALUES (?, ?, ?, ?, ?)',
+    ).run(otherSymbol.id, srcSymbol.id, 'hello', 1, 'name_unique');
+    writeDb.prepare(
+      'INSERT INTO type_refs (file_id, symbol_id, type_id, type_name, type_name_bare, ref_kind, ref_line) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    ).run(otherFileRow.id, otherSymbol.id, srcSymbol.id, 'Hello', 'Hello', 'return_type', 1);
+    writeDb.prepare(
+      'INSERT INTO symbol_relationships (file_id, source_symbol_id, target_symbol_id, target_symbol_name, relationship_type, line) VALUES (?, ?, ?, ?, ?, ?)',
+    ).run(otherFileRow.id, otherSymbol.id, srcSymbol.id, 'hello', 'calls', 1);
+
+    const crossRefId = Number(writeDb.prepare('SELECT last_insert_rowid() AS id').get()!);
+    writeDb.close();
+
+    // Delete srcFile — this must NOT throw an FK constraint violation.
+    rmSync(srcFile, { force: true });
+    const deleteBuilder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
+    await deleteBuilder.update([srcFile]);
+
+    // Verify cross-file refs were NULLed out, not left as dangling FKs.
+    const afterDb = new Database(dbPath, { readonly: true });
+    const danglingCallRefs = afterDb.prepare(
+      'SELECT COUNT(*) AS count FROM symbol_refs WHERE callee_id IS NOT NULL AND callee_id NOT IN (SELECT id FROM symbols)',
+    ).get() as { count: number };
+    const danglingTypeRefs = afterDb.prepare(
+      'SELECT COUNT(*) AS count FROM type_refs WHERE type_id IS NOT NULL AND type_id NOT IN (SELECT id FROM symbols)',
+    ).get() as { count: number };
+    const danglingRelationships = afterDb.prepare(
+      'SELECT COUNT(*) AS count FROM symbol_relationships WHERE target_symbol_id IS NOT NULL AND target_symbol_id NOT IN (SELECT id FROM symbols)',
+    ).get() as { count: number };
+    afterDb.close();
+
+    expect(danglingCallRefs.count).toBe(0);
+    expect(danglingTypeRefs.count).toBe(0);
+    expect(danglingRelationships.count).toBe(0);
+  });
+
   it('should detect and use the current git branch during update when branch is omitted', async () => {
     const gitBranch = createGitRepoWithCommit(srcDir, 'feature/update-auto');
     const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: gitBranch });
@@ -1324,6 +1387,30 @@ describe('IndexBuilder — transactional file loops', () => {
     // Both files should be re-indexed successfully
     const symbolNames = querySymbolNamesForFile(dbPath, firstFile, 'main');
     expect(symbolNames).toContain('oneUpdated');
+  });
+
+  it('should save build checkpoint outside batch transactions for crash resilience', async () => {
+    // Regression: checkpoint was saved inside a single wrapping transaction,
+    // so a crash rolled back all checkpoints. Now batched transactions commit
+    // checkpoints between batches.
+    // Create enough files to span multiple batches (batch size = 200).
+    for (let i = 0; i < 5; i++) {
+      writeFileSync(join(srcDir, `file${i}.ts`), `export function fn${i}(): void {}\n`);
+    }
+    const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
+    await builder.build();
+
+    // After a successful build, checkpoint should be at totalFiles (complete).
+    const db = new Database(dbPath, { readonly: true });
+    const row = db.prepare("SELECT value FROM lore_meta WHERE key = 'index_checkpoint'").get() as
+      | { value: string }
+      | undefined;
+    db.close();
+
+    expect(row).toBeDefined();
+    const checkpoint = JSON.parse(row!.value) as { nextFileIndex: number; totalFiles: number };
+    expect(checkpoint.nextFileIndex).toBe(checkpoint.totalFiles);
+    expect(checkpoint.totalFiles).toBeGreaterThanOrEqual(5);
   });
 });
 
