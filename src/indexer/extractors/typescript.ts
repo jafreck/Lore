@@ -27,8 +27,12 @@ import {
 const TS_SYMBOL_NODE_TYPES = [
   'function_declaration',
   'generator_function_declaration',
+  'function_signature',
   'method_definition',
   'class_declaration',
+  'interface_declaration',
+  'type_alias_declaration',
+  'enum_declaration',
 ] as const;
 
 export const TYPESCRIPT_COMPLEXITY_NODE_TYPES: ComplexityNodeTypes = {

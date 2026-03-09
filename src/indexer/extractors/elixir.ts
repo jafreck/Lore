@@ -86,7 +86,10 @@ export class ElixirExtractor implements SymbolExtractor {
 function extractDef(node: Parser.SyntaxNode, kind: string): RawSymbol {
   // In Elixir's tree-sitter grammar, `def foo(bar)` is a call node
   // where the first argument is another call node or identifier.
-  const argsNode = node.childForFieldName('arguments');
+  // In tree-sitter-elixir v0.3.x, `arguments` is a child node type,
+  // not a named field — use both approaches for compatibility.
+  const argsNode = node.childForFieldName('arguments') ??
+    node.namedChildren.find(c => c.type === 'arguments');
   let name = '';
 
   if (argsNode && argsNode.namedChildren.length > 0) {

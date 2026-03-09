@@ -78,7 +78,11 @@ function extractLetBinding(node: Parser.SyntaxNode): RawSymbol {
 }
 
 function extractTypeDefinition(node: Parser.SyntaxNode): RawSymbol {
-  const nameNode = node.childForFieldName('name') ??
+  // tree-sitter-ocaml wraps the name inside a `type_binding` child.
+  const binding = node.namedChildren.find(c => c.type === 'type_binding') ?? node;
+  const nameNode = binding.childForFieldName('name') ??
+    binding.namedChildren.find(c => c.type === 'type_constructor') ??
+    node.childForFieldName('name') ??
     node.namedChildren.find(c => c.type === 'type_constructor');
   return {
     name: nameNode?.text ?? '',
@@ -90,7 +94,11 @@ function extractTypeDefinition(node: Parser.SyntaxNode): RawSymbol {
 }
 
 function extractModuleDefinition(node: Parser.SyntaxNode): RawSymbol {
-  const nameNode = node.childForFieldName('name') ??
+  // tree-sitter-ocaml wraps the name inside a `module_binding` child.
+  const binding = node.namedChildren.find(c => c.type === 'module_binding') ?? node;
+  const nameNode = binding.childForFieldName('name') ??
+    binding.namedChildren.find(c => c.type === 'module_name') ??
+    node.childForFieldName('name') ??
     node.namedChildren.find(c => c.type === 'module_name');
   return {
     name: nameNode?.text ?? '',

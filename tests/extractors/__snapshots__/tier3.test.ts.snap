@@ -203,6 +203,100 @@ exports[`Kotlin extractor > symbols 1`] = `
 ]
 `;
 
+exports[`Lua extractor > callRefs 1`] = `
+[
+  {
+    "calleeRaw": "require",
+    "callerSymbol": "",
+    "character": 13,
+    "line": 0,
+  },
+  {
+    "calleeRaw": "require",
+    "callerSymbol": "",
+    "character": 14,
+    "line": 1,
+  },
+  {
+    "calleeRaw": "greet",
+    "callerSymbol": "main",
+    "character": 16,
+    "line": 22,
+  },
+  {
+    "calleeRaw": "add",
+    "callerSymbol": "main",
+    "character": 16,
+    "line": 23,
+  },
+  {
+    "calleeRaw": "square",
+    "callerSymbol": "main",
+    "character": 15,
+    "line": 24,
+  },
+  {
+    "calleeRaw": "print",
+    "callerSymbol": "main",
+    "character": 4,
+    "line": 25,
+  },
+]
+`;
+
+exports[`Lua extractor > imports 1`] = `
+[
+  {
+    "importedNames": [],
+    "source": "json",
+  },
+  {
+    "importedNames": [],
+    "source": "utils",
+  },
+]
+`;
+
+exports[`Lua extractor > symbols 1`] = `
+[
+  {
+    "endLine": 5,
+    "kind": "function",
+    "name": "greet",
+    "signature": "function greet(name)",
+    "startLine": 3,
+  },
+  {
+    "endLine": 9,
+    "kind": "function",
+    "name": "add",
+    "signature": "function add(a, b)",
+    "startLine": 7,
+  },
+  {
+    "endLine": 13,
+    "kind": "function",
+    "name": "square",
+    "signature": "local function square(x)",
+    "startLine": 11,
+  },
+  {
+    "endLine": 19,
+    "kind": "function",
+    "name": "clamp",
+    "signature": "local function clamp(value, min, max)",
+    "startLine": 15,
+  },
+  {
+    "endLine": 26,
+    "kind": "function",
+    "name": "main",
+    "signature": "local function main()",
+    "startLine": 21,
+  },
+]
+`;
+
 exports[`OCaml extractor > callRefs 1`] = `
 [
   {
@@ -249,7 +343,7 @@ exports[`OCaml extractor > symbols 1`] = `
   {
     "endLine": 14,
     "kind": "type",
-    "name": "",
+    "name": "shape",
     "signature": "type shape =",
     "startLine": 12,
   },
@@ -263,7 +357,7 @@ exports[`OCaml extractor > symbols 1`] = `
   {
     "endLine": 26,
     "kind": "module",
-    "name": "",
+    "name": "MathUtils",
     "signature": "module MathUtils = struct",
     "startLine": 21,
   },
@@ -313,21 +407,21 @@ exports[`Objective-C extractor > symbols 1`] = `
   {
     "endLine": 7,
     "kind": "function",
-    "name": "",
+    "name": "initWithRadius",
     "signature": "- (instancetype)initWithRadius:(double)radius;",
     "startLine": 7,
   },
   {
     "endLine": 8,
     "kind": "function",
-    "name": "",
+    "name": "area",
     "signature": "- (double)area;",
     "startLine": 8,
   },
   {
     "endLine": 9,
     "kind": "function",
-    "name": "",
+    "name": "perimeter",
     "signature": "- (double)perimeter;",
     "startLine": 9,
   },
@@ -564,24 +658,10 @@ exports[`Ruby extractor > symbols 1`] = `
     "startLine": 3,
   },
   {
-    "endLine": 3,
-    "kind": "module",
-    "name": "",
-    "signature": "module",
-    "startLine": 3,
-  },
-  {
     "endLine": 24,
     "kind": "class",
     "name": "Circle",
     "signature": "class Circle",
-    "startLine": 6,
-  },
-  {
-    "endLine": 6,
-    "kind": "class",
-    "name": "",
-    "signature": "class",
     "startLine": 6,
   },
   {
@@ -913,6 +993,119 @@ exports[`Swift extractor > symbols 1`] = `
     "name": "main",
     "signature": "func main()",
     "startLine": 52,
+  },
+]
+`;
+
+exports[`Zig extractor > callRefs 1`] = `
+[
+  {
+    "calleeRaw": "std.debug.print",
+    "callerSymbol": "greet",
+    "character": 4,
+    "line": 4,
+  },
+  {
+    "calleeRaw": "math.sqrt",
+    "callerSymbol": "distance",
+    "character": 15,
+    "line": 22,
+  },
+  {
+    "calleeRaw": "std.testing.expectEqual",
+    "callerSymbol": "",
+    "character": 8,
+    "line": 33,
+  },
+  {
+    "calleeRaw": "add",
+    "callerSymbol": "",
+    "character": 45,
+    "line": 33,
+  },
+]
+`;
+
+exports[`Zig extractor > imports 1`] = `[]`;
+
+exports[`Zig extractor > symbols 1`] = `
+[
+  {
+    "endLine": 0,
+    "kind": "const",
+    "name": "std",
+    "signature": "const std = @import("std");",
+    "startLine": 0,
+  },
+  {
+    "endLine": 1,
+    "kind": "const",
+    "name": "math",
+    "signature": "const math = @import("std").math;",
+    "startLine": 1,
+  },
+  {
+    "endLine": 5,
+    "kind": "function",
+    "name": "greet",
+    "signature": "pub fn greet(name: []const u8) void",
+    "startLine": 3,
+  },
+  {
+    "endLine": 9,
+    "kind": "function",
+    "name": "add",
+    "signature": "pub fn add(a: i32, b: i32) i32",
+    "startLine": 7,
+  },
+  {
+    "endLine": 13,
+    "kind": "function",
+    "name": "square",
+    "signature": "pub fn square(x: i32) i32",
+    "startLine": 11,
+  },
+  {
+    "endLine": 24,
+    "kind": "const",
+    "name": "Point",
+    "signature": "pub const Point = struct",
+    "startLine": 15,
+  },
+  {
+    "endLine": 23,
+    "kind": "function",
+    "name": "distance",
+    "signature": "pub fn distance(self: Point, other: Point) f64",
+    "startLine": 19,
+  },
+  {
+    "endLine": 20,
+    "kind": "const",
+    "name": "dx",
+    "signature": "const dx = self.x - other.x;",
+    "startLine": 20,
+  },
+  {
+    "endLine": 21,
+    "kind": "const",
+    "name": "dy",
+    "signature": "const dy = self.y - other.y;",
+    "startLine": 21,
+  },
+  {
+    "endLine": 30,
+    "kind": "const",
+    "name": "Color",
+    "signature": "pub const Color = enum",
+    "startLine": 26,
+  },
+  {
+    "endLine": 34,
+    "kind": "test",
+    "name": "test",
+    "signature": "test "add returns correct sum"",
+    "startLine": 32,
   },
 ]
 `;

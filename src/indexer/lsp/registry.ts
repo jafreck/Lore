@@ -35,7 +35,6 @@ export const DEFAULT_LSP_SERVER_REGISTRY: LspServerRegistry = {
   bash: { command: 'bash-language-server', args: ['start'] },
   elixir: { command: 'elixir-ls', args: [] },
   zig: { command: 'zls', args: [] },
-  dart: { command: 'dart', args: ['language-server', '--protocol=lsp'] },
   ocaml: { command: 'ocamllsp', args: [] },
   haskell: { command: 'haskell-language-server-wrapper', args: ['--lsp'] },
   julia: {

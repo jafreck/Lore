@@ -25,6 +25,8 @@ import {
 const KOTLIN_SYMBOL_NODE_TYPES = [
   'function_declaration',
   'class_declaration',
+  'object_declaration',
+  'interface_declaration',
 ] as const;
 
 // ─── KotlinExtractor ─────────────────────────────────────────────────────────

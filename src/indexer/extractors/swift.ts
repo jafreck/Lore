@@ -26,6 +26,9 @@ const SWIFT_SYMBOL_NODE_TYPES = [
   'function_declaration',
   'class_declaration',
   'struct_declaration',
+  'enum_declaration',
+  'protocol_declaration',
+  'extension_declaration',
 ] as const;
 
 // ─── SwiftExtractor ───────────────────────────────────────────────────────────

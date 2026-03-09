@@ -1,6 +1,6 @@
 import { describe, test, expect } from 'vitest';
 import path from 'node:path';
-import { parseAndExtract } from '../helpers/extractorHelper.js';
+import { parseAndExtractStrict as parseAndExtract } from '../helpers/extractorHelper.js';
 import { ParserPool } from '../../src/indexer/parser.js';
 import type { SymbolExtractor } from '../../src/indexer/extractors/types.js';
 import { TypeScriptExtractor } from '../../src/indexer/extractors/typescript.js';
@@ -85,24 +85,24 @@ const goRouteResult = parseInline(
 // ─── TypeScript ───────────────────────────────────────────────────────────────
 
 describe('TypeScript extractor', () => {
-  test.skipIf(!tsResult)('symbols', () => {
+  test('symbols', () => {
     const symbols = tsResult!.symbols.map(({ astNode: _astNode, ...symbol }) => symbol);
     expect(symbols).toMatchSnapshot();
   });
 
-  test.skipIf(!tsResult)('imports', () => {
+  test('imports', () => {
     expect(tsResult!.imports).toMatchSnapshot();
   });
 
-  test.skipIf(!tsResult)('callRefs', () => {
+  test('callRefs', () => {
     expect(tsResult!.callRefs).toMatchSnapshot();
   });
 
-  test.skipIf(!tsResult)('callRefs are non-empty', () => {
+  test('callRefs are non-empty', () => {
     expect(tsResult!.callRefs.length).toBeGreaterThan(0);
   });
 
-  test.skipIf(!tsResult)('relationships', () => {
+  test('relationships', () => {
     expect(tsResult!.relationships).toMatchSnapshot();
   });
 });
@@ -110,31 +110,31 @@ describe('TypeScript extractor', () => {
 // ─── JavaScript ───────────────────────────────────────────────────────────────
 
 describe('JavaScript extractor', () => {
-  test.skipIf(!jsResult)('symbols', () => {
+  test('symbols', () => {
     expect(jsResult!.symbols).toMatchSnapshot();
   });
 
-  test.skipIf(!jsResult)('imports', () => {
+  test('imports', () => {
     expect(jsResult!.imports).toMatchSnapshot();
   });
 
-  test.skipIf(!jsResult)('callRefs', () => {
+  test('callRefs', () => {
     expect(jsResult!.callRefs).toMatchSnapshot();
   });
 
-  test.skipIf(!jsResult)('callRefs are non-empty', () => {
+  test('callRefs are non-empty', () => {
     expect(jsResult!.callRefs.length).toBeGreaterThan(0);
   });
 
-  test.skipIf(!jsResult)('relationships', () => {
+  test('relationships', () => {
     expect(jsResult!.relationships).toMatchSnapshot();
   });
 
-  test.skipIf(!jsRouteResult)('routes', () => {
+  test('routes', () => {
     expect(jsRouteResult!.routes.length).toBeGreaterThan(0);
   });
 
-  test.skipIf(!jsRouteResult)('should extract route method, path, handler, and middleware', () => {
+  test('should extract route method, path, handler, and middleware', () => {
     const getRoute = jsRouteResult!.routes.find((route) => route.method === 'GET');
     const postRoute = jsRouteResult!.routes.find((route) => route.method === 'POST');
 
@@ -154,7 +154,7 @@ describe('JavaScript extractor', () => {
     expect(postRoute?.handler.length).toBeGreaterThan(0);
   });
 
-  test.skipIf(!jsResult)('should infer framework names from route receivers', () => {
+  test('should infer framework names from route receivers', () => {
     const frameworks = new Set(jsResult!.routes.map((route) => route.framework));
     expect(frameworks).toEqual(new Set(['express', 'koa', 'hono']));
   });
@@ -163,31 +163,31 @@ describe('JavaScript extractor', () => {
 // ─── Python ───────────────────────────────────────────────────────────────────
 
 describe('Python extractor', () => {
-  test.skipIf(!pyResult)('symbols', () => {
+  test('symbols', () => {
     expect(pyResult!.symbols).toMatchSnapshot();
   });
 
-  test.skipIf(!pyResult)('imports', () => {
+  test('imports', () => {
     expect(pyResult!.imports).toMatchSnapshot();
   });
 
-  test.skipIf(!pyResult)('callRefs', () => {
+  test('callRefs', () => {
     expect(pyResult!.callRefs).toMatchSnapshot();
   });
 
-  test.skipIf(!pyResult)('callRefs are non-empty', () => {
+  test('callRefs are non-empty', () => {
     expect(pyResult!.callRefs.length).toBeGreaterThan(0);
   });
 
-  test.skipIf(!pyResult)('relationships', () => {
+  test('relationships', () => {
     expect(pyResult!.relationships).toMatchSnapshot();
   });
 
-  test.skipIf(!pyRouteResult)('routes', () => {
+  test('routes', () => {
     expect(pyRouteResult!.routes.length).toBeGreaterThan(0);
   });
 
-  test.skipIf(!pyRouteResult)('should extract FastAPI route metadata', () => {
+  test('should extract FastAPI route metadata', () => {
     expect(pyRouteResult!.routes[0]).toEqual(
       expect.objectContaining({
         method: 'GET',
@@ -202,31 +202,31 @@ describe('Python extractor', () => {
 // ─── Go ───────────────────────────────────────────────────────────────────────
 
 describe('Go extractor', () => {
-  test.skipIf(!goResult)('symbols', () => {
+  test('symbols', () => {
     expect(goResult!.symbols).toMatchSnapshot();
   });
 
-  test.skipIf(!goResult)('imports', () => {
+  test('imports', () => {
     expect(goResult!.imports).toMatchSnapshot();
   });
 
-  test.skipIf(!goResult)('callRefs', () => {
+  test('callRefs', () => {
     expect(goResult!.callRefs).toMatchSnapshot();
   });
 
-  test.skipIf(!goResult)('callRefs are non-empty', () => {
+  test('callRefs are non-empty', () => {
     expect(goResult!.callRefs.length).toBeGreaterThan(0);
   });
 
-  test.skipIf(!goResult)('relationships', () => {
+  test('relationships', () => {
     expect(goResult!.relationships).toMatchSnapshot();
   });
 
-  test.skipIf(!goRouteResult)('routes', () => {
+  test('routes', () => {
     expect(goRouteResult!.routes.length).toBeGreaterThan(0);
   });
 
-  test.skipIf(!goRouteResult)('should extract Gin route metadata', () => {
+  test('should extract Gin route metadata', () => {
     expect(goRouteResult!.routes).toEqual([
       expect.objectContaining({
         method: 'GET',
@@ -241,23 +241,23 @@ describe('Go extractor', () => {
 // ─── Rust ─────────────────────────────────────────────────────────────────────
 
 describe('Rust extractor', () => {
-  test.skipIf(!rustResult)('symbols', () => {
+  test('symbols', () => {
     expect(rustResult!.symbols).toMatchSnapshot();
   });
 
-  test.skipIf(!rustResult)('imports', () => {
+  test('imports', () => {
     expect(rustResult!.imports).toMatchSnapshot();
   });
 
-  test.skipIf(!rustResult)('callRefs', () => {
+  test('callRefs', () => {
     expect(rustResult!.callRefs).toMatchSnapshot();
   });
 
-  test.skipIf(!rustResult)('callRefs are non-empty', () => {
+  test('callRefs are non-empty', () => {
     expect(rustResult!.callRefs.length).toBeGreaterThan(0);
   });
 
-  test.skipIf(!rustResult)('relationships', () => {
+  test('relationships', () => {
     expect(rustResult!.relationships).toMatchSnapshot();
   });
 });
@@ -265,23 +265,23 @@ describe('Rust extractor', () => {
 // ─── Java ─────────────────────────────────────────────────────────────────────
 
 describe('Java extractor', () => {
-  test.skipIf(!javaResult)('symbols', () => {
+  test('symbols', () => {
     expect(javaResult!.symbols).toMatchSnapshot();
   });
 
-  test.skipIf(!javaResult)('imports', () => {
+  test('imports', () => {
     expect(javaResult!.imports).toMatchSnapshot();
   });
 
-  test.skipIf(!javaResult)('callRefs', () => {
+  test('callRefs', () => {
     expect(javaResult!.callRefs).toMatchSnapshot();
   });
 
-  test.skipIf(!javaResult)('callRefs are non-empty', () => {
+  test('callRefs are non-empty', () => {
     expect(javaResult!.callRefs.length).toBeGreaterThan(0);
   });
 
-  test.skipIf(!javaResult)('relationships', () => {
+  test('relationships', () => {
     expect(javaResult!.relationships).toMatchSnapshot();
   });
 });

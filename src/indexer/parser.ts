@@ -8,9 +8,35 @@
 
 import Parser from 'tree-sitter';
 import { createRequire } from 'node:module';
+import { dirname } from 'node:path';
 import { getLogger } from '../logger.js';
 
 const esmRequire = createRequire(import.meta.url);
+
+/**
+ * Loads a grammar package via `require()`.  Falls back to `node-gyp-build`
+ * for packages that only expose ESM entry points (e.g. scoped
+ * `@tree-sitter-grammars/*` packages with top-level `await`).
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function loadGrammarPackage(pkg: string): any {
+  try {
+    return esmRequire(pkg);
+  } catch (firstError: unknown) {
+    // If require() fails because the package is ESM-only, try loading the
+    // native addon directly via node-gyp-build from the package root.
+    const isEsmError =
+      firstError instanceof Error &&
+      (firstError as NodeJS.ErrnoException).code === 'ERR_REQUIRE_ASYNC_MODULE';
+    if (!isEsmError) throw firstError;
+
+    // Resolve package.json to find the package root, then use node-gyp-build.
+    const pkgJsonPath = esmRequire.resolve(`${pkg}/package.json`);
+    const pkgDir = dirname(pkgJsonPath);
+    const nodeGypBuild = esmRequire('node-gyp-build') as (dir: string) => unknown;
+    return nodeGypBuild(pkgDir);
+  }
+}
 
 /**
  * Size of chunks returned to tree-sitter when parsing source text.
@@ -42,15 +68,14 @@ export const LANG_PACKAGES: Record<string, string> = {
   swift:      'tree-sitter-swift',
   kotlin:     'tree-sitter-kotlin',
   scala:      'tree-sitter-scala',
-  lua:        'tree-sitter-lua',
+  lua:        '@tree-sitter-grammars/tree-sitter-lua',
   bash:       'tree-sitter-bash',
   elixir:     'tree-sitter-elixir',
-  zig:        'tree-sitter-zig',
-  dart:       'tree-sitter-dart',
+  zig:        '@tree-sitter-grammars/tree-sitter-zig',
   ocaml:      'tree-sitter-ocaml',
   haskell:    'tree-sitter-haskell',
   julia:      'tree-sitter-julia',
-  elm:        'tree-sitter-elm',
+  elm:        '@elm-tooling/tree-sitter-elm',
   objc:       'tree-sitter-objc',
 };
 
@@ -104,9 +129,8 @@ export class ParserPool {
     }
 
     try {
-      // Native addons must be loaded via require(), not import().
-      // Use createRequire to ensure it works in both CJS and ESM contexts.
-      let grammar = esmRequire(pkg);
+      // Load the grammar package, handling both CJS and ESM-only packages.
+      let grammar = loadGrammarPackage(pkg);
 
       // Some packages (e.g. tree-sitter-typescript) export sub-grammars.
       if (language === 'typescript' && grammar.typescript) {
