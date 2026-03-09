@@ -37,6 +37,14 @@ export type LspClientFactory = (server: LspServerCommand, options: LspClientOpti
 
 const defaultClientFactory: LspClientFactory = (server, options) => new LspClient(server, options);
 
+/**
+ * Maximum number of LSP hover+definition request pairs to keep in-flight
+ * concurrently.  The LSP JSON-RPC protocol supports pipelining, so the
+ * server can process many requests in parallel.  A moderate cap avoids
+ * flooding servers that serialize internally.
+ */
+const LSP_CONCURRENCY_LIMIT = 30;
+
 export class LspEnrichmentCoordinator {
   private readonly rootUri: string;
   private readonly resolvedServers: Record<string, ResolvedLspServerCommand>;
@@ -97,29 +105,34 @@ export class LspEnrichmentCoordinator {
 
     const document = { uri };
     try {
-      const results: Array<ResolvedTypeMetadata | null> = [];
-      for (const target of request.targets) {
+      // Batch-pipeline all targets: fire hover+definition for each target
+      // concurrently (up to LSP_CONCURRENCY_LIMIT in-flight requests) to
+      // maximise throughput instead of waiting for each round-trip serially.
+      const enrichOne = async (target: LspEnrichmentTarget): Promise<ResolvedTypeMetadata | null> => {
         const position = {
           line: Math.max(0, target.line),
           character: Math.max(0, target.character),
         };
-        let hoverResult: unknown;
-        let definitionResult: unknown;
-
-        try {
-          hoverResult = await client.hover(document, position);
-        } catch {
-          hoverResult = undefined;
-        }
-
-        try {
-          definitionResult = await client.definition(document, position);
-        } catch {
-          definitionResult = undefined;
-        }
-
+        // Fire hover and definition in parallel for the same position.
+        const [hoverSettled, defSettled] = await Promise.allSettled([
+          client.hover(document, position),
+          client.definition(document, position),
+        ]);
+        const hoverResult = hoverSettled.status === 'fulfilled' ? hoverSettled.value : undefined;
+        const definitionResult = defSettled.status === 'fulfilled' ? defSettled.value : undefined;
         const metadata = toResolvedTypeMetadata(hoverResult, definitionResult);
-        results.push(hasResolvedTypeMetadata(metadata) ? metadata : null);
+        return hasResolvedTypeMetadata(metadata) ? metadata : null;
+      };
+
+      // Process targets in concurrent batches to avoid overwhelming the server.
+      const results: Array<ResolvedTypeMetadata | null> = new Array(request.targets.length).fill(null);
+      for (let start = 0; start < request.targets.length; start += LSP_CONCURRENCY_LIMIT) {
+        const end = Math.min(start + LSP_CONCURRENCY_LIMIT, request.targets.length);
+        const batch = request.targets.slice(start, end);
+        const batchResults = await Promise.all(batch.map(enrichOne));
+        for (let j = 0; j < batchResults.length; j++) {
+          results[start + j] = batchResults[j]!;
+        }
       }
       return results;
     } finally {

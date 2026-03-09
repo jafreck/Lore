@@ -195,7 +195,13 @@ function extractPhpFunctionTypeRefs(funcNode: Parser.SyntaxNode, refs: RawTypeRe
 }
 
 function extractPhpTypeName(typeNode: Parser.SyntaxNode): string | null {
-  if (typeNode.type === 'named_type' || typeNode.type === 'qualified_name' || typeNode.type === 'name') return typeNode.text;
+  if (
+    typeNode.type === 'named_type'
+    || typeNode.type === 'qualified_name'
+    || typeNode.type === 'name'
+    || typeNode.type === 'primitive_type'
+    || typeNode.type === 'optional_type'
+  ) return typeNode.text;
   if (typeNode.type === 'nullable_type') {
     const inner = typeNode.namedChildren[0];
     return inner ? extractPhpTypeName(inner) : null;

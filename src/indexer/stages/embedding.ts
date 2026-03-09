@@ -93,6 +93,10 @@ async function embedStructural(
     'INSERT OR REPLACE INTO symbol_embeddings(rowid, embedding) VALUES (CAST(? AS INTEGER), json(?))',
   );
 
+  // P4: Pipeline — start embedding the next batch while writing the current one.
+  let pendingEmbed: Promise<number[][]> | null = null;
+  let pendingBatch: typeof symbols = [];
+
   for (let i = 0; i < symbols.length; i += EMBED_BATCH_SIZE) {
     const batch = symbols.slice(i, i + EMBED_BATCH_SIZE);
     const texts = batch.map((symbol) =>
@@ -103,11 +107,26 @@ async function embedStructural(
         resolvedReturnType: symbol.resolved_return_type,
       }),
     );
-    const embeddings = await embedder.embed(texts);
 
+    if (pendingEmbed) {
+      const embeddings = await pendingEmbed;
+      db.transaction(() => {
+        for (let j = 0; j < pendingBatch.length; j++) {
+          const sym = pendingBatch[j];
+          if (sym) insertEmbed.run(sym.id, JSON.stringify(embeddings[j]));
+        }
+      })();
+    }
+
+    pendingEmbed = embedder.embed(texts);
+    pendingBatch = batch;
+  }
+
+  if (pendingEmbed) {
+    const embeddings = await pendingEmbed;
     db.transaction(() => {
-      for (let j = 0; j < batch.length; j++) {
-        const sym = batch[j];
+      for (let j = 0; j < pendingBatch.length; j++) {
+        const sym = pendingBatch[j];
         if (sym) insertEmbed.run(sym.id, JSON.stringify(embeddings[j]));
       }
     })();
@@ -148,17 +167,34 @@ async function embedDocumentation(
     'INSERT OR REPLACE INTO doc_section_embeddings(rowid, embedding) VALUES (CAST(? AS INTEGER), json(?))',
   );
 
+  // P4: Pipeline — start embedding the next batch while writing the current one.
+  let pendingEmbed: Promise<number[][]> | null = null;
+  let pendingBatch: typeof sections = [];
+
   for (let i = 0; i < sections.length; i += EMBED_BATCH_SIZE) {
     const batch = sections.slice(i, i + EMBED_BATCH_SIZE);
     const texts = batch.map(section => section.content || section.title);
-    const embeddings = await embedder.embed(texts);
 
-    db.transaction(() => {
-      for (let j = 0; j < batch.length; j++) {
-        const section = batch[j];
-        if (section) {
-          insertEmbed.run(section.id, JSON.stringify(embeddings[j]));
+    if (pendingEmbed) {
+      const embeddings = await pendingEmbed;
+      db.transaction(() => {
+        for (let j = 0; j < pendingBatch.length; j++) {
+          const section = pendingBatch[j];
+          if (section) insertEmbed.run(section.id, JSON.stringify(embeddings[j]));
         }
+      })();
+    }
+
+    pendingEmbed = embedder.embed(texts);
+    pendingBatch = batch;
+  }
+
+  if (pendingEmbed) {
+    const embeddings = await pendingEmbed;
+    db.transaction(() => {
+      for (let j = 0; j < pendingBatch.length; j++) {
+        const section = pendingBatch[j];
+        if (section) insertEmbed.run(section.id, JSON.stringify(embeddings[j]));
       }
     })();
   }
@@ -184,16 +220,33 @@ async function embedCommitMessages(
     'INSERT OR REPLACE INTO commit_embeddings(rowid, embedding) VALUES (CAST(? AS INTEGER), json(?))',
   );
 
+  // P4: Pipeline — start embedding the next batch while writing the current one.
+  let pendingEmbed: Promise<number[][]> | null = null;
+  let pendingBatch: typeof commits = [];
+
   for (let i = 0; i < commits.length; i += EMBED_BATCH_SIZE) {
     const batch = commits.slice(i, i + EMBED_BATCH_SIZE);
-    const embeddings = await embedder.embed(batch.map((commit) => commit.message));
 
-    db.transaction(() => {
-      for (let j = 0; j < batch.length; j++) {
-        const commit = batch[j];
-        if (commit) {
-          insertEmbed.run(commit.rowid, JSON.stringify(embeddings[j]));
+    if (pendingEmbed) {
+      const embeddings = await pendingEmbed;
+      db.transaction(() => {
+        for (let j = 0; j < pendingBatch.length; j++) {
+          const commit = pendingBatch[j];
+          if (commit) insertEmbed.run(commit.rowid, JSON.stringify(embeddings[j]));
         }
+      })();
+    }
+
+    pendingEmbed = embedder.embed(batch.map((commit) => commit.message));
+    pendingBatch = batch;
+  }
+
+  if (pendingEmbed) {
+    const embeddings = await pendingEmbed;
+    db.transaction(() => {
+      for (let j = 0; j < pendingBatch.length; j++) {
+        const commit = pendingBatch[j];
+        if (commit) insertEmbed.run(commit.rowid, JSON.stringify(embeddings[j]));
       }
     })();
   }
