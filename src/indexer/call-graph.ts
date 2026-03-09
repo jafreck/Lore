@@ -4,10 +4,9 @@
  * Call-graph and cross-reference resolution utilities operating on the
  * SQLite knowledge-base:
  *
- *  - `resolveSymbolEdges(db)` — resolves raw names in `symbol_refs`,
- *    `type_refs`, and `symbol_relationships` to concrete symbol IDs.
- *  - `normalizeTypeName(raw)` — strips qualifiers/generics/pointers to
- *    produce a bare type name for fallback matching.
+ *  - `resolveSymbolEdges(db)` — resolves unresolved edges in `symbol_refs`,
+ *    `type_refs`, and `symbol_relationships` using LSP-provided
+ *    `definition_path` + `definition_line` for precise matching.
  *  - `topoSort(db)` — topological ordering of files based on `file_imports`
  *    using Kahn's algorithm.
  *  - `detectCycles(db)` — cycle detection over the `file_imports` graph using
@@ -16,114 +15,46 @@
 
 import type { Database } from './db.js';
 
-// ─── normalizeTypeName ────────────────────────────────────────────────────────
-
-/**
- * Produces a bare type name from a raw type reference for fallback matching.
- *
- * Steps:
- * 1. Strip CV qualifiers
- * 2. Strip type-intro keywords (struct, enum, union, class)
- * 3. Strip Rust reference/lifetime syntax
- * 4. Strip pointer/reference suffixes
- * 5. Truncate at first `<`
- * 6. Take the last segment after `::` or `.`
- * 7. Trim whitespace
- */
-export function normalizeTypeName(raw: string): string {
-  let s = raw;
-  // 1. Strip CV qualifiers (word-bounded)
-  s = s.replace(/\b(const|volatile|restrict|mutable)\b/g, '');
-  // 2. Strip type-intro keywords (word-bounded)
-  s = s.replace(/\b(struct|enum|union|class)\b/g, '');
-  // 3. Strip Rust reference/lifetime syntax: &'lifetime_name, &mut, &
-  s = s.replace(/^&'[a-zA-Z_]\w*\s+(mut\s+)?/, '');
-  s = s.replace(/^&mut\s+/, '');
-  s = s.replace(/^&/, '');
-  // 4. Strip pointer/reference suffixes
-  s = s.replace(/[\*&\[\]]+$/, '');
-  // 4b. Function pointer syntax — if there's a remaining (*) pattern, it's not a named type
-  if (/\(\s*\*\s*\)/.test(s)) return '';
-  // 5. Truncate at first `<`
-  const ltIdx = s.indexOf('<');
-  if (ltIdx !== -1) s = s.slice(0, ltIdx);
-  // 6. Take last segment after `::` or `.`
-  const colonIdx = s.lastIndexOf('::');
-  if (colonIdx !== -1) {
-    s = s.slice(colonIdx + 2);
-  } else {
-    const dotIdx = s.lastIndexOf('.');
-    if (dotIdx !== -1) s = s.slice(dotIdx + 1);
-  }
-  // 7. Trim
-  return s.trim();
-}
-
 // ─── resolveSymbolEdges ───────────────────────────────────────────────────────
 
 /**
  * Resolves unresolved edges in `symbol_refs`, `type_refs`, and
- * `symbol_relationships` using name-based and definition-path-based passes.
+ * `symbol_relationships` using LSP-provided definition paths and lines.
  *
- * Replaces the old `buildCallGraph()`.
+ * For each unresolved row with a non-null `definition_path`, finds the symbol
+ * in that file whose `start_line` is closest to the LSP-reported
+ * `definition_line`.  When `definition_line` is unavailable, falls back to
+ * the first symbol in the file (lowest `start_line`).
  */
 export function resolveSymbolEdges(db: Database.Database): void {
-  const nameToSymbols = buildNameMap(db);
-  const pathToSymbols = buildPathMap(db);
+  const pathLineMap = buildPathLineMap(db);
 
-  // ── symbol_refs: name-based, then definition-path ──
-  resolveByNameGeneric(nameToSymbols, {
+  // ── symbol_refs ──
+  resolveByDefinitionPath(pathLineMap, {
     selectUnresolved: db.prepare(
-      `SELECT sr.id, sr.callee_name AS target_name, s.file_id AS source_file_id
-       FROM symbol_refs sr JOIN symbols s ON s.id = sr.caller_id
-       WHERE sr.callee_id IS NULL`,
-    ),
-    update: db.prepare('UPDATE symbol_refs SET callee_id = ? WHERE id = ?'),
-  });
-  resolveByDefinitionPathGeneric(pathToSymbols, {
-    selectUnresolved: db.prepare(
-      `SELECT id, definition_path FROM symbol_refs WHERE callee_id IS NULL AND definition_path IS NOT NULL`,
+      `SELECT id, definition_path, definition_line
+       FROM symbol_refs
+       WHERE callee_id IS NULL AND definition_path IS NOT NULL`,
     ),
     update: db.prepare('UPDATE symbol_refs SET callee_id = ? WHERE id = ?'),
   });
 
-  // ── type_refs: qualified name first, then bare fallback ──
-  resolveByNameGeneric(nameToSymbols, {
+  // ── type_refs ──
+  resolveByDefinitionPath(pathLineMap, {
     selectUnresolved: db.prepare(
-      `SELECT tr.id, tr.type_name AS target_name, COALESCE(s.file_id, tr.file_id) AS source_file_id
-       FROM type_refs tr LEFT JOIN symbols s ON s.id = tr.symbol_id
-       WHERE tr.type_id IS NULL`,
-    ),
-    update: db.prepare('UPDATE type_refs SET type_id = ? WHERE id = ?'),
-  });
-  resolveByNameGeneric(nameToSymbols, {
-    selectUnresolved: db.prepare(
-      `SELECT tr.id, tr.type_name_bare AS target_name, COALESCE(s.file_id, tr.file_id) AS source_file_id
-       FROM type_refs tr LEFT JOIN symbols s ON s.id = tr.symbol_id
-       WHERE tr.type_id IS NULL AND tr.type_name_bare != tr.type_name`,
-    ),
-    update: db.prepare('UPDATE type_refs SET type_id = ? WHERE id = ?'),
-  });
-  resolveByDefinitionPathGeneric(pathToSymbols, {
-    selectUnresolved: db.prepare(
-      `SELECT id, definition_path FROM type_refs WHERE type_id IS NULL AND definition_path IS NOT NULL`,
+      `SELECT id, definition_path, definition_line
+       FROM type_refs
+       WHERE type_id IS NULL AND definition_path IS NOT NULL`,
     ),
     update: db.prepare('UPDATE type_refs SET type_id = ? WHERE id = ?'),
   });
 
   // ── symbol_relationships ──
-  resolveByNameGeneric(nameToSymbols, {
+  resolveByDefinitionPath(pathLineMap, {
     selectUnresolved: db.prepare(
-      `SELECT sr.id, sr.target_symbol_name AS target_name, COALESCE(s.file_id, sr.file_id) AS source_file_id
-       FROM symbol_relationships sr LEFT JOIN symbols s ON s.id = sr.source_symbol_id
-       WHERE sr.target_symbol_id IS NULL`,
-    ),
-    update: db.prepare('UPDATE symbol_relationships SET target_symbol_id = ? WHERE id = ?'),
-    normalizeTargetName: normalizeTypeName,
-  });
-  resolveByDefinitionPathGeneric(pathToSymbols, {
-    selectUnresolved: db.prepare(
-      `SELECT id, definition_path FROM symbol_relationships WHERE target_symbol_id IS NULL AND definition_path IS NOT NULL`,
+      `SELECT id, definition_path, definition_line
+       FROM symbol_relationships
+       WHERE target_symbol_id IS NULL AND definition_path IS NOT NULL`,
     ),
     update: db.prepare('UPDATE symbol_relationships SET target_symbol_id = ? WHERE id = ?'),
   });
@@ -134,26 +65,12 @@ export function buildCallGraph(db: Database.Database): void {
   resolveSymbolEdges(db);
 }
 
-// ─── Shared lookup maps ───────────────────────────────────────────────────────
+// ─── Lookup map ─────────────────────────────────────────────────────────────
 
-function buildNameMap(db: Database.Database): Map<string, Array<{ id: number; file_id: number }>> {
-  const nameToSymbols = new Map<string, Array<{ id: number; file_id: number }>>();
-  const allSymbols = db
-    .prepare('SELECT id, name, file_id FROM symbols')
-    .all() as Array<{ id: number; name: string; file_id: number }>;
-  for (const row of allSymbols) {
-    let list = nameToSymbols.get(row.name);
-    if (!list) {
-      list = [];
-      nameToSymbols.set(row.name, list);
-    }
-    list.push({ id: row.id, file_id: row.file_id });
-  }
-  return nameToSymbols;
-}
-
-function buildPathMap(db: Database.Database): Map<string, Array<{ id: number; start_line: number }>> {
-  const pathToSymbols = new Map<string, Array<{ id: number; start_line: number }>>();
+function buildPathLineMap(
+  db: Database.Database,
+): Map<string, Array<{ id: number; start_line: number }>> {
+  const map = new Map<string, Array<{ id: number; start_line: number }>>();
   const allSymbols = db
     .prepare(
       `SELECT s.id, s.start_line, f.path
@@ -162,67 +79,41 @@ function buildPathMap(db: Database.Database): Map<string, Array<{ id: number; st
     )
     .all() as Array<{ id: number; start_line: number; path: string }>;
   for (const row of allSymbols) {
-    let list = pathToSymbols.get(row.path);
+    let list = map.get(row.path);
     if (!list) {
       list = [];
-      pathToSymbols.set(row.path, list);
+      map.set(row.path, list);
     }
     list.push({ id: row.id, start_line: row.start_line });
   }
-  return pathToSymbols;
+  return map;
 }
 
-// ─── Generic resolution helpers ─────────────────────────────────────────────
+// ─── Resolution helper ──────────────────────────────────────────────────────
 
 interface ResolutionConfig {
   selectUnresolved: Database.Statement;
   update: Database.Statement;
-  normalizeTargetName?: (raw: string) => string;
 }
 
-function resolveByNameGeneric(
-  nameToSymbols: Map<string, Array<{ id: number; file_id: number }>>,
-  config: ResolutionConfig,
-): void {
-  const unresolved = config.selectUnresolved.all() as Array<{
-    id: number;
-    target_name: string;
-    source_file_id: number;
-  }>;
-
-  const updateMany = () => {
-    for (const ref of unresolved) {
-      let candidates = nameToSymbols.get(ref.target_name);
-      if ((!candidates || candidates.length === 0) && config.normalizeTargetName) {
-        const normalized = config.normalizeTargetName(ref.target_name);
-        if (normalized && normalized !== ref.target_name) {
-          candidates = nameToSymbols.get(normalized);
-        }
-      }
-      if (!candidates || candidates.length === 0) continue;
-
-      const sameFile = candidates.find(c => c.file_id === ref.source_file_id);
-      const best = sameFile ?? candidates[0]!;
-      config.update.run(best.id, ref.id);
-    }
-  };
-
-  updateMany();
-}
-
-function resolveByDefinitionPathGeneric(
-  pathToSymbols: Map<string, Array<{ id: number; start_line: number }>>,
+/**
+ * Resolves unresolved rows by matching `definition_path` + `definition_line`
+ * to the closest symbol (by `start_line`) in the target file.
+ */
+function resolveByDefinitionPath(
+  pathLineMap: Map<string, Array<{ id: number; start_line: number }>>,
   config: ResolutionConfig,
 ): void {
   const unresolved = config.selectUnresolved.all() as Array<{
     id: number;
     definition_path: string;
+    definition_line: number | null;
   }>;
 
   if (unresolved.length === 0) return;
 
   for (const ref of unresolved) {
-    const candidates = pathToSymbols.get(ref.definition_path);
+    const candidates = pathLineMap.get(ref.definition_path);
     if (!candidates || candidates.length === 0) continue;
 
     if (candidates.length === 1) {
@@ -230,8 +121,23 @@ function resolveByDefinitionPathGeneric(
       continue;
     }
 
-    const sorted = [...candidates].sort((a, b) => a.start_line - b.start_line);
-    config.update.run(sorted[0]!.id, ref.id);
+    // When definition_line is available, pick the symbol closest by start_line.
+    // Otherwise fall back to the first symbol in the file (lowest start_line).
+    if (ref.definition_line != null) {
+      let bestId = candidates[0]!.id;
+      let bestDist = Math.abs(candidates[0]!.start_line - ref.definition_line);
+      for (let i = 1; i < candidates.length; i++) {
+        const dist = Math.abs(candidates[i]!.start_line - ref.definition_line);
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestId = candidates[i]!.id;
+        }
+      }
+      config.update.run(bestId, ref.id);
+    } else {
+      const sorted = [...candidates].sort((a, b) => a.start_line - b.start_line);
+      config.update.run(sorted[0]!.id, ref.id);
+    }
   }
 }
 

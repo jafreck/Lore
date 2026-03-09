@@ -498,8 +498,8 @@ describe('graph handler – kind=type_dependency', () => {
     symbolId = insertSymbol(db, fileId, 'process');
     const targetId = insertSymbol(db, fileId, 'MyStruct', 'struct');
     db.prepare(
-      `INSERT INTO type_refs (file_id, symbol_id, type_id, type_name, type_name_bare, ref_kind, ref_line)
-       VALUES (?, ?, ?, 'MyStruct', 'MyStruct', 'parameter', 5)`,
+      `INSERT INTO type_refs (file_id, symbol_id, type_id, type_name, ref_kind, ref_line)
+       VALUES (?, ?, ?, 'MyStruct', 'parameter', 5)`,
     ).run(fileId, symbolId, targetId);
   });
 

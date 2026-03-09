@@ -72,6 +72,7 @@ describe('IndexBuilder LSP indexing flow', () => {
             resolvedReturnType: 'ResolvedReturnType',
             definitionUri: `file://${defsPath}`,
             definitionPath: defsPath,
+            definitionLine: null,
           }));
         });
 

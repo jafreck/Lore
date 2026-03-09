@@ -75,6 +75,7 @@ describe('LspEnrichmentCoordinator', () => {
       resolvedReturnType: 'string',
       definitionUri,
       definitionPath: join(rootDir, 'defs.ts'),
+      definitionLine: null,
     });
     expect(metadata[1]).toEqual(metadata[0]);
 
@@ -129,12 +130,14 @@ describe('LspEnrichmentCoordinator', () => {
       resolvedReturnType: null,
       definitionUri: firstUri,
       definitionPath: join(rootDir, 'first.ts'),
+      definitionLine: null,
     });
     expect(metadata[1]).toEqual({
       resolvedTypeSignature: 'const value: number',
       resolvedReturnType: 'number',
       definitionUri: null,
       definitionPath: null,
+      definitionLine: null,
     });
 
     rmSync(executableDir, { recursive: true, force: true });
@@ -267,6 +270,7 @@ describe('hasResolvedTypeMetadata', () => {
         resolvedReturnType: null,
         definitionUri: null,
         definitionPath: null,
+        definitionLine: null,
       }),
     ).toBe(false);
   });
@@ -278,6 +282,7 @@ describe('hasResolvedTypeMetadata', () => {
         resolvedReturnType: null,
         definitionUri: null,
         definitionPath: null,
+        definitionLine: null,
       }),
     ).toBe(true);
     expect(
@@ -286,6 +291,7 @@ describe('hasResolvedTypeMetadata', () => {
         resolvedReturnType: 'string',
         definitionUri: null,
         definitionPath: null,
+        definitionLine: null,
       }),
     ).toBe(true);
     expect(
@@ -294,6 +300,7 @@ describe('hasResolvedTypeMetadata', () => {
         resolvedReturnType: null,
         definitionUri: 'file:///tmp/file.ts',
         definitionPath: null,
+        definitionLine: null,
       }),
     ).toBe(true);
     expect(
@@ -302,6 +309,7 @@ describe('hasResolvedTypeMetadata', () => {
         resolvedReturnType: null,
         definitionUri: null,
         definitionPath: '/tmp/file.ts',
+        definitionLine: null,
       }),
     ).toBe(true);
   });

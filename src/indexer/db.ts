@@ -87,7 +87,8 @@ CREATE TABLE IF NOT EXISTS symbol_refs (
   resolved_type_signature TEXT,
   resolved_return_type TEXT,
   definition_uri TEXT,
-  definition_path TEXT
+  definition_path TEXT,
+  definition_line INTEGER
 );
 
 -- Semantic relationships between symbols (extends, implements, etc.).
@@ -100,7 +101,8 @@ CREATE TABLE IF NOT EXISTS symbol_relationships (
   relationship_type  TEXT    NOT NULL,
   line               INTEGER NOT NULL,
   definition_uri     TEXT,
-  definition_path    TEXT
+  definition_path    TEXT,
+  definition_line    INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_symbol_rels_source ON symbol_relationships(source_symbol_id);
 CREATE INDEX IF NOT EXISTS idx_symbol_rels_type ON symbol_relationships(relationship_type);
@@ -113,16 +115,15 @@ CREATE TABLE IF NOT EXISTS type_refs (
   symbol_id               INTEGER REFERENCES symbols(id) ON DELETE CASCADE,
   type_id                 INTEGER REFERENCES symbols(id),
   type_name               TEXT    NOT NULL,
-  type_name_bare          TEXT    NOT NULL,
   ref_kind                TEXT    NOT NULL DEFAULT 'other',
   ref_line                INTEGER NOT NULL,
   ref_character           INTEGER,
   resolved_type_signature TEXT,
   definition_uri          TEXT,
-  definition_path         TEXT
+  definition_path         TEXT,
+  definition_line         INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_type_refs_type_name ON type_refs(type_name);
-CREATE INDEX IF NOT EXISTS idx_type_refs_type_name_bare ON type_refs(type_name_bare);
 CREATE INDEX IF NOT EXISTS idx_type_refs_symbol_id ON type_refs(symbol_id);
 CREATE INDEX IF NOT EXISTS idx_type_refs_file_id ON type_refs(file_id);
 
