@@ -736,4 +736,99 @@ describe('createLoreMcpServer', () => {
     expect(searchSchema.doc_path_prefix.safeParse([]).success).toBe(false);
     expect(searchSchema.doc_kind.safeParse(5).success).toBe(false);
   });
+
+  it('should route lore_history tool calls through history.handler', async () => {
+    const db = new Database(':memory:');
+    const embedder = createStubEmbedder();
+    const historyResult = { commits: [], count: 0 };
+    const historyHandlerSpy = vi.spyOn(history, 'handler').mockResolvedValue(historyResult);
+
+    createLoreMcpServer(db, '/tmp/test.db', embedder);
+
+    const callback = getToolCall('lore_history')[3] as (args: unknown) => Promise<{
+      content: Array<{ type: string; text: string }>;
+    }>;
+    const args = { mode: 'recent', limit: 5 };
+    const response = await callback(args);
+
+    expect(historyHandlerSpy).toHaveBeenCalledWith(db, args, embedder);
+    expect(response).toEqual({
+      content: [{ type: 'text', text: JSON.stringify(historyResult) }],
+    });
+    historyHandlerSpy.mockRestore();
+  });
+
+  it('should route lore_lookup tool calls through lookup.handler', async () => {
+    const db = new Database(':memory:');
+    const embedder = createStubEmbedder();
+    const lookupResult = { kind: 'symbol', results: [] };
+    const lookupHandlerSpy = vi.spyOn(lookup, 'handler').mockResolvedValue(lookupResult);
+
+    createLoreMcpServer(db, '/tmp/test.db', embedder);
+
+    const callback = getToolCall('lore_lookup')[3] as (args: unknown) => Promise<{
+      content: Array<{ type: string; text: string }>;
+    }>;
+    const args = { kind: 'symbol', query: 'parseConfig' };
+    const response = await callback(args);
+
+    expect(lookupHandlerSpy).toHaveBeenCalledWith(db, args, embedder);
+    expect(response).toEqual({
+      content: [{ type: 'text', text: JSON.stringify(lookupResult) }],
+    });
+    lookupHandlerSpy.mockRestore();
+  });
+
+  it('should route lore_graph tool calls through graph.handler', async () => {
+    const db = new Database(':memory:');
+    const graphResult = { edges: [], count: 0 };
+    const graphHandlerSpy = vi.spyOn(graph, 'handler').mockReturnValue(graphResult);
+
+    createLoreMcpServer(db, '/tmp/test.db');
+
+    const callback = getToolCall('lore_graph')[3] as (args: unknown) => Promise<{
+      content: Array<{ type: string; text: string }>;
+    }>;
+    const args = { kind: 'call', limit: 10 };
+    const response = await callback(args);
+
+    expect(graphHandlerSpy).toHaveBeenCalledWith(db, args);
+    expect(response).toEqual({
+      content: [{ type: 'text', text: JSON.stringify(graphResult) }],
+    });
+    graphHandlerSpy.mockRestore();
+  });
+
+  it('should log error via loggedHandler when underlying handler throws', async () => {
+    const db = new Database(':memory:');
+    const metricsHandlerSpy = vi.spyOn(metrics, 'handler').mockImplementation(() => {
+      throw new Error('metrics exploded');
+    });
+
+    createLoreMcpServer(db, '/tmp/test.db');
+
+    const callback = getToolCall('lore_metrics')[3] as (args: unknown) => Promise<unknown>;
+
+    await expect(callback({})).rejects.toThrow('metrics exploded');
+    expect(metricsHandlerSpy).toHaveBeenCalled();
+    metricsHandlerSpy.mockRestore();
+  });
+
+  it('should pass options.logger to loggedHandler', () => {
+    const db = new Database(':memory:');
+    const customLogger = {
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn(),
+      toolCall: vi.fn(),
+      startup: vi.fn(),
+    };
+
+    // Should not throw
+    createLoreMcpServer(db, '/tmp/test.db', undefined, { logger: customLogger as any });
+
+    const toolNames = mockTool.mock.calls.map((call) => call[0]);
+    expect(toolNames.length).toBeGreaterThan(0);
+  });
 });

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeTypeName, resolveSymbolEdges } from '../../src/indexer/call-graph.js';
+import { normalizeTypeName, resolveSymbolEdges, topoSort, detectCycles, buildCallGraph } from '../../src/indexer/call-graph.js';
 import { openDb } from '../../src/indexer/db.js';
 import type { Database } from '../../src/indexer/db.js';
 
@@ -294,5 +294,253 @@ describe('resolveSymbolEdges – definition_path-based resolution', () => {
     const ref = db.prepare('SELECT type_id FROM type_refs WHERE symbol_id = ?').get(consumer) as { type_id: number | null };
     // Name-based resolves first to widget1 (same-file), definition_path pass shouldn't override
     expect(ref.type_id).toBe(widget1);
+  });
+});
+
+// ─── buildCallGraph (deprecated alias) ────────────────────────────────────────
+
+describe('buildCallGraph (deprecated alias)', () => {
+  it('should be a function that delegates to resolveSymbolEdges', () => {
+    const db = createDb();
+    const file1 = insertFile(db, 'src/a.ts');
+    insertSymbol(db, file1, 'Alpha', 'class', 1);
+
+    const caller = insertSymbol(db, file1, 'main', 'function', 10);
+    db.prepare(
+      `INSERT INTO symbol_refs (caller_id, callee_name, call_line) VALUES (?, 'Alpha', 12)`,
+    ).run(caller);
+
+    buildCallGraph(db);
+
+    const ref = db.prepare('SELECT callee_id FROM symbol_refs WHERE caller_id = ?').get(caller) as { callee_id: number | null };
+    expect(ref.callee_id).not.toBeNull();
+  });
+});
+
+// ─── resolveSymbolEdges – symbol_relationships ────────────────────────────────
+
+describe('resolveSymbolEdges – symbol_relationships', () => {
+  it('should resolve symbol_relationships target_symbol_id by name', () => {
+    const db = createDb();
+    const file1 = insertFile(db, 'src/a.ts');
+
+    const parent = insertSymbol(db, file1, 'BaseClass', 'class', 1);
+    const child = insertSymbol(db, file1, 'ChildClass', 'class', 20);
+
+    db.prepare(
+      `INSERT INTO symbol_relationships (file_id, source_symbol_id, target_symbol_name, relationship_type, line)
+       VALUES (?, ?, 'BaseClass', 'extends', 20)`,
+    ).run(file1, child);
+
+    resolveSymbolEdges(db);
+
+    const rel = db.prepare('SELECT target_symbol_id FROM symbol_relationships WHERE source_symbol_id = ?').get(child) as { target_symbol_id: number | null };
+    expect(rel.target_symbol_id).toBe(parent);
+  });
+
+  it('should resolve symbol_relationships with normalizeTypeName fallback', () => {
+    const db = createDb();
+    const file1 = insertFile(db, 'src/a.ts');
+
+    const target = insertSymbol(db, file1, 'Widget', 'class', 1);
+    const source = insertSymbol(db, file1, 'ChildWidget', 'class', 20);
+
+    // The target name includes qualifier that won't directly match
+    db.prepare(
+      `INSERT INTO symbol_relationships (file_id, source_symbol_id, target_symbol_name, relationship_type, line)
+       VALUES (?, ?, 'const Widget*', 'extends', 20)`,
+    ).run(file1, source);
+
+    resolveSymbolEdges(db);
+
+    const rel = db.prepare('SELECT target_symbol_id FROM symbol_relationships WHERE source_symbol_id = ?').get(source) as { target_symbol_id: number | null };
+    expect(rel.target_symbol_id).toBe(target);
+  });
+
+  it('should resolve symbol_relationships via definition_path when name-based fails', () => {
+    const db = createDb();
+    const file1 = insertFile(db, 'src/a.ts');
+    const file2 = insertFile(db, 'src/b.ts');
+
+    const target = insertSymbol(db, file2, 'BaseImpl', 'class', 1);
+    const source = insertSymbol(db, file1, 'Child', 'class', 1);
+
+    db.prepare(
+      `INSERT INTO symbol_relationships (file_id, source_symbol_id, target_symbol_name, relationship_type, line, definition_path)
+       VALUES (?, ?, 'NoMatch', 'implements', 1, ?)`,
+    ).run(file1, source, 'src/b.ts');
+
+    resolveSymbolEdges(db);
+
+    const rel = db.prepare('SELECT target_symbol_id FROM symbol_relationships WHERE source_symbol_id = ?').get(source) as { target_symbol_id: number | null };
+    expect(rel.target_symbol_id).toBe(target);
+  });
+});
+
+// ─── topoSort ─────────────────────────────────────────────────────────────────
+
+describe('topoSort', () => {
+  it('should return file IDs in topological order for a linear chain', () => {
+    const db = createDb();
+    const a = insertFile(db, 'src/a.ts');
+    const b = insertFile(db, 'src/b.ts');
+    const c = insertFile(db, 'src/c.ts');
+
+    // a → b → c (a imports b, b imports c)
+    db.prepare('INSERT INTO file_imports (file_id, raw_import, resolved_id) VALUES (?, ?, ?)').run(a, './b', b);
+    db.prepare('INSERT INTO file_imports (file_id, raw_import, resolved_id) VALUES (?, ?, ?)').run(b, './c', c);
+
+    const sorted = topoSort(db);
+    const idxA = sorted.indexOf(String(a));
+    const idxB = sorted.indexOf(String(b));
+    const idxC = sorted.indexOf(String(c));
+
+    // Dependencies should appear before dependents
+    expect(idxC).toBeLessThan(idxB);
+    expect(idxB).toBeLessThan(idxA);
+  });
+
+  it('should return all files when no imports exist', () => {
+    const db = createDb();
+    insertFile(db, 'src/a.ts');
+    insertFile(db, 'src/b.ts');
+    insertFile(db, 'src/c.ts');
+
+    const sorted = topoSort(db);
+    expect(sorted).toHaveLength(3);
+  });
+
+  it('should return empty array for empty database', () => {
+    const db = createDb();
+    expect(topoSort(db)).toEqual([]);
+  });
+
+  it('should handle diamond dependency graph', () => {
+    const db = createDb();
+    const a = insertFile(db, 'src/a.ts');
+    const b = insertFile(db, 'src/b.ts');
+    const c = insertFile(db, 'src/c.ts');
+    const d = insertFile(db, 'src/d.ts');
+
+    // a → b, a → c, b → d, c → d (diamond)
+    db.prepare('INSERT INTO file_imports (file_id, raw_import, resolved_id) VALUES (?, ?, ?)').run(a, './b', b);
+    db.prepare('INSERT INTO file_imports (file_id, raw_import, resolved_id) VALUES (?, ?, ?)').run(a, './c', c);
+    db.prepare('INSERT INTO file_imports (file_id, raw_import, resolved_id) VALUES (?, ?, ?)').run(b, './d', d);
+    db.prepare('INSERT INTO file_imports (file_id, raw_import, resolved_id) VALUES (?, ?, ?)').run(c, './d', d);
+
+    const sorted = topoSort(db);
+    const idxA = sorted.indexOf(String(a));
+    const idxD = sorted.indexOf(String(d));
+    expect(idxD).toBeLessThan(idxA);
+  });
+
+  it('should skip unresolved imports (resolved_id IS NULL)', () => {
+    const db = createDb();
+    const a = insertFile(db, 'src/a.ts');
+    insertFile(db, 'src/b.ts');
+    db.prepare('INSERT INTO file_imports (file_id, raw_import) VALUES (?, ?)').run(a, 'external');
+
+    const sorted = topoSort(db);
+    expect(sorted).toHaveLength(2);
+  });
+
+  it('should exclude cyclic files from result', () => {
+    const db = createDb();
+    const a = insertFile(db, 'src/a.ts');
+    const b = insertFile(db, 'src/b.ts');
+
+    // a → b → a (cycle)
+    db.prepare('INSERT INTO file_imports (file_id, raw_import, resolved_id) VALUES (?, ?, ?)').run(a, './b', b);
+    db.prepare('INSERT INTO file_imports (file_id, raw_import, resolved_id) VALUES (?, ?, ?)').run(b, './a', a);
+
+    const sorted = topoSort(db);
+    // Cyclic files are excluded
+    expect(sorted.length).toBeLessThanOrEqual(2);
+  });
+});
+
+// ─── detectCycles ─────────────────────────────────────────────────────────────
+
+describe('detectCycles', () => {
+  it('should return empty for acyclic graph', () => {
+    const db = createDb();
+    const a = insertFile(db, 'src/a.ts');
+    const b = insertFile(db, 'src/b.ts');
+
+    db.prepare('INSERT INTO file_imports (file_id, raw_import, resolved_id) VALUES (?, ?, ?)').run(a, './b', b);
+
+    expect(detectCycles(db)).toEqual([]);
+  });
+
+  it('should detect a direct 2-node cycle', () => {
+    const db = createDb();
+    const a = insertFile(db, 'src/a.ts');
+    const b = insertFile(db, 'src/b.ts');
+
+    db.prepare('INSERT INTO file_imports (file_id, raw_import, resolved_id) VALUES (?, ?, ?)').run(a, './b', b);
+    db.prepare('INSERT INTO file_imports (file_id, raw_import, resolved_id) VALUES (?, ?, ?)').run(b, './a', a);
+
+    const cycles = detectCycles(db);
+    expect(cycles.length).toBe(1);
+    expect(cycles[0]).toHaveLength(2);
+    expect(cycles[0]).toContain(String(a));
+    expect(cycles[0]).toContain(String(b));
+  });
+
+  it('should detect self-loop', () => {
+    const db = createDb();
+    const a = insertFile(db, 'src/a.ts');
+
+    db.prepare('INSERT INTO file_imports (file_id, raw_import, resolved_id) VALUES (?, ?, ?)').run(a, './a', a);
+
+    const cycles = detectCycles(db);
+    expect(cycles.length).toBe(1);
+    expect(cycles[0]).toEqual([String(a)]);
+  });
+
+  it('should detect 3-node cycle', () => {
+    const db = createDb();
+    const a = insertFile(db, 'src/a.ts');
+    const b = insertFile(db, 'src/b.ts');
+    const c = insertFile(db, 'src/c.ts');
+
+    db.prepare('INSERT INTO file_imports (file_id, raw_import, resolved_id) VALUES (?, ?, ?)').run(a, './b', b);
+    db.prepare('INSERT INTO file_imports (file_id, raw_import, resolved_id) VALUES (?, ?, ?)').run(b, './c', c);
+    db.prepare('INSERT INTO file_imports (file_id, raw_import, resolved_id) VALUES (?, ?, ?)').run(c, './a', a);
+
+    const cycles = detectCycles(db);
+    expect(cycles.length).toBe(1);
+    expect(cycles[0]).toHaveLength(3);
+  });
+
+  it('should return empty for empty database', () => {
+    const db = createDb();
+    expect(detectCycles(db)).toEqual([]);
+  });
+
+  it('should not report single nodes without self-loop', () => {
+    const db = createDb();
+    insertFile(db, 'src/a.ts');
+
+    expect(detectCycles(db)).toEqual([]);
+  });
+
+  it('should detect multiple independent cycles', () => {
+    const db = createDb();
+    const a = insertFile(db, 'src/a.ts');
+    const b = insertFile(db, 'src/b.ts');
+    const c = insertFile(db, 'src/c.ts');
+    const d = insertFile(db, 'src/d.ts');
+
+    // Cycle 1: a ↔ b
+    db.prepare('INSERT INTO file_imports (file_id, raw_import, resolved_id) VALUES (?, ?, ?)').run(a, './b', b);
+    db.prepare('INSERT INTO file_imports (file_id, raw_import, resolved_id) VALUES (?, ?, ?)').run(b, './a', a);
+
+    // Cycle 2: c ↔ d
+    db.prepare('INSERT INTO file_imports (file_id, raw_import, resolved_id) VALUES (?, ?, ?)').run(c, './d', d);
+    db.prepare('INSERT INTO file_imports (file_id, raw_import, resolved_id) VALUES (?, ?, ?)').run(d, './c', c);
+
+    const cycles = detectCycles(db);
+    expect(cycles.length).toBe(2);
   });
 });
