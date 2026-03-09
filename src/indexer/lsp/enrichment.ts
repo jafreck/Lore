@@ -8,6 +8,7 @@ export interface ResolvedTypeMetadata {
   resolvedReturnType: string | null;
   definitionUri: string | null;
   definitionPath: string | null;
+  definitionLine: number | null;
 }
 
 export interface LspEnrichmentTarget {
@@ -176,12 +177,13 @@ export function hasResolvedTypeMetadata(metadata: ResolvedTypeMetadata): boolean
 function toResolvedTypeMetadata(hoverResult: unknown, definitionResult: unknown): ResolvedTypeMetadata {
   const resolvedTypeSignature = extractHoverText(hoverResult);
   const resolvedReturnType = extractReturnType(resolvedTypeSignature);
-  const definitionUri = extractDefinitionUri(definitionResult);
+  const defLocation = extractDefinitionLocation(definitionResult);
   return {
     resolvedTypeSignature,
     resolvedReturnType,
-    definitionUri,
-    definitionPath: definitionUriToPath(definitionUri),
+    definitionUri: defLocation.uri,
+    definitionPath: definitionUriToPath(defLocation.uri),
+    definitionLine: defLocation.line,
   };
 }
 
@@ -228,20 +230,50 @@ function extractReturnType(signature: string | null): string | null {
   return null;
 }
 
-function extractDefinitionUri(definitionResult: unknown): string | null {
-  if (!definitionResult) return null;
+interface DefinitionLocation {
+  uri: string | null;
+  line: number | null;
+}
+
+function extractDefinitionLocation(definitionResult: unknown): DefinitionLocation {
+  const empty: DefinitionLocation = { uri: null, line: null };
+  if (!definitionResult) return empty;
 
   if (Array.isArray(definitionResult)) {
     for (const entry of definitionResult) {
-      const uri = extractDefinitionUri(entry);
-      if (uri) return uri;
+      const loc = extractDefinitionLocation(entry);
+      if (loc.uri) return loc;
     }
-    return null;
+    return empty;
   }
 
-  if (!isRecord(definitionResult)) return null;
-  if (typeof definitionResult.uri === 'string') return definitionResult.uri;
-  if (typeof definitionResult.targetUri === 'string') return definitionResult.targetUri;
+  if (!isRecord(definitionResult)) return empty;
+
+  // LocationLink: { targetUri, targetRange, targetSelectionRange }
+  if (typeof definitionResult.targetUri === 'string') {
+    return {
+      uri: definitionResult.targetUri,
+      line: extractStartLine(definitionResult.targetSelectionRange ?? definitionResult.targetRange),
+    };
+  }
+
+  // Location: { uri, range }
+  if (typeof definitionResult.uri === 'string') {
+    return {
+      uri: definitionResult.uri,
+      line: extractStartLine(definitionResult.range),
+    };
+  }
+
+  return empty;
+}
+
+/** Extract 0-based start line from an LSP Range object. */
+function extractStartLine(range: unknown): number | null {
+  if (!isRecord(range)) return null;
+  const start = range.start;
+  if (!isRecord(start)) return null;
+  if (typeof start.line === 'number') return start.line;
   return null;
 }
 

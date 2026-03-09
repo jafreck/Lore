@@ -1358,7 +1358,7 @@ describe('IndexBuilder — call graph resolution during indexing', () => {
     vi.resetModules();
     const resolveSymbolEdges = vi.fn();
     const buildCallGraph = vi.fn();
-    vi.doMock('../../src/indexer/call-graph.js', () => ({ buildCallGraph, resolveSymbolEdges, normalizeTypeName: (s: string) => s }));
+    vi.doMock('../../src/indexer/call-graph.js', () => ({ buildCallGraph, resolveSymbolEdges }));
     const { IndexBuilder: MockedIndexBuilder } = await import('../../src/indexer/index.js');
 
     const builder = new MockedIndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
@@ -1371,7 +1371,7 @@ describe('IndexBuilder — call graph resolution during indexing', () => {
     vi.resetModules();
     const resolveSymbolEdges = vi.fn();
     const buildCallGraph = vi.fn();
-    vi.doMock('../../src/indexer/call-graph.js', () => ({ buildCallGraph, resolveSymbolEdges, normalizeTypeName: (s: string) => s }));
+    vi.doMock('../../src/indexer/call-graph.js', () => ({ buildCallGraph, resolveSymbolEdges }));
     const { IndexBuilder: MockedIndexBuilder } = await import('../../src/indexer/index.js');
     const builder = new MockedIndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
     await builder.build();
@@ -1382,7 +1382,7 @@ describe('IndexBuilder — call graph resolution during indexing', () => {
     expect(resolveSymbolEdges).toHaveBeenCalledTimes(2);
   });
 
-  it('should resolve symbol_refs.callee_id for known symbol names during build()', async () => {
+  it('should resolve symbol_refs.callee_id by definition_path during build()', async () => {
     writeFileSync(srcFile, 'export function target() { return "ok"; }\nexport function caller() { return target(); }\n');
     const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
     await builder.build();
@@ -1397,8 +1397,19 @@ describe('IndexBuilder — call graph resolution during indexing', () => {
       )
       .get(srcFile, 'main', 'caller') as { id: number } | undefined;
     expect(caller).toBeDefined();
-    db.prepare('INSERT INTO symbol_refs (caller_id, callee_name, call_line) VALUES (?, ?, ?)')
-      .run(caller!.id, 'target', 1);
+
+    const targetSym = db
+      .prepare(
+        `SELECT s.start_line
+         FROM symbols s
+         JOIN files f ON f.id = s.file_id
+         WHERE f.path = ? AND f.branch = ? AND s.name = ?`,
+      )
+      .get(srcFile, 'main', 'target') as { start_line: number } | undefined;
+    expect(targetSym).toBeDefined();
+
+    db.prepare('INSERT INTO symbol_refs (caller_id, callee_name, call_line, definition_path, definition_line) VALUES (?, ?, ?, ?, ?)')
+      .run(caller!.id, 'target', 1, srcFile, targetSym!.start_line);
 
     buildCallGraph(db);
     const row = db

@@ -32,7 +32,7 @@ import { inferSeededDocNoteKey, buildDocNoteScope } from './docs.js';
 import { ingestGitHistory } from './git-history.js';
 import { ParserPool } from './parser.js';
 import { ImportResolver } from './resolver.js';
-import { buildCallGraph, resolveSymbolEdges, normalizeTypeName } from './call-graph.js';
+import { buildCallGraph, resolveSymbolEdges } from './call-graph.js';
 import {
   type ExtractionResult,
   type RawCallRef,
@@ -622,12 +622,12 @@ export class IndexBuilder {
 
     // Insert type refs (type_id resolved in resolveSymbolEdges phase)
     const insertTypeRef = db.prepare(
-      `INSERT INTO type_refs (file_id, symbol_id, type_name, type_name_bare, ref_kind, ref_line, ref_character)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO type_refs (file_id, symbol_id, type_name, ref_kind, ref_line, ref_character)
+       VALUES (?, ?, ?, ?, ?, ?)`,
     );
     for (const ref of result.typeRefs) {
       const symId = symbolIdMap.get(ref.enclosingSymbol) ?? null;
-      insertTypeRef.run(fileId, symId, ref.typeRaw, normalizeTypeName(ref.typeRaw), ref.refKind, ref.line, ref.character ?? null);
+      insertTypeRef.run(fileId, symId, ref.typeRaw, ref.refKind, ref.line, ref.character ?? null);
     }
   }
 
@@ -965,17 +965,17 @@ export class IndexBuilder {
     );
     const updateCallRef = db.prepare(
       `UPDATE symbol_refs
-       SET resolved_type_signature = ?, resolved_return_type = ?, definition_uri = ?, definition_path = ?
+       SET resolved_type_signature = ?, resolved_return_type = ?, definition_uri = ?, definition_path = ?, definition_line = ?
        WHERE id = ?`,
     );
     const updateTypeRef = db.prepare(
       `UPDATE type_refs
-       SET resolved_type_signature = ?, definition_uri = ?, definition_path = ?
+       SET resolved_type_signature = ?, definition_uri = ?, definition_path = ?, definition_line = ?
        WHERE id = ?`,
     );
     const updateRelationship = db.prepare(
       `UPDATE symbol_relationships
-       SET definition_uri = ?, definition_path = ?
+       SET definition_uri = ?, definition_path = ?, definition_line = ?
        WHERE id = ?`,
     );
 
@@ -1074,6 +1074,7 @@ export class IndexBuilder {
               m.resolvedReturnType,
               m.definitionUri,
               m.definitionPath,
+              m.definitionLine,
               tag.rowId,
             );
             break;
@@ -1082,6 +1083,7 @@ export class IndexBuilder {
               m.resolvedTypeSignature,
               m.definitionUri,
               m.definitionPath,
+              m.definitionLine,
               tag.rowId,
             );
             break;
@@ -1089,6 +1091,7 @@ export class IndexBuilder {
             updateRelationship.run(
               m.definitionUri,
               m.definitionPath,
+              m.definitionLine,
               tag.rowId,
             );
             break;
