@@ -249,7 +249,8 @@ export function processFile(
         return;
       }
     } catch {
-      return;
+      // stat failed (permissions, broken symlink, etc.) — fall through to
+      // re-read the file instead of silently skipping it.
     }
   }
 
