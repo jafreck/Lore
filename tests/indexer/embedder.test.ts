@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   DEFAULT_EMBEDDING_MODEL,
   Qwen3EmbeddingProvider,
@@ -94,5 +94,142 @@ describe('SentenceTransformersProvider', () => {
   it('should resolve safely from dispose() when never initialised', async () => {
     const provider = new SentenceTransformersProvider('some-model');
     await expect(provider.dispose()).resolves.toBeUndefined();
+  });
+
+  it('should accept custom pythonBin argument', () => {
+    const provider = new SentenceTransformersProvider('some-model', '/usr/bin/python3.11');
+    expect(provider.modelName).toBe('some-model');
+  });
+});
+
+// ─── SentenceTransformersProvider — subprocess lifecycle ──────────────────────
+
+describe('SentenceTransformersProvider — subprocess lifecycle', () => {
+  it('should reject init when the subprocess exits before handshake', async () => {
+    const provider = new SentenceTransformersProvider('non-existent-model', 'false');
+    await expect(provider.init()).rejects.toThrow();
+  });
+
+  it('should complete full init/embed/dispose cycle with mock subprocess', async () => {
+    // Create a shell script that mimics the sentence-transformers protocol
+    const fs = await import('node:fs');
+    const os = await import('node:os');
+    const path = await import('node:path');
+
+    const mockBin = path.join(os.tmpdir(), `mock-python-${Date.now()}.sh`);
+    fs.writeFileSync(mockBin, `#!/bin/bash
+# Ignore all arguments (the -c BOOTSTRAP_SCRIPT model)
+echo '{"dims": 3}'
+while IFS= read -r line; do
+  echo '{"embeddings": [[0.1, 0.2, 0.3]]}'
+done
+`, { mode: 0o755 });
+
+    try {
+      const provider = new SentenceTransformersProvider('mock-model', mockBin);
+      await provider.init();
+
+      expect(provider.dims).toBe(3);
+
+      const embeddings = await provider.embed(['hello world']);
+      expect(embeddings).toEqual([[0.1, 0.2, 0.3]]);
+
+      const batchResult = await provider.embed(['a', 'b']);
+      expect(batchResult).toEqual([[0.1, 0.2, 0.3]]);
+
+      await provider.dispose();
+    } finally {
+      fs.unlinkSync(mockBin);
+    }
+  });
+
+  it('should handle dispose after active subprocess', async () => {
+    const fs = await import('node:fs');
+    const os = await import('node:os');
+    const path = await import('node:path');
+
+    const mockBin = path.join(os.tmpdir(), `mock-python-dispose-${Date.now()}.sh`);
+    fs.writeFileSync(mockBin, `#!/bin/bash
+echo '{"dims": 2}'
+while IFS= read -r line; do
+  echo '{"embeddings": [[0.5, 0.5]]}'
+done
+`, { mode: 0o755 });
+
+    try {
+      const provider = new SentenceTransformersProvider('mock-model', mockBin);
+      await provider.init();
+      expect(provider.dims).toBe(2);
+      // Dispose with active subprocess
+      await provider.dispose();
+      // Double dispose is safe
+      await provider.dispose();
+    } finally {
+      fs.unlinkSync(mockBin);
+    }
+  });
+
+  it('should not re-init if already initialized (idempotent init)', async () => {
+    const fs = await import('node:fs');
+    const os = await import('node:os');
+    const path = await import('node:path');
+
+    const mockBin = path.join(os.tmpdir(), `mock-python-idem-${Date.now()}.sh`);
+    fs.writeFileSync(mockBin, `#!/bin/bash
+echo '{"dims": 4}'
+while IFS= read -r line; do
+  echo '{"embeddings": [[0.1, 0.2, 0.3, 0.4]]}'
+done
+`, { mode: 0o755 });
+
+    try {
+      const provider = new SentenceTransformersProvider('mock-model', mockBin);
+      await provider.init();
+      expect(provider.dims).toBe(4);
+      // Second init should be a no-op
+      await provider.init();
+      expect(provider.dims).toBe(4);
+      await provider.dispose();
+    } finally {
+      fs.unlinkSync(mockBin);
+    }
+  });
+
+  it('should handle dispose after failed init gracefully', async () => {
+    const provider = new SentenceTransformersProvider('test-model', 'false');
+    try { await provider.init(); } catch { /* expected */ }
+    await provider.dispose();
+    await provider.dispose();
+  });
+});
+
+describe('buildStructuralEmbeddingText — edge cases', () => {
+  it('should handle null signature gracefully', () => {
+    expect(
+      buildStructuralEmbeddingText({
+        name: 'myFunc',
+        signature: null,
+      }),
+    ).toBe('myFunc');
+  });
+
+  it('should handle undefined optional fields', () => {
+    expect(
+      buildStructuralEmbeddingText({
+        name: 'myFunc',
+        signature: 'function myFunc()',
+      }),
+    ).toBe('function myFunc()\nmyFunc');
+  });
+
+  it('should deduplicate when name appears in signature', () => {
+    expect(
+      buildStructuralEmbeddingText({
+        name: 'myFunc',
+        signature: 'myFunc',
+        resolvedTypeSignature: 'myFunc',
+        resolvedReturnType: 'myFunc',
+      }),
+    ).toBe('myFunc');
   });
 });

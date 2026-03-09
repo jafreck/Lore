@@ -193,6 +193,13 @@ exports[`C# extractor > symbols 1`] = `
     "startLine": 5,
   },
   {
+    "endLine": 12,
+    "kind": "function",
+    "name": "Greeter",
+    "signature": "public Greeter(string name)",
+    "startLine": 9,
+  },
+  {
     "endLine": 17,
     "kind": "function",
     "name": "Greet",
@@ -451,20 +458,14 @@ exports[`Elixir extractor > symbols 1`] = `
     "endLine": 13,
     "kind": "module",
     "name": "",
-    "signature": "defmodule Sample do
-  alias Sample.Utils
-  import Enum, only: [map: 2]
-
-  def greet(name) do
-    "Hello, #",
+    "signature": "defmodule Sample do",
     "startLine": 0,
   },
   {
     "endLine": 6,
     "kind": "function",
     "name": "",
-    "signature": "def greet(name) do
-    "Hello, #",
+    "signature": "def greet(name) do",
     "startLine": 4,
   },
   {

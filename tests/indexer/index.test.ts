@@ -1356,20 +1356,22 @@ describe('IndexBuilder — call graph resolution during indexing', () => {
 
   it('should invoke buildCallGraph during build()', async () => {
     vi.resetModules();
+    const resolveSymbolEdges = vi.fn();
     const buildCallGraph = vi.fn();
-    vi.doMock('../../src/indexer/call-graph.js', () => ({ buildCallGraph }));
+    vi.doMock('../../src/indexer/call-graph.js', () => ({ buildCallGraph, resolveSymbolEdges, normalizeTypeName: (s: string) => s }));
     const { IndexBuilder: MockedIndexBuilder } = await import('../../src/indexer/index.js');
 
     const builder = new MockedIndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
     await builder.build();
 
-    expect(buildCallGraph).toHaveBeenCalledTimes(1);
+    expect(resolveSymbolEdges).toHaveBeenCalledTimes(1);
   });
 
   it('should invoke buildCallGraph during update()', async () => {
     vi.resetModules();
+    const resolveSymbolEdges = vi.fn();
     const buildCallGraph = vi.fn();
-    vi.doMock('../../src/indexer/call-graph.js', () => ({ buildCallGraph }));
+    vi.doMock('../../src/indexer/call-graph.js', () => ({ buildCallGraph, resolveSymbolEdges, normalizeTypeName: (s: string) => s }));
     const { IndexBuilder: MockedIndexBuilder } = await import('../../src/indexer/index.js');
     const builder = new MockedIndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
     await builder.build();
@@ -1377,7 +1379,7 @@ describe('IndexBuilder — call graph resolution during indexing', () => {
     writeFileSync(srcFile, 'export function updated(): string { return "ok"; }\n');
     await builder.update([srcFile]);
 
-    expect(buildCallGraph).toHaveBeenCalledTimes(2);
+    expect(resolveSymbolEdges).toHaveBeenCalledTimes(2);
   });
 
   it('should resolve symbol_refs.callee_id for known symbol names during build()', async () => {

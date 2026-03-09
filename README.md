@@ -548,7 +548,8 @@ npm test
 npm run coverage
 ```
 
-CI enforces a minimum 95% coverage threshold.
+CI currently enforces minimum coverage thresholds of 77% statements, 64%
+branches, 80% functions, and 79% lines.
 
 ## Publish authentication (npm)
 

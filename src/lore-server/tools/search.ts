@@ -157,6 +157,11 @@ function sanitizeFts5Query(query: string): string {
   return `"${query.replace(/"/g, '""')}"`;
 }
 
+/** Escape SQL LIKE wildcard characters (`%` and `_`) so they match literally. */
+function escapeLikeWildcards(value: string): string {
+  return value.replace(/[%_]/g, (ch) => `\\${ch}`);
+}
+
 function symbolEnrichmentProjection(db: Database.Database): string {
   let columns = new Set<string>();
   try {
@@ -178,15 +183,29 @@ function symbolEnrichmentProjection(db: Database.Database): string {
   ].join(',\n                ');
 }
 
+/** Filters for structural/symbol search. */
+interface SymbolSearchFilters {
+  path_prefix?: string;
+  language?: string;
+  kind?: string;
+}
+
 /** Run a structural BM25 FTS5 search and return ranked rows. */
 function structuralSearch(
   db: Database.Database,
   query: string,
   limit: number,
   branch?: string,
+  filters?: SymbolSearchFilters,
 ): SearchSymbolResult[] {
   const safeQuery = sanitizeFts5Query(query);
-  const branchClause = branch !== undefined ? ' AND f.branch = ?' : '';
+  const extraClauses: string[] = [];
+  const extraParams: Array<string | number> = [];
+  if (branch !== undefined) { extraClauses.push('f.branch = ?'); extraParams.push(branch); }
+  if (filters?.path_prefix) { extraClauses.push(`f.path LIKE ? ESCAPE '\\'`); extraParams.push(`${escapeLikeWildcards(filters.path_prefix)}%`); }
+  if (filters?.language) { extraClauses.push('f.language = ?'); extraParams.push(filters.language); }
+  if (filters?.kind) { extraClauses.push('s.kind = ?'); extraParams.push(filters.kind); }
+  const extraSql = extraClauses.length > 0 ? ` AND ${extraClauses.join(' AND ')}` : '';
   const enrichmentProjection = symbolEnrichmentProjection(db);
   try {
     const sql = `SELECT 'symbol' AS result_type,
@@ -198,10 +217,10 @@ function structuralSearch(
            FROM symbols_fts
            JOIN symbols s ON s.rowid = symbols_fts.rowid
            JOIN files   f ON f.id   = s.file_id
-          WHERE symbols_fts MATCH ?${branchClause}
+          WHERE symbols_fts MATCH ?${extraSql}
           ORDER BY score
            LIMIT ?`;
-    const params = branch !== undefined ? [safeQuery, branch, limit] : [safeQuery, limit];
+    const params = [safeQuery, ...extraParams, limit];
     const rows = db.prepare(sql).all(...params) as SearchSymbolResult[];
     return rows;
   } catch {
@@ -215,9 +234,9 @@ function structuralSearch(
                 f.branch AS branch
            FROM symbols s
            JOIN files f ON f.id = s.file_id
-          WHERE s.name LIKE ?${branchClause}
+          WHERE s.name LIKE ?${extraSql}
            LIMIT ?`;
-    const params = branch !== undefined ? [likeQuery, branch, limit] : [likeQuery, limit];
+    const params = [likeQuery, ...extraParams, limit];
     return db.prepare(sql).all(...params) as SearchSymbolResult[];
   }
 }
@@ -252,12 +271,13 @@ function semanticSymbolSearch(
          FROM symbol_embeddings
          JOIN symbols s ON s.rowid = symbol_embeddings.rowid
          JOIN files   f ON f.id   = s.file_id
-        WHERE embedding MATCH ?${branchClause}
+        WHERE embedding MATCH ?
+          AND k = ?${branchClause}
         ORDER BY distance
         LIMIT ?`;
   const params = branch !== undefined
-    ? [JSON.stringify(queryVector), branch, limit]
-    : [JSON.stringify(queryVector), limit];
+    ? [JSON.stringify(queryVector), limit, branch, limit]
+    : [JSON.stringify(queryVector), limit, limit];
 
   try {
     return db.prepare(sql).all(...params) as SearchSymbolResult[];
@@ -271,6 +291,7 @@ function semanticDocSectionSearch(
   queryVector: number[],
   limit: number,
   branch?: string,
+  docFilters?: { doc_path_prefix?: string; doc_kind?: string },
 ): SearchDocSectionResult[] {
   if (!hasVirtualTable(db, 'doc_section_embeddings')) {
     return [];
@@ -281,6 +302,8 @@ function semanticDocSectionSearch(
       queryVector,
       branch,
       limit,
+      ...(docFilters?.doc_path_prefix && { path: docFilters.doc_path_prefix }),
+      ...(docFilters?.doc_kind && { kind: docFilters.doc_kind }),
     });
     return rows.map((row) => ({
       result_type: 'doc_section',
@@ -313,13 +336,14 @@ async function semanticSearch(
   limit: number,
   embedder: EmbeddingProvider,
   branch?: string,
+  docFilters?: { doc_path_prefix?: string; doc_kind?: string },
 ): Promise<SearchResultItem[] | null> {
   try {
     const [queryVec] = await embedder.embed([query]);
     if (!queryVec) return null;
 
     const symbolRows = semanticSymbolSearch(db, queryVec, limit, branch);
-    const docRows = semanticDocSectionSearch(db, queryVec, limit, branch);
+    const docRows = semanticDocSectionSearch(db, queryVec, limit, branch, docFilters);
     const rows = [...symbolRows, ...docRows]
       .sort((a, b) => a.score - b.score)
       .slice(0, limit);
@@ -380,7 +404,11 @@ export async function handler(
   const limit = args.limit ?? 20;
   const mode = args.mode ?? 'structural';
 
-  const structural = structuralSearch(db, args.query, limit, args.branch);
+  const structural = structuralSearch(db, args.query, limit, args.branch, {
+    path_prefix: args.path_prefix,
+    language: args.language,
+    kind: args.kind,
+  });
 
   let result: SearchResult;
 
@@ -390,7 +418,10 @@ export async function handler(
     // No query-time embedder available — callers can detect this degradation.
     result = { results: structural, mode_used: 'structural (no query-time embedder)' };
   } else {
-    const semantic = await semanticSearch(db, args.query, limit, embedder, args.branch);
+    const semantic = await semanticSearch(db, args.query, limit, embedder, args.branch, {
+      doc_path_prefix: args.doc_path_prefix,
+      doc_kind: args.doc_kind,
+    });
 
     if (mode === 'semantic') {
       result = semantic

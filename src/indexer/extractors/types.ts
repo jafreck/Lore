@@ -95,6 +95,36 @@ export interface RawRelationship {
   toSymbol: string;
   /** 0-indexed line where the relationship is declared. */
   line: number;
+  /** 0-indexed character of the target type identifier (best-effort, optional). */
+  character?: number;
+}
+
+/**
+ * Classification of how a type reference is used at the referencing site.
+ */
+export type TypeRefKind =
+  | 'parameter'
+  | 'return'
+  | 'field'
+  | 'variable'
+  | 'cast'
+  | 'sizeof'
+  | 'generic_arg'
+  | 'bound'
+  | 'other';
+
+/** A type-usage reference found in a source file. */
+export interface RawTypeRef {
+  /** Name of the enclosing symbol that contains the reference (empty string if top-level). */
+  enclosingSymbol: string;
+  /** Raw type text as it appears in source. */
+  typeRaw: string;
+  /** How the type is referenced (parameter, return, field, etc.). */
+  refKind: TypeRefKind;
+  /** 0-indexed line of the type reference. */
+  line: number;
+  /** 0-indexed character in the line (best-effort, optional). */
+  character?: number;
 }
 
 /** A framework route/endpoint extracted from source. */
@@ -120,6 +150,7 @@ export interface ExtractionResult {
   callRefs: RawCallRef[];
   envRefs: RawEnvRef[];
   relationships: RawRelationship[];
+  typeRefs: RawTypeRef[];
   routes: RawRoute[];
 }
 
@@ -171,21 +202,36 @@ export function findFirst(
 }
 
 /**
- * Extracts a signature from a node by returning everything before the first
- * opening brace `{` (or the first line if there is no brace).
+ * Extracts a signature from a node by returning everything before the body block.
+ * Uses the AST body node position when available, falling back to the first
+ * top-level `{` on the first line if there is no body.
  */
 export function nodeSignature(node: Parser.SyntaxNode): string {
-  const text = node.text;
-  const braceIdx = text.indexOf('{');
-  if (braceIdx !== -1) {
-    return text.slice(0, braceIdx).trim();
+  // Try to find the body node by common field names used across languages.
+  const body = node.childForFieldName('body')
+    ?? node.childForFieldName('block')
+    ?? node.childForFieldName('class_body');
+  if (body) {
+    // Slice from the start of the node to the start of the body.
+    const startByte = node.startIndex;
+    const bodyStartByte = body.startIndex;
+    if (bodyStartByte > startByte) {
+      const text = node.text.slice(0, bodyStartByte - startByte);
+      return text.trim();
+    }
   }
-  return (text.split('\n')[0] ?? text).trim();
+  // Fallback: take the first line and strip a trailing `{` brace that is
+  // likely the start of a block body (e.g. Go struct/interface declarations
+  // where the body isn't a named field).  We only strip if the brace is
+  // at the end of the first line to avoid truncating default parameter objects
+  // like `function foo(opts = { bar: 1 })`.
+  const firstLine = (node.text.split('\n')[0] ?? node.text).trim();
+  return firstLine.replace(/\s*\{$/, '').trim();
 }
 
 /** Returns an empty `ExtractionResult`. */
 export function emptyResult(): ExtractionResult {
-  return { symbols: [], imports: [], callRefs: [], envRefs: [], relationships: [], routes: [] };
+  return { symbols: [], imports: [], callRefs: [], envRefs: [], relationships: [], typeRefs: [], routes: [] };
 }
 
 /**
@@ -249,4 +295,120 @@ export function isPublicDeclarationSurfaceSymbol(symbol: RawSymbol): boolean {
     return symbol.declarationSurface.isPublic && symbol.declarationSurface.isDeclaration;
   }
   return symbol.isExported === true;
+}
+
+/**
+ * Extracts type argument names from a generic/template type node.
+ *
+ * Walks the immediate children of the argument list node and returns their
+ * text values.  One level deep only — nested generics are **not** recursed.
+ *
+ * @param typeNode         The type node that may contain generic args.
+ * @param genericNodeType  The AST node type of the generic wrapper (e.g. `generic_type`, `template_type`).
+ * @param argListNodeType  The AST node type of the argument list (e.g. `type_arguments`, `template_argument_list`).
+ * @returns Array of type argument text values, or empty if none found.
+ */
+export function extractGenericTypeArgs(
+  typeNode: Parser.SyntaxNode,
+  genericNodeType: string,
+  argListNodeType: string,
+): string[] {
+  if (typeNode.type !== genericNodeType) return [];
+  for (const child of typeNode.namedChildren) {
+    if (child.type === argListNodeType) {
+      return child.namedChildren.map(c => c.text);
+    }
+  }
+  return [];
+}
+
+/**
+ * Unwraps wrapper types (nullable, reference, pointer, array, optional, slice)
+ * to find the inner type node that may carry generic arguments.
+ *
+ * When `extractTypeName` descends through these wrappers internally but
+ * `extractGenericTypeArgs` is called on the outer node, generic args would be
+ * lost because the outer node's type doesn't match `genericNodeType`.
+ */
+const WRAPPER_NODE_TYPES = new Set([
+  'nullable_type',
+  'optional_type',
+  'reference_type',
+  'pointer_type',
+  'slice_type',
+  'array_type',
+]);
+
+function unwrapToGenericNode(node: Parser.SyntaxNode, genericNodeType: string): Parser.SyntaxNode {
+  let current = node;
+  while (WRAPPER_NODE_TYPES.has(current.type) && current.type !== genericNodeType) {
+    const inner = current.namedChildren.find(c =>
+      c.type !== 'mutable_specifier' && c.type !== 'lifetime');
+    if (!inner) break;
+    current = inner;
+  }
+  return current;
+}
+
+/**
+ * Creates a type-ref emitter function that encapsulates the standard
+ * three-step pattern used by most language extractors:
+ *
+ * 1. Call `extractTypeName(typeNode)` → `string | null`
+ * 2. Push a `RawTypeRef` with the result
+ * 3. Call `extractGenericTypeArgs` and push a `RawTypeRef` per arg with `refKind: 'generic_arg'`
+ *
+ * @param config.extractTypeName   Language-specific function to extract a type name from a node.
+ * @param config.genericNodeType   AST node type for generic/template wrappers.
+ * @param config.argListNodeType   AST node type for the generic argument list.
+ * @param config.recurseIntoTypes  Optional list of AST node types to recurse into
+ *                                 (e.g. `['union_type', 'intersection_type']` for TypeScript).
+ *                                 When the type node matches one of these, the emitter walks
+ *                                 its `namedChildren` instead of emitting directly.
+ */
+export function createTypeRefEmitter(config: {
+  extractTypeName: (node: Parser.SyntaxNode) => string | null;
+  genericNodeType: string;
+  argListNodeType: string;
+  recurseIntoTypes?: string[];
+}): (refs: RawTypeRef[], enclosing: string, typeNode: Parser.SyntaxNode, refKind: TypeRefKind) => void {
+  const { extractTypeName, genericNodeType, argListNodeType, recurseIntoTypes } = config;
+  const emitter = (
+    refs: RawTypeRef[],
+    enclosing: string,
+    typeNode: Parser.SyntaxNode,
+    refKind: TypeRefKind,
+  ): void => {
+    // Recurse into compound types (union, intersection, map, etc.)
+    if (recurseIntoTypes && recurseIntoTypes.includes(typeNode.type)) {
+      for (const child of typeNode.namedChildren) {
+        emitter(refs, enclosing, child, refKind);
+      }
+      return;
+    }
+    const typeName = extractTypeName(typeNode);
+    if (!typeName) return;
+    refs.push({
+      enclosingSymbol: enclosing,
+      typeRaw: typeName,
+      refKind,
+      line: typeNode.startPosition.row,
+      character: typeNode.startPosition.column,
+    });
+    // Unwrap wrapper types (nullable, optional, reference, etc.) before
+    // checking for generic args — extractTypeName may have already descended
+    // through these wrappers, so the outer node won't match genericNodeType.
+    const innerNode = unwrapToGenericNode(typeNode, genericNodeType);
+    const genericArgs = extractGenericTypeArgs(innerNode, genericNodeType, argListNodeType);
+    for (const arg of genericArgs) {
+      refs.push({
+        enclosingSymbol: enclosing,
+        typeRaw: arg,
+        refKind: 'generic_arg',
+        line: typeNode.startPosition.row,
+        character: typeNode.startPosition.column,
+      });
+    }
+  };
+  return emitter;
 }

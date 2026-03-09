@@ -15,6 +15,8 @@ import {
   type RawCallRef,
   type RawImport,
   type RawSymbol,
+  type RawTypeRef,
+  type TypeRefKind,
   type SymbolExtractor,
   emptyResult,
   findEnclosingSymbolName,
@@ -54,15 +56,17 @@ export class CExtractor implements SymbolExtractor {
       }
     }
 
-    // Main pass: symbols, imports, call-refs.
+    // Main pass: symbols, imports, call-refs, type-refs.
     for (const node of walk(tree.rootNode)) {
       switch (node.type) {
         case 'function_definition':
           result.symbols.push(extractFunction(node));
+          extractFunctionTypeRefs(node, result.typeRefs);
           break;
         case 'struct_specifier':
           if (node.childForFieldName('name')) {
             result.symbols.push(extractNamedSpecifier(node, 'struct'));
+            extractStructFieldTypeRefs(node, result.typeRefs);
           }
           break;
         case 'enum_specifier':
@@ -85,6 +89,18 @@ export class CExtractor implements SymbolExtractor {
         case 'call_expression': {
           const ref = extractCallRef(node, macroNames);
           if (ref) result.callRefs.push(ref);
+          break;
+        }
+        case 'declaration': {
+          extractVariableTypeRefs(node, result.typeRefs);
+          break;
+        }
+        case 'sizeof_expression': {
+          extractSizeofTypeRef(node, result.typeRefs);
+          break;
+        }
+        case 'cast_expression': {
+          extractCastTypeRef(node, result.typeRefs);
           break;
         }
       }
@@ -269,4 +285,130 @@ function extractInclude(node: Parser.SyntaxNode): RawImport {
   const raw = pathNode?.text ?? '';
   const source = raw.replace(/^["<]|[">]$/g, '');
   return { source, importedNames: [] };
+}
+
+// ─── Type-ref extraction ──────────────────────────────────────────────────────
+
+/**
+ * Extracts a type name from a C type node.  Returns the text of the first
+ * `type_identifier`, `struct_specifier`, `enum_specifier`, or `sized_type_specifier`
+ * found within the node.
+ */
+function extractCTypeName(typeNode: Parser.SyntaxNode): string | null {
+  if (typeNode.type === 'type_identifier') return typeNode.text;
+  if (typeNode.type === 'struct_specifier' || typeNode.type === 'enum_specifier') {
+    const nameNode = typeNode.childForFieldName('name');
+    if (nameNode && !typeNode.childForFieldName('body')) return nameNode.text;
+    return null; // definition context, not a reference
+  }
+  if (typeNode.type === 'sized_type_specifier') return typeNode.text;
+  // Walk children
+  for (const child of typeNode.namedChildren) {
+    const name = extractCTypeName(child);
+    if (name) return name;
+  }
+  return null;
+}
+
+function emitTypeRef(
+  refs: RawTypeRef[],
+  enclosingSymbol: string,
+  typeRaw: string,
+  refKind: TypeRefKind,
+  line: number,
+  character?: number,
+): void {
+  refs.push({ enclosingSymbol, typeRaw, refKind, line, character });
+}
+
+function extractFunctionTypeRefs(funcNode: Parser.SyntaxNode, refs: RawTypeRef[]): void {
+  const funcName = extractDeclaratorName(funcNode.childForFieldName('declarator') ?? funcNode);
+  // Return type
+  const typeNode = funcNode.childForFieldName('type');
+  if (typeNode) {
+    const typeName = extractCTypeName(typeNode);
+    if (typeName) {
+      emitTypeRef(refs, funcName, typeName, 'return', typeNode.startPosition.row, typeNode.startPosition.column);
+    }
+  }
+  // Parameters
+  const declarator = funcNode.childForFieldName('declarator');
+  if (declarator) {
+    const funcDeclarator = findFunctionDeclarator(declarator);
+    if (funcDeclarator) {
+      const params = funcDeclarator.childForFieldName('parameters');
+      if (params) {
+        for (const param of params.namedChildren) {
+          if (param.type === 'parameter_declaration') {
+            const paramType = param.childForFieldName('type');
+            if (paramType) {
+              const typeName = extractCTypeName(paramType);
+              if (typeName) {
+                emitTypeRef(refs, funcName, typeName, 'parameter', paramType.startPosition.row, paramType.startPosition.column);
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+function findFunctionDeclarator(node: Parser.SyntaxNode): Parser.SyntaxNode | null {
+  if (node.type === 'function_declarator') return node;
+  for (const child of node.namedChildren) {
+    const found = findFunctionDeclarator(child);
+    if (found) return found;
+  }
+  return null;
+}
+
+function extractStructFieldTypeRefs(structNode: Parser.SyntaxNode, refs: RawTypeRef[]): void {
+  const structName = structNode.childForFieldName('name')?.text ?? '';
+  const body = structNode.childForFieldName('body');
+  if (!body) return;
+  for (const child of body.namedChildren) {
+    if (child.type === 'field_declaration') {
+      const typeNode = child.childForFieldName('type');
+      if (typeNode) {
+        const typeName = extractCTypeName(typeNode);
+        if (typeName) {
+          emitTypeRef(refs, structName, typeName, 'field', typeNode.startPosition.row, typeNode.startPosition.column);
+        }
+      }
+    }
+  }
+}
+
+function extractVariableTypeRefs(declNode: Parser.SyntaxNode, refs: RawTypeRef[]): void {
+  // Skip if inside a function_definition (those are handled by extractFunctionTypeRefs)
+  const typeNode = declNode.childForFieldName('type');
+  if (!typeNode) return;
+  const typeName = extractCTypeName(typeNode);
+  if (!typeName) return;
+  const enclosing = findEnclosingSymbolName(declNode, C_SYMBOL_NODE_TYPES);
+  emitTypeRef(refs, enclosing, typeName, 'variable', typeNode.startPosition.row, typeNode.startPosition.column);
+}
+
+function extractSizeofTypeRef(node: Parser.SyntaxNode, refs: RawTypeRef[]): void {
+  // sizeof(Type) — the type argument is typically a type_descriptor or parenthesized type
+  const valueNode = node.childForFieldName('value') ?? node.childForFieldName('type');
+  if (valueNode) {
+    const typeName = extractCTypeName(valueNode);
+    if (typeName) {
+      const enclosing = findEnclosingSymbolName(node, C_SYMBOL_NODE_TYPES);
+      emitTypeRef(refs, enclosing, typeName, 'sizeof', valueNode.startPosition.row, valueNode.startPosition.column);
+    }
+  }
+}
+
+function extractCastTypeRef(node: Parser.SyntaxNode, refs: RawTypeRef[]): void {
+  const typeNode = node.childForFieldName('type');
+  if (typeNode) {
+    const typeName = extractCTypeName(typeNode);
+    if (typeName) {
+      const enclosing = findEnclosingSymbolName(node, C_SYMBOL_NODE_TYPES);
+      emitTypeRef(refs, enclosing, typeName, 'cast', typeNode.startPosition.row, typeNode.startPosition.column);
+    }
+  }
 }

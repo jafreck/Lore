@@ -64,4 +64,46 @@ describe('computeSymbolMetrics', () => {
       max_nesting: 0,
     });
   });
+
+  it('computes JavaScript metrics using the typescript complexity node types', () => {
+    const source = [
+      'function process(data) {',
+      '  if (data.length > 0) {',
+      '    for (let i = 0; i < data.length; i++) {',
+      '      if (data[i] > 10) {',
+      '        return data[i];',
+      '      }',
+      '    }',
+      '  }',
+      '  return null;',
+      '}',
+    ].join('\n');
+
+    const tree = new ParserPool().parse('javascript', source);
+    expect(tree).not.toBeNull();
+    const extracted = new TypeScriptExtractor().extract(tree!, source, '/tmp/process.js');
+    const symbol = extracted.symbols[0];
+    expect(symbol).toBeDefined();
+
+    const metrics = computeSymbolMetrics(symbol!, 'javascript');
+    expect(metrics.line_count).toBe(10);
+    expect(metrics.param_count).toBeGreaterThanOrEqual(0);
+    expect(metrics.cyclomatic).toBeGreaterThanOrEqual(3);
+    expect(metrics.max_nesting).toBeGreaterThanOrEqual(2);
+  });
+
+  it('computes metrics for a function with no params and single-line body', () => {
+    const source = 'function noop(): void {}';
+    const tree = new ParserPool().parse('typescript', source);
+    expect(tree).not.toBeNull();
+    const extracted = new TypeScriptExtractor().extract(tree!, source, '/tmp/noop.ts');
+    const symbol = extracted.symbols[0];
+    expect(symbol).toBeDefined();
+
+    const metrics = computeSymbolMetrics(symbol!, 'typescript');
+    expect(metrics.line_count).toBe(1);
+    expect(metrics.param_count).toBe(0);
+    expect(metrics.cyclomatic).toBe(1);
+    expect(metrics.max_nesting).toBe(0);
+  });
 });

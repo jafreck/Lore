@@ -137,14 +137,12 @@ export async function ingestGitHistory(
         const deletions = delStr === '-' ? null : parseInt(delStr!, 10);
 
         // Determine change type based on diff stats presence.
-        // Rename detection (e.g. "old => new") is noted as a renamed file.
+        // Rename detection (e.g. "{old => new}" or "old => new") is noted as a renamed file.
+        // Note: numstat alone cannot reliably distinguish new files from modifications
+        // that only add lines, so we conservatively default to 'modified'.
         let changeType = 'modified';
-        if (filePath.includes('{') && filePath.includes('=>')) {
+        if ((filePath.includes('{') && filePath.includes('=>')) || filePath.includes(' => ')) {
           changeType = 'renamed';
-        } else if (insertions !== null && deletions === 0 && insertions > 0) {
-          changeType = 'added';
-        } else if (deletions !== null && insertions === 0 && deletions > 0) {
-          changeType = 'deleted';
         }
 
         insertCommitFile.run(sha, filePath, changeType, insertions, deletions);

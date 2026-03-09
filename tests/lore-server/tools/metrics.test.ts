@@ -178,3 +178,67 @@ describe('metrics handler', () => {
     expect(result.stale).toBe(true);
   });
 });
+
+// ─── complexity mode ──────────────────────────────────────────────────────────
+
+describe('metrics handler — complexity mode', () => {
+  let db: Database.Database;
+
+  beforeEach(() => {
+    db = createTestDb();
+    // Add symbol_metrics table
+    db.exec(`
+      CREATE TABLE symbol_metrics (
+        symbol_id   INTEGER PRIMARY KEY,
+        line_count  INTEGER NOT NULL,
+        param_count INTEGER NOT NULL,
+        cyclomatic  INTEGER NOT NULL,
+        max_nesting INTEGER NOT NULL
+      );
+    `);
+    const fileId = insertFile(db, 'src/main.ts', 'main');
+    const s1 = insertSymbol(db, fileId, 'complexFunc');
+    const s2 = insertSymbol(db, fileId, 'simpleFunc');
+    const s3 = insertSymbol(db, fileId, 'trivialFunc');
+
+    db.prepare(
+      'INSERT INTO symbol_metrics (symbol_id, line_count, param_count, cyclomatic, max_nesting) VALUES (?, ?, ?, ?, ?)',
+    ).run(s1, 50, 4, 12, 5);
+    db.prepare(
+      'INSERT INTO symbol_metrics (symbol_id, line_count, param_count, cyclomatic, max_nesting) VALUES (?, ?, ?, ?, ?)',
+    ).run(s2, 20, 2, 4, 2);
+    db.prepare(
+      'INSERT INTO symbol_metrics (symbol_id, line_count, param_count, cyclomatic, max_nesting) VALUES (?, ?, ?, ?, ?)',
+    ).run(s3, 5, 0, 1, 0);
+  });
+
+  it('should return complexity-ranked symbols', () => {
+    const result = handler(db, { mode: 'complexity' }) as { symbols: Array<{ name: string; cyclomatic: number }> };
+    expect(result.symbols).toBeDefined();
+    expect(result.symbols.length).toBe(3);
+    expect(result.symbols[0]!.name).toBe('complexFunc');
+    expect(result.symbols[0]!.cyclomatic).toBe(12);
+  });
+
+  it('should respect min_cyclomatic filter', () => {
+    const result = handler(db, { mode: 'complexity', min_cyclomatic: 5 }) as { symbols: Array<{ name: string }> };
+    expect(result.symbols.length).toBe(1);
+    expect(result.symbols[0]!.name).toBe('complexFunc');
+  });
+
+  it('should respect limit parameter', () => {
+    const result = handler(db, { mode: 'complexity', limit: 2 }) as { symbols: Array<{ name: string }> };
+    expect(result.symbols.length).toBe(2);
+  });
+
+  it('should clamp limit to maximum of 200', () => {
+    const result = handler(db, { mode: 'complexity', limit: 500 }) as { symbols: Array<{ name: string }> };
+    // Shouldn't exceed 200, but we only have 3 rows so 3 returned
+    expect(result.symbols.length).toBe(3);
+  });
+
+  it('should default limit to 20 and min_cyclomatic to 0', () => {
+    const result = handler(db, { mode: 'complexity' }) as { symbols: Array<{ name: string }> };
+    expect(result.symbols.length).toBe(3);
+  });
+});

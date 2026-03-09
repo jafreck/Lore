@@ -13,6 +13,11 @@ const DEFAULT_SCOPE = 'global';
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 200;
 
+/** Escape SQL LIKE wildcard characters (`%` and `_`) so they match literally. */
+function escapeLikeWildcards(value: string): string {
+  return value.replace(/[%_]/g, (ch) => `\\${ch}`);
+}
+
 export const loreNotesWriteToolDef = {
   name: 'lore_notes_write',
   description:
@@ -183,8 +188,8 @@ export function loreNotesReadHandler(db: LoreDatabase.Database, args: NotesReadA
 
   const keyPrefix = args.key_prefix?.trim();
   if (keyPrefix) {
-    where.push('key LIKE ?');
-    params.push(`${keyPrefix}%`);
+    where.push(`key LIKE ? ESCAPE '\\'`);
+    params.push(`${escapeLikeWildcards(keyPrefix)}%`);
   }
 
   const scope = args.scope?.trim();

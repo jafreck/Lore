@@ -32,12 +32,13 @@ import { inferSeededDocNoteKey, buildDocNoteScope } from './docs.js';
 import { ingestGitHistory } from './git-history.js';
 import { ParserPool } from './parser.js';
 import { ImportResolver } from './resolver.js';
-import { buildCallGraph } from './call-graph.js';
+import { buildCallGraph, resolveSymbolEdges, normalizeTypeName } from './call-graph.js';
 import {
   type ExtractionResult,
   type RawCallRef,
   type RawImport,
   type RawSymbol,
+  type RawTypeRef,
   isPublicDeclarationSurfaceSymbol,
 } from './extractors/types.js';
 import { CExtractor } from './extractors/c.js';
@@ -238,9 +239,9 @@ export class IndexBuilder {
       log.indexing('files processed, resolving imports');
       this.resolveImports(db, branch);
       await this.indexDependencyDeclarations(db, lspCoordinator);
-      await this.enrichProjectSymbolsAndCallRefs(db, branch, files, lspCoordinator);
+      await this.enrichProjectRefs(db, branch, files, lspCoordinator);
       refreshTestMappings(db, branch);
-      buildCallGraph(db);
+      resolveSymbolEdges(db);
       this.saveLastKnownHead(db);
       if (this.embedder) {
         log.indexing('embedding started', { model: this.embeddingModel });
@@ -263,9 +264,9 @@ export class IndexBuilder {
       let totalSymbols = 0;
       try { totalSymbols = (db.prepare('SELECT COUNT(*) AS cnt FROM symbols').get() as { cnt: number }).cnt; } catch { /* table may not exist */ }
       let totalEdges = 0;
-      try { totalEdges = (db.prepare('SELECT COUNT(*) AS cnt FROM call_graph').get() as { cnt: number }).cnt; } catch { /* table may not exist */ }
+      try { totalEdges = (db.prepare('SELECT COUNT(*) AS cnt FROM symbol_refs').get() as { cnt: number }).cnt; } catch { /* table may not exist */ }
       let totalDocs = 0;
-      try { totalDocs = (db.prepare('SELECT COUNT(*) AS cnt FROM documentation').get() as { cnt: number }).cnt; } catch { /* table may not exist */ }
+      try { totalDocs = (db.prepare('SELECT COUNT(*) AS cnt FROM docs').get() as { cnt: number }).cnt; } catch { /* table may not exist */ }
       let commitCount: number | undefined;
       try {
         commitCount = (db.prepare('SELECT COUNT(*) AS cnt FROM commits').get() as { cnt: number }).cnt;
@@ -358,6 +359,8 @@ export class IndexBuilder {
               for (const s of symRows) staleSymbolIds.push(s.id);
               db.prepare('UPDATE file_imports SET resolved_id = NULL WHERE resolved_id = ?').run(existingRow.id);
               db.prepare('UPDATE symbol_refs SET callee_id = NULL WHERE callee_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(existingRow.id);
+              db.prepare('UPDATE type_refs SET type_id = NULL WHERE type_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(existingRow.id);
+              db.prepare('UPDATE symbol_relationships SET target_symbol_id = NULL WHERE target_symbol_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(existingRow.id);
               db.prepare('DELETE FROM symbols_fts WHERE rowid IN (SELECT id FROM symbols WHERE file_id = ?)').run(existingRow.id);
             }
 
@@ -380,7 +383,7 @@ export class IndexBuilder {
 
       this.resolveImports(db, branch);
       await this.indexDependencyDeclarations(db, lspCoordinator);
-      await this.enrichProjectSymbolsAndCallRefs(db, branch, enrichedFiles, lspCoordinator);
+      await this.enrichProjectRefs(db, branch, enrichedFiles, lspCoordinator);
       refreshTestMappings(db, branch);
       if (this.history) {
         const historyOptions =
@@ -417,7 +420,7 @@ export class IndexBuilder {
           await this.embedCommitMessages(db);
         }
       }
-      buildCallGraph(db);
+      resolveSymbolEdges(db);
       this.saveLastKnownHead(db);
     } finally {
       if (lspCoordinator) {
@@ -508,10 +511,18 @@ export class IndexBuilder {
       db.prepare(
         `DELETE FROM symbols_fts WHERE rowid IN (SELECT id FROM symbols WHERE file_id = ?)`,
       ).run(fileId);
+      db.prepare('DELETE FROM symbol_relationships WHERE file_id = ?').run(fileId);
+      db.prepare('DELETE FROM type_refs WHERE file_id = ?').run(fileId);
+      // NULL out cross-file FK references that point to symbols in this file
+      db.prepare('UPDATE symbol_refs SET callee_id = NULL WHERE callee_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(fileId);
+      db.prepare('UPDATE type_refs SET type_id = NULL WHERE type_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(fileId);
+      db.prepare('UPDATE symbol_relationships SET target_symbol_id = NULL WHERE target_symbol_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(fileId);
       db.prepare('DELETE FROM symbols WHERE file_id = ?').run(fileId);
       db.prepare('DELETE FROM file_imports WHERE file_id = ?').run(fileId);
       db.prepare('DELETE FROM external_deps WHERE file_id = ?').run(fileId);
       db.prepare('DELETE FROM api_routes WHERE file_id = ?').run(fileId);
+      // Delete stale annotations so cascade-independent re-index doesn't accumulate duplicates.
+      db.prepare('DELETE FROM annotations WHERE file_id = ?').run(fileId);
     } else {
       const info = db
         .prepare(
@@ -595,14 +606,34 @@ export class IndexBuilder {
 
     // Insert call refs (callee_id resolved in call-graph phase)
     const insertCallRef = db.prepare(
-      `INSERT INTO symbol_refs (caller_id, callee_name, call_line, call_kind)
-       VALUES (?, ?, ?, ?)`,
+      `INSERT INTO symbol_refs (caller_id, callee_name, call_line, call_character, call_kind)
+       VALUES (?, ?, ?, ?, ?)`,
     );
     for (const ref of result.callRefs) {
       const callerId = symbolIdMap.get(ref.callerSymbol);
       if (callerId !== undefined) {
-        insertCallRef.run(callerId, ref.calleeRaw, ref.line, ref.callKind ?? 'direct');
+        insertCallRef.run(callerId, ref.calleeRaw, ref.line, ref.character ?? null, ref.callKind ?? 'direct');
       }
+    }
+
+    // Insert relationships (target_symbol_id resolved in resolveSymbolEdges phase)
+    const insertRelationship = db.prepare(
+      `INSERT INTO symbol_relationships (file_id, source_symbol_id, target_symbol_name, relationship_type, line, character)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    );
+    for (const rel of result.relationships) {
+      const sourceId = symbolIdMap.get(rel.fromSymbol) ?? null;
+      insertRelationship.run(fileId, sourceId, rel.toSymbol, rel.kind, rel.line, rel.character ?? null);
+    }
+
+    // Insert type refs (type_id resolved in resolveSymbolEdges phase)
+    const insertTypeRef = db.prepare(
+      `INSERT INTO type_refs (file_id, symbol_id, type_name, type_name_bare, ref_kind, ref_line, ref_character)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    );
+    for (const ref of result.typeRefs) {
+      const symId = symbolIdMap.get(ref.enclosingSymbol) ?? null;
+      insertTypeRef.run(fileId, symId, ref.typeRaw, normalizeTypeName(ref.typeRaw), ref.refKind, ref.line, ref.character ?? null);
     }
   }
 
@@ -893,7 +924,7 @@ export class IndexBuilder {
     return new LspEnrichmentCoordinator(this.lspSettings, this.walkerConfig.rootDir);
   }
 
-  private async enrichProjectSymbolsAndCallRefs(
+  private async enrichProjectRefs(
     db: Database.Database,
     branch: string,
     files: Array<{ path: string; language: string }>,
@@ -909,11 +940,25 @@ export class IndexBuilder {
        ORDER BY s.id`,
     );
     const selectCallRefs = db.prepare(
-      `SELECT sr.id, sr.call_line
+      `SELECT sr.id, sr.call_line, sr.call_character
        FROM symbol_refs sr
        JOIN symbols s ON s.id = sr.caller_id
        JOIN files f ON f.id = s.file_id
        WHERE f.path = ? AND f.branch = ?
+       ORDER BY sr.id`,
+    );
+    const selectTypeRefs = db.prepare(
+      `SELECT tr.id, tr.ref_line, tr.ref_character
+       FROM type_refs tr
+       JOIN files f ON f.id = tr.file_id
+       WHERE f.path = ? AND f.branch = ?
+       ORDER BY tr.id`,
+    );
+    const selectRelationships = db.prepare(
+      `SELECT sr.id, sr.line, sr.character
+       FROM symbol_relationships sr
+       JOIN files f ON f.id = sr.file_id
+       WHERE f.path = ? AND f.branch = ? AND sr.line IS NOT NULL
        ORDER BY sr.id`,
     );
     const updateSymbol = db.prepare(
@@ -929,6 +974,26 @@ export class IndexBuilder {
        SET resolved_type_signature = ?, resolved_return_type = ?, definition_uri = ?, definition_path = ?
        WHERE id = ?`,
     );
+    const updateTypeRef = db.prepare(
+      `UPDATE type_refs
+       SET resolved_type_signature = ?, definition_uri = ?, definition_path = ?
+       WHERE id = ?`,
+    );
+    const updateRelationship = db.prepare(
+      `UPDATE symbol_relationships
+       SET definition_uri = ?, definition_path = ?
+       WHERE id = ?`,
+    );
+
+    interface TaggedTarget {
+      table: 'symbol' | 'callRef' | 'typeRef' | 'relationship';
+      rowId: number;
+      line: number;
+      character: number;
+      /** Only used for symbol targets — for FTS update. */
+      name?: string;
+      signature?: string | null;
+    }
 
     for (const file of files) {
       if (!file || !fs.existsSync(file.path)) continue;
@@ -939,66 +1004,101 @@ export class IndexBuilder {
         continue;
       }
 
+      const tagged: TaggedTarget[] = [];
+
       const symbols = selectSymbols.all(file.path, branch) as Array<{
         id: number;
         name: string;
         signature: string | null;
         start_line: number;
       }>;
-      if (symbols.length > 0) {
-        const symbolMetadata = await lspCoordinator.enrich({
-          filePath: file.path,
-          language: file.language,
-          source,
-          targets: symbols.map((symbol) => ({ line: symbol.start_line, character: 0 })),
-        });
-        for (let i = 0; i < symbols.length; i++) {
-          const symbol = symbols[i];
-          if (!symbol) continue;
-          const metadata = symbolMetadata[i];
-          if (!metadata) continue;
-          updateSymbol.run(
-            metadata.resolvedTypeSignature,
-            metadata.resolvedReturnType,
-            metadata.definitionUri,
-            metadata.definitionPath,
-            symbol.id,
-          );
-          updateSymbolFts.run(
-            buildStructuralEmbeddingText({
-              name: symbol.name,
-              signature: symbol.signature,
-              resolvedTypeSignature: metadata.resolvedTypeSignature,
-              resolvedReturnType: metadata.resolvedReturnType,
-            }),
-            symbol.id,
-          );
-        }
+      for (const s of symbols) {
+        tagged.push({ table: 'symbol', rowId: s.id, line: s.start_line, character: 0, name: s.name, signature: s.signature });
       }
 
       const callRefs = selectCallRefs.all(file.path, branch) as Array<{
         id: number;
         call_line: number;
+        call_character: number | null;
       }>;
-      if (callRefs.length > 0) {
-        const callRefMetadata = await lspCoordinator.enrich({
-          filePath: file.path,
-          language: file.language,
-          source,
-          targets: callRefs.map((callRef) => ({ line: callRef.call_line, character: 0 })),
-        });
-        for (let i = 0; i < callRefs.length; i++) {
-          const callRef = callRefs[i];
-          if (!callRef) continue;
-          const metadata = callRefMetadata[i];
-          if (!metadata) continue;
-          updateCallRef.run(
-            metadata.resolvedTypeSignature,
-            metadata.resolvedReturnType,
-            metadata.definitionUri,
-            metadata.definitionPath,
-            callRef.id,
-          );
+      for (const cr of callRefs) {
+        tagged.push({ table: 'callRef', rowId: cr.id, line: cr.call_line, character: cr.call_character ?? 0 });
+      }
+
+      const typeRefs = selectTypeRefs.all(file.path, branch) as Array<{
+        id: number;
+        ref_line: number;
+        ref_character: number | null;
+      }>;
+      for (const tr of typeRefs) {
+        tagged.push({ table: 'typeRef', rowId: tr.id, line: tr.ref_line, character: tr.ref_character ?? 0 });
+      }
+
+      const relationships = selectRelationships.all(file.path, branch) as Array<{
+        id: number;
+        line: number;
+        character: number | null;
+      }>;
+      for (const r of relationships) {
+        tagged.push({ table: 'relationship', rowId: r.id, line: r.line, character: r.character ?? 0 });
+      }
+
+      if (tagged.length === 0) continue;
+
+      const metadata = await lspCoordinator.enrich({
+        filePath: file.path,
+        language: file.language,
+        source,
+        targets: tagged.map(t => ({ line: t.line, character: t.character })),
+      });
+
+      for (let i = 0; i < tagged.length; i++) {
+        const tag = tagged[i]!;
+        const m = metadata[i];
+        if (!m) continue;
+        switch (tag.table) {
+          case 'symbol':
+            updateSymbol.run(
+              m.resolvedTypeSignature,
+              m.resolvedReturnType,
+              m.definitionUri,
+              m.definitionPath,
+              tag.rowId,
+            );
+            updateSymbolFts.run(
+              buildStructuralEmbeddingText({
+                name: tag.name!,
+                signature: tag.signature ?? null,
+                resolvedTypeSignature: m.resolvedTypeSignature,
+                resolvedReturnType: m.resolvedReturnType,
+              }),
+              tag.rowId,
+            );
+            break;
+          case 'callRef':
+            updateCallRef.run(
+              m.resolvedTypeSignature,
+              m.resolvedReturnType,
+              m.definitionUri,
+              m.definitionPath,
+              tag.rowId,
+            );
+            break;
+          case 'typeRef':
+            updateTypeRef.run(
+              m.resolvedTypeSignature,
+              m.definitionUri,
+              m.definitionPath,
+              tag.rowId,
+            );
+            break;
+          case 'relationship':
+            updateRelationship.run(
+              m.definitionUri,
+              m.definitionPath,
+              tag.rowId,
+            );
+            break;
         }
       }
     }
