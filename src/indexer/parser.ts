@@ -3,11 +3,12 @@
  *
  * Provides a `ParserPool` that lazily creates one tree-sitter `Parser` per
  * language and caches it for reuse.  Grammar packages that are not installed
- * are silently skipped — `parse()` returns `null` for those languages.
+ * are logged as warnings — `parse()` returns `null` for those languages.
  */
 
 import Parser from 'tree-sitter';
 import { createRequire } from 'node:module';
+import { getLogger } from '../logger.js';
 
 const esmRequire = createRequire(import.meta.url);
 
@@ -121,9 +122,13 @@ export class ParserPool {
       const parser = new Parser();
       parser.setLanguage(grammar);
       this.parsers.set(language, parser);
-    } catch {
-      // Grammar not installed — mark as unavailable to avoid repeated attempts.
+    } catch (error) {
+      // Grammar not installed or ABI mismatch — mark as unavailable.
       this.unavailable.add(language);
+      const log = getLogger();
+      log.warn('parser', `grammar load failed for '${language}' (${pkg}) — all ${language} files will be skipped`, {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 }
