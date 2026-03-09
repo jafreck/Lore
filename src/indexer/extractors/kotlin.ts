@@ -172,17 +172,14 @@ const emitKotlinTypeRef = createTypeRefEmitter({
 function extractKotlinFunctionTypeRefs(funcNode: Parser.SyntaxNode, refs: RawTypeRef[]): void {
   const funcName = funcNode.childForFieldName('name')?.text ??
     funcNode.namedChildren.find(c => c.type === 'simple_identifier')?.text ?? '';
-  // Parameters
+  // Parameters — use emitter so generic args are extracted
   const params = funcNode.namedChildren.find(c => c.type === 'function_value_parameters');
   if (params) {
     for (const param of params.namedChildren) {
       if (param.type === 'parameter') {
         const typeNode = param.childForFieldName('type');
         if (typeNode) {
-          const typeName = extractKotlinTypeName(typeNode);
-          if (typeName) {
-            refs.push({ enclosingSymbol: funcName, typeRaw: typeName, refKind: 'parameter', line: typeNode.startPosition.row, character: typeNode.startPosition.column });
-          }
+          emitKotlinTypeRef(refs, funcName, typeNode, 'parameter');
         }
       }
     }
@@ -192,10 +189,7 @@ function extractKotlinFunctionTypeRefs(funcNode: Parser.SyntaxNode, refs: RawTyp
   const returnType = funcNode.childForFieldName('return_type')
     ?? funcNode.namedChildren.find(c => c.type === 'user_type' && c !== funcNode.childForFieldName('name'));
   if (returnType) {
-    const typeName = extractKotlinTypeName(returnType);
-    if (typeName) {
-      refs.push({ enclosingSymbol: funcName, typeRaw: typeName, refKind: 'return', line: returnType.startPosition.row, character: returnType.startPosition.column });
-    }
+    emitKotlinTypeRef(refs, funcName, returnType, 'return');
   }
 }
 

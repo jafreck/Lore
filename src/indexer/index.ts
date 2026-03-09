@@ -513,6 +513,10 @@ export class IndexBuilder {
       ).run(fileId);
       db.prepare('DELETE FROM symbol_relationships WHERE file_id = ?').run(fileId);
       db.prepare('DELETE FROM type_refs WHERE file_id = ?').run(fileId);
+      // NULL out cross-file FK references that point to symbols in this file
+      db.prepare('UPDATE symbol_refs SET callee_id = NULL WHERE callee_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(fileId);
+      db.prepare('UPDATE type_refs SET type_id = NULL WHERE type_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(fileId);
+      db.prepare('UPDATE symbol_relationships SET target_symbol_id = NULL WHERE target_symbol_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(fileId);
       db.prepare('DELETE FROM symbols WHERE file_id = ?').run(fileId);
       db.prepare('DELETE FROM file_imports WHERE file_id = ?').run(fileId);
       db.prepare('DELETE FROM external_deps WHERE file_id = ?').run(fileId);
