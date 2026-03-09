@@ -153,7 +153,7 @@ exports[`OCaml extractor > symbols 1`] = `
     "endLine": 3,
     "kind": "val",
     "name": "pi",
-    "signature": "pi = 3.14159265358979",
+    "signature": "pi =",
     "startLine": 3,
   },
   {
@@ -167,14 +167,14 @@ exports[`OCaml extractor > symbols 1`] = `
     "endLine": 8,
     "kind": "function",
     "name": "add",
-    "signature": "add a b = a + b",
+    "signature": "add a b =",
     "startLine": 8,
   },
   {
     "endLine": 10,
     "kind": "function",
     "name": "square",
-    "signature": "square x = x * x",
+    "signature": "square x =",
     "startLine": 10,
   },
   {
@@ -266,9 +266,7 @@ exports[`Objective-C extractor > symbols 1`] = `
     "endLine": 31,
     "kind": "impl",
     "name": "Circle",
-    "signature": "@implementation Circle
-
-- (instancetype)initWithRadius:(double)radius",
+    "signature": "@implementation Circle",
     "startLine": 13,
   },
 ]
@@ -408,8 +406,7 @@ exports[`Ruby extractor > symbols 1`] = `
     "endLine": 29,
     "kind": "function",
     "name": "greet",
-    "signature": "def greet(name)
-  "Hello, #",
+    "signature": "def greet(name)",
     "startLine": 27,
   },
   {
@@ -476,14 +473,14 @@ exports[`Scala extractor > symbols 1`] = `
     "endLine": 3,
     "kind": "function",
     "name": "greet",
-    "signature": "def greet(name: String): String = s"Hello, $name!"",
+    "signature": "def greet(name: String): String =",
     "startLine": 3,
   },
   {
     "endLine": 5,
     "kind": "function",
     "name": "add",
-    "signature": "def add(a: Int, b: Int): Int = a + b",
+    "signature": "def add(a: Int, b: Int): Int =",
     "startLine": 5,
   },
   {
@@ -504,14 +501,14 @@ exports[`Scala extractor > symbols 1`] = `
     "endLine": 13,
     "kind": "function",
     "name": "area",
-    "signature": "def area(): Double = PI * radius * radius",
+    "signature": "def area(): Double =",
     "startLine": 13,
   },
   {
     "endLine": 14,
     "kind": "function",
     "name": "perimeter",
-    "signature": "def perimeter(): Double = 2 * PI * radius",
+    "signature": "def perimeter(): Double =",
     "startLine": 14,
   },
   {
@@ -525,7 +522,7 @@ exports[`Scala extractor > symbols 1`] = `
     "endLine": 18,
     "kind": "function",
     "name": "square",
-    "signature": "def square(x: Int): Int = x * x",
+    "signature": "def square(x: Int): Int =",
     "startLine": 18,
   },
   {

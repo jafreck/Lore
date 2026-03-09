@@ -128,7 +128,7 @@ async function main(): Promise<void> {
     : LogLevel.INFO;
   const resolvedLogFile = logFileRaw
     ?? (dbPathForLog
-      ? dbPathForLog.replace(/\.db$/, '.log')
+      ? dbPathForLog.replace(/\.[^.]+$/, '.log')
       : undefined);
   const log = initLogger({ level: resolvedLogLevel, logFile: resolvedLogFile });
 

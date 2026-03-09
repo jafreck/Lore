@@ -78,6 +78,21 @@ export class FileWatcher {
   start(): void {
     if (!this.enabled || this.watcher) return;
 
+    // `recursive: true` is supported on macOS, Windows, and Linux (Node >= 19.1).
+    // On older Linux kernels/Node versions, subdirectory changes won't trigger events.
+    if (process.platform === 'linux') {
+      const [major] = process.versions.node.split('.').map(Number);
+      if (major !== undefined && major < 19) {
+        process.stderr.write(
+          JSON.stringify({
+            level: 'warn',
+            source: 'FileWatcher',
+            message: `fs.watch recursive option is not supported on Linux with Node ${process.versions.node}; subdirectory changes will not be detected`,
+          }) + '\n',
+        );
+      }
+    }
+
     this.watcher = fs.watch(
       this.walkerConfig.rootDir,
       { recursive: true },
@@ -154,6 +169,9 @@ export class FileWatcher {
       );
     } finally {
       this.flushRunning = false;
+      if (this.pendingPaths.size > 0) {
+        this.scheduleFlush();
+      }
     }
   }
 }

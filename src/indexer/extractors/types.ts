@@ -202,16 +202,31 @@ export function findFirst(
 }
 
 /**
- * Extracts a signature from a node by returning everything before the first
- * opening brace `{` (or the first line if there is no brace).
+ * Extracts a signature from a node by returning everything before the body block.
+ * Uses the AST body node position when available, falling back to the first
+ * top-level `{` on the first line if there is no body.
  */
 export function nodeSignature(node: Parser.SyntaxNode): string {
-  const text = node.text;
-  const braceIdx = text.indexOf('{');
-  if (braceIdx !== -1) {
-    return text.slice(0, braceIdx).trim();
+  // Try to find the body node by common field names used across languages.
+  const body = node.childForFieldName('body')
+    ?? node.childForFieldName('block')
+    ?? node.childForFieldName('class_body');
+  if (body) {
+    // Slice from the start of the node to the start of the body.
+    const startByte = node.startIndex;
+    const bodyStartByte = body.startIndex;
+    if (bodyStartByte > startByte) {
+      const text = node.text.slice(0, bodyStartByte - startByte);
+      return text.trim();
+    }
   }
-  return (text.split('\n')[0] ?? text).trim();
+  // Fallback: take the first line and strip a trailing `{` brace that is
+  // likely the start of a block body (e.g. Go struct/interface declarations
+  // where the body isn't a named field).  We only strip if the brace is
+  // at the end of the first line to avoid truncating default parameter objects
+  // like `function foo(opts = { bar: 1 })`.
+  const firstLine = (node.text.split('\n')[0] ?? node.text).trim();
+  return firstLine.replace(/\s*\{$/, '').trim();
 }
 
 /** Returns an empty `ExtractionResult`. */

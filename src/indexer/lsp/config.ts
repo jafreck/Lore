@@ -87,10 +87,23 @@ export function resolveEffectiveLspSettings(
   configSettings: LspSettingsOverrides = {},
   explicitOverrides: LspSettingsOverrides = {},
 ): EffectiveLspSettings {
-  const mergedServers = mergeLspServerRegistry({
-    ...(configSettings.servers ?? {}),
-    ...(explicitOverrides.servers ?? {}),
-  });
+  // Deep-merge per-language server overrides so that e.g. overriding only
+  // `args` doesn't discard the config file's `command`.
+  const configServers = configSettings.servers ?? {};
+  const overrideServers = explicitOverrides.servers ?? {};
+  const mergedServerOverrides: LspServerRegistryOverrides = { ...configServers };
+  for (const [lang, override] of Object.entries(overrideServers)) {
+    const existing = mergedServerOverrides[lang];
+    if (existing && override) {
+      mergedServerOverrides[lang] = {
+        command: override.command ?? existing.command,
+        args: override.args ?? existing.args,
+      };
+    } else {
+      mergedServerOverrides[lang] = override;
+    }
+  }
+  const mergedServers = mergeLspServerRegistry(mergedServerOverrides);
 
   return {
     enabled: explicitOverrides.enabled ?? configSettings.enabled ?? DEFAULT_LSP_ENABLED,
