@@ -52,23 +52,25 @@ export class ImportResolutionStage implements PipelineStage {
       'INSERT OR IGNORE INTO external_deps (file_id, package) VALUES (?, ?)',
     );
 
-    for (const row of rows) {
-      const resolved = resolver.resolve(
-        { source: row.raw_import, importedNames: [] },
-        row.path,
-        rootDir,
-        row.language,
-      );
+    db.transaction(() => {
+      for (const row of rows) {
+        const resolved = resolver.resolve(
+          { source: row.raw_import, importedNames: [] },
+          row.path,
+          rootDir,
+          row.language,
+        );
 
-      if (resolved.resolvedPath) {
-        const targetId = fileIdByPath.get(resolved.resolvedPath);
-        if (targetId !== undefined) {
-          updateResolved.run(targetId, row.id);
+        if (resolved.resolvedPath) {
+          const targetId = fileIdByPath.get(resolved.resolvedPath);
+          if (targetId !== undefined) {
+            updateResolved.run(targetId, row.id);
+          }
+        } else if (resolved.isExternal && resolved.externalName) {
+          insertExternalDep.run(row.file_id, resolved.externalName);
         }
-      } else if (resolved.isExternal && resolved.externalName) {
-        insertExternalDep.run(row.file_id, resolved.externalName);
       }
-    }
+    })();
 
     context.log.indexing('imports resolved', { totalUnresolved: rows.length });
   }

@@ -169,6 +169,32 @@ describe('cli', () => {
     nodeFs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
+  // ── MCP startup stat queries — regression for wrong table names ─────────
+
+  describe('mcp startup stat queries', () => {
+    it('should query symbol_refs and docs tables without error against a real schema', async () => {
+      // Regression: cli.ts previously used non-existent table names
+      // "call_graph" and "documentation", silently reporting 0 edges/docs.
+      const { openDb } = await import('../../src/indexer/db.js');
+      const dbPath = freshDb();
+      const db = openDb(dbPath);
+
+      // These are the exact queries from the MCP startup path in cli.ts.
+      // They must not throw against the real schema.
+      const totalFiles = (db.prepare('SELECT COUNT(*) AS cnt FROM files').get() as { cnt: number }).cnt;
+      const totalSymbols = (db.prepare('SELECT COUNT(*) AS cnt FROM symbols').get() as { cnt: number }).cnt;
+      const totalEdges = (db.prepare('SELECT COUNT(*) AS cnt FROM symbol_refs').get() as { cnt: number }).cnt;
+      const totalDocs = (db.prepare('SELECT COUNT(*) AS cnt FROM docs').get() as { cnt: number }).cnt;
+
+      expect(totalFiles).toBe(0);
+      expect(totalSymbols).toBe(0);
+      expect(totalEdges).toBe(0);
+      expect(totalDocs).toBe(0);
+
+      db.close();
+    });
+  });
+
   // ── Usage / help ───────────────────────────────────────────────────────────
 
   describe('usage / help', () => {

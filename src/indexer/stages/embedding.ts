@@ -260,9 +260,14 @@ function deleteSymbolEmbeddings(db: Database.Database, symbolIds: number[]): voi
     "SELECT 1 AS present FROM sqlite_master WHERE type IN ('table', 'virtual table') AND name = 'symbol_embeddings'",
   ).get() as { present: number } | undefined;
   if (!hasTable) return;
-  db.prepare(
-    `DELETE FROM symbol_embeddings WHERE rowid IN (${symbolIds.map(() => '?').join(', ')})`,
-  ).run(...symbolIds);
+  // Chunk to stay within SQLite's SQLITE_MAX_VARIABLE_NUMBER limit (default 999).
+  const CHUNK = 900;
+  for (let i = 0; i < symbolIds.length; i += CHUNK) {
+    const chunk = symbolIds.slice(i, i + CHUNK);
+    db.prepare(
+      `DELETE FROM symbol_embeddings WHERE rowid IN (${chunk.map(() => '?').join(', ')})`,
+    ).run(...chunk);
+  }
 }
 
 function resolveFileIds(db: Database.Database, paths: string[], branch: string): number[] {

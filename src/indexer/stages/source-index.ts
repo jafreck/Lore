@@ -142,16 +142,21 @@ export class SourceIndexStage implements PipelineStage {
       context.log.indexing('resuming from checkpoint', { resumeAt, totalFiles: files.length });
     }
 
-    db.transaction(() => {
-      for (let i = resumeAt; i < files.length; i++) {
-        const file = files[i];
-        if (!file) continue;
-        processFile(db, pool, file.path, file.language, branch);
-        saveBuildCheckpoint(db, branch, context.walkerConfig.rootDir, i + 1, files.length);
-      }
-    })();
-
-    saveBuildCheckpoint(db, branch, context.walkerConfig.rootDir, files.length, files.length);
+    // Process in batched transactions so that checkpoints survive crashes.
+    const BATCH_SIZE = 200;
+    for (let batchStart = resumeAt; batchStart < files.length; batchStart += BATCH_SIZE) {
+      const batchEnd = Math.min(batchStart + BATCH_SIZE, files.length);
+      db.transaction(() => {
+        for (let i = batchStart; i < batchEnd; i++) {
+          const file = files[i];
+          if (!file) continue;
+          processFile(db, pool, file.path, file.language, branch);
+        }
+      })();
+      // Checkpoint between batches — committed outside the batch transaction
+      // so it persists even if a later batch crashes.
+      saveBuildCheckpoint(db, branch, context.walkerConfig.rootDir, batchEnd, files.length);
+    }
   }
 
   // ─── Update mode ─────────────────────────────────────────────────────────
@@ -173,6 +178,9 @@ export class SourceIndexStage implements PipelineStage {
             const symRows = db.prepare('SELECT id FROM symbols WHERE file_id = ?').all(row.id) as Array<{ id: number }>;
             for (const s of symRows) context.staleSymbolIds.push(s.id);
             db.prepare('UPDATE file_imports SET resolved_id = NULL WHERE resolved_id = ?').run(row.id);
+            db.prepare('UPDATE symbol_refs SET callee_id = NULL WHERE callee_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(row.id);
+            db.prepare('UPDATE type_refs SET type_id = NULL WHERE type_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(row.id);
+            db.prepare('UPDATE symbol_relationships SET target_symbol_id = NULL WHERE target_symbol_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(row.id);
             db.prepare('DELETE FROM symbols_fts WHERE rowid IN (SELECT id FROM symbols WHERE file_id = ?)').run(row.id);
             db.prepare('DELETE FROM files WHERE id = ?').run(row.id);
           }

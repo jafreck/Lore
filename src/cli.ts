@@ -297,11 +297,11 @@ async function main(): Promise<void> {
     const totalSymbols = (db.prepare('SELECT COUNT(*) AS cnt FROM symbols').get() as { cnt: number }).cnt;
     let totalEdges = 0;
     try {
-      totalEdges = (db.prepare('SELECT COUNT(*) AS cnt FROM call_graph').get() as { cnt: number }).cnt;
+      totalEdges = (db.prepare('SELECT COUNT(*) AS cnt FROM symbol_refs').get() as { cnt: number }).cnt;
     } catch { /* table may not exist */ }
     let totalDocs = 0;
     try {
-      totalDocs = (db.prepare('SELECT COUNT(*) AS cnt FROM documentation').get() as { cnt: number }).cnt;
+      totalDocs = (db.prepare('SELECT COUNT(*) AS cnt FROM docs').get() as { cnt: number }).cnt;
     } catch { /* table may not exist */ }
     let commitCount: number | undefined;
     try {
