@@ -250,21 +250,38 @@ function resolveByContainment(
 // ─── Name-based fallback resolution ───────────────────────────────────────────
 
 /**
- * Builds a map from symbol name → array of { id, file_id } for all symbols.
+ * Symbol kinds that should never be resolved across file boundaries via
+ * the `name_unique` tier.  These are common sources of false positive
+ * edges (e.g. `MIN`, `MAX`, `main`) that inflate SCC sizes.
+ */
+const CROSS_FILE_EXCLUDED_KINDS = new Set([
+  'macro',
+  'constant',
+  'enum_member',
+]);
+
+interface NameMapEntry {
+  id: number;
+  file_id: number;
+  kind: string;
+}
+
+/**
+ * Builds a map from symbol name → array of { id, file_id, kind } for all symbols.
  * Used by the name-based fallback pass.
  */
-function buildNameMap(db: Database.Database): Map<string, Array<{ id: number; file_id: number }>> {
-  const nameToSymbols = new Map<string, Array<{ id: number; file_id: number }>>();
+function buildNameMap(db: Database.Database): Map<string, NameMapEntry[]> {
+  const nameToSymbols = new Map<string, NameMapEntry[]>();
   const allSymbols = db
-    .prepare('SELECT id, name, file_id FROM symbols')
-    .all() as Array<{ id: number; name: string; file_id: number }>;
+    .prepare('SELECT id, name, file_id, kind FROM symbols')
+    .all() as Array<{ id: number; name: string; file_id: number; kind: string }>;
   for (const row of allSymbols) {
     let list = nameToSymbols.get(row.name);
     if (!list) {
       list = [];
       nameToSymbols.set(row.name, list);
     }
-    list.push({ id: row.id, file_id: row.file_id });
+    list.push({ id: row.id, file_id: row.file_id, kind: row.kind });
   }
   return nameToSymbols;
 }
@@ -281,13 +298,15 @@ interface NameFallbackConfig {
  * Resolves remaining unresolved refs by name matching with two confidence tiers:
  *
  * - `name_same_file`: target name matches exactly one symbol in the same file
- * - `name_unique`: target name matches exactly one symbol in the entire index
+ * - `name_unique`: target name matches exactly one symbol in the entire index,
+ *   **excluding** macro/constant/enum_member symbols that commonly produce
+ *   false cross-file edges (e.g. `MIN`, `MAX`, `main`).
  *
  * Non-unique cross-file matches are left as `unresolved`.
  */
 function resolveByNameFallback(
   db: Database.Database,
-  nameToSymbols: Map<string, Array<{ id: number; file_id: number }>>,
+  nameToSymbols: Map<string, NameMapEntry[]>,
   config: NameFallbackConfig,
 ): void {
   const unresolved = config.selectUnresolved.all() as Array<{
@@ -323,9 +342,14 @@ function resolveByNameFallback(
       continue;
     }
 
-    // Tier 2: globally unique match (exactly one symbol with this name)
-    if (candidates.length === 1) {
-      updateResolved.run(candidates[0]!.id, 'name_unique' satisfies ResolutionMethod, ref.id);
+    // Tier 2: globally unique match (exactly one symbol with this name).
+    // Filter out macro/constant/enum_member kinds — these cause false
+    // cross-file edges (e.g. MIN, MAX, main in C/C++).
+    const crossFileEligible = candidates.filter(
+      c => !CROSS_FILE_EXCLUDED_KINDS.has(c.kind),
+    );
+    if (crossFileEligible.length === 1) {
+      updateResolved.run(crossFileEligible[0]!.id, 'name_unique' satisfies ResolutionMethod, ref.id);
       continue;
     }
 

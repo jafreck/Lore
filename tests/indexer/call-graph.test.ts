@@ -347,6 +347,89 @@ describe('resolveSymbolEdges – name-based fallback', () => {
     expect(ref.resolution_method).toBe('unresolved');
   });
 
+  it('should NOT resolve via name_unique when the sole candidate is a macro', () => {
+    const db = createDb();
+    const file1 = insertFile(db, 'src/main.c');
+    const file2 = insertFile(db, 'src/defs.h');
+
+    // The only symbol named 'MAX' is a macro in another file
+    insertSymbol(db, file2, 'MAX', 'macro', 1, 1);
+
+    const caller = insertSymbol(db, file1, 'compute', 'function', 1, 10);
+
+    db.prepare(
+      `INSERT INTO symbol_refs (caller_id, file_id, callee_name, call_line) VALUES (?, ?, 'MAX', 5)`,
+    ).run(caller, file1);
+
+    resolveSymbolEdges(db);
+
+    const ref = db.prepare('SELECT callee_id, resolution_method FROM symbol_refs WHERE caller_id = ?').get(caller) as { callee_id: number | null; resolution_method: string };
+    expect(ref.callee_id).toBeNull();
+    expect(ref.resolution_method).toBe('unresolved');
+  });
+
+  it('should NOT resolve via name_unique when the sole candidate is a constant', () => {
+    const db = createDb();
+    const file1 = insertFile(db, 'src/main.c');
+    const file2 = insertFile(db, 'src/constants.c');
+
+    insertSymbol(db, file2, 'MIN_VALUE', 'constant', 1, 1);
+
+    const caller = insertSymbol(db, file1, 'process', 'function', 1, 10);
+
+    db.prepare(
+      `INSERT INTO symbol_refs (caller_id, file_id, callee_name, call_line) VALUES (?, ?, 'MIN_VALUE', 5)`,
+    ).run(caller, file1);
+
+    resolveSymbolEdges(db);
+
+    const ref = db.prepare('SELECT callee_id, resolution_method FROM symbol_refs WHERE caller_id = ?').get(caller) as { callee_id: number | null; resolution_method: string };
+    expect(ref.callee_id).toBeNull();
+    expect(ref.resolution_method).toBe('unresolved');
+  });
+
+  it('should resolve via name_unique when an eligible non-macro candidate exists after filtering', () => {
+    const db = createDb();
+    const file1 = insertFile(db, 'src/main.c');
+    const file2 = insertFile(db, 'src/utils.c');
+    const file3 = insertFile(db, 'src/defs.h');
+
+    // Two symbols named 'process': one function (eligible), one macro (excluded)
+    const target = insertSymbol(db, file2, 'process', 'function', 1, 10);
+    insertSymbol(db, file3, 'process', 'macro', 1, 1);
+
+    const caller = insertSymbol(db, file1, 'main', 'function', 1, 10);
+
+    db.prepare(
+      `INSERT INTO symbol_refs (caller_id, file_id, callee_name, call_line) VALUES (?, ?, 'process', 5)`,
+    ).run(caller, file1);
+
+    resolveSymbolEdges(db);
+
+    const ref = db.prepare('SELECT callee_id, resolution_method FROM symbol_refs WHERE caller_id = ?').get(caller) as { callee_id: number | null; resolution_method: string };
+    expect(ref.callee_id).toBe(target);
+    expect(ref.resolution_method).toBe('name_unique');
+  });
+
+  it('should still resolve macro via name_same_file (same-file is not filtered)', () => {
+    const db = createDb();
+    const file1 = insertFile(db, 'src/main.c');
+
+    // Macro in the same file should still be resolved via name_same_file
+    const target = insertSymbol(db, file1, 'MAX', 'macro', 1, 1);
+    const caller = insertSymbol(db, file1, 'compute', 'function', 5, 15);
+
+    db.prepare(
+      `INSERT INTO symbol_refs (caller_id, file_id, callee_name, call_line) VALUES (?, ?, 'MAX', 7)`,
+    ).run(caller, file1);
+
+    resolveSymbolEdges(db);
+
+    const ref = db.prepare('SELECT callee_id, resolution_method FROM symbol_refs WHERE caller_id = ?').get(caller) as { callee_id: number | null; resolution_method: string };
+    expect(ref.callee_id).toBe(target);
+    expect(ref.resolution_method).toBe('name_same_file');
+  });
+
   it('should resolve type_ref via name_same_file when no LSP data', () => {
     const db = createDb();
     const file1 = insertFile(db, 'src/file1.ts');

@@ -10,6 +10,7 @@ import {
   getFileByPath,
   listFiles,
   listFilesByPathPrefix,
+  listResolvedEdges,
   listDocs,
   getDocByPath,
   listDocSections,
@@ -656,13 +657,13 @@ describe('listFiles', () => {
     insertFile(db, 'c.ts', 'feat');
   });
 
-  it('should return all files when no branch filter', () => {
-    const rows = listFiles(db, 100);
+  it('should return all files when no branch filter (default limit is large)', () => {
+    const rows = listFiles(db);
     expect(rows.length).toBe(3);
   });
 
   it('should filter by branch when branch is provided', () => {
-    const rows = listFiles(db, 100, 'main');
+    const rows = listFiles(db, undefined, 'main');
     expect(rows.length).toBe(2);
     rows.forEach((r) => expect(r.branch).toBe('main'));
   });
@@ -678,7 +679,7 @@ describe('listFiles', () => {
   });
 
   it('should return an empty array when branch has no files', () => {
-    const rows = listFiles(db, 100, 'nonexistent');
+    const rows = listFiles(db, undefined, 'nonexistent');
     expect(rows).toEqual([]);
   });
 });
@@ -718,6 +719,118 @@ describe('listFilesByPathPrefix', () => {
   it('should respect the limit parameter', () => {
     const rows = listFilesByPathPrefix(db, 'src', undefined, 2);
     expect(rows).toHaveLength(2);
+  });
+});
+
+// ─── listResolvedEdges ────────────────────────────────────────────────────────
+
+describe('listResolvedEdges', () => {
+  function createEdgeDb(): Database.Database {
+    const db = new Database(':memory:');
+    db.pragma('foreign_keys = ON');
+    db.exec(`
+      CREATE TABLE files (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        path       TEXT    NOT NULL,
+        branch     TEXT    NOT NULL DEFAULT '',
+        language   TEXT    NOT NULL,
+        size_bytes INTEGER NOT NULL DEFAULT 0,
+        last_hash  TEXT,
+        indexed_at INTEGER NOT NULL DEFAULT 0,
+        UNIQUE(path, branch)
+      );
+      CREATE TABLE symbols (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        file_id    INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+        name       TEXT    NOT NULL,
+        kind       TEXT    NOT NULL,
+        start_line INTEGER NOT NULL,
+        end_line   INTEGER NOT NULL,
+        signature  TEXT,
+        doc_comment TEXT
+      );
+      CREATE TABLE symbol_refs (
+        id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+        caller_id           INTEGER NOT NULL REFERENCES symbols(id) ON DELETE CASCADE,
+        file_id             INTEGER REFERENCES files(id) ON DELETE CASCADE,
+        callee_id           INTEGER REFERENCES symbols(id),
+        callee_name         TEXT    NOT NULL,
+        call_line           INTEGER NOT NULL,
+        call_character      INTEGER,
+        call_kind           TEXT    NOT NULL DEFAULT 'direct',
+        resolution_method   TEXT    NOT NULL DEFAULT 'unresolved'
+      );
+    `);
+    return db;
+  }
+
+  let db: Database.Database;
+  let fileA: number;
+  let fileB: number;
+  let callerSym: number;
+  let calleeSym: number;
+
+  beforeEach(() => {
+    db = createEdgeDb();
+    fileA = Number(db.prepare("INSERT INTO files (path, branch, language) VALUES ('src/a.ts', 'main', 'typescript')").run().lastInsertRowid);
+    fileB = Number(db.prepare("INSERT INTO files (path, branch, language) VALUES ('src/b.ts', 'main', 'typescript')").run().lastInsertRowid);
+    callerSym = Number(db.prepare("INSERT INTO symbols (file_id, name, kind, start_line, end_line) VALUES (?, 'doWork', 'function', 1, 20)").run(fileA).lastInsertRowid);
+    calleeSym = Number(db.prepare("INSERT INTO symbols (file_id, name, kind, start_line, end_line) VALUES (?, 'helper', 'function', 1, 10)").run(fileB).lastInsertRowid);
+
+    // Resolved edge
+    db.prepare(
+      `INSERT INTO symbol_refs (caller_id, file_id, callee_id, callee_name, call_line, call_kind, resolution_method)
+       VALUES (?, ?, ?, 'helper', 5, 'direct', 'lsp_definition')`,
+    ).run(callerSym, fileA, calleeSym);
+
+    // Unresolved edge
+    db.prepare(
+      `INSERT INTO symbol_refs (caller_id, file_id, callee_name, call_line, call_kind, resolution_method)
+       VALUES (?, ?, 'unknown', 12, 'direct', 'unresolved')`,
+    ).run(callerSym, fileA);
+  });
+
+  it('should return all edges by default', () => {
+    const edges = listResolvedEdges(db);
+    expect(edges).toHaveLength(2);
+    expect(edges[0]!.caller_name).toBe('doWork');
+    expect(edges[0]!.callee_id).toBe(calleeSym);
+    expect(edges[0]!.callee_file_path).toBe('src/b.ts');
+    expect(edges[1]!.callee_id).toBeNull();
+  });
+
+  it('should filter to resolved-only edges', () => {
+    const edges = listResolvedEdges(db, { resolvedOnly: true });
+    expect(edges).toHaveLength(1);
+    expect(edges[0]!.resolution_method).toBe('lsp_definition');
+    expect(edges[0]!.callee_name).toBe('helper');
+  });
+
+  it('should filter by file_id', () => {
+    // Add an edge from fileB so there's something to exclude
+    const sym2 = Number(db.prepare("INSERT INTO symbols (file_id, name, kind, start_line, end_line) VALUES (?, 'other', 'function', 1, 5)").run(fileB).lastInsertRowid);
+    db.prepare(
+      `INSERT INTO symbol_refs (caller_id, file_id, callee_name, call_line, call_kind, resolution_method)
+       VALUES (?, ?, 'doWork', 3, 'direct', 'unresolved')`,
+    ).run(sym2, fileB);
+
+    const edgesA = listResolvedEdges(db, { fileId: fileA });
+    expect(edgesA).toHaveLength(2);
+    expect(edgesA.every(e => e.caller_file_id === fileA)).toBe(true);
+
+    const edgesB = listResolvedEdges(db, { fileId: fileB });
+    expect(edgesB).toHaveLength(1);
+    expect(edgesB[0]!.caller_name).toBe('other');
+  });
+
+  it('should respect the limit parameter', () => {
+    const edges = listResolvedEdges(db, { limit: 1 });
+    expect(edges).toHaveLength(1);
+  });
+
+  it('should return empty for non-existent fileId', () => {
+    const edges = listResolvedEdges(db, { fileId: 9999 });
+    expect(edges).toEqual([]);
   });
 });
 
