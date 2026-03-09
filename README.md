@@ -15,12 +15,12 @@ without re-reading it from scratch.
 ## What Lore does
 
 - Parses source files and extracts symbols, imports, call refs, type refs, annotations, and API routes across all 24 supported languages
-- Resolves internal vs external imports and builds call/import/module/inheritance/type-dependency graph edges
+- Resolves internal vs external imports and builds call/import/module/inheritance/type-dependency graph edges using a 3-tier resolution strategy (LSP containment, same-file name match, unique name match)
 - Discovers and indexes documentation (`.md`, `.rst`, `.adoc`, `.txt`) with inferred kinds/titles
 - Stores everything in a normalized SQL schema with optional vector search
 - Enables RAG-style retrieval with semantic/fused search across symbols and doc sections
 - Indexes git history (commits, touched files, refs/branches/tags)
-- Enriches symbols with resolved type signatures and definitions via optional index-time LSP integration
+- Enriches symbols with resolved type signatures and definitions via optional index-time LSP integration (batch-pipelined hover + definition requests)
 - Supports line-level git blame through MCP
 - Supports automatic refresh via watch mode, poll mode, and git hooks
 
@@ -90,18 +90,37 @@ flowchart LR
     LOOKUP & SEARCH & DOCS_TOOL & ANNOT & GRAPH & ROUTES & NOTES & ARCH & TESTMAP & SNIPPET & BLAME & HISTORY & METRICS & COVERAGE & WRITEBACK <--> MCP_CLIENTS
 ```
 
-Lore sits between your codebase and any LLM-powered tool. The **indexer**
-pipeline walks source files, parses them into ASTs, and extracts
+Lore sits between your codebase and any LLM-powered tool. A `LoreRuntime`
+instance owns all long-lived resources (database, embedder, LSP coordinators,
+watcher/poller) and dispatches both CLI commands and MCP server requests through
+a single lifecycle.
+
+The **indexer** is decomposed into composable **pipeline stages** orchestrated
+by `IndexPipeline`. `IndexBuilder` is now a thin façade (~310 lines, down from
+~1 230) that delegates to the pipeline for both full builds and incremental
+updates. The stage ordering enforces data dependencies structurally:
+
+```
+SourceIndex → DocsIndex → ImportResolution → DependencyApi
+  → LspEnrichment → Resolution → TestMap → History → Embedding
+```
+
+Each stage walks source files, parses them into ASTs, and extracts
 symbols/imports/call-refs via language-specific extractors, then resolves
-imports (internal vs external) and builds the call graph. An optional
-**LSP enrichment** pass queries language servers to resolve type signatures
-and jump-to-definition URIs for extracted symbols. An optional **embedder**
-generates dense vectors for semantic search, and a parallel **git history**
-ingest captures commits, diffs, and refs. Everything is persisted to a
-normalized SQL database. The **MCP server** then exposes that
-database as a set of tools that any MCP-compatible client can call to look up
-symbols, search code, traverse call graphs, read snippets, query
-blame/history, and write summaries back.
+imports (internal vs external) and resolves symbol references using a
+**3-tier resolution** strategy: LSP containment → same-file name match →
+unique name match. An optional **LSP enrichment** stage queries language
+servers with batch-pipelined hover + definition requests. An optional
+**embedder** generates dense vectors for semantic search (with async
+initialization so the MCP server starts instantly), and a parallel **git
+history** ingest captures commits, diffs, and refs. Everything is persisted to
+a normalized SQL database.
+
+The **MCP server** uses a `ToolRegistry` that auto-discovers tool modules
+from their exported `toolDef` / `handler` definitions — no duplicate schema
+code. It exposes the database as a set of tools that any MCP-compatible
+client can call to look up symbols, search code, traverse call graphs, read
+snippets, query blame/history, and write summaries back.
 
 The index stays fresh automatically. You can install **git hooks**
 (`post-commit`, `post-merge`, etc.) that trigger an incremental refresh on
@@ -487,7 +506,7 @@ are fast even on large repositories.
 Build or update a knowledge base.
 
 ```bash
-npx @jafreck/lore index --root <dir> --db <path> [--embedding-model <id>] [--index-deps] [--history] [--history-depth <n>] [--history-all] [--include <glob>] [--exclude <glob>] [--language <lang>] [--docs-include <glob>] [--docs-exclude <glob>] [--docs-extension <ext>] [--docs-auto-notes|--no-docs-auto-notes] [--lsp] [--no-lsp]
+npx @jafreck/lore index --root <dir> --db <path> [--embedding-model <id>] [--blocking-embedder] [--index-deps] [--history] [--history-depth <n>] [--history-all] [--include <glob>] [--exclude <glob>] [--language <lang>] [--docs-include <glob>] [--docs-exclude <glob>] [--docs-extension <ext>] [--docs-auto-notes|--no-docs-auto-notes] [--lsp] [--no-lsp]
 ```
 
 ### lore refresh
@@ -521,7 +540,7 @@ npx @jafreck/lore ingest-coverage --db <path> --root <dir> --file <path> --forma
 Start the MCP server over stdio.
 
 ```bash
-npx @jafreck/lore mcp --db <path>
+npx @jafreck/lore mcp --db <path> [--blocking-embedder]
 ```
 
 ## Build from source
@@ -570,24 +589,24 @@ CI publish flow:
 - Ensure publish jobs expose that secret as the `NODE_AUTH_TOKEN` environment
   variable before running `npm publish`.
 
-## Release publish workflow (`@jafreck/lore@0.1.0`)
+## Release publish workflow (`@jafreck/lore@0.3.0`)
 
 Publishing is automated by `.github/workflows/publish.yml`. Creating a version
-tag (for example, `v0.1.0`) or publishing a GitHub Release triggers the npm
+tag (for example, `v0.3.0`) or publishing a GitHub Release triggers the npm
 publish job.
 
-Release steps for `@jafreck/lore@0.1.0`:
+Release steps for `@jafreck/lore@0.3.0`:
 
-1. Ensure `package.json` has `"version": "0.1.0"`.
-2. Push the tag: `git tag v0.1.0 && git push origin v0.1.0` (or publish a
-   GitHub Release for `v0.1.0`).
+1. Ensure `package.json` has `"version": "0.3.0"`.
+2. Push the tag: `git tag v0.3.0 && git push origin v0.3.0` (or publish a
+   GitHub Release for `v0.3.0`).
 3. Confirm the workflow logs show `npm publish --dry-run` output before the
    live `npm publish` step.
 
 Post-publish verification:
 
-- Check the package metadata: `npm view @jafreck/lore version` returns `0.1.0`.
-- Confirm installability: `npm view @jafreck/lore@0.1.0 name version`.
+- Check the package metadata: `npm view @jafreck/lore version` returns `0.3.0`.
+- Confirm installability: `npm view @jafreck/lore@0.3.0 name version`.
 
 ## Benchmarking index performance (500+ file repos)
 
