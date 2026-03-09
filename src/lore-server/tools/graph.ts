@@ -87,6 +87,7 @@ export interface GraphEdge {
   target_id: number | null;
   target_name: string;
   callee_coverage_percent?: number | null;
+  ref_kind?: string;
 }
 
 export interface GraphResult {
@@ -288,7 +289,8 @@ function getStructuralEdges(
                 COALESCE(s_src.name, '') AS source_name,
                 f_src.branch AS source_branch,
                 tr.type_id AS target_id,
-                COALESCE(s_dst.name, tr.type_name) AS target_name
+                COALESCE(s_dst.name, tr.type_name) AS target_name,
+                tr.ref_kind AS ref_kind
            FROM type_refs tr
            JOIN files f_src ON f_src.id = tr.file_id
            LEFT JOIN symbols s_src ON s_src.id = tr.symbol_id
@@ -299,7 +301,8 @@ function getStructuralEdges(
                 COALESCE(s_src.name, '') AS source_name,
                 f_src.branch AS source_branch,
                 tr.type_id AS target_id,
-                COALESCE(s_dst.name, tr.type_name) AS target_name
+                COALESCE(s_dst.name, tr.type_name) AS target_name,
+                tr.ref_kind AS ref_kind
            FROM type_refs tr
            JOIN files f_src ON f_src.id = tr.file_id
            LEFT JOIN symbols s_src ON s_src.id = tr.symbol_id

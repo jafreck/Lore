@@ -15,8 +15,8 @@ import {
   type RawTypeRef,
   type TypeRefKind,
   type SymbolExtractor,
+  createTypeRefEmitter,
   emptyResult,
-  extractGenericTypeArgs,
   findEnclosingSymbolName,
   nodeSignature,
   walk,
@@ -167,14 +167,14 @@ function extractDartInheritance(
     if (child.type === 'superclass') {
       const typeNode = child.namedChildren[0];
       if (typeNode) {
-        relationships.push({ kind: 'extends', fromSymbol: name, toSymbol: typeNode.text, line: typeNode.startPosition.row });
+        relationships.push({ kind: 'extends', fromSymbol: name, toSymbol: typeNode.text, line: typeNode.startPosition.row, character: typeNode.startPosition.column });
         typeRefs.push({ enclosingSymbol: name, typeRaw: typeNode.text, refKind: 'bound', line: typeNode.startPosition.row, character: typeNode.startPosition.column });
       }
     }
     if (child.type === 'interfaces' || child.type === 'mixins') {
       for (const iface of child.namedChildren) {
         if (iface.type === 'type_identifier' || iface.type === 'identifier') {
-          relationships.push({ kind: 'implements', fromSymbol: name, toSymbol: iface.text, line: iface.startPosition.row });
+          relationships.push({ kind: 'implements', fromSymbol: name, toSymbol: iface.text, line: iface.startPosition.row, character: iface.startPosition.column });
           typeRefs.push({ enclosingSymbol: name, typeRaw: iface.text, refKind: 'bound', line: iface.startPosition.row, character: iface.startPosition.column });
         }
       }
@@ -187,16 +187,11 @@ function extractDartTypeName(typeNode: Parser.SyntaxNode): string | null {
   return null;
 }
 
-function emitDartTypeRef(refs: RawTypeRef[], enclosing: string, typeNode: Parser.SyntaxNode, refKind: TypeRefKind): void {
-  const typeName = extractDartTypeName(typeNode);
-  if (!typeName) return;
-  refs.push({ enclosingSymbol: enclosing, typeRaw: typeName, refKind, line: typeNode.startPosition.row, character: typeNode.startPosition.column });
-  // Decompose generic args one level
-  const genericArgs = extractGenericTypeArgs(typeNode, 'type_identifier', 'type_arguments');
-  for (const arg of genericArgs) {
-    refs.push({ enclosingSymbol: enclosing, typeRaw: arg, refKind: 'generic_arg', line: typeNode.startPosition.row, character: typeNode.startPosition.column });
-  }
-}
+const emitDartTypeRef = createTypeRefEmitter({
+  extractTypeName: extractDartTypeName,
+  genericNodeType: 'type_identifier',
+  argListNodeType: 'type_arguments',
+});
 
 function extractDartFunctionTypeRefs(funcNode: Parser.SyntaxNode, refs: RawTypeRef[]): void {
   const funcName = funcNode.childForFieldName('name')?.text ??
@@ -223,9 +218,11 @@ function extractDartClassFieldTypeRefs(classNode: Parser.SyntaxNode, refs: RawTy
     classNode.namedChildren.find(c => c.type === 'identifier')?.text ?? '';
   const body = classNode.childForFieldName('body') ?? classNode.namedChildren.find(c => c.type === 'class_body');
   if (!body) return;
-  for (const node of walk(body)) {
-    if (node.type === 'initialized_variable_definition' || node.type === 'declaration') {
-      const typeNode = node.namedChildren.find(c => c.type === 'type_identifier');
+  // Only walk direct children of the class body — avoid recursing into nested classes
+  for (const child of body.namedChildren) {
+    if (child.type === 'class_definition') continue; // skip nested classes
+    if (child.type === 'initialized_variable_definition' || child.type === 'declaration') {
+      const typeNode = child.namedChildren.find(c => c.type === 'type_identifier');
       if (typeNode) {
         emitDartTypeRef(refs, className, typeNode, 'field');
       }

@@ -15,8 +15,8 @@ import {
   type RawTypeRef,
   type TypeRefKind,
   type SymbolExtractor,
+  createTypeRefEmitter,
   emptyResult,
-  extractGenericTypeArgs,
   findEnclosingSymbolName,
   nodeSignature,
   walk,
@@ -170,7 +170,7 @@ function extractSwiftInheritance(
     if (child.type === 'type_identifier' || child.type === 'user_type') {
       const baseName = child.text;
       const kind = (isClass && first) ? 'extends' : 'implements';
-      relationships.push({ kind, fromSymbol: name, toSymbol: baseName, line: child.startPosition.row });
+      relationships.push({ kind, fromSymbol: name, toSymbol: baseName, line: child.startPosition.row, character: child.startPosition.column });
       typeRefs.push({ enclosingSymbol: name, typeRaw: baseName, refKind: 'bound', line: child.startPosition.row, character: child.startPosition.column });
       first = false;
     }
@@ -190,16 +190,11 @@ function extractSwiftTypeName(typeNode: Parser.SyntaxNode): string | null {
   return null;
 }
 
-function emitSwiftTypeRef(refs: RawTypeRef[], enclosing: string, typeNode: Parser.SyntaxNode, refKind: TypeRefKind): void {
-  const typeName = extractSwiftTypeName(typeNode);
-  if (!typeName) return;
-  refs.push({ enclosingSymbol: enclosing, typeRaw: typeName, refKind, line: typeNode.startPosition.row, character: typeNode.startPosition.column });
-  // Decompose generic args one level
-  const genericArgs = extractGenericTypeArgs(typeNode, 'generic_type', 'type_arguments');
-  for (const arg of genericArgs) {
-    refs.push({ enclosingSymbol: enclosing, typeRaw: arg, refKind: 'generic_arg', line: typeNode.startPosition.row, character: typeNode.startPosition.column });
-  }
-}
+const emitSwiftTypeRef = createTypeRefEmitter({
+  extractTypeName: extractSwiftTypeName,
+  genericNodeType: 'generic_type',
+  argListNodeType: 'type_arguments',
+});
 
 function extractSwiftFunctionTypeRefs(funcNode: Parser.SyntaxNode, refs: RawTypeRef[]): void {
   const funcName = funcNode.childForFieldName('name')?.text ?? '';

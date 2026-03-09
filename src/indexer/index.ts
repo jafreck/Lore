@@ -612,12 +612,12 @@ export class IndexBuilder {
 
     // Insert relationships (target_symbol_id resolved in resolveSymbolEdges phase)
     const insertRelationship = db.prepare(
-      `INSERT INTO symbol_relationships (file_id, source_symbol_id, target_symbol_name, relationship_type, line)
-       VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO symbol_relationships (file_id, source_symbol_id, target_symbol_name, relationship_type, line, character)
+       VALUES (?, ?, ?, ?, ?, ?)`,
     );
     for (const rel of result.relationships) {
       const sourceId = symbolIdMap.get(rel.fromSymbol) ?? null;
-      insertRelationship.run(fileId, sourceId, rel.toSymbol, rel.kind, rel.line);
+      insertRelationship.run(fileId, sourceId, rel.toSymbol, rel.kind, rel.line, rel.character ?? null);
     }
 
     // Insert type refs (type_id resolved in resolveSymbolEdges phase)
@@ -949,7 +949,7 @@ export class IndexBuilder {
        ORDER BY tr.id`,
     );
     const selectRelationships = db.prepare(
-      `SELECT sr.id, sr.line
+      `SELECT sr.id, sr.line, sr.character
        FROM symbol_relationships sr
        JOIN files f ON f.id = sr.file_id
        WHERE f.path = ? AND f.branch = ? AND sr.line IS NOT NULL
@@ -1031,9 +1031,10 @@ export class IndexBuilder {
       const relationships = selectRelationships.all(file.path, branch) as Array<{
         id: number;
         line: number;
+        character: number | null;
       }>;
       for (const r of relationships) {
-        tagged.push({ table: 'relationship', rowId: r.id, line: r.line, character: 0 });
+        tagged.push({ table: 'relationship', rowId: r.id, line: r.line, character: r.character ?? 0 });
       }
 
       if (tagged.length === 0) continue;

@@ -19,8 +19,8 @@ import {
   type RawTypeRef,
   type TypeRefKind,
   type SymbolExtractor,
+  createTypeRefEmitter,
   emptyResult,
-  extractGenericTypeArgs,
   findEnclosingSymbolName,
   findFirst,
   nodeSignature,
@@ -107,6 +107,18 @@ export class CppExtractor implements SymbolExtractor {
         case 'reinterpret_cast_expression':
         case 'const_cast_expression': {
           extractCppNamedCastTypeRef(node, result.typeRefs);
+          break;
+        }
+        case 'sizeof_expression': {
+          extractCppSizeofTypeRef(node, result.typeRefs, 'sizeof');
+          break;
+        }
+        case 'alignof_expression': {
+          extractCppSizeofTypeRef(node, result.typeRefs, 'sizeof');
+          break;
+        }
+        case 'sizeof_pack_expression': {
+          extractCppSizeofTypeRef(node, result.typeRefs, 'sizeof');
           break;
         }
       }
@@ -340,6 +352,7 @@ function extractBaseClassRelationships(
             fromSymbol: className,
             toSymbol: baseName,
             line: base.startPosition.row,
+            character: base.startPosition.column,
           });
           typeRefs.push({
             enclosingSymbol: className,
@@ -367,33 +380,11 @@ function extractCppTypeName(typeNode: Parser.SyntaxNode): string | null {
   return null;
 }
 
-function emitCppTypeRef(
-  refs: RawTypeRef[],
-  enclosing: string,
-  typeNode: Parser.SyntaxNode,
-  refKind: TypeRefKind,
-): void {
-  const typeName = extractCppTypeName(typeNode);
-  if (!typeName) return;
-  refs.push({
-    enclosingSymbol: enclosing,
-    typeRaw: typeName,
-    refKind,
-    line: typeNode.startPosition.row,
-    character: typeNode.startPosition.column,
-  });
-  // Decompose generic args one level
-  const genericArgs = extractGenericTypeArgs(typeNode, 'template_type', 'template_argument_list');
-  for (const arg of genericArgs) {
-    refs.push({
-      enclosingSymbol: enclosing,
-      typeRaw: arg,
-      refKind: 'generic_arg',
-      line: typeNode.startPosition.row,
-      character: typeNode.startPosition.column,
-    });
-  }
-}
+const emitCppTypeRef = createTypeRefEmitter({
+  extractTypeName: extractCppTypeName,
+  genericNodeType: 'template_type',
+  argListNodeType: 'template_argument_list',
+});
 
 function extractCppFunctionTypeRefs(funcNode: Parser.SyntaxNode, refs: RawTypeRef[]): void {
   const declarator = funcNode.childForFieldName('declarator');
@@ -466,4 +457,16 @@ function extractCppNamedCastTypeRef(node: Parser.SyntaxNode, refs: RawTypeRef[])
   if (!typeNode) return;
   const enclosing = findEnclosingSymbolName(node, CPP_SYMBOL_NODE_TYPES);
   emitCppTypeRef(refs, enclosing, typeNode, 'cast');
+}
+
+function extractCppSizeofTypeRef(node: Parser.SyntaxNode, refs: RawTypeRef[], refKind: TypeRefKind): void {
+  // sizeof(Type), alignof(Type), sizeof...(Pack)
+  const valueNode = node.childForFieldName('value') ?? node.childForFieldName('type');
+  if (valueNode) {
+    const typeName = extractCppTypeName(valueNode);
+    if (typeName) {
+      const enclosing = findEnclosingSymbolName(node, CPP_SYMBOL_NODE_TYPES);
+      emitCppTypeRef(refs, enclosing, valueNode, refKind);
+    }
+  }
 }
