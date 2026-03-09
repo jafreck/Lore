@@ -68,11 +68,10 @@ describe('public API surface', () => {
     expect(publicApi.openReadOnly).toBeDefined();
   });
 
-  it('should export enrichProjectRefs', () => {
-    expect(publicApi.enrichProjectRefs).toBeDefined();
-  });
-
-  it('should export processFile', () => {
-    expect(publicApi.processFile).toBeDefined();
+  it('should NOT export internal stage helpers', () => {
+    expect((publicApi as any).processFile).toBeUndefined();
+    expect((publicApi as any).enrichProjectRefs).toBeUndefined();
+    expect((publicApi as any).loadBuildCheckpoint).toBeUndefined();
+    expect((publicApi as any).saveBuildCheckpoint).toBeUndefined();
   });
 });

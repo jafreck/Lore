@@ -375,7 +375,7 @@ export function processFile(
 
 // ─── Checkpoint helpers ───────────────────────────────────────────────────────
 
-export function loadBuildCheckpoint(
+function loadBuildCheckpoint(
   db: Database.Database,
   branch: string,
   rootDir: string,
@@ -393,7 +393,7 @@ export function loadBuildCheckpoint(
   }
 }
 
-export function saveBuildCheckpoint(
+function saveBuildCheckpoint(
   db: Database.Database,
   branch: string,
   rootDir: string,

@@ -179,7 +179,7 @@ export function upsertSeededDocumentationNote(
   ).run(key, scope, doc.content, 'system:auto-doc-seed', doc.hash);
 }
 
-export function deleteDocumentationByPath(db: Database.Database, docPath: string, branch: string): void {
+function deleteDocumentationByPath(db: Database.Database, docPath: string, branch: string): void {
   const row = db.prepare('SELECT id FROM docs WHERE path = ? AND branch = ?')
     .get(docPath, branch) as { id: number } | undefined;
   if (!row) return;

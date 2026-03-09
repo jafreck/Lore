@@ -61,15 +61,11 @@ export class LspEnrichmentStage implements PipelineStage {
   }
 }
 
-// ─── Enrichment logic (extracted from IndexBuilder.enrichProjectRefs) ─────────
+// ─── Enrichment logic ─────────────────────────────────────────────────────────────────
 
 /**
  * Enrich symbols, call refs, type refs, and relationships for every file in
  * the context with LSP-derived metadata.
- *
- * Extracted from `IndexBuilder.enrichProjectRefs()`. Used both by
- * `LspEnrichmentStage` and directly by `IndexBuilder` (until the full
- * pipeline migration is complete).
  */
 export async function enrichProjectRefs(
   db: Database.Database,

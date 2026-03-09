@@ -50,8 +50,7 @@ export {
   HistoryStage,
   EmbeddingStage,
 } from './indexer/stages/index.js';
-export { enrichProjectRefs } from './indexer/stages/lsp-enrichment.js';
-export { processFile } from './indexer/stages/source-index.js';
+
 
 // ── Runtime ───────────────────────────────────────────────────────────────────
 export { LoreRuntime } from './runtime.js';
