@@ -15,8 +15,8 @@ import {
   type RawTypeRef,
   type TypeRefKind,
   type SymbolExtractor,
+  createTypeRefEmitter,
   emptyResult,
-  extractGenericTypeArgs,
   findEnclosingSymbolName,
   nodeSignature,
   walk,
@@ -53,6 +53,10 @@ export class CSharpExtractor implements SymbolExtractor {
           result.symbols.push(extractNamedNode(node, 'enum'));
           break;
         case 'method_declaration':
+          result.symbols.push(extractMethod(node));
+          extractCsMethodTypeRefs(node, result.typeRefs);
+          break;
+        case 'constructor_declaration':
           result.symbols.push(extractMethod(node));
           extractCsMethodTypeRefs(node, result.typeRefs);
           break;
@@ -169,16 +173,17 @@ function extractCsBaseListRelationships(
   if (!name) return;
   const baseList = node.namedChildren.find(c => c.type === 'base_list');
   if (!baseList) return;
-  let first = true;
   for (const child of baseList.namedChildren) {
     if (child.type === 'identifier' || child.type === 'generic_name' || child.type === 'qualified_name') {
       const baseName = child.text;
-      // In C#, the first item in a class base list is the superclass (extends),
-      // subsequent items are interfaces (implements). For interfaces, all are extends.
-      const kind = (declKind === 'interface' || !first) ? 'implements' : 'extends';
-      relationships.push({ kind, fromSymbol: name, toSymbol: baseName, line: child.startPosition.row });
+      // In C#, there is no syntactic distinction between a base class and an
+      // implemented interface in the base list.  For interfaces and structs all
+      // entries are always `implements`.  For classes we conservatively default
+      // to `implements` since we can't distinguish class-from-interface without
+      // semantic analysis and interface-only base lists are very common.
+      const kind = declKind === 'interface' ? 'extends' : 'implements';
+      relationships.push({ kind, fromSymbol: name, toSymbol: baseName, line: child.startPosition.row, character: child.startPosition.column });
       typeRefs.push({ enclosingSymbol: name, typeRaw: baseName, refKind: 'bound', line: child.startPosition.row, character: child.startPosition.column });
-      first = false;
     }
   }
 }
@@ -199,15 +204,11 @@ function extractCsTypeName(typeNode: Parser.SyntaxNode): string | null {
   return null;
 }
 
-function emitCsTypeRef(refs: RawTypeRef[], enclosing: string, typeNode: Parser.SyntaxNode, refKind: TypeRefKind): void {
-  const typeName = extractCsTypeName(typeNode);
-  if (!typeName) return;
-  refs.push({ enclosingSymbol: enclosing, typeRaw: typeName, refKind, line: typeNode.startPosition.row, character: typeNode.startPosition.column });
-  const genericArgs = extractGenericTypeArgs(typeNode, 'generic_name', 'type_argument_list');
-  for (const arg of genericArgs) {
-    refs.push({ enclosingSymbol: enclosing, typeRaw: arg, refKind: 'generic_arg', line: typeNode.startPosition.row, character: typeNode.startPosition.column });
-  }
-}
+const emitCsTypeRef = createTypeRefEmitter({
+  extractTypeName: extractCsTypeName,
+  genericNodeType: 'generic_name',
+  argListNodeType: 'type_argument_list',
+});
 
 function extractCsMethodTypeRefs(methodNode: Parser.SyntaxNode, refs: RawTypeRef[]): void {
   const methodName = methodNode.childForFieldName('name')?.text ?? '';

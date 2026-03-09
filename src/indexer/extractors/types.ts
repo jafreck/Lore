@@ -95,6 +95,8 @@ export interface RawRelationship {
   toSymbol: string;
   /** 0-indexed line where the relationship is declared. */
   line: number;
+  /** 0-indexed character of the target type identifier (best-effort, optional). */
+  character?: number;
 }
 
 /**
@@ -303,4 +305,63 @@ export function extractGenericTypeArgs(
     }
   }
   return [];
+}
+
+/**
+ * Creates a type-ref emitter function that encapsulates the standard
+ * three-step pattern used by most language extractors:
+ *
+ * 1. Call `extractTypeName(typeNode)` → `string | null`
+ * 2. Push a `RawTypeRef` with the result
+ * 3. Call `extractGenericTypeArgs` and push a `RawTypeRef` per arg with `refKind: 'generic_arg'`
+ *
+ * @param config.extractTypeName   Language-specific function to extract a type name from a node.
+ * @param config.genericNodeType   AST node type for generic/template wrappers.
+ * @param config.argListNodeType   AST node type for the generic argument list.
+ * @param config.recurseIntoTypes  Optional list of AST node types to recurse into
+ *                                 (e.g. `['union_type', 'intersection_type']` for TypeScript).
+ *                                 When the type node matches one of these, the emitter walks
+ *                                 its `namedChildren` instead of emitting directly.
+ */
+export function createTypeRefEmitter(config: {
+  extractTypeName: (node: Parser.SyntaxNode) => string | null;
+  genericNodeType: string;
+  argListNodeType: string;
+  recurseIntoTypes?: string[];
+}): (refs: RawTypeRef[], enclosing: string, typeNode: Parser.SyntaxNode, refKind: TypeRefKind) => void {
+  const { extractTypeName, genericNodeType, argListNodeType, recurseIntoTypes } = config;
+  const emitter = (
+    refs: RawTypeRef[],
+    enclosing: string,
+    typeNode: Parser.SyntaxNode,
+    refKind: TypeRefKind,
+  ): void => {
+    // Recurse into compound types (union, intersection, map, etc.)
+    if (recurseIntoTypes && recurseIntoTypes.includes(typeNode.type)) {
+      for (const child of typeNode.namedChildren) {
+        emitter(refs, enclosing, child, refKind);
+      }
+      return;
+    }
+    const typeName = extractTypeName(typeNode);
+    if (!typeName) return;
+    refs.push({
+      enclosingSymbol: enclosing,
+      typeRaw: typeName,
+      refKind,
+      line: typeNode.startPosition.row,
+      character: typeNode.startPosition.column,
+    });
+    const genericArgs = extractGenericTypeArgs(typeNode, genericNodeType, argListNodeType);
+    for (const arg of genericArgs) {
+      refs.push({
+        enclosingSymbol: enclosing,
+        typeRaw: arg,
+        refKind: 'generic_arg',
+        line: typeNode.startPosition.row,
+        character: typeNode.startPosition.column,
+      });
+    }
+  };
+  return emitter;
 }

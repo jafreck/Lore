@@ -193,6 +193,13 @@ exports[`C# extractor > symbols 1`] = `
     "startLine": 5,
   },
   {
+    "endLine": 12,
+    "kind": "function",
+    "name": "Greeter",
+    "signature": "public Greeter(string name)",
+    "startLine": 9,
+  },
+  {
     "endLine": 17,
     "kind": "function",
     "name": "Greet",

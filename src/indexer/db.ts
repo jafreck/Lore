@@ -99,10 +99,12 @@ CREATE TABLE IF NOT EXISTS symbol_relationships (
   target_symbol_name TEXT    NOT NULL,
   relationship_type  TEXT    NOT NULL,
   line               INTEGER NOT NULL,
+  character          INTEGER,
   definition_uri     TEXT,
   definition_path    TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_symbol_rels_source ON symbol_relationships(source_symbol_id);
+CREATE INDEX IF NOT EXISTS idx_symbol_rels_target ON symbol_relationships(target_symbol_id);
 CREATE INDEX IF NOT EXISTS idx_symbol_rels_type ON symbol_relationships(relationship_type);
 CREATE INDEX IF NOT EXISTS idx_symbol_rels_file_id ON symbol_relationships(file_id);
 
@@ -125,6 +127,7 @@ CREATE INDEX IF NOT EXISTS idx_type_refs_type_name ON type_refs(type_name);
 CREATE INDEX IF NOT EXISTS idx_type_refs_type_name_bare ON type_refs(type_name_bare);
 CREATE INDEX IF NOT EXISTS idx_type_refs_symbol_id ON type_refs(symbol_id);
 CREATE INDEX IF NOT EXISTS idx_type_refs_file_id ON type_refs(file_id);
+CREATE INDEX IF NOT EXISTS idx_type_refs_type_id ON type_refs(type_id);
 
 -- External (third-party / stdlib) dependencies inferred from imports.
 CREATE TABLE IF NOT EXISTS external_deps (
@@ -337,6 +340,7 @@ const ENRICHMENT_SCHEMA_MIGRATIONS: Array<{ table: string; column: string; sql: 
   { table: 'external_symbols', column: 'resolved_return_type', sql: 'ALTER TABLE external_symbols ADD COLUMN resolved_return_type TEXT' },
   { table: 'external_symbols', column: 'definition_uri', sql: 'ALTER TABLE external_symbols ADD COLUMN definition_uri TEXT' },
   { table: 'external_symbols', column: 'definition_path', sql: 'ALTER TABLE external_symbols ADD COLUMN definition_path TEXT' },
+  { table: 'symbol_relationships', column: 'character', sql: 'ALTER TABLE symbol_relationships ADD COLUMN character INTEGER' },
 ];
 
 const ENRICHMENT_INDEX_MIGRATIONS = [

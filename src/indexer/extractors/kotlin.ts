@@ -15,8 +15,8 @@ import {
   type RawTypeRef,
   type TypeRefKind,
   type SymbolExtractor,
+  createTypeRefEmitter,
   emptyResult,
-  extractGenericTypeArgs,
   findEnclosingSymbolName,
   nodeSignature,
   walk,
@@ -147,7 +147,7 @@ function extractKotlinInheritance(
     if (typeNode) {
       const baseName = typeNode.text;
       const kind = first ? 'extends' : 'implements';
-      relationships.push({ kind, fromSymbol: name, toSymbol: baseName, line: typeNode.startPosition.row });
+      relationships.push({ kind, fromSymbol: name, toSymbol: baseName, line: typeNode.startPosition.row, character: typeNode.startPosition.column });
       typeRefs.push({ enclosingSymbol: name, typeRaw: baseName, refKind: 'bound', line: typeNode.startPosition.row, character: typeNode.startPosition.column });
       first = false;
     }
@@ -163,16 +163,11 @@ function extractKotlinTypeName(typeNode: Parser.SyntaxNode): string | null {
   return null;
 }
 
-function emitKotlinTypeRef(refs: RawTypeRef[], enclosing: string, typeNode: Parser.SyntaxNode, refKind: TypeRefKind): void {
-  const typeName = extractKotlinTypeName(typeNode);
-  if (!typeName) return;
-  refs.push({ enclosingSymbol: enclosing, typeRaw: typeName, refKind, line: typeNode.startPosition.row, character: typeNode.startPosition.column });
-  // Decompose generic args one level
-  const genericArgs = extractGenericTypeArgs(typeNode, 'user_type', 'type_arguments');
-  for (const arg of genericArgs) {
-    refs.push({ enclosingSymbol: enclosing, typeRaw: arg, refKind: 'generic_arg', line: typeNode.startPosition.row, character: typeNode.startPosition.column });
-  }
-}
+const emitKotlinTypeRef = createTypeRefEmitter({
+  extractTypeName: extractKotlinTypeName,
+  genericNodeType: 'user_type',
+  argListNodeType: 'type_arguments',
+});
 
 function extractKotlinFunctionTypeRefs(funcNode: Parser.SyntaxNode, refs: RawTypeRef[]): void {
   const funcName = funcNode.childForFieldName('name')?.text ??
@@ -192,8 +187,10 @@ function extractKotlinFunctionTypeRefs(funcNode: Parser.SyntaxNode, refs: RawTyp
       }
     }
   }
-  // Return type
-  const returnType = funcNode.namedChildren.find(c => c.type === 'user_type' && c !== funcNode.childForFieldName('name'));
+  // Return type — prefer childForFieldName('return_type') for robustness;
+  // fall back to first user_type not equal to the name for older grammar versions
+  const returnType = funcNode.childForFieldName('return_type')
+    ?? funcNode.namedChildren.find(c => c.type === 'user_type' && c !== funcNode.childForFieldName('name'));
   if (returnType) {
     const typeName = extractKotlinTypeName(returnType);
     if (typeName) {

@@ -16,8 +16,8 @@ import {
   type RawTypeRef,
   type TypeRefKind,
   type SymbolExtractor,
+  createTypeRefEmitter,
   emptyResult,
-  extractGenericTypeArgs,
   findEnclosingSymbolName,
   findFirst,
   nodeSignature,
@@ -227,19 +227,19 @@ function extractGoTypeName(typeNode: Parser.SyntaxNode): string | null {
     const element = typeNode.childForFieldName('element') ?? typeNode.namedChildren[0];
     return element ? extractGoTypeName(element) : null;
   }
+  if (typeNode.type === 'map_type') {
+    // For map_type, we return null here; key/value are extracted separately in emitGoTypeRef
+    return null;
+  }
   return null;
 }
 
-function emitGoTypeRef(refs: RawTypeRef[], enclosing: string, typeNode: Parser.SyntaxNode, refKind: TypeRefKind): void {
-  const typeName = extractGoTypeName(typeNode);
-  if (!typeName) return;
-  refs.push({ enclosingSymbol: enclosing, typeRaw: typeName, refKind, line: typeNode.startPosition.row, character: typeNode.startPosition.column });
-  // Decompose generic args one level (Go 1.18+ type parameters)
-  const genericArgs = extractGenericTypeArgs(typeNode, 'generic_type', 'type_arguments');
-  for (const arg of genericArgs) {
-    refs.push({ enclosingSymbol: enclosing, typeRaw: arg, refKind: 'generic_arg', line: typeNode.startPosition.row, character: typeNode.startPosition.column });
-  }
-}
+const emitGoTypeRef = createTypeRefEmitter({
+  extractTypeName: extractGoTypeName,
+  genericNodeType: 'generic_type',
+  argListNodeType: 'type_arguments',
+  recurseIntoTypes: ['map_type'],
+});
 
 function extractGoFunctionTypeRefs(funcNode: Parser.SyntaxNode, refs: RawTypeRef[]): void {
   const funcName = funcNode.childForFieldName('name')?.text ?? '';
@@ -309,13 +309,40 @@ function extractGoTypeDeclRefs(
     const name = spec.childForFieldName('name')?.text ?? '';
     const typeNode = spec.childForFieldName('type');
     if (!typeNode) continue;
-    // Interface embedding
+    // Interface embedding + method signatures
     if (typeNode.type === 'interface_type') {
       for (const child of typeNode.namedChildren) {
         // Embedded interfaces appear as type identifiers directly in the interface body
         if (child.type === 'type_identifier' || child.type === 'qualified_type') {
-          relationships.push({ kind: 'extends', fromSymbol: name, toSymbol: child.text, line: child.startPosition.row });
+          relationships.push({ kind: 'extends', fromSymbol: name, toSymbol: child.text, line: child.startPosition.row, character: child.startPosition.column });
           refs.push({ enclosingSymbol: name, typeRaw: child.text, refKind: 'bound', line: child.startPosition.row, character: child.startPosition.column });
+        }
+        // Interface method signatures: extract parameter and return type refs
+        if (child.type === 'method_spec') {
+          const methodName = child.childForFieldName('name')?.text;
+          const enclosing = methodName ? `${name}.${methodName}` : name;
+          const params = child.childForFieldName('parameters');
+          if (params) {
+            for (const param of params.namedChildren) {
+              if (param.type === 'parameter_declaration') {
+                const paramType = param.childForFieldName('type');
+                if (paramType) emitGoTypeRef(refs, enclosing, paramType, 'parameter');
+              }
+            }
+          }
+          const result = child.childForFieldName('result');
+          if (result) {
+            if (result.type === 'parameter_list') {
+              for (const param of result.namedChildren) {
+                if (param.type === 'parameter_declaration') {
+                  const paramType = param.childForFieldName('type');
+                  if (paramType) emitGoTypeRef(refs, enclosing, paramType, 'return');
+                }
+              }
+            } else {
+              emitGoTypeRef(refs, enclosing, result, 'return');
+            }
+          }
         }
       }
     }
