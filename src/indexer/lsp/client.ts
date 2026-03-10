@@ -1,4 +1,5 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { trackProcess } from '../../process-tracker.js';
 
 interface JsonRpcRequest {
   jsonrpc: '2.0';
@@ -96,6 +97,7 @@ export class LspClient {
       env: this.options.processEnv ?? process.env,
       stdio: ['pipe', 'pipe', 'pipe'],
     }) as ChildProcessWithoutNullStreams;
+    trackProcess(child);
 
     this.child = child;
     this.started = true;

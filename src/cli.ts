@@ -22,6 +22,7 @@ import {
   resolveEffectiveLspSettings,
 } from './indexer/lsp/config.js';
 import { initLogger, LogLevel, LOG_LEVEL_NAMES } from './logger.js';
+import { killAllTracked } from './process-tracker.js';
 import { LoreRuntime } from './runtime.js';
 
 // ─── Argument helpers ─────────────────────────────────────────────────────────
@@ -132,6 +133,12 @@ async function main(): Promise<void> {
       ? dbPathForLog.replace(/\.[^.]+$/, '.log')
       : undefined);
   const log = initLogger({ level: resolvedLogLevel, logFile: resolvedLogFile });
+
+  // Safety-net: kill tracked child processes (Python embedder, LSP servers)
+  // when the process exits for any reason. Sub-commands that create a
+  // LoreRuntime install their own signal handlers with graceful shutdown;
+  // this covers one-shot flows (index, refresh) where no runtime exists.
+  process.once('exit', () => killAllTracked());
 
   if (subcommand === 'index') {
     const rootDir = flag(args, '--root');
