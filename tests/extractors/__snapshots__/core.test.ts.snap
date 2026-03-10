@@ -300,6 +300,20 @@ exports[`JavaScript extractor > symbols 1`] = `
     "startLine": 11,
   },
   {
+    "endLine": 14,
+    "kind": "constructor",
+    "name": "constructor",
+    "signature": "constructor(name)",
+    "startLine": 12,
+  },
+  {
+    "endLine": 18,
+    "kind": "method",
+    "name": "speak",
+    "signature": "speak()",
+    "startLine": 16,
+  },
+  {
     "endLine": 21,
     "kind": "function",
     "name": "multiply",
@@ -655,6 +669,27 @@ exports[`TypeScript extractor > symbols 1`] = `
     "name": "Circle",
     "signature": "class Circle extends BaseShape implements Shape",
     "startLine": 23,
+  },
+  {
+    "endLine": 24,
+    "kind": "constructor",
+    "name": "constructor",
+    "signature": "constructor(private radius: number)",
+    "startLine": 24,
+  },
+  {
+    "endLine": 28,
+    "kind": "method",
+    "name": "area",
+    "signature": "area(): number",
+    "startLine": 26,
+  },
+  {
+    "endLine": 32,
+    "kind": "method",
+    "name": "perimeter",
+    "signature": "perimeter(): number",
+    "startLine": 30,
   },
   {
     "endLine": 35,

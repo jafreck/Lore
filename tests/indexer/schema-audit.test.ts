@@ -15,11 +15,12 @@ import {
 } from '../../src/indexer/resolution-method.js';
 
 describe('resolution-method taxonomy', () => {
-  it('should define exactly 6 resolution methods', () => {
-    expect(RESOLUTION_METHODS).toHaveLength(6);
+  it('should define exactly 7 resolution methods', () => {
+    expect(RESOLUTION_METHODS).toHaveLength(7);
   });
 
   it('should contain the canonical method names', () => {
+    expect(RESOLUTION_METHODS).toContain('scip_definition');
     expect(RESOLUTION_METHODS).toContain('lsp_definition');
     expect(RESOLUTION_METHODS).toContain('name_same_file');
     expect(RESOLUTION_METHODS).toContain('name_unique');
@@ -44,6 +45,7 @@ describe('resolution-method taxonomy', () => {
   });
 
   it('resolved methods should include the high-confidence tiers', () => {
+    expect(RESOLVED_METHODS.has('scip_definition')).toBe(true);
     expect(RESOLVED_METHODS.has('lsp_definition')).toBe(true);
     expect(RESOLVED_METHODS.has('name_same_file')).toBe(true);
     expect(RESOLVED_METHODS.has('name_unique')).toBe(true);

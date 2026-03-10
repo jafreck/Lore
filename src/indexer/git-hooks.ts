@@ -14,6 +14,7 @@ export interface InstallGitHooksOptions {
   dbPath: string;
   includeHistory?: boolean;
   lspEnabled?: boolean;
+  scipEnabled?: boolean;
 }
 
 const HOOK_NAMES = ['post-commit', 'post-merge', 'post-checkout', 'post-rewrite'] as const;
@@ -27,6 +28,7 @@ function makeHookScript(
   dbPath: string,
   includeHistory: boolean,
   lspEnabled: boolean | undefined,
+  scipEnabled: boolean | undefined,
 ): string {
   const cmd = [
     'npx',
@@ -38,6 +40,7 @@ function makeHookScript(
     shellEscapeSingle(dbPath),
     ...(includeHistory ? ['--history'] : []),
     ...(lspEnabled === true ? ['--lsp'] : lspEnabled === false ? ['--no-lsp'] : []),
+    ...(scipEnabled === true ? ['--scip'] : scipEnabled === false ? ['--no-scip'] : []),
   ].join(' ');
 
   return [
@@ -69,6 +72,7 @@ export function installGitHooks(options: InstallGitHooksOptions): { installed: s
       options.dbPath,
       options.includeHistory ?? false,
       options.lspEnabled,
+      options.scipEnabled,
     ).trimEnd(),
     '# --- lore auto-refresh (end) ---',
     '',

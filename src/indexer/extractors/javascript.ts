@@ -41,6 +41,7 @@ export class JavaScriptExtractor implements SymbolExtractor {
           break;
         case 'class_declaration':
           result.symbols.push(extractNamedDecl(node, 'class'));
+          extractJsClassMembers(node, result);
           break;
         case 'lexical_declaration':
         case 'variable_declaration': {
@@ -78,6 +79,26 @@ function extractNamedDecl(node: Parser.SyntaxNode, kind: string): RawSymbol {
     endLine: node.endPosition.row,
     signature: nodeSignature(node),
   };
+}
+
+function extractJsClassMembers(classNode: Parser.SyntaxNode, result: ExtractionResult): void {
+  const body = classNode.childForFieldName('body');
+  if (!body) return;
+  for (const child of body.namedChildren) {
+    if (child.type === 'method_definition') {
+      const nameNode = child.childForFieldName('name');
+      const name = nameNode?.text ?? '';
+      if (!name) continue;
+      const kind = name === 'constructor' ? 'constructor' : 'method';
+      result.symbols.push({
+        name,
+        kind,
+        startLine: child.startPosition.row,
+        endLine: child.endPosition.row,
+        signature: nodeSignature(child),
+      });
+    }
+  }
 }
 
 function maybeExtractArrowOrFunctionExpr(
