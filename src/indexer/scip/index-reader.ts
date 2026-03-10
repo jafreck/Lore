@@ -4,42 +4,30 @@
  * Parses a SCIP index (protobuf binary) into in-memory lookup structures
  * that the enrichment coordinator can query by file + position.
  *
- * Implements a minimal protobuf wire-format decoder for exactly the SCIP
- * fields Lore needs — no external protobuf dependency required.
+ * Uses the official SCIP protobuf schema (vendored `scip_pb.ts`) with
+ * `@bufbuild/protobuf` for decoding — no manual wire-format parsing.
  *
  * ## SCIP data model (relevant subset)
  *
- * ```
- * Index {
- *   Metadata metadata = 1;
- *   repeated Document documents = 2;
- *   repeated SymbolInformation external_symbols = 3;
- * }
- * Document {
- *   string relative_path = 1;
- *   repeated Occurrence occurrences = 2;
- *   repeated SymbolInformation symbols = 3;
- *   string language = 4;
- * }
- * Occurrence {
- *   repeated int32 range = 1;   // packed
- *   string symbol = 2;
- *   int32 symbol_roles = 3;
- * }
- * SymbolInformation {
- *   string symbol = 1;
- *   repeated string documentation = 3;
- *   string display_name = 6;
- *   Document signature_documentation = 7;
- * }
- * ```
- *
- * Occurrence ranges are `[startLine, startChar, endLine, endChar]` (4 elems)
- * or `[startLine, startChar, endChar]` (3 elems, endLine = startLine).
- * Definition occurrences have bit 0 of `symbol_roles` set.
+ * - `Index.documents[]` — per-file occurrences and symbol definitions
+ * - `Index.external_symbols[]` — hover docs for symbols from other packages
+ * - `Occurrence.range` — `[startLine, startChar, endChar]` (3-elem) or
+ *   `[startLine, startChar, endLine, endChar]` (4-elem), 0-based
+ * - `Occurrence.symbol_roles` — bitset; bit 0 = Definition
+ * - `SymbolInformation.documentation` — markdown hover text
+ * - `SymbolInformation.signature_documentation` — structured signature
  */
 
-import { join, resolve } from 'node:path';
+import { resolve } from 'node:path';
+import { fromBinary } from '@bufbuild/protobuf';
+import {
+  IndexSchema,
+  SymbolRole,
+  type Index as ScipIndex,
+  type Document as ScipDocument,
+  type Occurrence as ScipOccurrence,
+  type SymbolInformation as ScipSymbolInformation,
+} from './scip_pb.js';
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
@@ -86,7 +74,7 @@ export class ScipIndexData {
 
   constructor(private readonly projectRoot: string) {}
 
-  addDocument(doc: RawScipDocument): void {
+  addDocument(doc: ScipDocument): void {
     const absPath = resolve(this.projectRoot, doc.relativePath);
     if (doc.language) this.languages.add(doc.language.toLowerCase());
 
@@ -98,7 +86,7 @@ export class ScipIndexData {
       const startChar = range[1]!;
       const endLine = range.length >= 4 ? range[2]! : startLine;
       const endChar = range.length >= 4 ? range[3]! : range[2]!;
-      const isDefinition = (occ.symbolRoles & 0x1) !== 0;
+      const isDefinition = (occ.symbolRoles & SymbolRole.Definition) !== 0;
       records.push({
         startLine,
         startCharacter: startChar,
@@ -110,7 +98,6 @@ export class ScipIndexData {
 
       // Register definition locations.
       if (isDefinition && occ.symbol && !occ.symbol.startsWith('local ')) {
-        // Only keep the first definition per symbol (in case of duplicates).
         if (!this.definitions.has(occ.symbol)) {
           this.definitions.set(occ.symbol, { filePath: absPath, line: startLine, character: startChar });
         }
@@ -124,24 +111,14 @@ export class ScipIndexData {
     // Index symbol info from document-level symbols.
     for (const sym of doc.symbols) {
       if (sym.symbol) {
-        this.symbolInfo.set(sym.symbol, {
-          symbol: sym.symbol,
-          documentation: sym.documentation,
-          displayName: sym.displayName,
-          signatureText: sym.signatureText,
-        });
+        this.symbolInfo.set(sym.symbol, toScipSymbolInfo(sym));
       }
     }
   }
 
-  addExternalSymbol(sym: RawScipSymbolInfo): void {
+  addExternalSymbol(sym: ScipSymbolInformation): void {
     if (sym.symbol) {
-      this.symbolInfo.set(sym.symbol, {
-        symbol: sym.symbol,
-        documentation: sym.documentation,
-        displayName: sym.displayName,
-        signatureText: sym.signatureText,
-      });
+      this.symbolInfo.set(sym.symbol, toScipSymbolInfo(sym));
     }
   }
 
@@ -204,205 +181,15 @@ export class ScipIndexData {
   get definitionCount(): number { return this.definitions.size; }
 }
 
-// ─── Raw decoded types ────────────────────────────────────────────────────────
+// ─── Protobuf → internal type conversion ──────────────────────────────────────
 
-export interface RawScipDocument {
-  relativePath: string;
-  language: string;
-  occurrences: Array<{ range: number[]; symbol: string; symbolRoles: number }>;
-  symbols: RawScipSymbolInfo[];
-}
-
-export interface RawScipSymbolInfo {
-  symbol: string;
-  documentation: string[];
-  displayName: string;
-  signatureText: string | null;
-}
-
-// ─── Minimal protobuf wire-format decoder ─────────────────────────────────────
-
-/** Protobuf wire types. */
-const WIRE_VARINT = 0;
-const WIRE_FIXED64 = 1;
-const WIRE_LENGTH_DELIMITED = 2;
-const WIRE_FIXED32 = 5;
-
-class ProtobufReader {
-  pos = 0;
-  constructor(readonly buf: Uint8Array) {}
-
-  get done(): boolean { return this.pos >= this.buf.length; }
-
-  readVarint(): number {
-    let result = 0;
-    let shift = 0;
-    while (this.pos < this.buf.length) {
-      const byte = this.buf[this.pos++]!;
-      result |= (byte & 0x7f) << shift;
-      if ((byte & 0x80) === 0) return result >>> 0;
-      shift += 7;
-      if (shift > 35) throw new Error('Varint too long');
-    }
-    throw new Error('Unexpected end of buffer reading varint');
-  }
-
-  readSignedVarint(): number {
-    const raw = this.readVarint();
-    return raw | 0; // Interpret as signed 32-bit.
-  }
-
-  readTag(): { fieldNumber: number; wireType: number } {
-    const v = this.readVarint();
-    return { fieldNumber: v >>> 3, wireType: v & 0x7 };
-  }
-
-  readBytes(): Uint8Array {
-    const length = this.readVarint();
-    if (this.pos + length > this.buf.length) {
-      throw new Error(`Unexpected end of buffer: need ${length} bytes at offset ${this.pos}`);
-    }
-    const result = this.buf.subarray(this.pos, this.pos + length);
-    this.pos += length;
-    return result;
-  }
-
-  readString(): string {
-    return new TextDecoder().decode(this.readBytes());
-  }
-
-  readPackedInt32(): number[] {
-    const bytes = this.readBytes();
-    const sub = new ProtobufReader(bytes);
-    const values: number[] = [];
-    while (!sub.done) {
-      values.push(sub.readSignedVarint());
-    }
-    return values;
-  }
-
-  skip(wireType: number): void {
-    switch (wireType) {
-      case WIRE_VARINT:
-        this.readVarint();
-        break;
-      case WIRE_FIXED64:
-        this.pos += 8;
-        break;
-      case WIRE_LENGTH_DELIMITED:
-        this.pos += this.readVarint();
-        break;
-      case WIRE_FIXED32:
-        this.pos += 4;
-        break;
-      default:
-        throw new Error(`Unknown wire type: ${wireType}`);
-    }
-  }
-}
-
-// ─── SCIP message decoders ────────────────────────────────────────────────────
-
-function decodeOccurrence(data: Uint8Array): { range: number[]; symbol: string; symbolRoles: number } {
-  const reader = new ProtobufReader(data);
-  let range: number[] = [];
-  let symbol = '';
-  let symbolRoles = 0;
-
-  while (!reader.done) {
-    const { fieldNumber, wireType } = reader.readTag();
-    switch (fieldNumber) {
-      case 1: // range — packed repeated int32
-        if (wireType === WIRE_LENGTH_DELIMITED) {
-          range = reader.readPackedInt32();
-        } else {
-          range.push(reader.readSignedVarint());
-        }
-        break;
-      case 2: // symbol
-        symbol = reader.readString();
-        break;
-      case 3: // symbol_roles
-        symbolRoles = reader.readSignedVarint();
-        break;
-      default:
-        reader.skip(wireType);
-    }
-  }
-  return { range, symbol, symbolRoles };
-}
-
-function decodeSymbolInfo(data: Uint8Array): RawScipSymbolInfo {
-  const reader = new ProtobufReader(data);
-  let symbol = '';
-  const documentation: string[] = [];
-  let displayName = '';
-  let signatureText: string | null = null;
-
-  while (!reader.done) {
-    const { fieldNumber, wireType } = reader.readTag();
-    switch (fieldNumber) {
-      case 1: // symbol
-        symbol = reader.readString();
-        break;
-      case 3: // documentation (repeated string)
-        documentation.push(reader.readString());
-        break;
-      case 6: // display_name
-        displayName = reader.readString();
-        break;
-      case 7: { // signature_documentation (Document message — extract text field)
-        const docBytes = reader.readBytes();
-        signatureText = extractDocumentText(docBytes);
-        break;
-      }
-      default:
-        reader.skip(wireType);
-    }
-  }
-  return { symbol, documentation, displayName, signatureText };
-}
-
-/** Extract text from an embedded Document message (field 5 = text). */
-function extractDocumentText(data: Uint8Array): string | null {
-  const reader = new ProtobufReader(data);
-  while (!reader.done) {
-    const { fieldNumber, wireType } = reader.readTag();
-    if (fieldNumber === 5 && wireType === WIRE_LENGTH_DELIMITED) {
-      return reader.readString();
-    }
-    reader.skip(wireType);
-  }
-  return null;
-}
-
-function decodeDocument(data: Uint8Array): RawScipDocument {
-  const reader = new ProtobufReader(data);
-  let relativePath = '';
-  let language = '';
-  const occurrences: Array<{ range: number[]; symbol: string; symbolRoles: number }> = [];
-  const symbols: RawScipSymbolInfo[] = [];
-
-  while (!reader.done) {
-    const { fieldNumber, wireType } = reader.readTag();
-    switch (fieldNumber) {
-      case 1: // relative_path
-        relativePath = reader.readString();
-        break;
-      case 2: // occurrences (repeated Occurrence)
-        occurrences.push(decodeOccurrence(reader.readBytes()));
-        break;
-      case 3: // symbols (repeated SymbolInformation)
-        symbols.push(decodeSymbolInfo(reader.readBytes()));
-        break;
-      case 4: // language
-        language = reader.readString();
-        break;
-      default:
-        reader.skip(wireType);
-    }
-  }
-  return { relativePath, language, occurrences, symbols };
+function toScipSymbolInfo(sym: ScipSymbolInformation): ScipSymbolInfo {
+  return {
+    symbol: sym.symbol,
+    documentation: [...sym.documentation],
+    displayName: sym.displayName,
+    signatureText: sym.signatureDocumentation?.text || null,
+  };
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
@@ -410,30 +197,20 @@ function decodeDocument(data: Uint8Array): RawScipDocument {
 /**
  * Parse a SCIP protobuf index from raw bytes.
  *
- * @param buffer    The raw protobuf bytes (e.g. `fs.readFileSync(path)`).
+ * @param buffer       The raw protobuf bytes (e.g. `fs.readFileSync(path)`).
  * @param projectRoot  Absolute path to the project root.  Document
  *                     `relative_path` values are resolved against this.
  * @returns Populated `ScipIndexData` ready for enrichment queries.
  */
 export function parseScipIndex(buffer: Uint8Array, projectRoot: string): ScipIndexData {
+  const decoded: ScipIndex = fromBinary(IndexSchema, buffer);
   const index = new ScipIndexData(projectRoot);
-  const reader = new ProtobufReader(buffer);
 
-  while (!reader.done) {
-    const { fieldNumber, wireType } = reader.readTag();
-    switch (fieldNumber) {
-      case 1: // metadata — skip (not needed for enrichment)
-        reader.skip(wireType);
-        break;
-      case 2: // documents
-        index.addDocument(decodeDocument(reader.readBytes()));
-        break;
-      case 3: // external_symbols
-        index.addExternalSymbol(decodeSymbolInfo(reader.readBytes()));
-        break;
-      default:
-        reader.skip(wireType);
-    }
+  for (const doc of decoded.documents) {
+    index.addDocument(doc);
+  }
+  for (const sym of decoded.externalSymbols) {
+    index.addExternalSymbol(sym);
   }
 
   return index;

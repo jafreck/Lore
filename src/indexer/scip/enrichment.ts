@@ -99,9 +99,6 @@ export class ScipEnrichmentCoordinator {
       commandGroups.get(key)!.add(lang);
     }
 
-    const { ScipIndexData } = await import('./index-reader.js');
-    const mergedIndex = new ScipIndexData(this.rootDir);
-
     for (const [commandKey, langs] of commandGroups) {
       const representativeLang = langs.values().next().value!;
 
