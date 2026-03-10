@@ -188,7 +188,7 @@ await builder.build();
 | `lore_notes_write` | Upsert agent-authored notes by key and scope, with optional source hash for staleness tracking |
 | `lore_notes_read` | Read notes by exact key or key prefix with scope-aware staleness metadata |
 | `lore_architecture` | Build a component-level architecture view with edges, entry/leaf nodes, and external dependency usage |
-| `lore_graph` | Query call/import/module/inheritance/type-dependency edges; call edges include `callee_coverage_percent` |
+| `lore_graph` | Query call/import/module/inheritance/type-dependency edges; supports `source_id` for outbound and `target_id` for inbound/reverse queries; call edges include `callee_coverage_percent` |
 | `lore_snippet` | Return snippets from indexed source snapshots by file path + line range or by symbol name; path/symbol resolution is branch-aware and responses include containing-symbol context metadata (name, kind, start/end lines) when available |
 | `lore_test_map` | Return mapped test files (with confidence) for a given source file path |
 | `lore_blame` | Query blame, line-range history, or ownership aggregates with optional symbol targeting, commit-context enrichment, and risk signals |
@@ -588,24 +588,22 @@ CI publish flow:
 - Ensure publish jobs expose that secret as the `NODE_AUTH_TOKEN` environment
   variable before running `npm publish`.
 
-## Release publish workflow (`@jafreck/lore@0.3.0`)
+## Release publish workflow
 
-Publishing is automated by `.github/workflows/publish.yml`. Creating a version
-tag (for example, `v0.3.0`) or publishing a GitHub Release triggers the npm
-publish job.
+Publishing is automated by `.github/workflows/publish.yml`. Publishing a
+GitHub Release triggers the npm publish job.
 
-Release steps for `@jafreck/lore@0.3.0`:
+Release steps:
 
-1. Ensure `package.json` has `"version": "0.3.0"`.
-2. Push the tag: `git tag v0.3.0 && git push origin v0.3.0` (or publish a
-   GitHub Release for `v0.3.0`).
+1. Ensure `package.json` has the target version.
+2. Publish a GitHub Release with the matching `vX.Y.Z` tag.
 3. Confirm the workflow logs show `npm publish --dry-run` output before the
    live `npm publish` step.
 
 Post-publish verification:
 
-- Check the package metadata: `npm view @jafreck/lore version` returns `0.3.0`.
-- Confirm installability: `npm view @jafreck/lore@0.3.0 name version`.
+- Check the package metadata: `npm view @jafreck/lore version`.
+- Confirm installability: `npm view @jafreck/lore@<version> name version`.
 
 ## Benchmarking index performance (500+ file repos)
 
