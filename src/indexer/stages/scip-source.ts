@@ -267,6 +267,10 @@ export class ScipSourceStage implements PipelineStage {
     const insertImport = db.prepare(
       'INSERT INTO file_imports (file_id, raw_import) VALUES (?, ?)',
     );
+    const insertRelationship = db.prepare(
+      `INSERT INTO symbol_relationships (file_id, source_symbol_id, target_symbol_name, relationship_type, line, character, resolution_method)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    );
 
     // Global map: SCIP symbol string → Lore numeric symbol ID (across all files)
     const scipToLoreId = new Map<string, number>();
@@ -380,6 +384,52 @@ export class ScipSourceStage implements PipelineStage {
             if (rawImport && !seenImports.has(rawImport)) {
               seenImports.add(rawImport);
               insertImport.run(fileId, rawImport);
+            }
+          }
+        }
+
+        // Insert relationships (extends/implements) from SCIP SymbolInformation
+        for (const symInfo of doc.symbols) {
+          if (!symInfo.symbol || symInfo.relationships.length === 0) continue;
+          const sourceId = scipToLoreId.get(symInfo.symbol) ?? null;
+          const sourceName = symInfo.displayName || extractNameFromScipSymbol(symInfo.symbol);
+
+          for (const rel of symInfo.relationships) {
+            if (!rel.symbol) continue;
+
+            // Map SCIP relationship flags to Lore relationship types
+            let relType: string | null = null;
+            if (rel.isImplementation && !rel.isReference) {
+              relType = 'implements';
+            } else if (rel.isImplementation && rel.isReference) {
+              relType = 'implements'; // method-level implementation
+            } else if (rel.isTypeDefinition) {
+              relType = 'type_definition';
+            } else if (rel.isDefinition) {
+              relType = 'defines';
+            }
+            if (!relType) continue;
+
+            const targetName = extractNameFromScipSymbol(rel.symbol);
+            const targetId = scipToLoreId.get(rel.symbol) ?? null;
+            // Find a definition location for the line/character
+            const defLoc = symbolDefinitions.get(symInfo.symbol);
+
+            insertRelationship.run(
+              fileId,
+              sourceId,
+              targetName,
+              relType,
+              defLoc?.line ?? null,
+              defLoc?.character ?? null,
+              targetId ? 'scip_definition' : 'unresolved',
+            );
+
+            // If we have both source and target IDs, update the resolved target
+            if (targetId) {
+              db.prepare(
+                'UPDATE symbol_relationships SET target_symbol_id = ? WHERE file_id = ? AND source_symbol_id = ? AND target_symbol_name = ? AND relationship_type = ?',
+              ).run(targetId, fileId, sourceId, targetName, relType);
             }
           }
         }
