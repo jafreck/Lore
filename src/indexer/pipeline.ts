@@ -8,13 +8,15 @@
  *
  * ```
  * SourceIndexStage → DocsIndexStage → ImportResolutionStage
- *   → DependencyApiStage → LspEnrichmentStage → ResolutionStage
- *   → TestMapStage → HistoryStage → EmbeddingStage
+ *   → DependencyApiStage → ScipEnrichmentStage → LspEnrichmentStage
+ *   → ResolutionStage → TestMapStage → HistoryStage → EmbeddingStage
  * ```
  *
+ * SCIP enrichment runs first (preferred, batch-mode).  LSP enrichment
+ * runs second as a fallback for languages without SCIP indexer coverage.
  * The enrichment → resolution ordering is **load-bearing**:
  * `resolveSymbolEdges` reads `definition_path` / `definition_line` columns that
- * are only populated during the LSP enrichment stage.  Running resolution before
+ * are only populated during the enrichment stages.  Running resolution before
  * enrichment yields only name-based fallback results.
  */
 
@@ -22,6 +24,7 @@ import type { Database } from './db.js';
 import type { WalkerConfig } from './walker.js';
 import type { EmbeddingProvider } from './embedder.js';
 import type { EffectiveLspSettings } from './lsp/config.js';
+import type { EffectiveScipSettings } from './scip/config.js';
 import type { LoreLogger } from '../logger.js';
 import { getLogger } from '../logger.js';
 
@@ -42,6 +45,8 @@ export interface PipelineContext {
   branch: string;
   /** Effective LSP settings (null = disabled). */
   lsp: EffectiveLspSettings | null;
+  /** Effective SCIP settings (null = disabled). */
+  scip: EffectiveScipSettings | null;
   /** Optional embedding provider. */
   embedder: EmbeddingProvider | null;
   /** Logger instance. */
@@ -87,6 +92,13 @@ export interface PipelineContext {
    * embedding.  Accumulated by DocsIndexStage in update mode.
    */
   changedDocPaths: string[];
+
+  /**
+   * Languages for which SCIP enrichment already provided data.
+   * Set by `ScipEnrichmentStage`; read by `LspEnrichmentStage` to skip
+   * languages that don't need LSP fallback.
+   */
+  scipCoveredLanguages?: ReadonlySet<string>;
 }
 
 /**

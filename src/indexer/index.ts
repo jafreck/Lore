@@ -8,8 +8,8 @@
  * enforces the data-dependency chain:
  * ```
  * SourceIndexStage → DocsIndexStage → ImportResolutionStage
- *   → DependencyApiStage → LspEnrichmentStage → ResolutionStage
- *   → TestMapStage → HistoryStage → EmbeddingStage
+ *   → DependencyApiStage → ScipEnrichmentStage → LspEnrichmentStage
+ *   → ResolutionStage → TestMapStage → HistoryStage → EmbeddingStage
  * ```
  *
  * For incremental updates, `update()` uses stage-extracted helpers
@@ -34,6 +34,7 @@ import type { EmbeddingProvider } from './embedder.js';
 import { DEFAULT_EMBEDDING_MODEL } from './embedder.js';
 import { ingestCoverageReport, type CoverageFormat } from './coverage.js';
 import type { EffectiveLspSettings } from './lsp/config.js';
+import type { EffectiveScipSettings } from './scip/config.js';
 import { resolveSymbolEdges } from './call-graph.js';
 import { refreshTestMappings } from './test-mapper.js';
 import { ingestGitHistory } from './git-history.js';
@@ -45,6 +46,7 @@ import {
   DocsIndexStage,
   ImportResolutionStage,
   DependencyApiStage,
+  ScipEnrichmentStage,
   LspEnrichmentStage,
   EmbeddingStage,
 } from './stages/index.js';
@@ -57,6 +59,7 @@ interface IndexBuilderOptions {
   docsAutoNotes?: boolean;
   indexDependencies?: boolean;
   lsp?: EffectiveLspSettings;
+  scip?: EffectiveScipSettings;
 }
 
 // ─── IndexBuilder (façade) ────────────────────────────────────────────────────
@@ -82,6 +85,7 @@ export class IndexBuilder {
   private readonly embeddingModel: string;
   private readonly docsAutoNotes: boolean;
   private readonly lspSettings: EffectiveLspSettings | null;
+  private readonly scipSettings: EffectiveScipSettings | null;
 
   constructor(
     dbPath: string,
@@ -109,6 +113,7 @@ export class IndexBuilder {
     this.docsAutoNotes = opts.docsAutoNotes ?? true;
     this.indexDependencies = opts.indexDependencies ?? false;
     this.lspSettings = opts.lsp ?? null;
+    this.scipSettings = opts.scip ?? null;
   }
 
   // ─── Public API ──────────────────────────────────────────────────────────
@@ -128,11 +133,14 @@ export class IndexBuilder {
     log.indexing('build started', { dbPath: this.dbPath, branch, rootDir: this.walkerConfig.rootDir });
 
     // Build the pipeline with all stages in dependency order.
+    // SCIP enrichment runs before LSP: preferred for supported languages,
+    // with LSP as fallback for the rest.
     const pipeline = new IndexPipeline([
       new SourceIndexStage(),
       new DocsIndexStage(),
       new ImportResolutionStage(),
       new DependencyApiStage(),
+      new ScipEnrichmentStage(),
       new LspEnrichmentStage(),
       resolutionStage(),
       testMapStage(),
@@ -146,6 +154,7 @@ export class IndexBuilder {
       walkerConfig: this.walkerConfig,
       branch,
       lsp: this.lspSettings,
+      scip: this.scipSettings,
       embedder: this.embedder,
       log,
       files: [],
@@ -196,6 +205,7 @@ export class IndexBuilder {
       new DocsIndexStage(),
       new ImportResolutionStage(),
       new DependencyApiStage(),
+      new ScipEnrichmentStage(),
       new LspEnrichmentStage(),
       resolutionStage(),
       testMapStage(),
@@ -209,6 +219,7 @@ export class IndexBuilder {
       walkerConfig: this.walkerConfig,
       branch,
       lsp: this.lspSettings,
+      scip: this.scipSettings,
       embedder: this.embedder,
       log,
       files: [],

@@ -1,67 +1,59 @@
 /**
- * @module indexer/stages/lsp-enrichment
+ * @module indexer/stages/scip-enrichment
  *
  * Pipeline stage: enrich symbols, symbol_refs, type_refs, and
- * symbol_relationships with LSP-derived metadata (definition_path,
- * definition_line, resolved_type_signature, etc.).
+ * symbol_relationships with SCIP-derived metadata.
+ *
+ * SCIP enrichment writes to the **same database columns** as LSP
+ * enrichment (`definition_path`, `definition_line`, `resolved_type_signature`,
+ * etc.) so the downstream resolution stage is agnostic to the data source.
+ *
+ * ## Pipeline ordering
+ *
+ * ```
+ * ... → DependencyApiStage → ScipEnrichmentStage → LspEnrichmentStage → ResolutionStage → ...
+ * ```
+ *
+ * SCIP runs **before** LSP.  The LSP stage then skips any languages that
+ * SCIP already enriched (communicated via `context.scipCoveredLanguages`).
  *
  * ## Data written
  *
- * - `symbols.resolved_type_signature`, `resolved_return_type`,
- *   `definition_uri`, `definition_path`
- * - `symbol_refs.resolved_type_signature`, `resolved_return_type`,
- *   `definition_uri`, `definition_path`, `definition_line`, `definition_character`
- * - `type_refs.resolved_type_signature`, `definition_uri`,
- *   `definition_path`, `definition_line`, `definition_character`
- * - `symbol_relationships.definition_uri`, `definition_path`,
- *   `definition_line`, `definition_character`
- *
- * ## Data dependency
- *
- * **Must run before `ResolutionStage`.**  The resolution stage reads
- * `definition_path` / `definition_line` columns populated here to perform
- * LSP-based containment resolution.
+ * Identical columns to LSP enrichment — see `lsp-enrichment.ts` for the
+ * full list.
  */
 
 import * as fs from 'node:fs';
 import type { PipelineContext, PipelineStage } from '../pipeline.js';
 import type { Database } from '../db.js';
-import { LspEnrichmentCoordinator } from '../lsp/enrichment.js';
+import { ScipEnrichmentCoordinator } from '../scip/enrichment.js';
 import { buildStructuralEmbeddingText } from '../embedder.js';
 
 /**
- * Enriches indexed artefacts with LSP-derived metadata.
+ * Enriches indexed artefacts with SCIP-derived metadata.
  *
- * Manages the lifecycle of an `LspEnrichmentCoordinator` per pipeline run.
- * The coordinator is started during `execute()` and disposed in `dispose()`.
+ * Manages the lifecycle of a `ScipEnrichmentCoordinator` per pipeline run.
  */
-export class LspEnrichmentStage implements PipelineStage {
-  readonly name = 'lsp-enrichment';
+export class ScipEnrichmentStage implements PipelineStage {
+  readonly name = 'scip-enrichment';
 
-  private coordinator: LspEnrichmentCoordinator | null = null;
+  private coordinator: ScipEnrichmentCoordinator | null = null;
 
   async execute(context: PipelineContext, _mode: 'build' | 'update'): Promise<void> {
-    if (!context.lsp?.enabled || context.files.length === 0) return;
+    if (!context.scip?.enabled || context.files.length === 0) return;
 
-    // Filter out files for languages already enriched by SCIP.
-    const scipCovered = context.scipCoveredLanguages;
-    const filesToEnrich = scipCovered
-      ? context.files.filter(f => !scipCovered.has(f.language))
-      : context.files;
+    this.coordinator = new ScipEnrichmentCoordinator(context.scip, context.walkerConfig.rootDir);
 
-    if (filesToEnrich.length === 0) {
-      context.log.indexing('lsp-enrichment: all languages covered by SCIP, skipping');
-      return;
-    }
+    // Run SCIP indexers for all languages present in the file list.
+    const languages = new Set(context.files.map(f => f.language));
+    const coveredLanguages = await this.coordinator.start(languages);
 
-    this.coordinator = new LspEnrichmentCoordinator(context.lsp, context.walkerConfig.rootDir);
+    if (coveredLanguages.size === 0) return;
 
-    // Start language servers for languages NOT covered by SCIP.
-    const languages = new Set(filesToEnrich.map(f => f.language));
-    if (context.indexDependencies) languages.add('typescript');
-    await this.coordinator.start(languages);
+    // Store which languages SCIP enriched so the LSP stage can skip them.
+    context.scipCoveredLanguages = coveredLanguages;
 
-    await enrichProjectRefs(context.db, context.branch, filesToEnrich, this.coordinator);
+    await enrichProjectRefsWithScip(context.db, context.branch, context.files, this.coordinator);
   }
 
   async dispose(): Promise<void> {
@@ -72,17 +64,13 @@ export class LspEnrichmentStage implements PipelineStage {
   }
 }
 
-// ─── Enrichment logic ─────────────────────────────────────────────────────────────────
+// ─── Enrichment logic (mirrors lsp-enrichment.ts pattern) ─────────────────────
 
-/**
- * Enrich symbols, call refs, type refs, and relationships for every file in
- * the context with LSP-derived metadata.
- */
-export async function enrichProjectRefs(
+export async function enrichProjectRefsWithScip(
   db: Database.Database,
   branch: string,
   files: Array<{ path: string; language: string }>,
-  coordinator: LspEnrichmentCoordinator,
+  coordinator: ScipEnrichmentCoordinator,
 ): Promise<void> {
 
   const selectSymbols = db.prepare(
@@ -153,6 +141,10 @@ export async function enrichProjectRefs(
 
   for (const file of files) {
     if (!file || !fs.existsSync(file.path)) continue;
+
+    // Only process files for languages covered by SCIP.
+    if (!coordinator.coveredLanguages.has(file.language)) continue;
+
     let source: string;
     try {
       source = fs.readFileSync(file.path, 'utf8');
@@ -201,14 +193,14 @@ export async function enrichProjectRefs(
 
     if (tagged.length === 0) continue;
 
-    const metadata = await coordinator.enrich({
+    // SCIP enrichment is synchronous (no network I/O).
+    const metadata = coordinator.enrich({
       filePath: file.path,
       language: file.language,
       source,
       targets: tagged.map(t => ({ line: t.line, character: t.character })),
     });
 
-    // Batch all per-file writes in a single transaction.
     const updates: Array<() => void> = [];
     for (let i = 0; i < tagged.length; i++) {
       const tag = tagged[i]!;

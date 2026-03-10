@@ -13,6 +13,7 @@
 import * as fs from 'node:fs';
 import type { EmbeddingProvider } from './indexer/embedder.js';
 import type { EffectiveLspSettings } from './indexer/lsp/config.js';
+import type { EffectiveScipSettings } from './indexer/scip/config.js';
 import type { WalkerConfig } from './indexer/walker.js';
 import { getLogger, type LoreLogger } from './logger.js';
 import { killAllTracked } from './process-tracker.js';
@@ -35,6 +36,8 @@ export interface RuntimeConfig {
   embeddingModel?: string;
   /** LSP enrichment policy. `null` = disabled. */
   lsp: EffectiveLspSettings | null;
+  /** SCIP enrichment policy. `null` = disabled. */
+  scip: EffectiveScipSettings | null;
   /** Git history ingestion policy. */
   history: boolean | { depth?: number; all?: boolean };
   /** Whether to index dependency declarations (.d.ts, etc.). */
