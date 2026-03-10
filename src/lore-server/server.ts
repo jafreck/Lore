@@ -31,7 +31,7 @@ import {
   type Database,
 } from './db.js';
 import { getLoreMeta } from '../indexer/db.js';
-import { SentenceTransformersProvider, type EmbeddingProvider } from '../indexer/embedder.js';
+import { TransformersJsProvider, type EmbeddingProvider } from '../indexer/embedder.js';
 import { getLogger, type LoreLogger } from '../logger.js';
 import type { SearchObserver } from './tools/search.js';
 import { buildToolModules, registerTools, type ToolModule } from './tool-registry.js';
@@ -154,14 +154,14 @@ function buildToolModulesSync(): ToolModule[] {
 
 /**
  * Read the embedding model stored in `lore_meta` at index time and spin up a
- * `SentenceTransformersProvider` instance for it.  Returns `undefined` when no
+ * `TransformersJsProvider` instance for it.  Returns `undefined` when no
  * embedding model is recorded in the database.
  */
 async function buildEmbedder(db: Database.Database): Promise<EmbeddingProvider | undefined> {
   const modelName = getLoreMeta(db, 'embedding_model');
   if (!modelName) return undefined;
 
-  const provider = new SentenceTransformersProvider(modelName);
+  const provider = new TransformersJsProvider(modelName);
   try {
     await provider.init();
     return provider;
