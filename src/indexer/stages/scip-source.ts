@@ -151,6 +151,114 @@ function extractSignatureFromDoc(doc: string): string {
   return cleaned || '';
 }
 
+// ─── Symbol-span fallback ─────────────────────────────────────────────────────
+
+/**
+ * Estimate the end line of a symbol whose `enclosing_range` was absent.
+ *
+ * Strategy: from the definition line, scan forward for curly-brace blocks
+ * (classes, functions, structs in C-family / Rust / Go / Java / etc.) or
+ * indentation-based blocks (Python).  If nothing works, scan to the next
+ * definition or EOF.
+ */
+function estimateSymbolEndLine(
+  sourceLines: string[],
+  defLine: number,
+  nextDefLine: number | null,
+): number {
+  if (defLine >= sourceLines.length) return defLine;
+
+  const src = sourceLines[defLine]!;
+
+  // Python-style: indentation-based scope.
+  // Detect lines ending with ":" (def, class, if, etc.).
+  if (/:\s*(#.*)?$/.test(src)) {
+    // Measure the indentation of the definition line itself.
+    const baseIndent = src.match(/^(\s*)/)![1]!.length;
+    let last = defLine;
+    for (let i = defLine + 1; i < sourceLines.length; i++) {
+      const line = sourceLines[i]!;
+      // Skip blank / comment-only lines
+      if (/^\s*$/.test(line) || /^\s*#/.test(line)) { last = i; continue; }
+      const indent = line.match(/^(\s*)/)![1]!.length;
+      if (indent <= baseIndent) break;
+      last = i;
+    }
+    if (last > defLine) return last;
+  }
+
+  // Brace-counting: scan forward from the first '{' on or after defLine.
+  let braceStart = -1;
+  for (let i = defLine; i < Math.min(defLine + 5, sourceLines.length); i++) {
+    if (sourceLines[i]!.includes('{')) { braceStart = i; break; }
+  }
+  if (braceStart >= 0) {
+    let depth = 0;
+    for (let i = braceStart; i < sourceLines.length; i++) {
+      const line = sourceLines[i]!;
+      for (const ch of line) {
+        if (ch === '{') depth++;
+        else if (ch === '}') { depth--; if (depth === 0) return i; }
+      }
+    }
+  }
+
+  // Fallback: extend to just before the next definition, or EOF.
+  if (nextDefLine !== null && nextDefLine > defLine) {
+    return nextDefLine - 1;
+  }
+  return Math.min(defLine + 20, sourceLines.length - 1);
+}
+
+// ─── Type-ref kind inference ──────────────────────────────────────────────────
+
+/**
+ * Infer a `ref_kind` for a type reference from its surrounding source context.
+ *
+ * Reads the source line at `refLine` and applies simple pattern matching to
+ * distinguish parameter, return, field, variable, generic_arg and bound usages.
+ * Falls back to `'other'` when the context is ambiguous.
+ */
+function inferTypeRefKind(sourceLines: string[], refLine: number, refChar: number): string {
+  if (refLine >= sourceLines.length) return 'other';
+  const line = sourceLines[refLine]!;
+
+  // Generic argument: preceded by '<' or ',' inside angle brackets
+  if (/<[^>]*$/.test(line.slice(0, refChar)) || /^[^<]*>/.test(line.slice(refChar))) {
+    return 'generic_arg';
+  }
+
+  // Return type: preceded by ":" or "->" or "=>" with no '(' after
+  const before = line.slice(0, refChar);
+  if (/(->|=>)\s*$/.test(before)) return 'return';
+  // "): Type" pattern — closing paren then colon
+  if (/\)\s*:\s*$/.test(before)) return 'return';
+
+  // Parameter: inside a parenthesized parameter list with a preceding colon/annotation
+  // e.g. "(x: Foo" or ", y: Bar"
+  if (/[(,]\s*\w+\s*:\s*$/.test(before)) return 'parameter';
+  // Go-style: "func f(x Foo" — identifier then space then type, inside parens
+  if (/[(,]\s*\w+\s+$/.test(before) && /^[^)]*\)/.test(line.slice(refChar))) return 'parameter';
+
+  // Field / property: line starts with an access modifier or looks like a field declaration
+  const trimmed = line.trimStart();
+  if (/^(public|private|protected|readonly|static|final|var|val|let|const)\s/.test(trimmed)) {
+    // If we're inside a class body (no '(' before us on this line), it's a field
+    if (!before.includes('(')) return 'field';
+  }
+
+  // Variable: "let x: T", "const x: T", "var x: T" at statement level
+  if (/^\s*(let|const|var|val)\s+\w+\s*:\s*$/.test(before)) return 'variable';
+
+  // Type bound: "extends" or "implements" keyword immediately before
+  if (/\b(extends|implements|where|:)\s*$/.test(before)) {
+    // Check if this is in a generic constraint context (after < or where)
+    if (/\bwhere\b/.test(before) || /<[^>]*\b(extends|:)\s*$/.test(before)) return 'bound';
+  }
+
+  return 'other';
+}
+
 // ─── Stage implementation ────────────────────────────────────────────────────
 
 export class ScipSourceStage implements PipelineStage {
@@ -318,27 +426,40 @@ export class ScipSourceStage implements PipelineStage {
 
         // Collect definition occurrences for this document
         // Build symbol spans: SCIP symbol → { startLine, endLine }
+        const sourceLines = source.split('\n');
         const docDefs = new Map<string, { line: number; character: number; startLine: number; endLine: number }>();
+
+        // First collect all definition lines so we can order them for fallback
+        const defOccs: Array<{ symbol: string; line: number; character: number; enclosingRange: number[] }> = [];
         for (const occ of doc.occurrences) {
           if ((occ.symbolRoles & SymbolRole.Definition) === 0) continue;
           if (!occ.symbol || occ.symbol.startsWith('local ')) continue;
+          defOccs.push({ symbol: occ.symbol, line: occ.range[0] ?? 0, character: occ.range[1] ?? 0, enclosingRange: [...occ.enclosingRange] });
+        }
+        // Sort by line so we know the "next definition" for span estimation
+        defOccs.sort((a, b) => a.line - b.line);
 
-          const line = occ.range[0] ?? 0;
-          const character = occ.range[1] ?? 0;
+        for (let di = 0; di < defOccs.length; di++) {
+          const occ = defOccs[di]!;
+          const { symbol, line, character, enclosingRange } = occ;
 
-          // Use enclosing_range for span; fall back to just the definition line
+          // Use enclosing_range for span; fall back to source-based estimation
           let startLine = line;
           let endLine = line;
-          if (occ.enclosingRange.length >= 3) {
-            startLine = occ.enclosingRange[0] ?? line;
-            endLine = occ.enclosingRange.length >= 4
-              ? (occ.enclosingRange[2] ?? line)
+          if (enclosingRange.length >= 3) {
+            startLine = enclosingRange[0] ?? line;
+            endLine = enclosingRange.length >= 4
+              ? (enclosingRange[2] ?? line)
               : startLine;
+          } else {
+            // No enclosing_range — estimate from source
+            const nextDefLine = di + 1 < defOccs.length ? defOccs[di + 1]!.line : null;
+            endLine = estimateSymbolEndLine(sourceLines, line, nextDefLine);
           }
 
           // Keep the first definition per symbol in this file
-          if (!docDefs.has(occ.symbol)) {
-            docDefs.set(occ.symbol, { line, character, startLine, endLine });
+          if (!docDefs.has(symbol)) {
+            docDefs.set(symbol, { line, character, startLine, endLine });
           }
         }
 
@@ -376,12 +497,22 @@ export class ScipSourceStage implements PipelineStage {
         }
 
         // Insert imports (from Import-role occurrences)
+        // Prefer the actual import path from source; fall back to SCIP package
         const seenImports = new Set<string>();
         for (const occ of doc.occurrences) {
           if ((occ.symbolRoles & SymbolRole.Import) !== 0 && occ.symbol) {
-            // Extract the package portion as the raw import
-            const parts = occ.symbol.split(' ');
-            const rawImport = parts.length >= 4 ? parts[3] : occ.symbol;
+            const importLine = occ.range[0] ?? 0;
+            const srcImport = importLine < sourceLines.length
+              ? extractImportPathFromSource(sourceLines[importLine]!)
+              : null;
+            let rawImport: string;
+            if (srcImport) {
+              rawImport = srcImport;
+            } else {
+              // Fall back to SCIP package descriptor
+              const parts = occ.symbol.split(' ');
+              rawImport = parts.length >= 4 ? parts[3]! : occ.symbol;
+            }
             if (rawImport && !seenImports.has(rawImport)) {
               seenImports.add(rawImport);
               insertImport.run(fileId, rawImport);
@@ -399,11 +530,16 @@ export class ScipSourceStage implements PipelineStage {
             if (!rel.symbol) continue;
 
             // Map SCIP relationship flags to Lore relationship types
+            // Disambiguate extends vs implements: if the target is a class/struct
+            // the source extends it; if the target is an interface/trait the
+            // source implements it.
             let relType: string | null = null;
-            if (rel.isImplementation && !rel.isReference) {
-              relType = 'implements';
-            } else if (rel.isImplementation && rel.isReference) {
-              relType = 'implements'; // method-level implementation
+            if (rel.isImplementation) {
+              const targetInfo = symbolInfoMap.get(rel.symbol);
+              const targetKind = targetInfo
+                ? inferKindFromScipSymbol(rel.symbol, (targetInfo.documentation[0] ?? '').toLowerCase())
+                : null;
+              relType = (targetKind === 'class') ? 'extends' : 'implements';
             } else if (rel.isTypeDefinition) {
               relType = 'type_definition';
             } else if (rel.isDefinition) {
@@ -575,13 +711,14 @@ export class ScipSourceStage implements PipelineStage {
           }
 
           if (refKind === 'type') {
+            const typeRefKind = inferTypeRefKind(sourceLines, line, character);
             insertTypeRef.run(
               fileId,
               callerId,
               calleeId,
               calleeName,
               normalizeTypeName(calleeName),
-              'other',
+              typeRefKind,
               line,
               character,
               method,
@@ -712,6 +849,73 @@ function classifyScipReference(scipSymbol: string): 'call' | 'type' | 'skip' {
   // Parameter: ends with )
   // All of these are reads/imports/structural — not call or type edges.
   return 'skip';
+}
+
+// ─── Import path extraction ─────────────────────────────────────────────────
+
+/**
+ * Extract the actual import/require path from a source line.
+ *
+ * Handles common patterns across languages:
+ * - JS/TS: `import ... from 'path'`, `require('path')`
+ * - Python: `import path`, `from path import ...`
+ * - Go: `"path"`  (inside import block)
+ * - Java/Kotlin/Scala: `import path.to.Class`
+ * - Rust: `use path::to::item`
+ * - C/C++: `#include "path"` or `#include <path>`
+ * - Ruby: `require 'path'`, `require_relative 'path'`
+ * - PHP: `use Path\\To\\Class`
+ * - C#: `using Namespace.Name`
+ * - Dart: `import 'path'`
+ *
+ * Returns `null` when no recognizable import pattern is found.
+ */
+function extractImportPathFromSource(line: string): string | null {
+  const trimmed = line.trim();
+
+  // JS/TS: import ... from 'path' | import 'path' | require('path')
+  let m = trimmed.match(/\bfrom\s+['"]([^'"]+)['"]/);
+  if (m) return m[1]!;
+  m = trimmed.match(/\brequire\s*\(\s*['"]([^'"]+)['"]\s*\)/);
+  if (m) return m[1]!;
+  m = trimmed.match(/^import\s+['"]([^'"]+)['"]/);
+  if (m) return m[1]!;
+
+  // Python: from X import ... | import X
+  m = trimmed.match(/^from\s+([\w.]+)\s+import\b/);
+  if (m) return m[1]!;
+  m = trimmed.match(/^import\s+([\w.]+)/);
+  if (m) return m[1]!;
+
+  // Go: "path/to/pkg" inside import block
+  m = trimmed.match(/^\s*(?:\w+\s+)?["']([^"']+)["']/);
+  if (m && !trimmed.startsWith('import') && !trimmed.startsWith('from')) return m[1]!;
+
+  // C/C++: #include "path" | #include <path>
+  m = trimmed.match(/^#\s*include\s*[<"]([^>"]+)[>"]/);
+  if (m) return m[1]!;
+
+  // Rust: use path::to::item
+  m = trimmed.match(/^use\s+([\w:]+)/);
+  if (m) return m[1]!.replace(/::/g, '/');
+
+  // Java/Kotlin/Scala: import path.to.Class
+  m = trimmed.match(/^import\s+(?:static\s+)?([\w.*]+)/);
+  if (m) return m[1]!;
+
+  // C#: using Namespace.Name
+  m = trimmed.match(/^using\s+(?:static\s+)?([\w.]+)\s*;/);
+  if (m) return m[1]!;
+
+  // Ruby: require 'path' | require_relative 'path'
+  m = trimmed.match(/^require(?:_relative)?\s+['"]([^'"]+)['"]/);
+  if (m) return m[1]!;
+
+  // PHP: use Path\To\Class
+  m = trimmed.match(/^use\s+([\w\\]+)/);
+  if (m) return m[1]!;
+
+  return null;
 }
 
 // ─── SCIP language detection ────────────────────────────────────────────────
