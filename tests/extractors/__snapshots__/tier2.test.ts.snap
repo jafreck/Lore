@@ -363,6 +363,36 @@ exports[`C# extractor > symbols 1`] = `
 ]
 `;
 
+exports[`C# extractor > typeRefs 1`] = `
+[
+  {
+    "enclosingSymbol": "Add",
+    "refKind": "parameter",
+    "typeRaw": "int",
+  },
+  {
+    "enclosingSymbol": "Add",
+    "refKind": "parameter",
+    "typeRaw": "int",
+  },
+  {
+    "enclosingSymbol": "Greeter",
+    "refKind": "field",
+    "typeRaw": "string",
+  },
+  {
+    "enclosingSymbol": "Greeter",
+    "refKind": "parameter",
+    "typeRaw": "string",
+  },
+  {
+    "enclosingSymbol": "Greeter",
+    "refKind": "variable",
+    "typeRaw": "string",
+  },
+]
+`;
+
 exports[`C++ extractor > callRefs 1`] = `
 [
   {

@@ -9,7 +9,7 @@ tests/
 ├── FIXTURES.md                   # this file
 ├── extractors/
 │   ├── core.test.ts              # snapshot tests for Tier 1 languages (TS, JS, Python, Go, Rust, Java)
-│   ├── tier2.test.ts             # snapshot tests for Tier 2 languages (C, C++, C#, Dart, …)
+│   ├── tier2.test.ts             # snapshot tests for Tier 2 languages (C, C++, C#, …)
 │   ├── tier3.test.ts             # snapshot tests for remaining languages
 │   └── __snapshots__/            # auto-generated vitest snapshot files
 ├── fixtures/

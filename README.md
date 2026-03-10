@@ -14,7 +14,7 @@ without re-reading it from scratch.
 
 ## What Lore does
 
-- Parses source files and extracts symbols, imports, call refs, type refs, annotations, and API routes across all 24 supported languages
+- Parses source files and extracts symbols, imports, call refs, type refs, annotations, and API routes across all 23 supported languages
 - Resolves internal vs external imports and builds call/import/module/inheritance/type-dependency graph edges using a 3-tier resolution strategy (LSP containment, same-file name match, unique name match)
 - Discovers and indexes documentation (`.md`, `.rst`, `.adoc`, `.txt`) with inferred kinds/titles
 - Stores everything in a normalized SQL schema with optional vector search
@@ -138,7 +138,7 @@ pipeline breakdown.
 Lore currently supports extractors for:
 
 - C, C++, C#
-- Rust, Go, Java, Kotlin, Scala, Swift, Objective-C, Zig, Dart
+- Rust, Go, Java, Kotlin, Scala, Swift, Objective-C, Zig
 - Python, JavaScript, TypeScript, PHP, Ruby, Lua, Bash, Elixir
 - OCaml, Haskell, Julia, Elm
 
@@ -446,7 +446,6 @@ Default server mappings cover all supported extractor languages:
 | `bash` | `bash-language-server start` |
 | `elixir` | `elixir-ls` |
 | `zig` | `zls` |
-| `dart` | `dart language-server --protocol=lsp` |
 | `ocaml` | `ocamllsp` |
 | `haskell` | `haskell-language-server-wrapper --lsp` |
 | `julia` | `julia --startup-file=no --history-file=no --quiet --eval "using LanguageServer, SymbolServer; runserver()"` |
