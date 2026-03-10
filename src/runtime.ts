@@ -109,13 +109,12 @@ export class LoreRuntime {
     // ── Embedder ─────────────────────────────────────────────────────────────
     if (this.config.embeddingModel) {
       try {
-        const { TransformersJsProvider } = await import('./indexer/embedder.js');
-        const provider = new TransformersJsProvider(this.config.embeddingModel);
-        await provider.init();
+        const { LazyEmbeddingProvider } = await import('./indexer/embedder.js');
+        const provider = new LazyEmbeddingProvider(this.config.embeddingModel);
         this._embedder = provider;
-        this.log.startup('embedding model loaded', {
+        this.log.startup('embedding model configured (lazy — loads on first use)', {
           embeddingModel: this.config.embeddingModel,
-          embeddingReady: true,
+          embeddingReady: false,
         });
       } catch {
         this.log.warn(
