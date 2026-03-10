@@ -7,8 +7,9 @@ import {
 import type { ResolutionMethod } from '../../src/indexer/resolution-method.js';
 
 describe('resolution-method taxonomy', () => {
-  it('should define all six resolution method values', () => {
+  it('should define all seven resolution method values', () => {
     expect(RESOLUTION_METHODS).toEqual([
+      'scip_definition',
       'lsp_definition',
       'name_same_file',
       'name_unique',
@@ -19,6 +20,7 @@ describe('resolution-method taxonomy', () => {
   });
 
   it('should have RESOLVED_METHODS that include only successfully resolved tiers', () => {
+    expect(RESOLVED_METHODS.has('scip_definition')).toBe(true);
     expect(RESOLVED_METHODS.has('lsp_definition')).toBe(true);
     expect(RESOLVED_METHODS.has('name_same_file')).toBe(true);
     expect(RESOLVED_METHODS.has('name_unique')).toBe(true);

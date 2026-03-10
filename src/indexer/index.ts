@@ -42,6 +42,7 @@ import { getLogger } from '../logger.js';
 import { IndexPipeline } from './pipeline.js';
 import type { PipelineContext, PipelineStage } from './pipeline.js';
 import {
+  ScipSourceStage,
   SourceIndexStage,
   DocsIndexStage,
   ImportResolutionStage,
@@ -133,14 +134,15 @@ export class IndexBuilder {
     log.indexing('build started', { dbPath: this.dbPath, branch, rootDir: this.walkerConfig.rootDir });
 
     // Build the pipeline with all stages in dependency order.
-    // SCIP enrichment runs before LSP: preferred for supported languages,
-    // with LSP as fallback for the rest.
+    // ScipSourceStage runs first for SCIP-covered languages (symbols + refs
+    // from SCIP directly).  SourceIndexStage then handles remaining languages
+    // via tree-sitter.  LSP enrichment is optional for both paths.
     const pipeline = new IndexPipeline([
+      new ScipSourceStage(),
       new SourceIndexStage(),
       new DocsIndexStage(),
       new ImportResolutionStage(),
       new DependencyApiStage(),
-      new ScipEnrichmentStage(),
       new LspEnrichmentStage(),
       resolutionStage(),
       testMapStage(),
@@ -201,11 +203,11 @@ export class IndexBuilder {
     const log = getLogger();
 
     const pipeline = new IndexPipeline([
+      new ScipSourceStage(),
       new SourceIndexStage(),
       new DocsIndexStage(),
       new ImportResolutionStage(),
       new DependencyApiStage(),
-      new ScipEnrichmentStage(),
       new LspEnrichmentStage(),
       resolutionStage(),
       testMapStage(),

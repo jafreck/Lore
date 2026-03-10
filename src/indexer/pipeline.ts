@@ -7,17 +7,21 @@
  * ## Stage ordering (data-dependency chain)
  *
  * ```
- * SourceIndexStage → DocsIndexStage → ImportResolutionStage
- *   → DependencyApiStage → ScipEnrichmentStage → LspEnrichmentStage
- *   → ResolutionStage → TestMapStage → HistoryStage → EmbeddingStage
+ * ScipSourceStage → SourceIndexStage → DocsIndexStage
+ *   → ImportResolutionStage → DependencyApiStage
+ *   → LspEnrichmentStage → ResolutionStage
+ *   → TestMapStage → HistoryStage → EmbeddingStage
  * ```
  *
- * SCIP enrichment runs first (preferred, batch-mode).  LSP enrichment
- * runs second as a fallback for languages without SCIP indexer coverage.
- * The enrichment → resolution ordering is **load-bearing**:
- * `resolveSymbolEdges` reads `definition_path` / `definition_line` columns that
- * are only populated during the enrichment stages.  Running resolution before
- * enrichment yields only name-based fallback results.
+ * `ScipSourceStage` runs first for SCIP-covered languages, populating
+ * symbols AND refs directly with pre-resolved edges.  `SourceIndexStage`
+ * then handles remaining languages via tree-sitter.
+ *
+ * LSP enrichment is optional for both paths (adds type signatures to
+ * SCIP-sourced symbols, enriches non-SCIP refs with definition data).
+ *
+ * The resolution stage only processes refs that are still `unresolved`
+ * (i.e. non-SCIP languages without LSP enrichment).
  */
 
 import type { Database } from './db.js';
@@ -99,6 +103,19 @@ export interface PipelineContext {
    * languages that don't need LSP fallback.
    */
   scipCoveredLanguages?: ReadonlySet<string>;
+
+  /**
+   * Languages fully sourced from SCIP (symbols + refs).
+   * Set by `ScipSourceStage`; read by `SourceIndexStage` to skip
+   * tree-sitter extraction for these languages, and by `LspEnrichmentStage`.
+   */
+  scipSourcedLanguages?: ReadonlySet<string>;
+
+  /**
+   * Absolute file paths sourced from SCIP.
+   * Set by `ScipSourceStage`; read by `SourceIndexStage` to skip files.
+   */
+  scipSourcedFiles?: ReadonlySet<string>;
 }
 
 /**

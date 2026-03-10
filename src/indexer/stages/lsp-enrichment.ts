@@ -43,11 +43,15 @@ export class LspEnrichmentStage implements PipelineStage {
   async execute(context: PipelineContext, _mode: 'build' | 'update'): Promise<void> {
     if (!context.lsp?.enabled || context.files.length === 0) return;
 
-    // Filter out files for languages already enriched by SCIP.
+    // Filter out files for languages sourced from SCIP (primary) or
+    // enriched by the old SCIP enrichment path.
+    const scipSourced = context.scipSourcedLanguages;
     const scipCovered = context.scipCoveredLanguages;
-    const filesToEnrich = scipCovered
-      ? context.files.filter(f => !scipCovered.has(f.language))
-      : context.files;
+    const filesToEnrich = context.files.filter(f => {
+      if (scipSourced?.has(f.language)) return false;
+      if (scipCovered?.has(f.language)) return false;
+      return true;
+    });
 
     if (filesToEnrich.length === 0) {
       context.log.indexing('lsp-enrichment: all languages covered by SCIP, skipping');
