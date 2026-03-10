@@ -15,6 +15,22 @@ export { IndexBuilder } from './indexer/index.js';
 export { openDb, setLoreMeta, getLoreMeta, createVec0Tables } from './indexer/db.js';
 export type { Database } from './indexer/db.js';
 export { resolveSymbolEdges, topoSort, detectCycles } from './indexer/call-graph.js';
+export {
+  detectSymbolCycles,
+  findConnectedComponents,
+  clusterSymbols,
+  buildCodebaseSummary,
+} from './indexer/graph-analysis.js';
+export type {
+  EdgeKind,
+  GraphAnalysisOptions,
+  ConnectedComponentsOptions,
+  ClusterOptions,
+  SymbolCluster,
+  CodebaseSummaryOptions,
+  CodebaseSummary,
+  ModuleSummary,
+} from './indexer/graph-analysis.js';
 export { walkFiles, detectLanguageForPath } from './indexer/walker.js';
 export type { WalkerConfig, FileEntry } from './indexer/walker.js';
 export { ImportResolver } from './indexer/resolver.js';
@@ -74,8 +90,19 @@ export {
   getFileByPath,
   listFiles,
   listResolvedEdges,
+  listTypeRefs,
+  listSymbolRelationships,
 } from './lore-server/db.js';
-export type { SymbolRow, FileRow, ResolvedEdge, ListResolvedEdgesOptions } from './lore-server/db.js';
+export type {
+  SymbolRow,
+  FileRow,
+  ResolvedEdge,
+  ListResolvedEdgesOptions,
+  TypeRefEdge,
+  ListTypeRefsOptions,
+  SymbolRelationshipEdge,
+  ListSymbolRelationshipsOptions,
+} from './lore-server/db.js';
 
 // ── Logging ───────────────────────────────────────────────────────────────────
 export { LoreLogger, LogLevel, LOG_LEVEL_NAMES, initLogger, getLogger, resetLogger } from './logger.js';
