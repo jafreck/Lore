@@ -395,6 +395,16 @@ exports[`Objective-C extractor > imports 1`] = `
 ]
 `;
 
+exports[`Objective-C extractor > relationships 1`] = `
+[
+  {
+    "fromSymbol": "Circle",
+    "kind": "extends",
+    "toSymbol": "NSObject",
+  },
+]
+`;
+
 exports[`Objective-C extractor > symbols 1`] = `
 [
   {
@@ -431,6 +441,16 @@ exports[`Objective-C extractor > symbols 1`] = `
     "name": "Circle",
     "signature": "@implementation Circle",
     "startLine": 13,
+  },
+]
+`;
+
+exports[`Objective-C extractor > typeRefs 1`] = `
+[
+  {
+    "enclosingSymbol": "Circle",
+    "refKind": "bound",
+    "typeRaw": "NSObject",
   },
 ]
 `;
@@ -483,6 +503,16 @@ exports[`PHP extractor > imports 1`] = `
       "Logger",
     ],
     "source": "Logger",
+  },
+]
+`;
+
+exports[`PHP extractor > relationships 1`] = `
+[
+  {
+    "fromSymbol": "Circle",
+    "kind": "implements",
+    "toSymbol": "Shape",
   },
 ]
 `;
@@ -572,6 +602,71 @@ exports[`PHP extractor > symbols 1`] = `
     "name": "main",
     "signature": "function main(): void",
     "startLine": 36,
+  },
+]
+`;
+
+exports[`PHP extractor > typeRefs 1`] = `
+[
+  {
+    "enclosingSymbol": "add",
+    "refKind": "parameter",
+    "typeRaw": "int",
+  },
+  {
+    "enclosingSymbol": "add",
+    "refKind": "parameter",
+    "typeRaw": "int",
+  },
+  {
+    "enclosingSymbol": "add",
+    "refKind": "return",
+    "typeRaw": "int",
+  },
+  {
+    "enclosingSymbol": "area",
+    "refKind": "return",
+    "typeRaw": "float",
+  },
+  {
+    "enclosingSymbol": "area",
+    "refKind": "return",
+    "typeRaw": "float",
+  },
+  {
+    "enclosingSymbol": "Circle",
+    "refKind": "bound",
+    "typeRaw": "Shape",
+  },
+  {
+    "enclosingSymbol": "greet",
+    "refKind": "parameter",
+    "typeRaw": "string",
+  },
+  {
+    "enclosingSymbol": "greet",
+    "refKind": "return",
+    "typeRaw": "string",
+  },
+  {
+    "enclosingSymbol": "greetUser",
+    "refKind": "return",
+    "typeRaw": "string",
+  },
+  {
+    "enclosingSymbol": "main",
+    "refKind": "return",
+    "typeRaw": "void",
+  },
+  {
+    "enclosingSymbol": "perimeter",
+    "refKind": "return",
+    "typeRaw": "float",
+  },
+  {
+    "enclosingSymbol": "perimeter",
+    "refKind": "return",
+    "typeRaw": "float",
   },
 ]
 `;
@@ -757,6 +852,8 @@ exports[`Scala extractor > imports 1`] = `
 ]
 `;
 
+exports[`Scala extractor > relationships 1`] = `[]`;
+
 exports[`Scala extractor > symbols 1`] = `
 [
   {
@@ -908,6 +1005,21 @@ exports[`Swift extractor > imports 1`] = `
 ]
 `;
 
+exports[`Swift extractor > relationships 1`] = `
+[
+  {
+    "fromSymbol": "Circle",
+    "kind": "extends",
+    "toSymbol": "Shape",
+  },
+  {
+    "fromSymbol": "Rectangle",
+    "kind": "extends",
+    "toSymbol": "Shape",
+  },
+]
+`;
+
 exports[`Swift extractor > symbols 1`] = `
 [
   {
@@ -993,6 +1105,66 @@ exports[`Swift extractor > symbols 1`] = `
     "name": "main",
     "signature": "func main()",
     "startLine": 52,
+  },
+]
+`;
+
+exports[`Swift extractor > typeRefs 1`] = `
+[
+  {
+    "enclosingSymbol": "add",
+    "refKind": "parameter",
+    "typeRaw": "Int",
+  },
+  {
+    "enclosingSymbol": "add",
+    "refKind": "parameter",
+    "typeRaw": "Int",
+  },
+  {
+    "enclosingSymbol": "Circle",
+    "refKind": "bound",
+    "typeRaw": "Shape",
+  },
+  {
+    "enclosingSymbol": "Circle",
+    "refKind": "field",
+    "typeRaw": "Double",
+  },
+  {
+    "enclosingSymbol": "Circle",
+    "refKind": "variable",
+    "typeRaw": "Double",
+  },
+  {
+    "enclosingSymbol": "greet",
+    "refKind": "parameter",
+    "typeRaw": "String",
+  },
+  {
+    "enclosingSymbol": "Rectangle",
+    "refKind": "bound",
+    "typeRaw": "Shape",
+  },
+  {
+    "enclosingSymbol": "Rectangle",
+    "refKind": "field",
+    "typeRaw": "Double",
+  },
+  {
+    "enclosingSymbol": "Rectangle",
+    "refKind": "field",
+    "typeRaw": "Double",
+  },
+  {
+    "enclosingSymbol": "Rectangle",
+    "refKind": "variable",
+    "typeRaw": "Double",
+  },
+  {
+    "enclosingSymbol": "Rectangle",
+    "refKind": "variable",
+    "typeRaw": "Double",
   },
 ]
 `;

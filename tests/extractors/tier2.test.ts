@@ -11,6 +11,22 @@ import { JuliaExtractor } from '../../src/indexer/extractors/julia.js';
 
 const fixtureDir = path.join(import.meta.dirname, '../fixtures');
 
+function normalizeRelationships(
+  relationships: Array<{ kind: string; fromSymbol: string; toSymbol: string }>,
+) {
+  return relationships
+    .map(({ kind, fromSymbol, toSymbol }) => ({ kind, fromSymbol, toSymbol }))
+    .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+}
+
+function normalizeTypeRefs(
+  typeRefs: Array<{ enclosingSymbol: string; refKind: string; typeRaw: string }>,
+) {
+  return typeRefs
+    .map(({ enclosingSymbol, refKind, typeRaw }) => ({ enclosingSymbol, refKind, typeRaw }))
+    .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+}
+
 const cResult = parseAndExtract(
   'c',
   path.join(fixtureDir, 'c/sample.c'),
@@ -186,6 +202,10 @@ describe('C# extractor', () => {
 
   test('callRefs are non-empty', () => {
     expect(csharpResult!.callRefs.length).toBeGreaterThan(0);
+  });
+
+  test('typeRefs', () => {
+    expect(normalizeTypeRefs(csharpResult!.typeRefs)).toMatchSnapshot();
   });
 });
 

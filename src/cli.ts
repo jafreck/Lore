@@ -215,7 +215,6 @@ async function main(): Promise<void> {
       bash: ['.sh', '.bash', '.zsh'],
       elixir: ['.ex', '.exs'],
       zig: ['.zig'],
-      dart: ['.dart'],
       ocaml: ['.ml', '.mli'],
       haskell: ['.hs'],
       julia: ['.jl'],
