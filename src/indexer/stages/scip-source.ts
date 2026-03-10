@@ -448,6 +448,22 @@ export class ScipSourceStage implements PipelineStage {
         const fileId = fileIdMap.get(absPath);
         if (!fileId) continue;
 
+        // Read source for receiver-chain reconstruction.
+        let source: string | null = null;
+        try { source = fs.readFileSync(absPath, 'utf8'); } catch { /* skip */ }
+        const sourceLines = source?.split('\n') ?? [];
+
+        // Build a per-line index of all occurrences for receiver lookup.
+        const occsByLine = new Map<number, Array<{ startChar: number; endChar: number; symbol: string }>>();
+        for (const o of doc.occurrences) {
+          const ln = o.range[0] ?? 0;
+          const sc = o.range[1] ?? 0;
+          const ec = o.range.length >= 4 ? (o.range[3] ?? 0) : (o.range[2] ?? 0);
+          let list = occsByLine.get(ln);
+          if (!list) { list = []; occsByLine.set(ln, list); }
+          list.push({ startChar: sc, endChar: ec, symbol: o.symbol });
+        }
+
         for (const occ of doc.occurrences) {
           // Skip definitions — we only want references
           if ((occ.symbolRoles & SymbolRole.Definition) !== 0) continue;
@@ -478,9 +494,34 @@ export class ScipSourceStage implements PipelineStage {
 
           // Find the callee (definition of the referenced symbol)
           const calleeId = scipToLoreId.get(occ.symbol) ?? null;
-          const calleeName = extractNameFromScipSymbol(occ.symbol);
+          let calleeName = extractNameFromScipSymbol(occ.symbol);
           const isExternal = !calleeId && isExternalSymbol(occ.symbol);
           const method = calleeId ? 'scip_definition' : (isExternal ? 'external_definition' : 'unresolved');
+
+          // Reconstruct member-access callee_name (e.g. "db.prepare")
+          // by checking if there's a receiver occurrence immediately before
+          // the method on the same line (receiver ends at or near char-1).
+          if (refKind === 'call' && sourceLines.length > line) {
+            const srcLine = sourceLines[line]!;
+            // The dot is at character-1 (e.g., `db.prepare` → dot at char 2, method at char 3)
+            if (character > 0 && srcLine[character - 1] === '.') {
+              const lineOccs = occsByLine.get(line);
+              if (lineOccs) {
+                // Find the occurrence ending right before the dot
+                const receiver = lineOccs.find(o =>
+                  o.endChar >= character - 2 && o.endChar <= character
+                  && o.startChar < character
+                );
+                if (receiver) {
+                  // Extract the receiver text from source
+                  const receiverText = srcLine.slice(receiver.startChar, receiver.endChar);
+                  if (receiverText) {
+                    calleeName = receiverText + '.' + calleeName;
+                  }
+                }
+              }
+            }
+          }
 
           if (refKind === 'type') {
             insertTypeRef.run(
