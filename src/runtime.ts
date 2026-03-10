@@ -109,8 +109,8 @@ export class LoreRuntime {
     // ── Embedder ─────────────────────────────────────────────────────────────
     if (this.config.embeddingModel) {
       try {
-        const { SentenceTransformersProvider } = await import('./indexer/embedder.js');
-        const provider = new SentenceTransformersProvider(this.config.embeddingModel);
+        const { TransformersJsProvider } = await import('./indexer/embedder.js');
+        const provider = new TransformersJsProvider(this.config.embeddingModel);
         await provider.init();
         this._embedder = provider;
         this.log.startup('embedding model loaded', {
