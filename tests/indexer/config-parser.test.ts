@@ -157,4 +157,50 @@ describe('parseConfigFile', () => {
   it('throws for malformed TOML input', () => {
     expect(() => parseConfigFile('broken.toml', 'invalid line')).toThrow(/Invalid TOML config/u);
   });
+
+  it('parses JSON config with array-like values', () => {
+    const json = JSON.stringify({
+      hosts: ['foo', 'bar', 'baz'],
+      emptyArr: [],
+    });
+    const result = parseConfigFile('config.json', json);
+    expect(result.length).toBeGreaterThan(0);
+    const hostsEntry = result.find(e => e.key === 'hosts');
+    expect(hostsEntry).toBeDefined();
+    expect(hostsEntry!.inferredType).toBe('array');
+    const emptyArr = result.find(e => e.key === 'emptyArr');
+    expect(emptyArr).toBeDefined();
+    expect(emptyArr!.inferredType).toBe('array');
+  });
+
+  it('parses .env with unquoted plain text values', () => {
+    const result = parseConfigFile('.env', 'HOST=localhost\nMODE=production\n');
+    expect(result.length).toBe(2);
+    const host = result.find(e => e.key === 'HOST');
+    expect(host!.value).toBe('localhost');
+    expect(host!.inferredType).toBe('string');
+  });
+
+  it('parses JSON config with nested objects as values', () => {
+    const json = JSON.stringify({
+      database: {
+        host: 'localhost',
+        port: 5432,
+        options: { ssl: true, timeout: 30 },
+      },
+    });
+    const result = parseConfigFile('config.json', json);
+    expect(result.length).toBeGreaterThan(0);
+    // The nested 'options' object should produce entries
+    const optionsEntry = result.find(e => e.key.includes('options'));
+    expect(optionsEntry).toBeDefined();
+  });
+
+  it('parses YAML config with boolean and null values', () => {
+    const yaml = 'debug: true\nverbose: false\ncache: null\nname: myapp\n';
+    const result = parseConfigFile('config.yaml', yaml);
+    expect(result.length).toBeGreaterThan(0);
+    const debug = result.find(e => e.key === 'debug');
+    expect(debug!.inferredType).toBe('boolean');
+  });
 });

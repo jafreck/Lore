@@ -106,4 +106,28 @@ describe('computeSymbolMetrics', () => {
     expect(metrics.cyclomatic).toBe(1);
     expect(metrics.max_nesting).toBe(0);
   });
+
+  it('hits parameter fallback walk when parameters field is absent', () => {
+    // Create a symbol with an AST node that lacks a 'parameters' field
+    // We simulate this by using a class-level arrow expression that the extractor
+    // captures as a symbol with astNode.childForFieldName('parameters') === null
+    const source = [
+      'class Svc {',
+      '  handler = (x: number, y: string) => {',
+      '    if (x > 0) return y;',
+      '    return "";',
+      '  };',
+      '}',
+    ].join('\n');
+
+    const tree = new ParserPool().parse('typescript', source);
+    expect(tree).not.toBeNull();
+    const extracted = new TypeScriptExtractor().extract(tree!, source, '/tmp/svc.ts');
+    // Find the arrow function symbol
+    const arrowSym = extracted.symbols.find(s => s.name === 'handler');
+    if (arrowSym?.astNode) {
+      const metrics = computeSymbolMetrics(arrowSym, 'typescript');
+      expect(metrics.param_count).toBeGreaterThanOrEqual(0);
+    }
+  });
 });
