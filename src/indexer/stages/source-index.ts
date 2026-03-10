@@ -113,8 +113,19 @@ export class SourceIndexStage implements PipelineStage {
     setLoreMeta(context.db, 'docs_auto_notes', context.docsAutoNotes ? '1' : '0');
 
     if (mode === 'build') {
-      const files = await walkFiles(context.walkerConfig);
-      context.files = files;
+      let files = await walkFiles(context.walkerConfig);
+
+      // Skip files already sourced from SCIP
+      if (context.scipSourcedFiles && context.scipSourcedFiles.size > 0) {
+        files = files.filter(f => !context.scipSourcedFiles!.has(f.path));
+        context.log.indexing('source-index: skipping SCIP-sourced files', {
+          skipped: context.scipSourcedFiles.size,
+          remaining: files.length,
+        });
+      }
+
+      // Merge with any files already added by ScipSourceStage
+      context.files = [...context.files, ...files];
       context.log.indexing('walk complete', { fileCount: files.length });
       await this.processBuild(context, files);
     } else {
