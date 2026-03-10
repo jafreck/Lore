@@ -83,6 +83,8 @@ export class TypeScriptExtractor implements SymbolExtractor {
           extractTsClassInheritanceTypeRefs(node, result.typeRefs);
           extractTsClassFieldTypeRefs(node, result.typeRefs);
           extractTsClassMethodTypeRefs(node, result.typeRefs);
+          // Extract class methods and constructors as separate symbols
+          extractClassMembers(node, source, declarationMode, result);
           break;
         case 'interface_declaration':
           result.symbols.push(extractNamedDecl(node, 'interface', source, declarationMode));
@@ -164,6 +166,45 @@ function extractNamedDecl(
     ...(declarationMode && isNodeExported(node) ? { isExported: true } : {}),
     astNode: node,
   };
+}
+
+/**
+ * Extract class methods and constructors as separate symbols.
+ *
+ * Gap 1: Constructors were not extracted at all.
+ * Gap 2: Methods inside classes were not extracted as symbols
+ *        (only used for type-ref extraction and caller containment).
+ */
+function extractClassMembers(
+  classNode: Parser.SyntaxNode,
+  source: string,
+  declarationMode: boolean,
+  result: ExtractionResult,
+): void {
+  const body = classNode.childForFieldName('body');
+  if (!body) return;
+
+  for (const child of body.namedChildren) {
+    if (child.type === 'method_definition') {
+      const nameNode = child.childForFieldName('name');
+      const name = nameNode?.text ?? '';
+      if (!name) continue;
+
+      // Distinguish constructors from methods
+      const kind = name === 'constructor' ? 'constructor' : 'method';
+      const docComment = declarationMode ? extractLeadingDocComment(child, source) : undefined;
+
+      result.symbols.push({
+        name,
+        kind,
+        startLine: child.startPosition.row,
+        endLine: child.endPosition.row,
+        signature: nodeSignature(child),
+        ...(docComment ? { docComment } : {}),
+        astNode: child,
+      });
+    }
+  }
 }
 
 function maybeExtractArrowOrFunctionExpr(
