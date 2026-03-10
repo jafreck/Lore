@@ -31,7 +31,7 @@ import {
   type Database,
 } from './db.js';
 import { getLoreMeta } from '../indexer/db.js';
-import { TransformersJsProvider, type EmbeddingProvider } from '../indexer/embedder.js';
+import { LazyEmbeddingProvider, type EmbeddingProvider } from '../indexer/embedder.js';
 import { getLogger, type LoreLogger } from '../logger.js';
 import type { SearchObserver } from './tools/search.js';
 import { buildToolModules, registerTools, type ToolModule } from './tool-registry.js';
@@ -153,23 +153,17 @@ function buildToolModulesSync(): ToolModule[] {
 // ─── Embedding helper ─────────────────────────────────────────────────────────
 
 /**
- * Read the embedding model stored in `lore_meta` at index time and spin up a
- * `TransformersJsProvider` instance for it.  Returns `undefined` when no
- * embedding model is recorded in the database.
+ * Read the embedding model stored in `lore_meta` at index time and create a
+ * `LazyEmbeddingProvider` for it.  The model is only downloaded and loaded
+ * when the first semantic search is performed.
+ *
+ * Returns `undefined` when no embedding model is recorded in the database.
  */
 async function buildEmbedder(db: Database.Database): Promise<EmbeddingProvider | undefined> {
   const modelName = getLoreMeta(db, 'embedding_model');
   if (!modelName) return undefined;
 
-  const provider = new TransformersJsProvider(modelName);
-  try {
-    await provider.init();
-    return provider;
-  } catch {
-    // Model not available — fall back to structural search only.
-    try { await provider.dispose(); } catch { /* ignore */ }
-    return undefined;
-  }
+  return new LazyEmbeddingProvider(modelName);
 }
 
 // ─── CLI argument parsing ─────────────────────────────────────────────────────
