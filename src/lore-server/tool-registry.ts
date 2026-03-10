@@ -232,6 +232,7 @@ export async function buildToolModules(): Promise<ToolModule[]> {
   const [
     lookup,
     graph,
+    graphAnalysis,
     search,
     docsMod,
     routes,
@@ -248,6 +249,7 @@ export async function buildToolModules(): Promise<ToolModule[]> {
   ] = await Promise.all([
     import('./tools/lookup.js'),
     import('./tools/graph.js'),
+    import('./tools/graph-analysis.js'),
     import('./tools/search.js'),
     import('./tools/docs.js'),
     import('./tools/routes.js'),
@@ -271,6 +273,10 @@ export async function buildToolModules(): Promise<ToolModule[]> {
     {
       def: graph.toolDef,
       handlerFactory: (deps) => (args) => graph.handler(deps.db, args),
+    },
+    {
+      def: graphAnalysis.toolDef,
+      handlerFactory: (deps) => (args) => graphAnalysis.handler(deps.db, args),
     },
     {
       def: search.toolDef,
