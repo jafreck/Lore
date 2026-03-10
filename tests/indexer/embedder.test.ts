@@ -6,8 +6,8 @@ import {
 } from '../../src/indexer/embedder.js';
 
 describe('DEFAULT_EMBEDDING_MODEL', () => {
-  it('should equal the nomic-embed-text-v1.5 model identifier', () => {
-    expect(DEFAULT_EMBEDDING_MODEL).toBe('nomic-ai/nomic-embed-text-v1.5');
+  it('should equal the Qwen3-Embedding-0.6B model identifier', () => {
+    expect(DEFAULT_EMBEDDING_MODEL).toBe('Qwen/Qwen3-Embedding-0.6B');
   });
 });
 

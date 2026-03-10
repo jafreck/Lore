@@ -60,12 +60,19 @@ type FeatureExtractionPipeline = Awaited<ReturnType<PipelineFn>>;
  * Generates embeddings using `@huggingface/transformers` (Transformers.js).
  * Runs ONNX models natively in Node — zero Python dependency.
  *
+ * Auto-detects the best available ONNX execution provider:
+ *   - `coreml` on Apple Silicon (macOS arm64)
+ *   - `cpu` everywhere else (always available)
+ *
+ * Override via `LORE_EMBED_DEVICE` env var (e.g. `cpu`, `coreml`).
+ *
  * Call `init()` first to download/load the model and detect its embedding
  * dimensionality. The model is kept in memory for the provider's lifetime.
  */
 export class TransformersJsProvider implements EmbeddingProvider {
   readonly modelName: string;
   private _dims: number | null = null;
+  private _device: string | null = null;
   private _pipeline: FeatureExtractionPipeline | null = null;
   private initialized = false;
 
@@ -81,6 +88,11 @@ export class TransformersJsProvider implements EmbeddingProvider {
     return this._dims;
   }
 
+  /** ONNX execution provider selected during init (cpu/coreml). */
+  get device(): string {
+    return this._device ?? 'unknown';
+  }
+
   /**
    * Load the model via Transformers.js and detect embedding dimensionality
    * by running a single probe sentence.
@@ -88,8 +100,15 @@ export class TransformersJsProvider implements EmbeddingProvider {
   async init(): Promise<void> {
     if (this.initialized) return;
 
+    const device = this.detectDevice();
+    this._device = device;
+
     const { pipeline } = await import('@huggingface/transformers');
-    this._pipeline = await (pipeline as PipelineFn)('feature-extraction', this.modelName);
+    this._pipeline = await (pipeline as PipelineFn)(
+      'feature-extraction',
+      this.modelName,
+      { device: device as 'cpu' },
+    );
 
     // Probe the model to detect dimensionality.
     const probe = await this._pipeline('dimensionality probe', { pooling: 'mean', normalize: true });
@@ -115,13 +134,27 @@ export class TransformersJsProvider implements EmbeddingProvider {
       this._pipeline = null;
     }
   }
+
+  /**
+   * Detect the best available ONNX execution provider.
+   * Respects `LORE_EMBED_DEVICE` env var for explicit override.
+   */
+  private detectDevice(): string {
+    const envDevice = process.env['LORE_EMBED_DEVICE'];
+    if (envDevice) return envDevice;
+
+    // CoreML is available on Apple Silicon via onnxruntime-node
+    if (process.platform === 'darwin' && process.arch === 'arm64') {
+      return 'coreml';
+    }
+    return 'cpu';
+  }
 }
 
 // ─── Default model ────────────────────────────────────────────────────────────
 
 /**
- * Default embedding model — `nomic-ai/nomic-embed-text-v1.5` is a high-quality,
- * 768-dim model with ONNX weights pre-packaged for Transformers.js.
- * Supports Matryoshka dimensions (768, 512, 256, 128, 64).
+ * Default embedding model — `Qwen/Qwen3-Embedding-0.6B` is a compact,
+ * 1024-dim model with strong multilingual and code understanding.
  */
-export const DEFAULT_EMBEDDING_MODEL = 'nomic-ai/nomic-embed-text-v1.5';
+export const DEFAULT_EMBEDDING_MODEL = 'Qwen/Qwen3-Embedding-0.6B';

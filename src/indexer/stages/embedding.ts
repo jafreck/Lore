@@ -11,8 +11,18 @@ import type { EmbeddingProvider } from '../embedder.js';
 import { setLoreMeta, createVec0Tables } from '../db.js';
 import { buildStructuralEmbeddingText } from '../embedder.js';
 
-/** Number of items to embed per batch. */
-const EMBED_BATCH_SIZE = 64;
+/**
+ * Number of items to send per `embed()` call.
+ *
+ * Larger batches reduce per-call overhead in TransformersJsProvider —
+ * the ONNX runtime handles its own internal micro-batching so bigger
+ * is better up to memory limits.
+ *
+ * 512 is a good trade-off: for a 10k-symbol codebase it means ~20
+ * round-trips instead of ~160, while keeping peak memory reasonable
+ * (512 × 1024-dim × 4 bytes ≈ 2 MB per batch of float vectors).
+ */
+const EMBED_BATCH_SIZE = 512;
 
 /**
  * Embed symbol signatures, documentation sections, and commit messages.
