@@ -50,6 +50,8 @@ export type ScipIndexerRegistryOverrides = Partial<Record<string, Partial<ScipIn
  * | C#                      | scip-dotnet         |
  * | Ruby                    | scip-ruby           |
  * | PHP                     | scip-php            |
+ * | Go                      | scip-go             |
+ * | Dart                    | scip-dart           |
  */
 export const DEFAULT_SCIP_INDEXER_REGISTRY: ScipIndexerRegistry = {
   typescript: { command: 'scip-typescript', args: ['index', '--output', '{output}'] },
@@ -64,6 +66,8 @@ export const DEFAULT_SCIP_INDEXER_REGISTRY: ScipIndexerRegistry = {
   csharp:     { command: 'scip-dotnet',     args: ['index', '.', '--output', '{output}'] },
   ruby:       { command: 'scip-ruby',       args: ['--output', '{output}'] },
   php:        { command: 'scip-php',        args: ['index', '--output', '{output}'] },
+  go:         { command: 'scip-go',         args: [] },
+  dart:       { command: 'scip-dart',       args: ['index', '--output', '{output}'] },
 };
 
 /** Set of languages that have a SCIP indexer in the default registry. */

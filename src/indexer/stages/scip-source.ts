@@ -82,6 +82,7 @@ function inferKindFromScipSymbol(scipSymbol: string, docHint: string): string {
   // Type: ends with #
   if (scipSymbol.endsWith('#')) {
     if (docHint.includes('interface ')) return 'interface';
+    if (docHint.includes('trait ')) return 'interface';
     if (docHint.includes('enum ')) return 'enum';
     if (docHint.includes('type ')) return 'type_alias';
     return 'class';
@@ -641,7 +642,7 @@ export class ScipSourceStage implements PipelineStage {
       const candidates = [
         join(rootDir, settings.indexDir, 'index.scip'),
         // Language-specific index files
-        ...['typescript', 'javascript', 'python', 'java', 'rust', 'c', 'cpp', 'csharp', 'ruby', 'php'].map(
+        ...['typescript', 'javascript', 'python', 'java', 'rust', 'c', 'cpp', 'csharp', 'ruby', 'php', 'go', 'dart'].map(
           lang => join(rootDir, settings.indexDir!, `${lang}.scip`),
         ),
       ];
@@ -726,11 +727,15 @@ const SCIP_LANG_MAP: Record<string, string> = {
   kotlin: 'kotlin',
   rust: 'rust',
   c: 'c',
+  'c++': 'cpp',
   cpp: 'cpp',
+  'c#': 'csharp',
   csharp: 'csharp',
+  visualbasic: 'csharp',
   ruby: 'ruby',
   php: 'php',
   go: 'go',
+  dart: 'dart',
 };
 
 const EXT_TO_LANG: Record<string, string> = {
@@ -757,6 +762,7 @@ const EXT_TO_LANG: Record<string, string> = {
   '.rb': 'ruby',
   '.php': 'php',
   '.go': 'go',
+  '.dart': 'dart',
 };
 
 /**

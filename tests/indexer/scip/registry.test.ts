@@ -17,7 +17,7 @@ describe('SCIP indexer registry', () => {
   it('default registry covers expected languages', () => {
     const expectedLanguages = [
       'typescript', 'javascript', 'python', 'java', 'scala', 'kotlin',
-      'rust', 'c', 'cpp', 'csharp', 'ruby', 'php',
+      'rust', 'c', 'cpp', 'csharp', 'ruby', 'php', 'go', 'dart',
     ];
     for (const lang of expectedLanguages) {
       expect(SCIP_SUPPORTED_LANGUAGES.has(lang)).toBe(true);
@@ -25,7 +25,7 @@ describe('SCIP indexer registry', () => {
   });
 
   it('does not include languages without SCIP indexers', () => {
-    const unsupported = ['go', 'swift', 'lua', 'bash', 'elixir', 'zig', 'ocaml', 'haskell', 'julia', 'elm'];
+    const unsupported = ['swift', 'lua', 'bash', 'elixir', 'zig', 'ocaml', 'haskell', 'julia', 'elm'];
     for (const lang of unsupported) {
       expect(SCIP_SUPPORTED_LANGUAGES.has(lang)).toBe(false);
     }
@@ -69,8 +69,19 @@ describe('SCIP indexer registry', () => {
 
   it('mergeScipIndexerRegistry allows adding new languages', () => {
     const merged = mergeScipIndexerRegistry({
-      dart: { command: 'scip-dart', args: ['--output', '{output}'] },
+      haskell: { command: 'scip-haskell', args: ['--output', '{output}'] },
     });
-    expect(merged.dart).toEqual({ command: 'scip-dart', args: ['--output', '{output}'] });
+    expect(merged.haskell).toEqual({ command: 'scip-haskell', args: ['--output', '{output}'] });
+  });
+
+  it('go entry uses scip-go with no args', () => {
+    expect(DEFAULT_SCIP_INDEXER_REGISTRY.go).toEqual({ command: 'scip-go', args: [] });
+  });
+
+  it('dart entry uses scip-dart with index command', () => {
+    expect(DEFAULT_SCIP_INDEXER_REGISTRY.dart).toEqual({
+      command: 'scip-dart',
+      args: ['index', '--output', '{output}'],
+    });
   });
 });
