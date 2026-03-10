@@ -1085,4 +1085,170 @@ describe('cli', () => {
       await vi.waitFor(() => expect(exitSpy).toHaveBeenCalledWith(0));
     });
   });
+
+  // ── Analyze subcommand ──────────────────────────────────────────────────────
+
+  describe('analyze subcommand', () => {
+    /** Create a minimal DB with files/symbols/symbol_refs for analysis. */
+    async function seedAnalysisDb(dbPath: string): Promise<void> {
+      const { openDb } = await import('../../src/indexer/db.js');
+      const db = openDb(dbPath);
+      db.exec(`
+        INSERT INTO files (path, language, branch, size_bytes) VALUES ('a.ts', 'typescript', 'HEAD', 100);
+        INSERT INTO files (path, language, branch, size_bytes) VALUES ('b.ts', 'typescript', 'HEAD', 200);
+        INSERT INTO symbols (file_id, name, kind, start_line, end_line, signature) VALUES (1, 'foo', 'function', 0, 5, 'function foo()');
+        INSERT INTO symbols (file_id, name, kind, start_line, end_line, signature) VALUES (2, 'bar', 'function', 0, 10, 'function bar()');
+        INSERT INTO symbol_refs (caller_id, file_id, callee_id, callee_name, call_line, call_kind) VALUES (1, 1, 2, 'bar', 3, 'direct');
+      `);
+      db.close();
+    }
+
+    it('should print an error and exit when --db is missing', async () => {
+      await loadCli(['analyze']);
+      expect(exitSpy).toHaveBeenCalledWith(1);
+    });
+
+    it('should print an error for invalid --mode', async () => {
+      const dbPath = freshDb();
+      await seedAnalysisDb(dbPath);
+      await loadCli(['analyze', '--db', dbPath, '--mode', 'invalid']);
+      expect(exitSpy).toHaveBeenCalledWith(1);
+    });
+
+    it('should print an error for invalid --edge-kinds', async () => {
+      const dbPath = freshDb();
+      await seedAnalysisDb(dbPath);
+      await loadCli(['analyze', '--db', dbPath, '--edge-kinds', 'invalid']);
+      expect(exitSpy).toHaveBeenCalledWith(1);
+    });
+
+    it('should print an error for invalid --max-lines', async () => {
+      const dbPath = freshDb();
+      await seedAnalysisDb(dbPath);
+      await loadCli(['analyze', '--db', dbPath, '--max-lines', '-5']);
+      expect(exitSpy).toHaveBeenCalledWith(1);
+    });
+
+    it('should run cycles mode successfully', async () => {
+      const dbPath = freshDb();
+      await seedAnalysisDb(dbPath);
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      await loadCli(['analyze', '--db', dbPath, '--mode', 'cycles']);
+      await vi.waitFor(() => expect(consoleSpy).toHaveBeenCalled(), { timeout: 5000 });
+      consoleSpy.mockRestore();
+    });
+
+    it('should run components mode successfully', async () => {
+      const dbPath = freshDb();
+      await seedAnalysisDb(dbPath);
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      await loadCli(['analyze', '--db', dbPath, '--mode', 'components']);
+      await vi.waitFor(() => expect(consoleSpy).toHaveBeenCalled(), { timeout: 5000 });
+      consoleSpy.mockRestore();
+    });
+
+    it('should run clusters mode successfully', async () => {
+      const dbPath = freshDb();
+      await seedAnalysisDb(dbPath);
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      await loadCli(['analyze', '--db', dbPath, '--mode', 'clusters']);
+      await vi.waitFor(() => expect(consoleSpy).toHaveBeenCalled(), { timeout: 5000 });
+      consoleSpy.mockRestore();
+    });
+
+    it('should default to summary mode', async () => {
+      const dbPath = freshDb();
+      await seedAnalysisDb(dbPath);
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      await loadCli(['analyze', '--db', dbPath]);
+      await vi.waitFor(() => expect(consoleSpy).toHaveBeenCalled(), { timeout: 5000 });
+      consoleSpy.mockRestore();
+    });
+
+    it('should accept --max-lines for summary mode', async () => {
+      const dbPath = freshDb();
+      await seedAnalysisDb(dbPath);
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      await loadCli(['analyze', '--db', dbPath, '--mode', 'summary', '--max-lines', '100']);
+      await vi.waitFor(() => expect(consoleSpy).toHaveBeenCalled(), { timeout: 5000 });
+      consoleSpy.mockRestore();
+    });
+
+    it('should accept --edge-kinds and --branch flags', async () => {
+      const dbPath = freshDb();
+      await seedAnalysisDb(dbPath);
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      await loadCli(['analyze', '--db', dbPath, '--mode', 'cycles', '--edge-kinds', 'call', '--branch', 'HEAD']);
+      await vi.waitFor(() => expect(consoleSpy).toHaveBeenCalled(), { timeout: 5000 });
+      consoleSpy.mockRestore();
+    });
+  });
+
+  // ── Index subcommand — additional branches ──────────────────────────────────
+
+  describe('index subcommand — history-depth validation', () => {
+    it('should print an error for invalid --history-depth', async () => {
+      await loadCli(['index', '--root', tmpDir, '--db', freshDb(), '--history-depth', '-5']);
+      expect(exitSpy).toHaveBeenCalledWith(1);
+    });
+
+    it('should print an error for non-numeric --history-depth', async () => {
+      await loadCli(['index', '--root', tmpDir, '--db', freshDb(), '--history-depth', 'abc']);
+      expect(exitSpy).toHaveBeenCalledWith(1);
+    });
+
+    it('should accept a valid --history-depth', async () => {
+      let capturedOptions: unknown;
+      await loadCli(['index', '--root', tmpDir, '--db', freshDb(), '--history-depth', '50'], () => {
+        mockIndexBuilderWithOptionsCapture((opts) => { capturedOptions = opts; });
+      });
+      await vi.waitFor(() => expect(capturedOptions).toBeDefined());
+    });
+
+    it('should accept --history-all flag', async () => {
+      let capturedOptions: unknown;
+      await loadCli(['index', '--root', tmpDir, '--db', freshDb(), '--history-all'], () => {
+        mockIndexBuilderWithOptionsCapture((opts) => { capturedOptions = opts; });
+      });
+      await vi.waitFor(() => expect(capturedOptions).toBeDefined());
+    });
+  });
+
+  describe('index subcommand — language filter', () => {
+    it('should reject an unknown language name', async () => {
+      await loadCli(['index', '--root', tmpDir, '--db', freshDb(), '--language', 'brainfuck']);
+      expect(exitSpy).toHaveBeenCalledWith(1);
+    });
+
+    it('should accept a known language name', async () => {
+      let capturedOptions: unknown;
+      await loadCli(['index', '--root', tmpDir, '--db', freshDb(), '--language', 'typescript'], () => {
+        mockIndexBuilderWithOptionsCapture((opts) => { capturedOptions = opts; });
+      });
+      await vi.waitFor(() => expect(capturedOptions).toBeDefined());
+    });
+  });
+
+  // ── Refresh subcommand — history-depth validation ───────────────────────────
+
+  describe('refresh subcommand — history-depth validation', () => {
+    it('should print an error for invalid --history-depth in refresh', async () => {
+      await loadCli(['refresh', '--db', freshDb(), '--root', tmpDir, '--history-depth', '-1']);
+      expect(exitSpy).toHaveBeenCalledWith(1);
+    });
+
+    it('should print an error for non-numeric --history-depth in refresh', async () => {
+      await loadCli(['refresh', '--db', freshDb(), '--root', tmpDir, '--history-depth', 'abc']);
+      expect(exitSpy).toHaveBeenCalledWith(1);
+    });
+  });
+
+  // ── Unknown subcommand ──────────────────────────────────────────────────────
+
+  describe('unknown subcommand', () => {
+    it('should print an error for an unrecognized subcommand', async () => {
+      await loadCli(['foobar']);
+      expect(exitSpy).toHaveBeenCalledWith(1);
+    });
+  });
 });

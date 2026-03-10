@@ -183,4 +183,23 @@ describe('LazyEmbeddingProvider', () => {
     const provider = new LazyEmbeddingProvider('some-model');
     await expect(provider.dispose()).resolves.toBeUndefined();
   });
+
+  it('should throw from dims before init', () => {
+    const provider = new LazyEmbeddingProvider('some-model');
+    expect(() => provider.dims).toThrow();
+  });
+
+  it('should handle dispose after failed init gracefully', async () => {
+    const provider = new LazyEmbeddingProvider('nonexistent-model-that-will-fail');
+    // Trigger init (it will fail because the model doesn't exist)
+    const initPromise = provider.init().catch(() => {});
+    await initPromise;
+    // dispose should not throw even after failed init
+    await expect(provider.dispose()).resolves.toBeUndefined();
+  });
+
+  it('should accept dtype parameter', () => {
+    const provider = new LazyEmbeddingProvider('some-model', 'q8');
+    expect(provider.modelName).toBe('some-model');
+  });
 });

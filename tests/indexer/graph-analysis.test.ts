@@ -446,3 +446,112 @@ describe('resolution method filtering', () => {
     expect(new Set(sccsAll[0])).toEqual(new Set([a, b, c]));
   });
 });
+
+// ─── Branch option filtering ──────────────────────────────────────────────────
+
+describe('branch option filtering', () => {
+  it('should filter edges by branch in detectSymbolCycles', () => {
+    const db = createDb();
+    // Insert files for two branches
+    const f1 = Number(
+      db.prepare("INSERT INTO files (path, branch, language, size_bytes) VALUES ('a.ts', 'main', 'typescript', 0)")
+        .run().lastInsertRowid,
+    );
+    const f2 = Number(
+      db.prepare("INSERT INTO files (path, branch, language, size_bytes) VALUES ('b.ts', 'main', 'typescript', 0)")
+        .run().lastInsertRowid,
+    );
+    const a = insertSymbol(db, f1, 'funcA');
+    const b = insertSymbol(db, f2, 'funcB');
+
+    // Cycle: a → b → a
+    insertResolvedCallRef(db, a, b, f1);
+    insertResolvedCallRef(db, b, a, f2);
+
+    // Filter by 'main' — should find the cycle
+    const sccsMain = detectSymbolCycles(db, { branch: 'main' });
+    expect(sccsMain).toHaveLength(1);
+
+    // Filter by 'other' — files don't match, so no edges → no cycles
+    const sccsOther = detectSymbolCycles(db, { branch: 'other' });
+    expect(sccsOther).toEqual([]);
+  });
+
+  it('should filter file components by branch', () => {
+    const db = createDb();
+    const f1 = Number(
+      db.prepare("INSERT INTO files (path, branch, language, size_bytes) VALUES ('a.ts', 'main', 'typescript', 0)")
+        .run().lastInsertRowid,
+    );
+    const f2 = Number(
+      db.prepare("INSERT INTO files (path, branch, language, size_bytes) VALUES ('b.ts', 'main', 'typescript', 0)")
+        .run().lastInsertRowid,
+    );
+    const f3 = Number(
+      db.prepare("INSERT INTO files (path, branch, language, size_bytes) VALUES ('c.ts', 'feat', 'typescript', 0)")
+        .run().lastInsertRowid,
+    );
+
+    insertFileImport(db, f1, f2);
+    insertFileImport(db, f3, f1); // cross-branch import
+
+    const mainComponents = findConnectedComponents(db, { scope: 'file', branch: 'main' });
+    // Should only see f1 and f2 connected
+    expect(mainComponents.length).toBeGreaterThanOrEqual(1);
+    // f3 should not be in any main-branch component
+    const allIds = mainComponents.flat();
+    expect(allIds).not.toContain(f3);
+  });
+
+  it('should filter summary by branch', () => {
+    const db = createDb();
+    const f1 = Number(
+      db.prepare("INSERT INTO files (path, branch, language, size_bytes) VALUES ('a.ts', 'main', 'typescript', 0)")
+        .run().lastInsertRowid,
+    );
+    const f2 = Number(
+      db.prepare("INSERT INTO files (path, branch, language, size_bytes) VALUES ('b.ts', 'develop', 'typescript', 0)")
+        .run().lastInsertRowid,
+    );
+    const a = insertSymbol(db, f1, 'funcA');
+    const b = insertSymbol(db, f2, 'funcB');
+
+    insertResolvedCallRef(db, a, b, f1);
+
+    const summary = buildCodebaseSummary(db, { branch: 'main' });
+    // The branch filter should limit files/symbols/edges
+    expect(summary.totalFiles).toBe(1);
+  });
+
+  it('should return empty for empty methods array', () => {
+    const db = createDb();
+    const f = insertFile(db, 'src/a.ts');
+    const a = insertSymbol(db, f, 'a');
+    const b = insertSymbol(db, f, 'b');
+
+    insertResolvedCallRef(db, a, b, f);
+    insertResolvedCallRef(db, b, a, f);
+
+    // Empty methods array → no edges → no cycles
+    const sccs = detectSymbolCycles(db, { methods: [] });
+    expect(sccs).toEqual([]);
+  });
+
+  it('should filter clusters by branch', () => {
+    const db = createDb();
+    const f1 = Number(
+      db.prepare("INSERT INTO files (path, branch, language, size_bytes) VALUES ('a.ts', 'main', 'typescript', 0)")
+        .run().lastInsertRowid,
+    );
+    const a = insertSymbol(db, f1, 'funcA', 'function', 1, 50);
+    const b = insertSymbol(db, f1, 'funcB', 'function', 51, 100);
+
+    insertResolvedCallRef(db, a, b, f1);
+
+    const clusters = clusterSymbols(db, { branch: 'main' });
+    expect(clusters.length).toBeGreaterThanOrEqual(1);
+
+    const clustersOther = clusterSymbols(db, { branch: 'nonexistent' });
+    expect(clustersOther).toEqual([]);
+  });
+});
