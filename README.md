@@ -378,13 +378,14 @@ npx @jafreck/lore ingest-coverage --db ./lore.db --root ./my-project \
 
 ### Embeddings
 
-Lore optionally generates dense vector embeddings for semantic search using a
-sentence-transformers model. The embedding model is downloaded and managed
-automatically — specify it with `--embedding-model`:
+Lore optionally generates dense vector embeddings for semantic search using
+`@huggingface/transformers` (Transformers.js), which runs ONNX models natively
+in Node.js — no Python or external processes required. Specify the model with
+`--embedding-model`:
 
 ```bash
 npx @jafreck/lore index --root ./my-project --db ./lore.db \
-  --embedding-model 'Qwen/Qwen3-Embedding-4B'
+  --embedding-model 'nomic-ai/nomic-embed-text-v1.5'
 ```
 
 At query time, `lore_search` in `semantic` or `fused` mode embeds the query

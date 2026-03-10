@@ -55,7 +55,7 @@ flowchart LR
         DOCNOTES[Doc Note Seeding<br/>README · architecture · ADR]
         LSP[LSP Enrichment<br/>batch-pipelined hover + definition<br/>persisted metadata]
         COVER[Coverage Ingest<br/>LCOV · Cobertura]
-        EMBED[Embedder<br/>sentence-transformers<br/>async init · overlapped batches]
+        EMBED[Embedder<br/>Transformers.js ONNX<br/>async init · overlapped batches]
         GITHIST[Git History Ingest<br/>commits · diffs · refs]
     end
 
@@ -174,7 +174,7 @@ during the LSP enrichment stage.
 | `call-graph.ts` | 3-tier symbol resolution with LSP-first ref resolution and name-based fallback; supports topo sort and cycle detection |
 | `docs.ts` | Discovers docs from default/configured globs, infers kind/title, chunks by heading hierarchy |
 | `coverage.ts` | Parses LCOV/Cobertura reports, normalizes per-file/per-line hit data, persists runs linked to commit SHA/source mtime |
-| `embedder.ts` | Optional — spawns a Python subprocess running sentence-transformers; async initialization with `EmbedderRef` so MCP starts immediately |
+| `embedder.ts` | Optional — uses `@huggingface/transformers` (Transformers.js) to run ONNX embedding models natively in Node.js; async initialization so MCP starts immediately |
 | `process-tracker.ts` | Global registry of spawned child processes; `killAllTracked()` ensures cleanup on SIGINT/SIGTERM/exit |
 | `git-history.ts` | Ingests commits, per-file diffs, and branch/tag refs via `simple-git` |
 | `resolution-method.ts` | Authoritative taxonomy for `resolution_method` column values shared by writers and readers |
