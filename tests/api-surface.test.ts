@@ -69,6 +69,21 @@ describe('public API surface', () => {
     expect(publicApi.listResolvedEdges).toBeDefined();
   });
 
+  it('should export listTypeRefs for type-reference edges', () => {
+    expect(publicApi.listTypeRefs).toBeDefined();
+  });
+
+  it('should export listSymbolRelationships for inheritance/implements edges', () => {
+    expect(publicApi.listSymbolRelationships).toBeDefined();
+  });
+
+  it('should export graph analysis primitives', () => {
+    expect(publicApi.detectSymbolCycles).toBeDefined();
+    expect(publicApi.findConnectedComponents).toBeDefined();
+    expect(publicApi.clusterSymbols).toBeDefined();
+    expect(publicApi.buildCodebaseSummary).toBeDefined();
+  });
+
   it('should NOT export internal stage helpers', () => {
     expect((publicApi as any).processFile).toBeUndefined();
     expect((publicApi as any).enrichProjectRefs).toBeUndefined();
