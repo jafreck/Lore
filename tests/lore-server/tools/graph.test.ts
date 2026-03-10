@@ -114,6 +114,11 @@ describe('lore_graph toolDef', () => {
     expect(toolDef.inputSchema.properties.semantic_limit.type).toBe('number');
     expect(toolDef.inputSchema.properties.semantic_max_distance.type).toBe('number');
   });
+
+  it('should expose target_id for reverse/inbound edge queries', () => {
+    expect(toolDef.inputSchema.properties.target_id).toBeDefined();
+    expect(toolDef.inputSchema.properties.target_id.type).toBe('number');
+  });
 });
 
 describe('graph handler – kind=call', () => {
@@ -202,6 +207,29 @@ describe('graph handler – kind=call', () => {
     const result = handler(db, { kind: 'call', limit: 1 });
     expect(result.edges.length).toBeLessThanOrEqual(1);
   });
+
+  it('should filter call edges by target_id (reverse/inbound)', () => {
+    // calleeMainId is the callee; find its callers
+    const all = handler(db, { kind: 'call' });
+    const calleeId = all.edges.find((e) => e.source_name === 'caller')?.target_id;
+    expect(calleeId).toBeDefined();
+    const result = handler(db, { kind: 'call', target_id: calleeId! });
+    expect(result.edges.length).toBe(1);
+    expect(result.edges[0].source_name).toBe('caller');
+  });
+
+  it('should filter call edges by both source_id and target_id', () => {
+    const all = handler(db, { kind: 'call' });
+    const edge = all.edges.find((e) => e.source_name === 'caller')!;
+    const result = handler(db, { kind: 'call', source_id: edge.source_id!, target_id: edge.target_id! });
+    expect(result.edges.length).toBe(1);
+    expect(result.edges[0].source_name).toBe('caller');
+  });
+
+  it('should return empty when target_id does not match any callee', () => {
+    const result = handler(db, { kind: 'call', target_id: 99999 });
+    expect(result.edges).toEqual([]);
+  });
 });
 
 // ─── handler (kind=import) ────────────────────────────────────────────────────
@@ -250,6 +278,16 @@ describe('graph handler – kind=import', () => {
   it('should use raw_import when resolved_id is null', () => {
     const result = handler(db, { kind: 'import', branch: 'feat' });
     expect(result.edges[0].target_name).toBe('./utils');
+  });
+
+  it('should filter import edges by target_id (who imports this file)', () => {
+    // mainFileId imports utilsFileId; find importers of utilsFileId
+    const all = handler(db, { kind: 'import', branch: 'main' });
+    const targetId = all.edges[0]?.target_id;
+    expect(targetId).toBeDefined();
+    const result = handler(db, { kind: 'import', target_id: targetId! });
+    expect(result.edges.length).toBe(1);
+    expect(result.edges[0].source_name).toBe('src/main.ts');
   });
 });
 
@@ -338,6 +376,17 @@ describe('graph handler – kind=inheritance', () => {
   it('should return empty inheritance edges when branch does not match', () => {
     const result = handler(db, { kind: 'inheritance', branch: 'nonexistent' });
     expect(result.edges).toEqual([]);
+  });
+
+  it('should filter inheritance edges by target_id (who extends this base)', () => {
+    // Find all classes that extend Base
+    const all = handler(db, { kind: 'inheritance', branch: 'main' });
+    const baseId = all.edges[0]?.target_id;
+    expect(baseId).toBeDefined();
+    const result = handler(db, { kind: 'inheritance', target_id: baseId! });
+    expect(result.edges.length).toBe(1);
+    expect(result.edges[0].source_name).toBe('Derived');
+    expect(result.edges[0].target_name).toBe('Base');
   });
 });
 
@@ -514,6 +563,16 @@ describe('graph handler – kind=type_dependency', () => {
   it('should filter type dependency edges by source_id', () => {
     const result = handler(db, { kind: 'type_dependency', source_id: symbolId });
     expect(result.edges.length).toBe(1);
+  });
+
+  it('should filter type dependency edges by target_id (who references this type)', () => {
+    const all = handler(db, { kind: 'type_dependency' });
+    const typeId = all.edges[0]?.target_id;
+    expect(typeId).toBeDefined();
+    const result = handler(db, { kind: 'type_dependency', target_id: typeId! });
+    expect(result.edges.length).toBe(1);
+    expect(result.edges[0].source_name).toBe('process');
+    expect(result.edges[0].target_name).toBe('MyStruct');
   });
 });
 

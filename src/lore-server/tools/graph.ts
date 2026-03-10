@@ -18,6 +18,7 @@ export const toolDef = {
   description:
     'Query call, import, module, inheritance, or type dependency graph edges stored in the knowledge-base index. ' +
     'Set `kind` to "call", "import", "module", "inheritance", or "type_dependency". ' +
+    'Use source_id for outbound edges (what does X call?) and target_id for inbound edges (who calls X?). ' +
     'Optionally set mode="semantic" with query_vector to retrieve semantically related symbol/module nodes alongside edges.',
   inputSchema: {
     type: 'object',
@@ -33,7 +34,15 @@ export const toolDef = {
       source_id: {
         type: 'number',
         description:
-          'Optional. If provided, only edges whose source matches this id are returned.',
+          'Optional. If provided, only edges whose source matches this id are returned (outbound edges).',
+      },
+      target_id: {
+        type: 'number',
+        description:
+          'Optional. If provided, only edges whose target matches this id are returned (inbound edges). ' +
+          'For kind="call": find all callers of a symbol. For kind="import": find all importers of a file. ' +
+          'For kind="inheritance": find all classes that extend/implement a base. ' +
+          'For kind="type_dependency": find all symbols that reference a type.',
       },
       limit: {
         type: 'number',
@@ -73,6 +82,7 @@ type GraphKind = 'call' | 'import' | 'module' | 'inheritance' | 'type_dependency
 export interface GraphArgs {
   kind: GraphKind;
   source_id?: number;
+  target_id?: number;
   limit?: number;
   branch?: string;
   mode?: 'structural' | 'semantic';
@@ -137,54 +147,48 @@ function getStructuralEdges(
 ): GraphEdge[] {
   if (args.kind === 'call') {
     // Symbol-level: symbol_refs rows
-    const hasFilter = args.source_id !== undefined;
-    const branchClause = args.branch !== undefined ? ' AND f_caller.branch = ?' : '';
-    const sql = hasFilter
-      ? `SELECT sr.caller_id  AS source_id,
-                s_caller.name AS source_name,
-                f_caller.branch AS source_branch,
-                sr.callee_id  AS target_id,
-                sr.callee_name AS target_name,
-                sr.call_kind  AS call_kind,
-                sr.call_line + 1 AS line,
-                CASE
-                  WHEN sr.call_character IS NULL THEN NULL
-                  ELSE sr.call_character + 1
-                END AS character,
-                sr.resolution_method AS resolution_method,
-                sr.definition_path AS definition_path,
-                sr.definition_line AS definition_line,
-                sr.definition_character AS definition_character
-           FROM symbol_refs sr
-           JOIN symbols s_caller ON s_caller.id = sr.caller_id
-           JOIN files f_caller ON f_caller.id = s_caller.file_id
-          WHERE sr.caller_id = ?${branchClause}
-          LIMIT ?`
-      : `SELECT sr.caller_id  AS source_id,
-                s_caller.name AS source_name,
-                f_caller.branch AS source_branch,
-                sr.callee_id  AS target_id,
-                sr.callee_name AS target_name,
-                sr.call_kind  AS call_kind,
-                sr.call_line + 1 AS line,
-                CASE
-                  WHEN sr.call_character IS NULL THEN NULL
-                  ELSE sr.call_character + 1
-                END AS character,
-                sr.resolution_method AS resolution_method,
-                sr.definition_path AS definition_path,
-                sr.definition_line AS definition_line,
-                sr.definition_character AS definition_character
-           FROM symbol_refs sr
-           JOIN symbols s_caller ON s_caller.id = sr.caller_id
-           JOIN files f_caller ON f_caller.id = s_caller.file_id
-          WHERE 1=1${branchClause}
-          LIMIT ?`;
+    const conditions: string[] = [];
+    const params: Array<string | number> = [];
 
-    const edgeParams = hasFilter
-      ? (args.branch !== undefined ? [args.source_id, args.branch, limit] : [args.source_id, limit])
-      : (args.branch !== undefined ? [args.branch, limit] : [limit]);
-    const edges = db.prepare(sql).all(...edgeParams) as GraphEdge[];
+    if (args.source_id !== undefined) {
+      conditions.push('sr.caller_id = ?');
+      params.push(args.source_id);
+    }
+    if (args.target_id !== undefined) {
+      conditions.push('sr.callee_id = ?');
+      params.push(args.target_id);
+    }
+    if (args.branch !== undefined) {
+      conditions.push('f_caller.branch = ?');
+      params.push(args.branch);
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    params.push(limit);
+
+    const sql =
+      `SELECT sr.caller_id  AS source_id,
+              s_caller.name AS source_name,
+              f_caller.branch AS source_branch,
+              sr.callee_id  AS target_id,
+              sr.callee_name AS target_name,
+              sr.call_kind  AS call_kind,
+              sr.call_line + 1 AS line,
+              CASE
+                WHEN sr.call_character IS NULL THEN NULL
+                ELSE sr.call_character + 1
+              END AS character,
+              sr.resolution_method AS resolution_method,
+              sr.definition_path AS definition_path,
+              sr.definition_line AS definition_line,
+              sr.definition_character AS definition_character
+         FROM symbol_refs sr
+         JOIN symbols s_caller ON s_caller.id = sr.caller_id
+         JOIN files f_caller ON f_caller.id = s_caller.file_id
+        ${whereClause}
+        LIMIT ?`;
+
+    const edges = db.prepare(sql).all(...params) as GraphEdge[];
     const calleeIds = Array.from(
       new Set(edges.map((edge) => edge.target_id).filter((id): id is number => id !== null)),
     );
@@ -198,34 +202,38 @@ function getStructuralEdges(
     return edgesWithCoverage;
   } else if (args.kind === 'import') {
     // File-level: file_imports rows
-    const hasFilter = args.source_id !== undefined;
-    const branchClause = args.branch !== undefined ? ' AND f_src.branch = ?' : '';
-    const sql = hasFilter
-      ? `SELECT fi.file_id   AS source_id,
-                f_src.path   AS source_name,
-                f_src.branch AS source_branch,
-                fi.resolved_id AS target_id,
-                COALESCE(f_dst.path, fi.raw_import) AS target_name
-           FROM file_imports fi
-           JOIN files f_src ON f_src.id = fi.file_id
-           LEFT JOIN files f_dst ON f_dst.id = fi.resolved_id
-          WHERE fi.file_id = ?${branchClause}
-          LIMIT ?`
-      : `SELECT fi.file_id   AS source_id,
-                f_src.path   AS source_name,
-                f_src.branch AS source_branch,
-                fi.resolved_id AS target_id,
-                COALESCE(f_dst.path, fi.raw_import) AS target_name
-           FROM file_imports fi
-           JOIN files f_src ON f_src.id = fi.file_id
-           LEFT JOIN files f_dst ON f_dst.id = fi.resolved_id
-          WHERE 1=1${branchClause}
-          LIMIT ?`;
+    const conditions: string[] = [];
+    const params: Array<string | number> = [];
 
-    const edgeParams = hasFilter
-      ? (args.branch !== undefined ? [args.source_id, args.branch, limit] : [args.source_id, limit])
-      : (args.branch !== undefined ? [args.branch, limit] : [limit]);
-    const edges = db.prepare(sql).all(...edgeParams) as GraphEdge[];
+    if (args.source_id !== undefined) {
+      conditions.push('fi.file_id = ?');
+      params.push(args.source_id);
+    }
+    if (args.target_id !== undefined) {
+      conditions.push('fi.resolved_id = ?');
+      params.push(args.target_id);
+    }
+    if (args.branch !== undefined) {
+      conditions.push('f_src.branch = ?');
+      params.push(args.branch);
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    params.push(limit);
+
+    const sql =
+      `SELECT fi.file_id   AS source_id,
+              f_src.path   AS source_name,
+              f_src.branch AS source_branch,
+              fi.resolved_id AS target_id,
+              COALESCE(f_dst.path, fi.raw_import) AS target_name
+         FROM file_imports fi
+         JOIN files f_src ON f_src.id = fi.file_id
+         LEFT JOIN files f_dst ON f_dst.id = fi.resolved_id
+        ${whereClause}
+        LIMIT ?`;
+
+    const edges = db.prepare(sql).all(...params) as GraphEdge[];
 
     return edges;
   } else if (args.kind === 'module') {
@@ -233,151 +241,136 @@ function getStructuralEdges(
     // NOTE: No writer populates `modules`/`file_modules` — this query returns
     // empty results until a module-detection writer is implemented.
     // The INNER JOIN on file_modules ensures graceful empty results.
-    const hasFilter = args.source_id !== undefined;
-    const branchClause = args.branch !== undefined ? ' AND f_src.branch = ?' : '';
-    const sql = hasFilter
-      ? `SELECT DISTINCT
-                 m_src.id AS source_id,
-                 m_src.name AS source_name,
-                 f_src.branch AS source_branch,
-                 m_dst.id AS target_id,
-                 COALESCE(m_dst.name, fi.raw_import) AS target_name
-            FROM file_imports fi
-            JOIN files f_src ON f_src.id = fi.file_id
-            JOIN file_modules fm_src ON fm_src.file_id = f_src.id
-            JOIN modules m_src ON m_src.id = fm_src.module_id
-            LEFT JOIN files f_dst ON f_dst.id = fi.resolved_id
-            LEFT JOIN file_modules fm_dst ON fm_dst.file_id = f_dst.id
-            LEFT JOIN modules m_dst ON m_dst.id = fm_dst.module_id
-           WHERE m_src.id = ?${branchClause}
-           LIMIT ?`
-      : `SELECT DISTINCT
-                 m_src.id AS source_id,
-                 m_src.name AS source_name,
-                 f_src.branch AS source_branch,
-                 m_dst.id AS target_id,
-                 COALESCE(m_dst.name, fi.raw_import) AS target_name
-            FROM file_imports fi
-            JOIN files f_src ON f_src.id = fi.file_id
-            JOIN file_modules fm_src ON fm_src.file_id = f_src.id
-            JOIN modules m_src ON m_src.id = fm_src.module_id
-            LEFT JOIN files f_dst ON f_dst.id = fi.resolved_id
-            LEFT JOIN file_modules fm_dst ON fm_dst.file_id = f_dst.id
-            LEFT JOIN modules m_dst ON m_dst.id = fm_dst.module_id
-           WHERE 1=1${branchClause}
-           LIMIT ?`;
+    const conditions: string[] = [];
+    const params: Array<string | number> = [];
 
-    const edgeParams = hasFilter
-      ? (args.branch !== undefined ? [args.source_id, args.branch, limit] : [args.source_id, limit])
-      : (args.branch !== undefined ? [args.branch, limit] : [limit]);
-    const edges = db.prepare(sql).all(...edgeParams) as GraphEdge[];
+    if (args.source_id !== undefined) {
+      conditions.push('m_src.id = ?');
+      params.push(args.source_id);
+    }
+    if (args.target_id !== undefined) {
+      conditions.push('m_dst.id = ?');
+      params.push(args.target_id);
+    }
+    if (args.branch !== undefined) {
+      conditions.push('f_src.branch = ?');
+      params.push(args.branch);
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    params.push(limit);
+
+    const sql =
+      `SELECT DISTINCT
+               m_src.id AS source_id,
+               m_src.name AS source_name,
+               f_src.branch AS source_branch,
+               m_dst.id AS target_id,
+               COALESCE(m_dst.name, fi.raw_import) AS target_name
+          FROM file_imports fi
+          JOIN files f_src ON f_src.id = fi.file_id
+          JOIN file_modules fm_src ON fm_src.file_id = f_src.id
+          JOIN modules m_src ON m_src.id = fm_src.module_id
+          LEFT JOIN files f_dst ON f_dst.id = fi.resolved_id
+          LEFT JOIN file_modules fm_dst ON fm_dst.file_id = f_dst.id
+          LEFT JOIN modules m_dst ON m_dst.id = fm_dst.module_id
+         ${whereClause}
+         LIMIT ?`;
+
+    const edges = db.prepare(sql).all(...params) as GraphEdge[];
 
     return edges;
   } else if (args.kind === 'inheritance') {
     // Symbol-level inheritance edges (e.g., class extends, implements)
-    const hasFilter = args.source_id !== undefined;
-    const branchClause = args.branch !== undefined ? ' AND f_src.branch = ?' : '';
-    const sql = hasFilter
-      ? `SELECT rel.source_symbol_id AS source_id,
-                s_src.name AS source_name,
-                f_src.branch AS source_branch,
-                rel.target_symbol_id AS target_id,
-                COALESCE(s_dst.name, rel.target_symbol_name) AS target_name,
-                rel.line + 1 AS line,
-                CASE
-                  WHEN rel.character IS NULL THEN NULL
-                  ELSE rel.character + 1
-                END AS character,
-                rel.resolution_method AS resolution_method,
-                rel.definition_path AS definition_path,
-                rel.definition_line AS definition_line,
-                rel.definition_character AS definition_character
-           FROM symbol_relationships rel
-           JOIN symbols s_src ON s_src.id = rel.source_symbol_id
-           JOIN files f_src ON f_src.id = s_src.file_id
-           LEFT JOIN symbols s_dst ON s_dst.id = rel.target_symbol_id
-          WHERE rel.relationship_type IN ('extends', 'implements')
-            AND rel.source_symbol_id = ?${branchClause}
-          LIMIT ?`
-      : `SELECT rel.source_symbol_id AS source_id,
-                s_src.name AS source_name,
-                f_src.branch AS source_branch,
-                rel.target_symbol_id AS target_id,
-                COALESCE(s_dst.name, rel.target_symbol_name) AS target_name,
-                rel.line + 1 AS line,
-                CASE
-                  WHEN rel.character IS NULL THEN NULL
-                  ELSE rel.character + 1
-                END AS character,
-                rel.resolution_method AS resolution_method,
-                rel.definition_path AS definition_path,
-                rel.definition_line AS definition_line,
-                rel.definition_character AS definition_character
-           FROM symbol_relationships rel
-           JOIN symbols s_src ON s_src.id = rel.source_symbol_id
-           JOIN files f_src ON f_src.id = s_src.file_id
-           LEFT JOIN symbols s_dst ON s_dst.id = rel.target_symbol_id
-          WHERE rel.relationship_type IN ('extends', 'implements')${branchClause}
-          LIMIT ?`;
+    const conditions: string[] = ["rel.relationship_type IN ('extends', 'implements')"];
+    const params: Array<string | number> = [];
 
-    const edgeParams = hasFilter
-      ? (args.branch !== undefined ? [args.source_id, args.branch, limit] : [args.source_id, limit])
-      : (args.branch !== undefined ? [args.branch, limit] : [limit]);
-    const edges = db.prepare(sql).all(...edgeParams) as GraphEdge[];
+    if (args.source_id !== undefined) {
+      conditions.push('rel.source_symbol_id = ?');
+      params.push(args.source_id);
+    }
+    if (args.target_id !== undefined) {
+      conditions.push('rel.target_symbol_id = ?');
+      params.push(args.target_id);
+    }
+    if (args.branch !== undefined) {
+      conditions.push('f_src.branch = ?');
+      params.push(args.branch);
+    }
+
+    const whereClause = `WHERE ${conditions.join(' AND ')}`;
+    params.push(limit);
+
+    const sql =
+      `SELECT rel.source_symbol_id AS source_id,
+              s_src.name AS source_name,
+              f_src.branch AS source_branch,
+              rel.target_symbol_id AS target_id,
+              COALESCE(s_dst.name, rel.target_symbol_name) AS target_name,
+              rel.line + 1 AS line,
+              CASE
+                WHEN rel.character IS NULL THEN NULL
+                ELSE rel.character + 1
+              END AS character,
+              rel.resolution_method AS resolution_method,
+              rel.definition_path AS definition_path,
+              rel.definition_line AS definition_line,
+              rel.definition_character AS definition_character
+         FROM symbol_relationships rel
+         JOIN symbols s_src ON s_src.id = rel.source_symbol_id
+         JOIN files f_src ON f_src.id = s_src.file_id
+         LEFT JOIN symbols s_dst ON s_dst.id = rel.target_symbol_id
+        ${whereClause}
+        LIMIT ?`;
+
+    const edges = db.prepare(sql).all(...params) as GraphEdge[];
 
     return edges;
   } else {
     // type_dependency: symbol → referenced type edges
-    const hasFilter = args.source_id !== undefined;
-    const branchClause = args.branch !== undefined ? ' AND f_src.branch = ?' : '';
-    const sql = hasFilter
-      ? `SELECT tr.symbol_id AS source_id,
-                COALESCE(s_src.name, '') AS source_name,
-                f_src.branch AS source_branch,
-                tr.type_id AS target_id,
-                COALESCE(s_dst.name, tr.type_name) AS target_name,
-                tr.ref_kind AS ref_kind,
-                tr.ref_line + 1 AS line,
-                CASE
-                  WHEN tr.ref_character IS NULL THEN NULL
-                  ELSE tr.ref_character + 1
-                END AS character,
-                tr.resolution_method AS resolution_method,
-                tr.definition_path AS definition_path,
-                tr.definition_line AS definition_line,
-                tr.definition_character AS definition_character
-           FROM type_refs tr
-           JOIN files f_src ON f_src.id = tr.file_id
-           LEFT JOIN symbols s_src ON s_src.id = tr.symbol_id
-           LEFT JOIN symbols s_dst ON s_dst.id = tr.type_id
-          WHERE tr.symbol_id = ?${branchClause}
-          LIMIT ?`
-      : `SELECT tr.symbol_id AS source_id,
-                COALESCE(s_src.name, '') AS source_name,
-                f_src.branch AS source_branch,
-                tr.type_id AS target_id,
-                COALESCE(s_dst.name, tr.type_name) AS target_name,
-                tr.ref_kind AS ref_kind,
-                tr.ref_line + 1 AS line,
-                CASE
-                  WHEN tr.ref_character IS NULL THEN NULL
-                  ELSE tr.ref_character + 1
-                END AS character,
-                tr.resolution_method AS resolution_method,
-                tr.definition_path AS definition_path,
-                tr.definition_line AS definition_line,
-                tr.definition_character AS definition_character
-           FROM type_refs tr
-           JOIN files f_src ON f_src.id = tr.file_id
-           LEFT JOIN symbols s_src ON s_src.id = tr.symbol_id
-           LEFT JOIN symbols s_dst ON s_dst.id = tr.type_id
-          WHERE 1=1${branchClause}
-          LIMIT ?`;
+    const conditions: string[] = [];
+    const params: Array<string | number> = [];
 
-    const edgeParams = hasFilter
-      ? (args.branch !== undefined ? [args.source_id, args.branch, limit] : [args.source_id, limit])
-      : (args.branch !== undefined ? [args.branch, limit] : [limit]);
-    const edges = db.prepare(sql).all(...edgeParams) as GraphEdge[];
+    if (args.source_id !== undefined) {
+      conditions.push('tr.symbol_id = ?');
+      params.push(args.source_id);
+    }
+    if (args.target_id !== undefined) {
+      conditions.push('tr.type_id = ?');
+      params.push(args.target_id);
+    }
+    if (args.branch !== undefined) {
+      conditions.push('f_src.branch = ?');
+      params.push(args.branch);
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    params.push(limit);
+
+    const sql =
+      `SELECT tr.symbol_id AS source_id,
+              COALESCE(s_src.name, '') AS source_name,
+              f_src.branch AS source_branch,
+              tr.type_id AS target_id,
+              COALESCE(s_dst.name, tr.type_name) AS target_name,
+              tr.ref_kind AS ref_kind,
+              tr.ref_line + 1 AS line,
+              CASE
+                WHEN tr.ref_character IS NULL THEN NULL
+                ELSE tr.ref_character + 1
+              END AS character,
+              tr.resolution_method AS resolution_method,
+              tr.definition_path AS definition_path,
+              tr.definition_line AS definition_line,
+              tr.definition_character AS definition_character
+         FROM type_refs tr
+         JOIN files f_src ON f_src.id = tr.file_id
+         LEFT JOIN symbols s_src ON s_src.id = tr.symbol_id
+         LEFT JOIN symbols s_dst ON s_dst.id = tr.type_id
+        ${whereClause}
+        LIMIT ?`;
+
+    const edges = db.prepare(sql).all(...params) as GraphEdge[];
 
     return edges;
   }
