@@ -40,6 +40,13 @@ import {
   getLatestCoverageTotals,
   getSymbolCoverageAggregates,
   getCoveragePercentBySymbolIds,
+  listCommitCadence,
+  listCommitSizes,
+  listCommitChurnByFile,
+  listCommitAuthorStats,
+  listCommitMessagePrefixes,
+  listCommitSchedule,
+  listCommitBranchActivity,
   type FileRow,
   type SymbolRow,
 } from '../../src/lore-server/db.js';
@@ -1821,5 +1828,199 @@ describe('commit helpers', () => {
     loadCommitEmbeddingsTable(db, 3);
     insertCommitEmbedding(db, 'bbb222', [1, 0, 0]);
     expect(listCommitsBySemanticQuery(db, [], 10)).toEqual([]);
+  });
+});
+
+// ─── Commit stats helpers ─────────────────────────────────────────────────────
+
+describe('commit stats helpers', () => {
+  let db: Database.Database;
+
+  beforeEach(() => {
+    db = createCommitDb();
+    // Insert some commits
+    db.prepare(
+      `INSERT INTO commits (sha, author, author_email, message, timestamp) VALUES (?, ?, ?, ?, ?)`,
+    ).run('aaa', 'Alice', 'alice@example.com', 'feat: add feature A', 1700000000);
+    db.prepare(
+      `INSERT INTO commits (sha, author, author_email, message, timestamp) VALUES (?, ?, ?, ?, ?)`,
+    ).run('bbb', 'Bob', 'bob@example.com', 'fix: bug B', 1700100000);
+    db.prepare(
+      `INSERT INTO commits (sha, author, author_email, message, timestamp) VALUES (?, ?, ?, ?, ?)`,
+    ).run('ccc', 'Alice', 'alice@example.com', 'chore: cleanup', 1700200000);
+    // Insert commit_files
+    db.prepare(
+      `INSERT INTO commit_files (commit_sha, file_path, change_type, insertions, deletions) VALUES (?, ?, ?, ?, ?)`,
+    ).run('aaa', 'src/a.ts', 'A', 50, 0);
+    db.prepare(
+      `INSERT INTO commit_files (commit_sha, file_path, change_type, insertions, deletions) VALUES (?, ?, ?, ?, ?)`,
+    ).run('bbb', 'src/a.ts', 'M', 10, 5);
+    db.prepare(
+      `INSERT INTO commit_files (commit_sha, file_path, change_type, insertions, deletions) VALUES (?, ?, ?, ?, ?)`,
+    ).run('bbb', 'src/b.ts', 'A', 30, 0);
+    db.prepare(
+      `INSERT INTO commit_files (commit_sha, file_path, change_type, insertions, deletions) VALUES (?, ?, ?, ?, ?)`,
+    ).run('ccc', 'src/a.ts', 'M', 5, 20);
+  });
+
+  describe('listCommitCadence', () => {
+    it('should return daily commit cadence', () => {
+      const result = listCommitCadence(db, 'day');
+      expect(result.length).toBeGreaterThan(0);
+      expect(result[0]).toHaveProperty('bucket');
+      expect(result[0]).toHaveProperty('commits');
+    });
+
+    it('should return weekly commit cadence', () => {
+      const result = listCommitCadence(db, 'week');
+      expect(result.length).toBeGreaterThan(0);
+    });
+
+    it('should return monthly commit cadence', () => {
+      const result = listCommitCadence(db, 'month');
+      expect(result.length).toBeGreaterThan(0);
+    });
+
+    it('should filter by since/until dates', () => {
+      const result = listCommitCadence(db, 'day', {
+        since: '2023-11-14',
+        until: '2023-11-16',
+      });
+      expect(result.length).toBeGreaterThanOrEqual(0);
+    });
+
+    it('should filter by author', () => {
+      const result = listCommitCadence(db, 'day', { author: 'Alice' });
+      expect(result.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('listCommitSizes', () => {
+    it('should return commit sizes with insertions and deletions', () => {
+      const result = listCommitSizes(db);
+      expect(result.length).toBeGreaterThan(0);
+      expect(result[0]).toHaveProperty('sha');
+      expect(result[0]).toHaveProperty('insertions');
+      expect(result[0]).toHaveProperty('deletions');
+    });
+
+    it('should respect limit', () => {
+      const result = listCommitSizes(db, { limit: 1 });
+      expect(result.length).toBe(1);
+    });
+
+    it('should filter by author', () => {
+      const result = listCommitSizes(db, { author: 'Bob' });
+      expect(result.length).toBe(1);
+      expect(result[0]?.author).toBe('Bob');
+    });
+
+    it('should filter by since/until', () => {
+      const result = listCommitSizes(db, {
+        since: '2023-11-15',
+        until: '2023-11-16',
+      });
+      expect(result.length).toBeGreaterThanOrEqual(0);
+    });
+  });
+
+  describe('listCommitChurnByFile', () => {
+    it('should return churn stats per file', () => {
+      const result = listCommitChurnByFile(db);
+      expect(result.length).toBeGreaterThan(0);
+      expect(result[0]).toHaveProperty('file_path');
+      expect(result[0]).toHaveProperty('commit_count');
+      expect(result[0]).toHaveProperty('total_churn');
+    });
+
+    it('should respect limit', () => {
+      const result = listCommitChurnByFile(db, { limit: 1 });
+      expect(result.length).toBe(1);
+    });
+
+    it('should filter by author', () => {
+      const result = listCommitChurnByFile(db, { author: 'Alice' });
+      expect(result.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('listCommitAuthorStats', () => {
+    it('should return stats per author', () => {
+      const result = listCommitAuthorStats(db);
+      expect(result.length).toBeGreaterThan(0);
+      expect(result[0]).toHaveProperty('author');
+      expect(result[0]).toHaveProperty('commit_count');
+    });
+
+    it('should respect limit', () => {
+      const result = listCommitAuthorStats(db, { limit: 1 });
+      expect(result.length).toBe(1);
+    });
+
+    it('should filter by time range', () => {
+      const result = listCommitAuthorStats(db, {
+        since: '2023-11-14',
+        until: '2023-11-17',
+      });
+      expect(result.length).toBeGreaterThanOrEqual(0);
+    });
+  });
+
+  describe('listCommitMessagePrefixes', () => {
+    it('should return message prefix counts', () => {
+      const result = listCommitMessagePrefixes(db);
+      expect(result.length).toBeGreaterThan(0);
+      expect(result[0]).toHaveProperty('prefix');
+      expect(result[0]).toHaveProperty('count');
+    });
+
+    it('should respect limit', () => {
+      const result = listCommitMessagePrefixes(db, { limit: 1 });
+      expect(result.length).toBe(1);
+    });
+  });
+
+  describe('listCommitSchedule', () => {
+    it('should return commit schedule by day-of-week and hour', () => {
+      const result = listCommitSchedule(db);
+      expect(result.length).toBeGreaterThan(0);
+      expect(result[0]).toHaveProperty('day_of_week');
+      expect(result[0]).toHaveProperty('hour_of_day');
+      expect(result[0]).toHaveProperty('commits');
+    });
+
+    it('should filter by author', () => {
+      const result = listCommitSchedule(db, { author: 'Alice' });
+      expect(result.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('listCommitBranchActivity', () => {
+    it('should return empty when commit_refs table has no data', () => {
+      const result = listCommitBranchActivity(db);
+      expect(result).toEqual([]);
+    });
+
+    it('should return branch activity when commit_refs data exists', () => {
+      // Insert commit_refs data
+      db.exec(`
+        INSERT INTO commit_refs (commit_sha, ref_name, ref_type) VALUES ('aaa', 'main', 'branch');
+        INSERT INTO commit_refs (commit_sha, ref_name, ref_type) VALUES ('bbb', 'main', 'branch');
+        INSERT INTO commit_refs (commit_sha, ref_name, ref_type) VALUES ('ccc', 'develop', 'branch');
+      `);
+      const result = listCommitBranchActivity(db);
+      expect(result.length).toBeGreaterThan(0);
+      expect(result[0]).toHaveProperty('ref_name');
+      expect(result[0]).toHaveProperty('commits');
+    });
+
+    it('should respect limit', () => {
+      db.exec(`
+        INSERT INTO commit_refs (commit_sha, ref_name, ref_type) VALUES ('aaa', 'main', 'branch');
+        INSERT INTO commit_refs (commit_sha, ref_name, ref_type) VALUES ('bbb', 'develop', 'branch');
+      `);
+      const result = listCommitBranchActivity(db, { limit: 1 });
+      expect(result.length).toBe(1);
+    });
   });
 });
