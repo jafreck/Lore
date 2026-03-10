@@ -17,6 +17,7 @@ LoreRuntime              ← lifecycle owner (DB, embedder, LSP, watcher/poller)
             ├─ TestMapStage           (inline)
             ├─ HistoryStage           (inline)
             └─ EmbeddingStage
+  └─ GraphAnalysis       ← SCC, connected components, clustering, summary
   └─ MCP Server
        └─ ToolRegistry   ← auto-registers tools from toolDef exports
 ```
@@ -92,6 +93,7 @@ flowchart LR
         METRICS[lore_metrics]
         LORE_COVERAGE[lore_coverage]
         WRITEBACK[lore_writeback]
+        ANALYZE[lore_analyze]
     end
 
     subgraph LLM_AGENTS[Agents]
@@ -129,9 +131,9 @@ flowchart LR
     EMBED -.->|optional| VEC
     GIT --> GITHIST --> HIST
 
-    FILES & SYM & IMP & EXT & REFS & TYPES & ANN & ROUTE_STORE & DOCS & NOTES & COV & VEC & HIST & META --- LOOKUP & SEARCH & DOCS_TOOL & ANNOTATIONS & GRAPH & ROUTES & NOTES_TOOL & ARCHITECTURE & SNIPPET & TESTMAP & BLAME & HISTORY & METRICS & LORE_COVERAGE & WRITEBACK
+    FILES & SYM & IMP & EXT & REFS & TYPES & ANN & ROUTE_STORE & DOCS & NOTES & COV & VEC & HIST & META --- LOOKUP & SEARCH & DOCS_TOOL & ANNOTATIONS & GRAPH & ROUTES & NOTES_TOOL & ARCHITECTURE & SNIPPET & TESTMAP & BLAME & HISTORY & METRICS & LORE_COVERAGE & WRITEBACK & ANALYZE
 
-    LOOKUP & SEARCH & DOCS_TOOL & ANNOTATIONS & GRAPH & ROUTES & NOTES_TOOL & ARCHITECTURE & SNIPPET & TESTMAP & BLAME & HISTORY & METRICS & LORE_COVERAGE & WRITEBACK <--> LLM_AGENTS
+    LOOKUP & SEARCH & DOCS_TOOL & ANNOTATIONS & GRAPH & ROUTES & NOTES_TOOL & ARCHITECTURE & SNIPPET & TESTMAP & BLAME & HISTORY & METRICS & LORE_COVERAGE & WRITEBACK & ANALYZE <--> LLM_AGENTS
 
     LLM_AGENTS <--- ENTRY
 ```
@@ -172,9 +174,10 @@ during the LSP enrichment stage.
 | `extractors/*` | Language-specific AST visitors for symbols, imports, call refs, type refs, annotations, and API routes; all 23 supported languages extract call references |
 | `resolver.ts` | Classifies each raw import as internal (resolved to a file ID) or external (third-party / stdlib) |
 | `call-graph.ts` | 3-tier symbol resolution with LSP-first ref resolution and name-based fallback; supports topo sort and cycle detection |
+| `graph-analysis.ts` | Higher-level graph primitives: Tarjan SCC on symbol adjacency, union-find connected components, SCC-contracted bounded clustering, and condensed codebase summary |
 | `docs.ts` | Discovers docs from default/configured globs, infers kind/title, chunks by heading hierarchy |
 | `coverage.ts` | Parses LCOV/Cobertura reports, normalizes per-file/per-line hit data, persists runs linked to commit SHA/source mtime |
-| `embedder.ts` | Optional — uses `@huggingface/transformers` (Transformers.js) to run ONNX embedding models natively in Node.js; async initialization so MCP starts immediately |
+| `embedder.ts` | Optional — uses `@huggingface/transformers` (Transformers.js) to run ONNX embedding models natively in Node.js; default model `Qwen/Qwen3-Embedding-0.6B`; supports CoreML/WebGPU hardware acceleration, quantized ONNX dtype (fp32/fp16/q8/q4), skip-unchanged hash-based re-embedding, and lazy on-demand initialization |
 | `process-tracker.ts` | Global registry of spawned child processes; `killAllTracked()` ensures cleanup on SIGINT/SIGTERM/exit |
 | `git-history.ts` | Ingests commits, per-file diffs, and branch/tag refs via `simple-git` |
 | `resolution-method.ts` | Authoritative taxonomy for `resolution_method` column values shared by writers and readers |
@@ -251,6 +254,7 @@ Key optimizations in the indexing pipeline (v0.3.0):
 | `lore_metrics` | Return aggregate index metrics plus global coverage totals and staleness metadata (`coverage_commit`, `current_commit`, `commits_behind`, `stale`) |
 | `lore_coverage` | Return symbol-level coverage, uncovered lines, and staleness metadata for the latest coverage run |
 | `lore_writeback` | Persist symbol summaries into `symbol_summaries` |
+| `lore_analyze` | Run graph analysis: symbol-level SCC (cycle detection), connected components (file or symbol scope), bounded-size symbol clustering, and condensed codebase summary with per-module stats |
 
 `lore_blame` response enrichment:
 - Supports legacy `line`/`start_line`/`end_line` requests and symbol-driven targeting (`symbol` + optional `path`/`branch`), returning `resolved_symbol` when symbol resolution is used.

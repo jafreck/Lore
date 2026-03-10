@@ -64,6 +64,7 @@ flowchart LR
         METRICS[lore_metrics]
         COVERAGE[lore_coverage]
         WRITEBACK[lore_writeback]
+        ANALYZE[lore_analyze]
     end
 
     subgraph MCP_CLIENTS[MCP Clients — Agents]
@@ -84,10 +85,10 @@ flowchart LR
     RESOLVE -.->|optional| EMBED
     EMBED -.-> DB
 
-    DB --- LOOKUP & SEARCH & DOCS_TOOL & ANNOT & GRAPH & ROUTES & NOTES & ARCH & TESTMAP & SNIPPET & BLAME & HISTORY & METRICS & COVERAGE & WRITEBACK
+    DB --- LOOKUP & SEARCH & DOCS_TOOL & ANNOT & GRAPH & ROUTES & NOTES & ARCH & TESTMAP & SNIPPET & BLAME & HISTORY & METRICS & COVERAGE & WRITEBACK & ANALYZE
     EMBED <-.->|semantic/fused| SEARCH
 
-    LOOKUP & SEARCH & DOCS_TOOL & ANNOT & GRAPH & ROUTES & NOTES & ARCH & TESTMAP & SNIPPET & BLAME & HISTORY & METRICS & COVERAGE & WRITEBACK <--> MCP_CLIENTS
+    LOOKUP & SEARCH & DOCS_TOOL & ANNOT & GRAPH & ROUTES & NOTES & ARCH & TESTMAP & SNIPPET & BLAME & HISTORY & METRICS & COVERAGE & WRITEBACK & ANALYZE <--> MCP_CLIENTS
 ```
 
 Lore sits between your codebase and any LLM-powered tool. A `LoreRuntime`
@@ -196,6 +197,7 @@ await builder.build();
 | `lore_metrics` | Aggregate index metrics plus coverage/staleness fields |
 | `lore_coverage` | Symbol-level coverage, uncovered lines, and staleness metadata |
 | `lore_writeback` | Persist agent-authored symbol summaries |
+| `lore_analyze` | Run graph analysis primitives: symbol-level cycle detection (SCC), connected components (file or symbol scope), bounded-size symbol clustering, and condensed codebase summary |
 
 ### lore_lookup query options
 
@@ -380,13 +382,19 @@ npx @jafreck/lore ingest-coverage --db ./lore.db --root ./my-project \
 
 Lore optionally generates dense vector embeddings for semantic search using
 `@huggingface/transformers` (Transformers.js), which runs ONNX models natively
-in Node.js — no Python or external processes required. Specify the model with
-`--embedding-model`:
+in Node.js — no Python or external processes required. The default model is
+`Qwen/Qwen3-Embedding-0.6B` (1024-dim); override with `--embedding-model`:
 
 ```bash
 npx @jafreck/lore index --root ./my-project --db ./lore.db \
   --embedding-model 'nomic-ai/nomic-embed-text-v1.5'
 ```
+
+Hardware acceleration is automatic: CoreML on Apple Silicon, WebGPU when
+available, CPU elsewhere. Override via the `LORE_EMBED_DEVICE` env var.
+Quantized ONNX dtype (fp32/fp16/q8/q4) is configurable with `LORE_EMBED_DTYPE`.
+In update/watch/poll mode, symbols and docs whose embedding text is unchanged
+(SHA-256 hash comparison) are skipped entirely for fast incremental re-embeds.
 
 At query time, `lore_search` in `semantic` or `fused` mode embeds the query
 and performs cosine similarity against stored vectors. If the model cannot
@@ -541,6 +549,14 @@ Start the MCP server over stdio.
 
 ```bash
 npx @jafreck/lore mcp --db <path> [--blocking-embedder]
+```
+
+### lore analyze
+
+Run graph analysis on an indexed knowledge base.
+
+```bash
+npx @jafreck/lore analyze --db <path> [--mode <cycles|components|clusters|summary>] [--edge-kinds <call|type|both>] [--branch <name>] [--max-lines <n>]
 ```
 
 ## Build from source
