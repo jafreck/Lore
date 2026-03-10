@@ -3,16 +3,22 @@
  *
  * Pipeline stage: embed symbol signatures, documentation sections, and
  * commit messages into vec0 virtual tables for semantic search.
+ *
+ * Optimisations:
+ *   - **Token-aware batching**: batches are sized by estimated token budget
+ *     rather than a fixed item count, avoiding pathological padding waste
+ *     when one long signature inflates the whole batch.
+ *   - **Skip-unchanged**: in update mode, symbols whose embedding input text
+ *     has not changed (by SHA-256 hash) are skipped entirely.
+ *   - **Double-buffered I/O**: the next `embed()` call fires while the
+ *     current batch's vectors are written to SQLite.
  */
 
 import type { PipelineContext, PipelineStage } from '../pipeline.js';
 import type { Database } from '../db.js';
 import type { EmbeddingProvider } from '../embedder.js';
 import { setLoreMeta, createVec0Tables } from '../db.js';
-import { buildStructuralEmbeddingText } from '../embedder.js';
-
-/** Number of items to embed per batch. */
-const EMBED_BATCH_SIZE = 64;
+import { buildStructuralEmbeddingText, hashEmbeddingText, tokenAwareBatch } from '../embedder.js';
 
 /**
  * Embed symbol signatures, documentation sections, and commit messages.
@@ -38,8 +44,8 @@ export class EmbeddingStage implements PipelineStage {
       const changedFileIds = resolveFileIds(db, context.changedSourcePaths, context.branch);
       const changedDocIds = resolveDocIds(db, context.changedDocPaths, context.branch);
 
-      await embedStructural(db, embedder, changedFileIds);
-      await embedDocumentation(db, embedder, changedDocIds);
+      await embedStructural(db, embedder, changedFileIds, /* skipUnchanged */ true);
+      await embedDocumentation(db, embedder, changedDocIds, /* skipUnchanged */ true);
     } else {
       await embedStructural(db, embedder);
       await embedDocumentation(db, embedder);
@@ -55,14 +61,26 @@ export class EmbeddingStage implements PipelineStage {
 
 // ─── Structural symbol embeddings ─────────────────────────────────────────────
 
+interface SymbolRow {
+  id: number;
+  name: string;
+  signature: string | null;
+  resolved_type_signature: string | null;
+  resolved_return_type: string | null;
+}
+
 async function embedStructural(
   db: Database.Database,
   embedder: EmbeddingProvider,
   fileIds?: number[],
+  skipUnchanged = false,
 ): Promise<void> {
   setLoreMeta(db, 'embedding_model', embedder.modelName);
   setLoreMeta(db, 'embedding_dims', String(embedder.dims));
   createVec0Tables(db, embedder.dims);
+
+  // Ensure the hash tracking column exists (idempotent).
+  ensureEmbeddingHashColumn(db, 'symbol_embeddings');
 
   const baseQuery =
     `SELECT id, name, signature, resolved_type_signature, resolved_return_type
@@ -71,66 +89,58 @@ async function embedStructural(
         OR resolved_type_signature IS NOT NULL
         OR resolved_return_type IS NOT NULL)`;
 
-  let symbols: Array<{
-    id: number;
-    name: string;
-    signature: string | null;
-    resolved_type_signature: string | null;
-    resolved_return_type: string | null;
-  }>;
+  let symbols: SymbolRow[];
 
   if (fileIds && fileIds.length > 0) {
     symbols = db
       .prepare(
         `${baseQuery} AND file_id IN (${fileIds.map(() => '?').join(', ')})`,
       )
-      .all(...fileIds) as typeof symbols;
+      .all(...fileIds) as SymbolRow[];
   } else {
-    symbols = db.prepare(baseQuery).all() as typeof symbols;
+    symbols = db.prepare(baseQuery).all() as SymbolRow[];
   }
+
+  // Build texts and compute hashes; filter out unchanged if requested.
+  const items: Array<{ sym: SymbolRow; text: string; hash: string }> = [];
+  const existingHashes = skipUnchanged ? loadExistingHashes(db, 'symbol_embeddings', symbols.map(s => s.id)) : new Map();
+
+  for (const sym of symbols) {
+    const text = buildStructuralEmbeddingText({
+      name: sym.name,
+      signature: sym.signature,
+      resolvedTypeSignature: sym.resolved_type_signature,
+      resolvedReturnType: sym.resolved_return_type,
+    });
+    const hash = hashEmbeddingText(text);
+    if (skipUnchanged && existingHashes.get(sym.id) === hash) continue;
+    items.push({ sym, text, hash });
+  }
+
+  if (items.length === 0) return;
 
   const insertEmbed = db.prepare(
     'INSERT OR REPLACE INTO symbol_embeddings(rowid, embedding) VALUES (CAST(? AS INTEGER), json(?))',
   );
+  const insertHash = db.prepare(
+    'INSERT OR REPLACE INTO symbol_embeddings_hashes(rowid, content_hash) VALUES (?, ?)',
+  );
 
-  // P4: Pipeline — start embedding the next batch while writing the current one.
-  let pendingEmbed: Promise<number[][]> | null = null;
-  let pendingBatch: typeof symbols = [];
-
-  for (let i = 0; i < symbols.length; i += EMBED_BATCH_SIZE) {
-    const batch = symbols.slice(i, i + EMBED_BATCH_SIZE);
-    const texts = batch.map((symbol) =>
-      buildStructuralEmbeddingText({
-        name: symbol.name,
-        signature: symbol.signature,
-        resolvedTypeSignature: symbol.resolved_type_signature,
-        resolvedReturnType: symbol.resolved_return_type,
-      }),
-    );
-
-    if (pendingEmbed) {
-      const embeddings = await pendingEmbed;
+  const batches = tokenAwareBatch(items, (item) => item.text);
+  await embedBatchesDoubleBuffered(batches, embedder,
+    (item) => item.text,
+    (batch, embeddings) => {
       db.transaction(() => {
-        for (let j = 0; j < pendingBatch.length; j++) {
-          const sym = pendingBatch[j];
-          if (sym) insertEmbed.run(sym.id, JSON.stringify(embeddings[j]));
+        for (let j = 0; j < batch.length; j++) {
+          const item = batch[j];
+          if (item) {
+            insertEmbed.run(item.sym.id, JSON.stringify(embeddings[j]));
+            insertHash.run(item.sym.id, item.hash);
+          }
         }
       })();
-    }
-
-    pendingEmbed = embedder.embed(texts);
-    pendingBatch = batch;
-  }
-
-  if (pendingEmbed) {
-    const embeddings = await pendingEmbed;
-    db.transaction(() => {
-      for (let j = 0; j < pendingBatch.length; j++) {
-        const sym = pendingBatch[j];
-        if (sym) insertEmbed.run(sym.id, JSON.stringify(embeddings[j]));
-      }
-    })();
-  }
+    },
+  );
 }
 
 // ─── Documentation section embeddings ─────────────────────────────────────────
@@ -139,12 +149,15 @@ async function embedDocumentation(
   db: Database.Database,
   embedder: EmbeddingProvider,
   docIds?: number[],
+  skipUnchanged = false,
 ): Promise<void> {
   db.exec(`
     CREATE VIRTUAL TABLE IF NOT EXISTS doc_section_embeddings USING vec0(
       embedding FLOAT[${embedder.dims}]
     );
   `);
+
+  ensureEmbeddingHashColumn(db, 'doc_section_embeddings');
 
   let sections: Array<{ id: number; title: string; content: string }>;
   if (docIds && docIds.length > 0) {
@@ -163,41 +176,41 @@ async function embedDocumentation(
   }
   if (sections.length === 0) return;
 
+  // Build texts, compute hashes, filter unchanged.
+  const items: Array<{ section: typeof sections[number]; text: string; hash: string }> = [];
+  const existingHashes = skipUnchanged ? loadExistingHashes(db, 'doc_section_embeddings', sections.map(s => s.id)) : new Map();
+
+  for (const section of sections) {
+    const text = section.content || section.title;
+    const hash = hashEmbeddingText(text);
+    if (skipUnchanged && existingHashes.get(section.id) === hash) continue;
+    items.push({ section, text, hash });
+  }
+
+  if (items.length === 0) return;
+
   const insertEmbed = db.prepare(
     'INSERT OR REPLACE INTO doc_section_embeddings(rowid, embedding) VALUES (CAST(? AS INTEGER), json(?))',
   );
+  const insertHash = db.prepare(
+    'INSERT OR REPLACE INTO doc_section_embeddings_hashes(rowid, content_hash) VALUES (?, ?)',
+  );
 
-  // P4: Pipeline — start embedding the next batch while writing the current one.
-  let pendingEmbed: Promise<number[][]> | null = null;
-  let pendingBatch: typeof sections = [];
-
-  for (let i = 0; i < sections.length; i += EMBED_BATCH_SIZE) {
-    const batch = sections.slice(i, i + EMBED_BATCH_SIZE);
-    const texts = batch.map(section => section.content || section.title);
-
-    if (pendingEmbed) {
-      const embeddings = await pendingEmbed;
+  const batches = tokenAwareBatch(items, (item) => item.text);
+  await embedBatchesDoubleBuffered(batches, embedder,
+    (item) => item.text,
+    (batch, embeddings) => {
       db.transaction(() => {
-        for (let j = 0; j < pendingBatch.length; j++) {
-          const section = pendingBatch[j];
-          if (section) insertEmbed.run(section.id, JSON.stringify(embeddings[j]));
+        for (let j = 0; j < batch.length; j++) {
+          const item = batch[j];
+          if (item) {
+            insertEmbed.run(item.section.id, JSON.stringify(embeddings[j]));
+            insertHash.run(item.section.id, item.hash);
+          }
         }
       })();
-    }
-
-    pendingEmbed = embedder.embed(texts);
-    pendingBatch = batch;
-  }
-
-  if (pendingEmbed) {
-    const embeddings = await pendingEmbed;
-    db.transaction(() => {
-      for (let j = 0; j < pendingBatch.length; j++) {
-        const section = pendingBatch[j];
-        if (section) insertEmbed.run(section.id, JSON.stringify(embeddings[j]));
-      }
-    })();
-  }
+    },
+  );
 }
 
 // ─── Commit message embeddings ────────────────────────────────────────────────
@@ -220,36 +233,98 @@ async function embedCommitMessages(
     'INSERT OR REPLACE INTO commit_embeddings(rowid, embedding) VALUES (CAST(? AS INTEGER), json(?))',
   );
 
-  // P4: Pipeline — start embedding the next batch while writing the current one.
-  let pendingEmbed: Promise<number[][]> | null = null;
-  let pendingBatch: typeof commits = [];
-
-  for (let i = 0; i < commits.length; i += EMBED_BATCH_SIZE) {
-    const batch = commits.slice(i, i + EMBED_BATCH_SIZE);
-
-    if (pendingEmbed) {
-      const embeddings = await pendingEmbed;
+  const batches = tokenAwareBatch(commits, (c) => c.message);
+  await embedBatchesDoubleBuffered(batches, embedder,
+    (c) => c.message,
+    (batch, embeddings) => {
       db.transaction(() => {
-        for (let j = 0; j < pendingBatch.length; j++) {
-          const commit = pendingBatch[j];
+        for (let j = 0; j < batch.length; j++) {
+          const commit = batch[j];
           if (commit) insertEmbed.run(commit.rowid, JSON.stringify(embeddings[j]));
         }
       })();
+    },
+  );
+}
+
+// ─── Double-buffered batch embedding ──────────────────────────────────────────
+
+/**
+ * Embeds pre-batched items using double-buffered I/O: fires the next
+ * `embed()` call while writing the current batch's results to the DB.
+ */
+async function embedBatchesDoubleBuffered<T>(
+  batches: T[][],
+  embedder: EmbeddingProvider,
+  getText: (item: T) => string,
+  writeBatch: (batch: T[], embeddings: number[][]) => void,
+): Promise<void> {
+  let pendingEmbed: Promise<number[][]> | null = null;
+  let pendingBatch: T[] = [];
+
+  for (const batch of batches) {
+    const texts = batch.map(getText);
+
+    // Write the previous batch while starting the next embed.
+    if (pendingEmbed) {
+      const embeddings = await pendingEmbed;
+      writeBatch(pendingBatch, embeddings);
     }
 
-    pendingEmbed = embedder.embed(batch.map((commit) => commit.message));
+    pendingEmbed = embedder.embed(texts);
     pendingBatch = batch;
   }
 
+  // Drain the last pending batch.
   if (pendingEmbed) {
     const embeddings = await pendingEmbed;
-    db.transaction(() => {
-      for (let j = 0; j < pendingBatch.length; j++) {
-        const commit = pendingBatch[j];
-        if (commit) insertEmbed.run(commit.rowid, JSON.stringify(embeddings[j]));
-      }
-    })();
+    writeBatch(pendingBatch, embeddings);
   }
+}
+
+// ─── Skip-unchanged helpers ───────────────────────────────────────────────────
+
+/**
+ * Idempotently add a `content_hash` column to an embedding virtual table's
+ * shadow storage.  vec0 virtual tables don't support ALTER TABLE, so we use
+ * a companion regular table for the hash.
+ */
+function ensureEmbeddingHashColumn(db: Database.Database, tableName: string): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS ${tableName}_hashes (
+      rowid INTEGER PRIMARY KEY,
+      content_hash TEXT NOT NULL
+    );
+  `);
+
+  // Migrate: if we previously stored content_hash inline in the INSERT OR REPLACE
+  // statement, the vec0 table ignores unknown columns silently, so nothing to migrate.
+}
+
+/**
+ * Load existing content hashes for a set of row IDs from the hash companion table.
+ */
+function loadExistingHashes(db: Database.Database, tableName: string, ids: number[]): Map<number, string> {
+  const map = new Map<number, string>();
+  if (ids.length === 0) return map;
+
+  const hashTable = `${tableName}_hashes`;
+  const hasTable = db.prepare(
+    "SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = ?",
+  ).get(hashTable) as { present: number } | undefined;
+  if (!hasTable) return map;
+
+  const CHUNK = 900;
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    const chunk = ids.slice(i, i + CHUNK);
+    const rows = db.prepare(
+      `SELECT rowid, content_hash FROM ${hashTable} WHERE rowid IN (${chunk.map(() => '?').join(', ')})`,
+    ).all(...chunk) as Array<{ rowid: number; content_hash: string }>;
+    for (const row of rows) {
+      map.set(row.rowid, row.content_hash);
+    }
+  }
+  return map;
 }
 
 // ─── Update-mode helpers ──────────────────────────────────────────────────────
