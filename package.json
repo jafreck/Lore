@@ -1,6 +1,6 @@
 {
   "name": "@jafreck/lore",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "Language-aware codebase indexer — tree-sitter parsing, symbol extraction, call-graph construction, and optional embeddings for semantic search",
   "type": "module",
   "main": "./dist/index.js",
