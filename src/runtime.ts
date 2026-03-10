@@ -15,6 +15,7 @@ import type { EmbeddingProvider } from './indexer/embedder.js';
 import type { EffectiveLspSettings } from './indexer/lsp/config.js';
 import type { WalkerConfig } from './indexer/walker.js';
 import { getLogger, type LoreLogger } from './logger.js';
+import { killAllTracked } from './process-tracker.js';
 
 // ─── RuntimeConfig ────────────────────────────────────────────────────────────
 
@@ -188,25 +189,38 @@ export class LoreRuntime {
   }
 
   /**
-   * Register process-level signal handlers (`SIGINT`, `SIGTERM`) that call
-   * `shutdown()` and exit. Convenience for CLI entry points.
+   * Register process-level signal handlers (`SIGINT`, `SIGTERM`) that
+   * gracefully tear down all managed resources before exiting.
+   *
+   * A second signal while shutdown is in progress forces an immediate exit.
+   * As a safety net, `killAllTracked()` runs synchronously on the `exit`
+   * event to SIGTERM any child processes that slipped past the async path
+   * (e.g. LSP servers spawned by an in-flight pipeline stage).
    */
   installSignalHandlers(): void {
+    let shuttingDown = false;
+
     const handler = () => {
-      // Stop refresher synchronously to match CLI expectations.
-      if (this._refresher) {
-        this._refresher.stop();
-        this._refresher = null;
+      if (shuttingDown) {
+        // Second signal — force-kill children and bail.
+        killAllTracked();
+        process.exit(1);
       }
-      // Dispose embedder best-effort in background, then exit.
-      if (this._embedder) {
-        this._embedder.dispose().catch(() => { /* best-effort */ });
-        this._embedder = null;
-      }
-      this._started = false;
-      process.exit(0);
+      shuttingDown = true;
+
+      this.shutdown()
+        .catch(() => { /* best-effort */ })
+        .finally(() => {
+          killAllTracked();
+          process.exit(0);
+        });
     };
+
     process.on('SIGINT', handler);
     process.on('SIGTERM', handler);
+
+    // Last-resort: kill any children that are still alive when the
+    // process is about to exit (covers unexpected exits / unhandled errors).
+    process.once('exit', () => killAllTracked());
   }
 }

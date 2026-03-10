@@ -1001,7 +1001,7 @@ describe('cli', () => {
 
       // Clean up: trigger the registered SIGINT handler to stop the watcher.
       process.emit('SIGINT');
-      expect(exitSpy).toHaveBeenCalledWith(0);
+      await vi.waitFor(() => expect(exitSpy).toHaveBeenCalledWith(0));
     });
 
     it('should NOT immediately exit when watch mode starts (process stays alive)', async () => {
@@ -1022,7 +1022,7 @@ describe('cli', () => {
       await waitForStderr(stderrSpy, 'watch mode started');
 
       process.emit('SIGINT');
-      expect(exitSpy).toHaveBeenCalledWith(0);
+      await vi.waitFor(() => expect(exitSpy).toHaveBeenCalledWith(0));
     });
 
     it('should call process.exit(0) when SIGTERM is received', async () => {
@@ -1031,7 +1031,7 @@ describe('cli', () => {
       await waitForStderr(stderrSpy, 'watch mode started');
 
       process.emit('SIGTERM');
-      expect(exitSpy).toHaveBeenCalledWith(0);
+      await vi.waitFor(() => expect(exitSpy).toHaveBeenCalledWith(0));
     });
   });
 
@@ -1054,7 +1054,7 @@ describe('cli', () => {
       expect(parsed.rootDir).toBe(tmpDir);
 
       process.emit('SIGINT');
-      expect(exitSpy).toHaveBeenCalledWith(0);
+      await vi.waitFor(() => expect(exitSpy).toHaveBeenCalledWith(0));
     });
 
     it('should NOT immediately exit when poll mode starts (process stays alive)', async () => {
@@ -1073,7 +1073,7 @@ describe('cli', () => {
       await waitForStderr(stderrSpy, 'poll mode started');
 
       process.emit('SIGINT');
-      expect(exitSpy).toHaveBeenCalledWith(0);
+      await vi.waitFor(() => expect(exitSpy).toHaveBeenCalledWith(0));
     });
 
     it('should call process.exit(0) when SIGTERM is received', async () => {
@@ -1082,7 +1082,7 @@ describe('cli', () => {
       await waitForStderr(stderrSpy, 'poll mode started');
 
       process.emit('SIGTERM');
-      expect(exitSpy).toHaveBeenCalledWith(0);
+      await vi.waitFor(() => expect(exitSpy).toHaveBeenCalledWith(0));
     });
   });
 });
