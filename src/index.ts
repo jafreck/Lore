@@ -80,3 +80,6 @@ export type { SymbolRow, FileRow, ResolvedEdge, ListResolvedEdgesOptions } from 
 // ── Logging ───────────────────────────────────────────────────────────────────
 export { LoreLogger, LogLevel, LOG_LEVEL_NAMES, initLogger, getLogger, resetLogger } from './logger.js';
 export type { LoreLoggerOptions, LogEntry, ToolCallFields, StartupFields } from './logger.js';
+
+// ── Process lifecycle ─────────────────────────────────────────────────────────
+export { trackProcess, untrackProcess, killAllTracked, trackedCount } from './process-tracker.js';

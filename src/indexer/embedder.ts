@@ -12,6 +12,7 @@
 
 import { spawn, type ChildProcess } from 'node:child_process';
 import * as readline from 'node:readline';
+import { trackProcess } from '../process-tracker.js';
 
 // ─── Public interface ─────────────────────────────────────────────────────────
 
@@ -189,6 +190,7 @@ export class SentenceTransformersProvider implements EmbeddingProvider {
     this.proc = spawn(this.pythonBin, ['-c', BOOTSTRAP_SCRIPT, this.modelName], {
       stdio: ['pipe', 'pipe', 'inherit'],
     });
+    trackProcess(this.proc);
 
     this.rl = readline.createInterface({ input: this.proc.stdout! });
 
