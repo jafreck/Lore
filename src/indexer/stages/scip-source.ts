@@ -222,38 +222,33 @@ function estimateSymbolEndLine(
 function inferTypeRefKind(sourceLines: string[], refLine: number, refChar: number): string {
   if (refLine >= sourceLines.length) return 'other';
   const line = sourceLines[refLine]!;
+  const before = line.slice(0, refChar);
+
+  // Return type: preceded by "->" or "=>" or "): "
+  if (/(->|=>)\s*$/.test(before)) return 'return';
+  if (/\)\s*:\s*$/.test(before)) return 'return';
+
+  // Type bound: "where T:" or "<T extends" patterns
+  if (/\bwhere\s+\w+\s*:\s*$/.test(before)) return 'bound';
+  if (/<[^>]*\b(extends|:)\s*$/.test(before)) return 'bound';
 
   // Generic argument: preceded by '<' or ',' inside angle brackets
-  if (/<[^>]*$/.test(line.slice(0, refChar)) || /^[^<]*>/.test(line.slice(refChar))) {
+  if (/<[^>]*$/.test(before) || /^[^<]*>/.test(line.slice(refChar))) {
     return 'generic_arg';
   }
 
-  // Return type: preceded by ":" or "->" or "=>" with no '(' after
-  const before = line.slice(0, refChar);
-  if (/(->|=>)\s*$/.test(before)) return 'return';
-  // "): Type" pattern — closing paren then colon
-  if (/\)\s*:\s*$/.test(before)) return 'return';
-
-  // Parameter: inside a parenthesized parameter list with a preceding colon/annotation
-  // e.g. "(x: Foo" or ", y: Bar"
+  // Parameter: inside a parenthesized parameter list with annotation
   if (/[(,]\s*\w+\s*:\s*$/.test(before)) return 'parameter';
   // Go-style: "func f(x Foo" — identifier then space then type, inside parens
   if (/[(,]\s*\w+\s+$/.test(before) && /^[^)]*\)/.test(line.slice(refChar))) return 'parameter';
 
-  // Field / property: line starts with an access modifier or looks like a field declaration
-  const trimmed = line.trimStart();
-  if (/^(public|private|protected|readonly|static|final|var|val|let|const)\s/.test(trimmed)) {
-    // If we're inside a class body (no '(' before us on this line), it's a field
-    if (!before.includes('(')) return 'field';
-  }
-
   // Variable: "let x: T", "const x: T", "var x: T" at statement level
   if (/^\s*(let|const|var|val)\s+\w+\s*:\s*$/.test(before)) return 'variable';
 
-  // Type bound: "extends" or "implements" keyword immediately before
-  if (/\b(extends|implements|where|:)\s*$/.test(before)) {
-    // Check if this is in a generic constraint context (after < or where)
-    if (/\bwhere\b/.test(before) || /<[^>]*\b(extends|:)\s*$/.test(before)) return 'bound';
+  // Field / property: line starts with an access modifier or class-body keyword
+  const trimmed = line.trimStart();
+  if (/^(public|private|protected|readonly|static|final)\s/.test(trimmed)) {
+    if (!before.includes('(')) return 'field';
   }
 
   return 'other';
@@ -881,29 +876,15 @@ function extractImportPathFromSource(line: string): string | null {
   m = trimmed.match(/^import\s+['"]([^'"]+)['"]/);
   if (m) return m[1]!;
 
-  // Python: from X import ... | import X
-  m = trimmed.match(/^from\s+([\w.]+)\s+import\b/);
-  if (m) return m[1]!;
-  m = trimmed.match(/^import\s+([\w.]+)/);
-  if (m) return m[1]!;
-
-  // Go: "path/to/pkg" inside import block
-  m = trimmed.match(/^\s*(?:\w+\s+)?["']([^"']+)["']/);
-  if (m && !trimmed.startsWith('import') && !trimmed.startsWith('from')) return m[1]!;
-
   // C/C++: #include "path" | #include <path>
   m = trimmed.match(/^#\s*include\s*[<"]([^>"]+)[>"]/);
   if (m) return m[1]!;
 
-  // Rust: use path::to::item
-  m = trimmed.match(/^use\s+([\w:]+)/);
-  if (m) return m[1]!.replace(/::/g, '/');
-
-  // Java/Kotlin/Scala: import path.to.Class
-  m = trimmed.match(/^import\s+(?:static\s+)?([\w.*]+)/);
+  // Python: from X import ... | import X
+  m = trimmed.match(/^from\s+([\w.]+)\s+import\b/);
   if (m) return m[1]!;
 
-  // C#: using Namespace.Name
+  // C#: using Namespace.Name;
   m = trimmed.match(/^using\s+(?:static\s+)?([\w.]+)\s*;/);
   if (m) return m[1]!;
 
@@ -911,9 +892,21 @@ function extractImportPathFromSource(line: string): string | null {
   m = trimmed.match(/^require(?:_relative)?\s+['"]([^'"]+)['"]/);
   if (m) return m[1]!;
 
-  // PHP: use Path\To\Class
-  m = trimmed.match(/^use\s+([\w\\]+)/);
+  // Java/Kotlin/Scala: import [static] path.to.Class (dotted path, no quotes)
+  m = trimmed.match(/^import\s+(?:static\s+)?([\w.*]+)/);
   if (m) return m[1]!;
+
+  // Rust: use path::to::item (contains ::)
+  m = trimmed.match(/^use\s+([\w:]+::[\w:]+)/);
+  if (m) return m[1]!.replace(/::/g, '/');
+
+  // PHP: use Path\To\Class (contains backslash)
+  m = trimmed.match(/^use\s+([\w\\]+\\[\w\\]+)/);
+  if (m) return m[1]!;
+
+  // Go: "path/to/pkg" inside import block (bare quoted string)
+  m = trimmed.match(/^\s*(?:\w+\s+)?["']([^"']+)["']/);
+  if (m && !trimmed.startsWith('import') && !trimmed.startsWith('from')) return m[1]!;
 
   return null;
 }
@@ -991,3 +984,16 @@ function inferLoreLanguage(scipLanguage: string, relativePath: string): string |
 
   return null;
 }
+
+// ─── Test-visible helpers ───────────────────────────────────────────────────
+// Exported for unit testing only.  Not part of the public API.
+
+export {
+  estimateSymbolEndLine as _estimateSymbolEndLine,
+  inferTypeRefKind as _inferTypeRefKind,
+  extractImportPathFromSource as _extractImportPathFromSource,
+  inferKindFromScipSymbol as _inferKindFromScipSymbol,
+  inferLoreLanguage as _inferLoreLanguage,
+  classifyScipReference as _classifyScipReference,
+  extractNameFromScipSymbol as _extractNameFromScipSymbol,
+};
