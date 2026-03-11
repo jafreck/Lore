@@ -369,7 +369,7 @@ function processFileWithSource(
 
   // Insert API routes
   const insertRoute = db.prepare(
-    `INSERT OR IGNORE INTO api_routes (file_id, method, path, handler_id, handler_name, framework, line, middleware)
+    `INSERT INTO api_routes (file_id, method, path, handler_id, handler_name, framework, line, middleware)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
   );
   for (const route of result.routes) {

@@ -319,7 +319,7 @@ CREATE TABLE IF NOT EXISTS api_routes (
   framework    TEXT    NOT NULL,
   line         INTEGER NOT NULL,
   middleware   TEXT,
-  UNIQUE(file_id, method, path)
+  UNIQUE(file_id, method, path, line)
 );
 
 CREATE INDEX IF NOT EXISTS idx_api_routes_method ON api_routes(method);
