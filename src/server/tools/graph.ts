@@ -19,6 +19,8 @@ export const toolDef = {
     'Query call, import, module, inheritance, or type dependency graph edges stored in the knowledge-base index. ' +
     'Set `kind` to "call", "import", "module", "inheritance", or "type_dependency". ' +
     'Use source_id for outbound edges (what does X call?) and target_id for inbound edges (who calls X?). ' +
+    'Set depth > 1 to follow transitive edges (e.g., depth=3 returns the full 3-hop blast radius in one call). ' +
+    'Set compact=true to omit provenance fields (line numbers, resolution details) and reduce token count. ' +
     'Optionally set mode="semantic" with query_vector to retrieve semantically related symbol/module nodes alongside edges.',
   inputSchema: {
     type: 'object',
@@ -47,6 +49,20 @@ export const toolDef = {
       limit: {
         type: 'number',
         description: 'Maximum number of edges to return (default 200).',
+      },
+      depth: {
+        type: 'number',
+        description:
+          'Traversal depth for transitive closure (default 1, max 5). ' +
+          'depth=1 returns direct edges only. depth=N follows edges N hops deep, returning all discovered edges.',
+        minimum: 1,
+        maximum: 5,
+      },
+      compact: {
+        type: 'boolean',
+        description:
+          'If true, omit provenance fields (line, character, resolution_method, definition_path/line/character) ' +
+          'from edge records. IDs and names are preserved for follow-up queries. Default false.',
       },
       branch: {
         type: 'string',
@@ -84,6 +100,8 @@ export interface GraphArgs {
   source_id?: number;
   target_id?: number;
   limit?: number;
+  depth?: number;
+  compact?: boolean;
   branch?: string;
   mode?: 'structural' | 'semantic';
   query_vector?: number[];
@@ -107,9 +125,20 @@ export interface GraphEdge {
   definition_character?: number | null;
 }
 
+export interface CompactGraphEdge {
+  source_id: number | null;
+  source_name: string;
+  source_branch: string;
+  target_id: number | null;
+  target_name: string;
+  callee_coverage_percent?: number | null;
+  ref_kind?: string;
+}
+
 export interface GraphResult {
-  edges: GraphEdge[];
+  edges: GraphEdge[] | CompactGraphEdge[];
   mode_used: string;
+  depth_used?: number;
   semantic_nodes?: GraphSemanticNode[];
 }
 
@@ -399,30 +428,118 @@ function getSemanticModuleMappings(
   ).all(...symbolIds) as ModuleMappingRow[];
 }
 
+function compactEdge(edge: GraphEdge): CompactGraphEdge {
+  const compact: CompactGraphEdge = {
+    source_id: edge.source_id,
+    source_name: edge.source_name,
+    source_branch: edge.source_branch,
+    target_id: edge.target_id,
+    target_name: edge.target_name,
+  };
+  if (edge.callee_coverage_percent !== undefined) compact.callee_coverage_percent = edge.callee_coverage_percent;
+  if (edge.ref_kind !== undefined) compact.ref_kind = edge.ref_kind;
+  return compact;
+}
+
 /** Return adjacency-list edges from the call graph or import graph. */
 export function handler(db: Database.Database, args: GraphArgs): GraphResult {
   const limit = args.limit ?? 200;
-  const edges = getStructuralEdges(db, args, limit);
+  const depth = Math.max(1, Math.min(args.depth ?? 1, 5));
+  const compact = args.compact ?? false;
+
+  // Depth-1 fast path (original behaviour)
+  if (depth === 1) {
+    const edges = getStructuralEdges(db, args, limit);
+    return finishResult(db, args, edges, limit, compact, depth);
+  }
+
+  // Multi-hop transitive expansion
+  const allEdges: GraphEdge[] = [];
+  const seenEdgeKeys = new Set<string>();
+  // Track frontier IDs for outbound traversal (source_id → target expansion)
+  // or inbound traversal (target_id → source expansion)
+  const isOutbound = args.source_id !== undefined && args.target_id === undefined;
+
+  let frontier: number[];
+  if (isOutbound) {
+    frontier = [args.source_id!];
+  } else if (args.target_id !== undefined) {
+    frontier = [args.target_id];
+  } else {
+    // No anchor → just run one hop with the given limit
+    const edges = getStructuralEdges(db, args, limit);
+    return finishResult(db, args, edges, limit, compact, depth);
+  }
+
+  for (let hop = 0; hop < depth && frontier.length > 0 && allEdges.length < limit; hop++) {
+    const hopArgs: GraphArgs = {
+      kind: args.kind,
+      branch: args.branch,
+    };
+    // Query each frontier ID
+    const hopEdges: GraphEdge[] = [];
+    for (const id of frontier) {
+      if (isOutbound) {
+        hopArgs.source_id = id;
+      } else {
+        hopArgs.target_id = id;
+      }
+      const remaining = limit - allEdges.length - hopEdges.length;
+      if (remaining <= 0) break;
+      const edges = getStructuralEdges(db, hopArgs, remaining);
+      hopEdges.push(...edges);
+    }
+
+    // Deduplicate edges
+    const nextFrontier: number[] = [];
+    for (const edge of hopEdges) {
+      const key = `${edge.source_id}:${edge.target_id}:${edge.source_name}:${edge.target_name}`;
+      if (seenEdgeKeys.has(key)) continue;
+      seenEdgeKeys.add(key);
+      allEdges.push(edge);
+      // Expand in the traversal direction
+      const nextId = isOutbound ? edge.target_id : edge.source_id;
+      if (nextId !== null) {
+        nextFrontier.push(nextId);
+      }
+    }
+    frontier = nextFrontier;
+  }
+
+  return finishResult(db, args, allEdges, limit, compact, depth);
+}
+
+function finishResult(
+  db: Database.Database,
+  args: GraphArgs,
+  edges: GraphEdge[],
+  limit: number,
+  compact: boolean,
+  depth: number,
+): GraphResult {
   const mode = args.mode ?? 'structural';
+  const finalEdges = compact ? edges.map(compactEdge) : edges;
 
   if (mode !== 'semantic') {
-    return { edges, mode_used: 'structural' };
+    return { edges: finalEdges, mode_used: 'structural', depth_used: depth };
   }
 
   const queryVector = args.query_vector;
   if (!queryVector || queryVector.length === 0) {
     return {
-      edges,
+      edges: finalEdges,
       semantic_nodes: [],
       mode_used: 'structural (fallback: missing query_vector)',
+      depth_used: depth,
     };
   }
 
   if (!hasVirtualTable(db, 'symbol_embeddings')) {
     return {
-      edges,
+      edges: finalEdges,
       semantic_nodes: [],
       mode_used: 'structural (fallback: no embeddings)',
+      depth_used: depth,
     };
   }
 
@@ -476,8 +593,9 @@ export function handler(db: Database.Database, args: GraphArgs): GraphResult {
     || a.id - b.id);
 
   return {
-    edges,
+    edges: finalEdges,
     semantic_nodes: [...symbolNodes, ...moduleNodes],
     mode_used: 'semantic',
+    depth_used: depth,
   };
 }
