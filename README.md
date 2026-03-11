@@ -7,12 +7,11 @@
 [![Node.js](https://img.shields.io/badge/node-%3E%3D22.0.0-brightgreen)](https://nodejs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9+-blue)](https://www.typescriptlang.org)
 
-**The teammate that has seen it all** 
+**The teammate that knows it all** 
 
-Lore is your agent's institutional knowledge over the codebase — it knows what was built, why it changed, and how it all connects. Lore indexes your code and git history into a structured knowledge base that agents query through MCP. It maps symbols, imports, call relationships, type relationships, routes, annotations, and git history — with optional embeddings for semantic search — so agents can reason about your codebase
-without re-reading it from scratch.
+Lore holds your agent's institutional knowledge over the codebase — it knows what was built, why it changed, and how it all connects. Lore indexes your code and git history into a structured knowledge base that agents query through MCP. It maps symbols, imports, call relationships, type relationships, routes, annotations, docs, and all git data — with optional embeddings for semantic search — so agents can reason about your codebase without re-reading it from scratch.
 
-**Benchmarked against GitHub Copilot (claude-opus-4.6):** Lore-enabled agents achieve up to **2.1× faster** responses, up to **79% fewer tokens**, and up to **+43pp correctness improvement** on code intelligence tasks compared to a baseline agent using only grep and file reads. See the [full benchmark results](docs/benchmark-results.md) for details.
+Lore-enabled agents achieve up to **2.1× faster** responses, up to **79% fewer tokens**, and up to **+43pp correctness improvement** on code intelligence tasks compared to a baseline agent grep and file reads alone. See the [full benchmark results](docs/benchmark-results.md) for details.
 
 ## What Lore does
 
