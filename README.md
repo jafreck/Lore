@@ -106,15 +106,16 @@ updates. The stage ordering enforces data dependencies structurally:
 
 ```
 ScipSource → SourceIndex → DocsIndex → ImportResolution → DependencyApi
-  → LspEnrichment → Resolution → TestMap → History → Embedding
+  → ScipEnrichment → LspEnrichment → Resolution → TestMap → History → Embedding
 ```
 
 **SCIP is the default source stage.** `ScipSourceStage` runs first and
 populates symbols, refs, and pre-resolved edges for every language that has
 a SCIP indexer available. `SourceIndexStage` then handles remaining languages
 (or all languages if SCIP is explicitly disabled) via tree-sitter as a
-fallback. An optional **LSP enrichment** stage can enrich symbols from either
-path with batch-pipelined hover + definition requests. Symbol references are
+fallback. A **SCIP enrichment** stage then writes definition locations and
+type metadata from SCIP data, while an optional **LSP enrichment** stage can
+enrich symbols not already covered by SCIP. Symbol references are
 resolved using a **3-tier strategy**: SCIP/LSP containment → same-file name
 match → unique name match. An optional **embedder** generates dense vectors
 for semantic search (with async initialization so the MCP server starts
