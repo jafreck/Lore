@@ -51,5 +51,5 @@ export {
 export { BenchmarkRunner } from './runner.js';
 export { runCopilotAgent, type CopilotAgentOptions } from './copilot-agent.js';
 export { buildControlStrategy, buildLoreStrategy, buildDynamicLoreStrategy } from './strategies.js';
-export { LORE_SELF_TASKS, getTasksForRepo, getAllTasks } from './tasks.js';
+export { LORE_SELF_TASKS, EXPRESS_TASKS, getTasksForRepo, getAllTasks } from './tasks.js';
 export { PILOT_REPOS, isPending } from './repos.js';

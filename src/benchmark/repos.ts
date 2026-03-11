@@ -15,7 +15,7 @@ export const PILOT_REPOS: RepoSpec[] = [
   {
     name: 'express',
     url: 'https://github.com/expressjs/express.git',
-    sha: '4f773774582090cf8be964. pending',
+    sha: '6c4249feec8ab40631817c8e7001baf2ed022224',
     languages: ['javascript'],
     size: 'medium',
     structure: 'sdk',
@@ -23,7 +23,7 @@ export const PILOT_REPOS: RepoSpec[] = [
   {
     name: 'fastapi',
     url: 'https://github.com/fastapi/fastapi.git',
-    sha: 'pending',
+    sha: '11614be9021aa4ac078d4d0693a8b5250a1010d8',
     languages: ['python'],
     size: 'medium',
     structure: 'sdk',
@@ -31,15 +31,15 @@ export const PILOT_REPOS: RepoSpec[] = [
   {
     name: 'esbuild',
     url: 'https://github.com/evanw/esbuild.git',
-    sha: 'pending',
+    sha: 'd50e88c00aaa424712eddda2f28aae299db4e0de',
     languages: ['go', 'typescript'],
     size: 'large',
     structure: 'cli',
   },
   {
-    name: 'vscode-json-languageservice',
-    url: 'https://github.com/microsoft/vscode-json-languageservice.git',
-    sha: 'pending',
+    name: 'zod',
+    url: 'https://github.com/colinhacks/zod.git',
+    sha: 'c7805073fef5b6b8857307c3d4b3597a70613bc2',
     languages: ['typescript'],
     size: 'small',
     structure: 'sdk',
@@ -47,7 +47,7 @@ export const PILOT_REPOS: RepoSpec[] = [
   {
     name: 'lore-self',
     url: 'https://github.com/jafreck/Lore.git',
-    sha: 'pending',
+    sha: '660be2bf23889f8191d726c77bc39f5b25313095',
     languages: ['typescript'],
     size: 'medium',
     structure: 'cli',

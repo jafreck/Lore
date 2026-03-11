@@ -167,6 +167,103 @@ export const LORE_SELF_TASKS: BenchmarkTask[] = [
   }),
 ];
 
+// ─── Express benchmark tasks ────────────────────────────────────────────────
+// These target the Express.js HTTP framework — a medium JS repo with clear
+// routing architecture, middleware chains, and well-known API surface.
+
+export const EXPRESS_TASKS: BenchmarkTask[] = [
+  // ── Category 1: Call Graph ───────────────────────────────────────────────
+
+  task({
+    id: 'express-1.1-callers-of-handle',
+    repoName: 'express',
+    family: 'localization',
+    questionId: '1.1',
+    prompt: 'What functions directly call the `handle` method in `lib/router/index.js`? List each caller with its file path.',
+    expectedAnswerParts: ['handle', 'router'],
+    expectedSymbols: ['handle'],
+    expectedFiles: ['lib/router/index.js'],
+  }),
+
+  task({
+    id: 'express-1.2-callees-of-createApplication',
+    repoName: 'express',
+    family: 'localization',
+    questionId: '1.2',
+    prompt: 'What does the `createApplication` function in `lib/express.js` call? List its direct callees.',
+    expectedAnswerParts: ['createApplication', 'mixin', 'EventEmitter'],
+    expectedSymbols: ['createApplication'],
+    expectedFiles: ['lib/express.js'],
+  }),
+
+  // ── Category 3: Import Graph ─────────────────────────────────────────────
+
+  task({
+    id: 'express-3.1-imports-of-application',
+    repoName: 'express',
+    family: 'localization',
+    questionId: '3.1',
+    prompt: 'What files does `lib/application.js` require? List the resolved file paths.',
+    expectedAnswerParts: ['router', 'view', 'utils'],
+    expectedFiles: ['lib/application.js'],
+  }),
+
+  task({
+    id: 'express-3.2-reverse-deps-of-router',
+    repoName: 'express',
+    family: 'localization',
+    questionId: '3.2',
+    prompt: 'What files require `lib/router/index.js`? List all reverse dependencies.',
+    expectedAnswerParts: ['application', 'express'],
+    expectedFiles: ['lib/router/index.js'],
+  }),
+
+  // ── Category 6: Complexity ───────────────────────────────────────────────
+
+  task({
+    id: 'express-6.1-most-complex',
+    repoName: 'express',
+    family: 'coverage',
+    questionId: '6.1',
+    prompt: 'What are the 5 most complex functions in Express, ranked by cyclomatic complexity?',
+    expectedAnswerParts: ['complexity'],
+    expectedSymbols: [],
+  }),
+
+  // ── Category 9: Architecture ─────────────────────────────────────────────
+
+  task({
+    id: 'express-9.1-architecture-overview',
+    repoName: 'express',
+    family: 'explanation',
+    questionId: '9.1',
+    prompt: 'What are the high-level components of the Express codebase and how do they relate?',
+    expectedAnswerParts: ['router', 'application', 'middleware', 'request', 'response'],
+    expectedFiles: [],
+  }),
+
+  task({
+    id: 'express-9.5-codebase-size',
+    repoName: 'express',
+    family: 'explanation',
+    questionId: '9.5',
+    prompt: 'How large is the Express codebase? Provide file count, symbol count, and breakdown.',
+    expectedAnswerParts: ['javascript', 'files', 'symbols'],
+  }),
+
+  // ── Category 11: Composite ───────────────────────────────────────────────
+
+  task({
+    id: 'express-11.4-deletion-impact',
+    repoName: 'express',
+    family: 'localization',
+    questionId: '11.4',
+    prompt: 'What would break if I deleted `lib/router/index.js`?',
+    expectedAnswerParts: ['router', 'application', 'import', 'require'],
+    expectedFiles: ['lib/router/index.js'],
+  }),
+];
+
 /**
  * Get all benchmark tasks for a given repo.
  */
@@ -174,6 +271,8 @@ export function getTasksForRepo(repoName: string): BenchmarkTask[] {
   switch (repoName) {
     case 'lore-self':
       return LORE_SELF_TASKS;
+    case 'express':
+      return EXPRESS_TASKS;
     default:
       return [];
   }
@@ -183,5 +282,5 @@ export function getTasksForRepo(repoName: string): BenchmarkTask[] {
  * Get all available benchmark tasks.
  */
 export function getAllTasks(): BenchmarkTask[] {
-  return [...LORE_SELF_TASKS];
+  return [...LORE_SELF_TASKS, ...EXPRESS_TASKS];
 }
