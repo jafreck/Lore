@@ -10,44 +10,44 @@
 import * as fs from 'node:fs';
 import * as crypto from 'node:crypto';
 import type { PipelineContext, PipelineStage } from '../pipeline.js';
-import type { Database } from '../db.js';
+import type { Database } from '../../db/schema.js';
 import {
   setLoreMeta,
   getLoreMeta,
   LORE_META_INDEX_CHECKPOINT,
-} from '../db.js';
-import { walkFiles, detectLanguageForPath } from '../walker.js';
-import { ParserPool } from '../parser.js';
-import { buildStructuralEmbeddingText } from '../embedder.js';
-import { normalizeTypeName } from '../call-graph.js';
+} from '../../db/schema.js';
+import { walkFiles, detectLanguageForPath } from '../../discovery/walker.js';
+import { ParserPool } from '../../parsing/parser.js';
+import { buildStructuralEmbeddingText } from '../../embeddings/embedder.js';
+import { normalizeTypeName } from '../../resolution/call-graph.js';
 import {
   type ExtractionResult,
   type RawSymbol,
   type SymbolExtractor,
-} from '../extractors/types.js';
-import { CExtractor } from '../extractors/c.js';
-import { RustExtractor } from '../extractors/rust.js';
-import { PythonExtractor } from '../extractors/python.js';
-import { CppExtractor } from '../extractors/cpp.js';
-import { TypeScriptExtractor } from '../extractors/typescript.js';
-import { JavaScriptExtractor } from '../extractors/javascript.js';
-import { GoExtractor } from '../extractors/go.js';
-import { JavaExtractor } from '../extractors/java.js';
-import { CSharpExtractor } from '../extractors/csharp.js';
-import { RubyExtractor } from '../extractors/ruby.js';
-import { PhpExtractor } from '../extractors/php.js';
-import { SwiftExtractor } from '../extractors/swift.js';
-import { KotlinExtractor } from '../extractors/kotlin.js';
-import { ScalaExtractor } from '../extractors/scala.js';
-import { LuaExtractor } from '../extractors/lua.js';
-import { BashExtractor } from '../extractors/bash.js';
-import { ElixirExtractor } from '../extractors/elixir.js';
-import { ZigExtractor } from '../extractors/zig.js';
-import { OcamlExtractor } from '../extractors/ocaml.js';
-import { HaskellExtractor } from '../extractors/haskell.js';
-import { JuliaExtractor } from '../extractors/julia.js';
-import { ElmExtractor } from '../extractors/elm.js';
-import { ObjcExtractor } from '../extractors/objc.js';
+} from '../../parsing/extractors/types.js';
+import { CExtractor } from '../../parsing/extractors/c.js';
+import { RustExtractor } from '../../parsing/extractors/rust.js';
+import { PythonExtractor } from '../../parsing/extractors/python.js';
+import { CppExtractor } from '../../parsing/extractors/cpp.js';
+import { TypeScriptExtractor } from '../../parsing/extractors/typescript.js';
+import { JavaScriptExtractor } from '../../parsing/extractors/javascript.js';
+import { GoExtractor } from '../../parsing/extractors/go.js';
+import { JavaExtractor } from '../../parsing/extractors/java.js';
+import { CSharpExtractor } from '../../parsing/extractors/csharp.js';
+import { RubyExtractor } from '../../parsing/extractors/ruby.js';
+import { PhpExtractor } from '../../parsing/extractors/php.js';
+import { SwiftExtractor } from '../../parsing/extractors/swift.js';
+import { KotlinExtractor } from '../../parsing/extractors/kotlin.js';
+import { ScalaExtractor } from '../../parsing/extractors/scala.js';
+import { LuaExtractor } from '../../parsing/extractors/lua.js';
+import { BashExtractor } from '../../parsing/extractors/bash.js';
+import { ElixirExtractor } from '../../parsing/extractors/elixir.js';
+import { ZigExtractor } from '../../parsing/extractors/zig.js';
+import { OcamlExtractor } from '../../parsing/extractors/ocaml.js';
+import { HaskellExtractor } from '../../parsing/extractors/haskell.js';
+import { JuliaExtractor } from '../../parsing/extractors/julia.js';
+import { ElmExtractor } from '../../parsing/extractors/elm.js';
+import { ObjcExtractor } from '../../parsing/extractors/objc.js';
 
 // ─── Extractor registry ───────────────────────────────────────────────────────
 

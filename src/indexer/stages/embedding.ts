@@ -15,10 +15,10 @@
  */
 
 import type { PipelineContext, PipelineStage } from '../pipeline.js';
-import type { Database } from '../db.js';
-import type { EmbeddingProvider } from '../embedder.js';
-import { setLoreMeta, createVec0Tables } from '../db.js';
-import { buildStructuralEmbeddingText, hashEmbeddingText, tokenAwareBatch } from '../embedder.js';
+import type { Database } from '../../db/schema.js';
+import type { EmbeddingProvider } from '../../embeddings/embedder.js';
+import { setLoreMeta, createVec0Tables } from '../../db/schema.js';
+import { buildStructuralEmbeddingText, hashEmbeddingText, tokenAwareBatch } from '../../embeddings/embedder.js';
 
 /**
  * Embed symbol signatures, documentation sections, and commit messages.

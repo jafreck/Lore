@@ -6,8 +6,8 @@ import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import Database from 'better-sqlite3';
 import { IndexBuilder } from '../../src/indexer/index.js';
-import { resolveSymbolEdges } from '../../src/indexer/call-graph.js';
-import type { EmbeddingProvider } from '../../src/indexer/embedder.js';
+import { resolveSymbolEdges } from '../../src/resolution/call-graph.js';
+import type { EmbeddingProvider } from '../../src/embeddings/embedder.js';
 
 const esmRequire = createRequire(import.meta.url);
 const HELLO_SOURCE = 'export function hello(): string { return "hi"; }\n';
@@ -1436,7 +1436,7 @@ describe('IndexBuilder — call graph resolution during indexing', () => {
   it('should invoke resolveSymbolEdges during build()', async () => {
     vi.resetModules();
     const resolveSymbolEdges = vi.fn();
-    vi.doMock('../../src/indexer/call-graph.js', () => ({ resolveSymbolEdges, normalizeTypeName: (s: string) => s }));
+    vi.doMock('../../src/resolution/call-graph.js', () => ({ resolveSymbolEdges, normalizeTypeName: (s: string) => s }));
     const { IndexBuilder: MockedIndexBuilder } = await import('../../src/indexer/index.js');
 
     const builder = new MockedIndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
@@ -1448,7 +1448,7 @@ describe('IndexBuilder — call graph resolution during indexing', () => {
   it('should invoke resolveSymbolEdges during update()', async () => {
     vi.resetModules();
     const resolveSymbolEdges = vi.fn();
-    vi.doMock('../../src/indexer/call-graph.js', () => ({ resolveSymbolEdges, normalizeTypeName: (s: string) => s }));
+    vi.doMock('../../src/resolution/call-graph.js', () => ({ resolveSymbolEdges, normalizeTypeName: (s: string) => s }));
     const { IndexBuilder: MockedIndexBuilder } = await import('../../src/indexer/index.js');
     const builder = new MockedIndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
     await builder.build();

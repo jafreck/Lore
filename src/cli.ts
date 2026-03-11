@@ -20,11 +20,11 @@ import * as fs from 'node:fs';
 import {
   loadLspSettingsFromLoreConfig,
   resolveEffectiveLspSettings,
-} from './indexer/lsp/config.js';
+} from './lsp/config.js';
 import {
   loadScipSettingsFromLoreConfig,
   resolveEffectiveScipSettings,
-} from './indexer/scip/config.js';
+} from './scip/config.js';
 import { initLogger, LogLevel, LOG_LEVEL_NAMES } from './logger.js';
 import { killAllTracked } from './process-tracker.js';
 import { LoreRuntime } from './runtime.js';
@@ -328,9 +328,9 @@ async function main(): Promise<void> {
       '@modelcontextprotocol/sdk/server/stdio.js'
     );
 
-    const { openReadOnly } = await import('./lore-server/db.js');
-    const { createLoreMcpServer } = await import('./lore-server/server.js');
-    const { getLoreMeta } = await import('./indexer/db.js');
+    const { openReadOnly } = await import('./db/read-only.js');
+    const { createLoreMcpServer } = await import('./server/server.js');
+    const { getLoreMeta } = await import('./db/schema.js');
 
     const db = openReadOnly(dbPath);
 
@@ -352,7 +352,7 @@ async function main(): Promise<void> {
     const dbSizeBytes = fs.existsSync(dbPath) ? fs.statSync(dbPath).size : undefined;
 
     // Build optional embedder from model recorded at index time.
-    let embedder: import('./indexer/embedder.js').EmbeddingProvider | undefined;
+    let embedder: import('./embeddings/embedder.js').EmbeddingProvider | undefined;
     const modelName = getLoreMeta(db, 'embedding_model') as string | undefined;
 
     // ── Optional live-index watcher/poller (shares the same embedder) ────
@@ -527,8 +527,8 @@ async function main(): Promise<void> {
       const dbExists = fs.existsSync(dbPath);
       if (dbExists) {
         const [{ openDb }, { walkFiles }] = await Promise.all([
-          import('./indexer/db.js'),
-          import('./indexer/walker.js'),
+          import('./db/schema.js'),
+          import('./discovery/walker.js'),
         ]);
         const files = await walkFiles(walkerConfig);
         const db = openDb(dbPath);
@@ -603,7 +603,7 @@ async function main(): Promise<void> {
       // SCIP config errors in hooks are non-fatal.
     }
 
-    const { installGitHooks } = await import('./indexer/git-hooks.js');
+    const { installGitHooks } = await import('./git/hooks.js');
     const result = installGitHooks({
       repoRoot: rootDir,
       rootDir,
@@ -682,13 +682,13 @@ async function main(): Promise<void> {
       maxLines = Math.floor(parsed);
     }
 
-    const { openReadOnly } = await import('./lore-server/db.js');
+    const { openReadOnly } = await import('./db/read-only.js');
     const {
       detectSymbolCycles,
       findConnectedComponents,
       clusterSymbols,
       buildCodebaseSummary,
-    } = await import('./indexer/graph-analysis.js');
+    } = await import('./resolution/graph-analysis.js');
 
     const db = openReadOnly(dbPath);
     const opts = { edgeKinds, branch };

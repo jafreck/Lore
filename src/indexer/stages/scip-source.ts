@@ -41,13 +41,13 @@ import {
   type Document as ScipDocument,
   type Occurrence as ScipOccurrence,
   type SymbolInformation as ScipSymbolInformation,
-} from '../scip/scip_pb.js';
+} from '../../scip/scip_pb.js';
 import type { PipelineContext, PipelineStage } from '../pipeline.js';
-import type { Database } from '../db.js';
-import { buildStructuralEmbeddingText } from '../embedder.js';
-import { normalizeTypeName } from '../call-graph.js';
-import { SCIP_SUPPORTED_LANGUAGES, resolveScipIndexerRegistry } from '../scip/registry.js';
-import type { EffectiveScipSettings } from '../scip/config.js';
+import type { Database } from '../../db/schema.js';
+import { buildStructuralEmbeddingText } from '../../embeddings/embedder.js';
+import { normalizeTypeName } from '../../resolution/call-graph.js';
+import { SCIP_SUPPORTED_LANGUAGES, resolveScipIndexerRegistry } from '../../scip/registry.js';
+import type { EffectiveScipSettings } from '../../scip/config.js';
 import { getLogger } from '../../logger.js';
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';

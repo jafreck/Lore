@@ -30,7 +30,7 @@ sub-commands and the MCP server dispatch through a single runtime instance.
 from ~1 230) that delegates to `IndexPipeline` for both full builds and
 incremental updates.
 
-`ToolRegistry` (`lore-server/tool-registry.ts`) auto-discovers tool modules
+`ToolRegistry` (`server/tool-registry.ts`) auto-discovers tool modules
 and wires them into the MCP server from each module's exported `toolDef` /
 `handler` — eliminating duplicate Zod schema definitions.
 

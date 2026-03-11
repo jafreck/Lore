@@ -24,11 +24,11 @@
  * (i.e. non-SCIP languages without LSP enrichment).
  */
 
-import type { Database } from './db.js';
-import type { WalkerConfig } from './walker.js';
-import type { EmbeddingProvider } from './embedder.js';
-import type { EffectiveLspSettings } from './lsp/config.js';
-import type { EffectiveScipSettings } from './scip/config.js';
+import type { Database } from '../db/schema.js';
+import type { WalkerConfig } from '../discovery/walker.js';
+import type { EmbeddingProvider } from '../embeddings/embedder.js';
+import type { EffectiveLspSettings } from '../lsp/config.js';
+import type { EffectiveScipSettings } from '../scip/config.js';
 import type { LoreLogger } from '../logger.js';
 import { getLogger } from '../logger.js';
 

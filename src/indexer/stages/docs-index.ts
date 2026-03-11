@@ -7,10 +7,10 @@
 
 import * as fs from 'node:fs';
 import type { PipelineContext, PipelineStage } from '../pipeline.js';
-import type { Database } from '../db.js';
-import { walkDocumentationFiles } from '../walker.js';
-import type { DocumentationFile } from '../docs.js';
-import { inferSeededDocNoteKey, buildDocNoteScope } from '../docs.js';
+import type { Database } from '../../db/schema.js';
+import { walkDocumentationFiles } from '../../discovery/walker.js';
+import type { DocumentationFile } from '../../docs/docs.js';
+import { inferSeededDocNoteKey, buildDocNoteScope } from '../../docs/docs.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

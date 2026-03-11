@@ -1,6 +1,6 @@
 import fs from 'node:fs';
-import { ParserPool } from '../../src/indexer/parser.js';
-import type { ExtractionResult, SymbolExtractor } from '../../src/indexer/extractors/types.js';
+import { ParserPool } from '../../src/parsing/parser.js';
+import type { ExtractionResult, SymbolExtractor } from '../../src/parsing/extractors/types.js';
 
 /** Shared parser pool reused across all tests. */
 const pool = new ParserPool();
