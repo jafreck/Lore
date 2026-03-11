@@ -5,18 +5,7 @@ import qualified Data.Map as Map
 
 data Shape = Circle Double | Rectangle Double Double
 
-newtype Wrapper a = Wrapper a
-
-type Name = String
-
-class Describable a where
-  describe :: a -> String
-
-instance Describable Shape where
-  describe (Circle r) = "Circle " ++ show r
-  describe (Rectangle w h) = "Rect " ++ show w ++ "x" ++ show h
-
-greet :: Name -> String
+type Name = String\n\ngreet :: Name -> String
 greet name = "Hello, " ++ name ++ "!"
 
 add :: Int -> Int -> Int

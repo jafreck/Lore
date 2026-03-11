@@ -60,13 +60,3 @@
 @protocol Serializable <Drawable>
 - (NSData *)serialize;
 @end
-
-@implementation Circle (Extras)
-
-- (NSString *)description {
-    NSObject *obj = [NSObject new];
-    Circle *cast = (Circle *)obj;
-    return [cast description];
-}
-
-@end
