@@ -326,5 +326,17 @@ describe('tool-registry', () => {
         expect(mod.def.inputSchema.type).toBe('object');
       }
     });
+
+    it('should produce callable handlers from handlerFactory', async () => {
+      const modules = await buildToolModules();
+      const deps: ToolDependencies = {
+        db: {} as any,
+        dbPath: '/tmp/test.db',
+      };
+      for (const mod of modules) {
+        const handler = mod.handlerFactory(deps);
+        expect(typeof handler).toBe('function');
+      }
+    });
   });
 });

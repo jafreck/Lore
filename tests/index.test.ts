@@ -55,10 +55,12 @@ describe('src/index.ts — public exports', () => {
   it('should export pipeline and stages', async () => {
     const mod = await import('../src/index.js');
     expect(typeof mod.IndexPipeline).toBe('function');
+    expect(typeof mod.ScipSourceStage).toBe('function');
     expect(typeof mod.SourceIndexStage).toBe('function');
     expect(typeof mod.DocsIndexStage).toBe('function');
     expect(typeof mod.ImportResolutionStage).toBe('function');
     expect(typeof mod.DependencyApiStage).toBe('function');
+    expect(typeof mod.ScipEnrichmentStage).toBe('function');
     expect(typeof mod.LspEnrichmentStage).toBe('function');
     expect(typeof mod.EmbeddingStage).toBe('function');
   });
@@ -81,7 +83,7 @@ describe('src/index.ts — public exports', () => {
 
   it('should export resolution method constants', async () => {
     const mod = await import('../src/index.js');
-    expect(mod.RESOLUTION_METHODS).toBeDefined();
+    expect(Array.isArray(mod.RESOLUTION_METHODS)).toBe(true);
     expect(mod.RESOLVED_METHODS instanceof Set).toBe(true);
     expect(mod.UNRESOLVED_METHODS instanceof Set).toBe(true);
   });
