@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import Database from 'better-sqlite3';
-import { handler, toolDef, type GraphArgs, type GraphEdge } from '../../../src/server/tools/graph.js';
+import { handler, toolDef, type GraphArgs, type GraphEdge, type CompactGraphEdge } from '../../../src/server/tools/graph.js';
 import { openDb } from '../../../src/db/schema.js';
 import { createRequire } from 'node:module';
 
@@ -643,5 +643,150 @@ describe('graph handler – provenance fields', () => {
       definition_line: 1,
       definition_character: 0,
     });
+  });
+});
+
+// ─── depth parameter (transitive traversal) ──────────────────────────────────
+
+describe('graph handler – depth parameter', () => {
+  let db: Database.Database;
+  let aId: number;
+  let bId: number;
+  let cId: number;
+
+  beforeEach(() => {
+    db = createTestDb();
+    const fileId = insertFile(db, 'src/main.ts', 'main');
+    aId = insertSymbol(db, fileId, 'a');
+    bId = insertSymbol(db, fileId, 'b');
+    cId = insertSymbol(db, fileId, 'c');
+    const dId = insertSymbol(db, fileId, 'd');
+    // a → b → c → d
+    insertCallEdge(db, aId, bId, 'b');
+    insertCallEdge(db, bId, cId, 'c');
+    insertCallEdge(db, cId, dId, 'd');
+  });
+
+  it('should return only direct edges at depth=1 (default)', () => {
+    const result = handler(db, { kind: 'call', source_id: aId });
+    expect(result.edges.length).toBe(1);
+    expect(result.depth_used).toBe(1);
+  });
+
+  it('should return 2-hop transitive edges at depth=2', () => {
+    const result = handler(db, { kind: 'call', source_id: aId, depth: 2 });
+    expect(result.edges.length).toBe(2);
+    expect(result.depth_used).toBe(2);
+    const names = (result.edges as GraphEdge[]).map((e) => e.target_name);
+    expect(names).toContain('b');
+    expect(names).toContain('c');
+  });
+
+  it('should return full chain at depth=3', () => {
+    const result = handler(db, { kind: 'call', source_id: aId, depth: 3 });
+    expect(result.edges.length).toBe(3);
+    const names = (result.edges as GraphEdge[]).map((e) => e.target_name);
+    expect(names).toContain('b');
+    expect(names).toContain('c');
+    expect(names).toContain('d');
+  });
+
+  it('should clamp depth to max 5', () => {
+    const result = handler(db, { kind: 'call', source_id: aId, depth: 100 });
+    expect(result.depth_used).toBe(5);
+  });
+
+  it('should clamp depth to min 1', () => {
+    const result = handler(db, { kind: 'call', source_id: aId, depth: 0 });
+    expect(result.depth_used).toBe(1);
+  });
+
+  it('should not duplicate edges in cyclic graphs', () => {
+    // Add cycle: d → a
+    const allEdges = handler(db, { kind: 'call' }).edges as GraphEdge[];
+    const dId = allEdges.find((e) => e.target_name === 'd')?.target_id;
+    insertCallEdge(db, dId!, aId, 'a');
+    const result = handler(db, { kind: 'call', source_id: aId, depth: 5 });
+    // a→b, b→c, c→d, d→a = 4 unique edges
+    expect(result.edges.length).toBe(4);
+  });
+
+  it('should work for inbound traversal (target_id with depth)', () => {
+    // Find all transitive callers of d
+    const allEdges = handler(db, { kind: 'call' }).edges as GraphEdge[];
+    const dId = allEdges.find((e) => e.target_name === 'd')?.target_id!;
+    const result = handler(db, { kind: 'call', target_id: dId, depth: 3 });
+    expect(result.edges.length).toBe(3);
+    const callerNames = (result.edges as GraphEdge[]).map((e) => e.source_name);
+    expect(callerNames).toContain('c');
+    expect(callerNames).toContain('b');
+    expect(callerNames).toContain('a');
+  });
+
+  it('should respect limit even during multi-hop traversal', () => {
+    const result = handler(db, { kind: 'call', source_id: aId, depth: 5, limit: 2 });
+    expect(result.edges.length).toBeLessThanOrEqual(2);
+  });
+});
+
+// ─── compact parameter ────────────────────────────────────────────────────────
+
+describe('graph handler – compact mode', () => {
+  let db: Database.Database;
+
+  beforeEach(() => {
+    db = createTestDb();
+    const fileId = insertFile(db, 'src/main.ts', 'main');
+    const callerId = insertSymbol(db, fileId, 'caller');
+    const calleeId = insertSymbol(db, fileId, 'callee');
+    insertCallEdge(db, callerId, calleeId, 'callee', 5, 10, 'lsp_definition');
+  });
+
+  it('should return full edge records when compact=false', () => {
+    const result = handler(db, { kind: 'call', compact: false });
+    const edge = result.edges[0] as GraphEdge;
+    expect(edge.source_id).toBeDefined();
+    expect(edge.target_id).toBeDefined();
+    expect(edge.resolution_method).toBeDefined();
+  });
+
+  it('should omit provenance fields but keep IDs when compact=true', () => {
+    const result = handler(db, { kind: 'call', compact: true });
+    const edge = result.edges[0] as CompactGraphEdge;
+    expect(edge.source_name).toBe('caller');
+    expect(edge.target_name).toBe('callee');
+    expect(edge.source_branch).toBe('main');
+    // IDs should be preserved for follow-up queries
+    expect(edge.source_id).toBeDefined();
+    expect(edge.target_id).toBeDefined();
+    // Provenance fields should be stripped
+    expect((edge as any).resolution_method).toBeUndefined();
+    expect((edge as any).line).toBeUndefined();
+    expect((edge as any).character).toBeUndefined();
+    expect((edge as any).definition_path).toBeUndefined();
+    expect((edge as any).definition_line).toBeUndefined();
+    expect((edge as any).definition_character).toBeUndefined();
+  });
+
+  it('should default compact to false', () => {
+    const result = handler(db, { kind: 'call' });
+    const edge = result.edges[0] as GraphEdge;
+    expect(edge.source_id).toBeDefined();
+  });
+});
+
+// ─── toolDef new parameters ───────────────────────────────────────────────────
+
+describe('lore_graph toolDef – new parameters', () => {
+  it('should expose depth parameter with min/max constraints', () => {
+    const depth = toolDef.inputSchema.properties.depth;
+    expect(depth.type).toBe('number');
+    expect(depth.minimum).toBe(1);
+    expect(depth.maximum).toBe(5);
+  });
+
+  it('should expose compact parameter', () => {
+    const c = toolDef.inputSchema.properties.compact;
+    expect(c.type).toBe('boolean');
   });
 });

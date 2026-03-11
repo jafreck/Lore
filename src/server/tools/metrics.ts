@@ -12,7 +12,8 @@ import { getCoverageStaleness, getLatestCoverageTotals } from '../../db/read-onl
 export const toolDef = {
   name: 'lore_metrics',
   description:
-    'Return aggregate Lore metrics or top symbols by stored complexity.',
+    'Return aggregate codebase metrics or a global ranking of the most complex symbols across the entire codebase. ' +
+    'mode="complexity" returns symbols ranked by cyclomatic complexity; combine with limit and min_cyclomatic to filter.',
   inputSchema: {
     type: 'object',
     properties: {
