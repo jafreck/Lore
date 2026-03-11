@@ -213,11 +213,11 @@ describe('cli', () => {
   // ── mcp subcommand ─────────────────────────────────────────────────────────
 
   describe('mcp subcommand', () => {
-    it('should print an error and exit with code 1 when --db is missing', async () => {
+    it('should print an error and exit with code 1 when neither --db nor --root is given', async () => {
       await loadCli(['mcp']);
       expect(exitSpy).toHaveBeenCalledWith(1);
       expect(consoleErrorSpy).toHaveBeenCalledWith(
-        expect.stringContaining('--db'),
+        expect.stringContaining('--root'),
       );
     });
   });
