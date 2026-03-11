@@ -33,7 +33,8 @@ describe('Zig symbols', () => {
 
 describe('Zig imports', () => {
   test('extracts @import calls', () => {
-    expect(result.imports.length).toBeGreaterThanOrEqual(0);
+    // Current grammar doesn't produce BUILTIN/STRINGLITERALSINGLE nodes — imports not yet extracted
+    expect(result.imports.length).toBe(0);
   });
 });
 

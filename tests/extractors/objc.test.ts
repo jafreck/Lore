@@ -56,6 +56,6 @@ describe('Objective-C relationships', () => {
 
 describe('Objective-C type refs', () => {
   test('produces type refs', () => {
-    expect(result.typeRefs.length).toBeGreaterThanOrEqual(0);
+    expect(result.typeRefs.length).toBeGreaterThan(0);
   });
 });

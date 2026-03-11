@@ -42,7 +42,8 @@ describe('OCaml symbols', () => {
 
 describe('OCaml imports', () => {
   test('extracts open statements', () => {
-    expect(result.imports.length).toBeGreaterThanOrEqual(0);
+    // tree-sitter-ocaml doesn't produce open_statement for the current fixture
+    expect(result.imports.length).toBe(0);
   });
 });
 

@@ -88,8 +88,9 @@ describe('C header file', () => {
 
 describe('C type refs (extended)', () => {
   test('extracts return type refs from functions', () => {
+    // C function return types (int, void) are primitive_specifier, not type_identifier
     const returnRefs = result.typeRefs.filter(r => r.refKind === 'return');
-    expect(returnRefs.length).toBeGreaterThanOrEqual(0);
+    expect(returnRefs.length).toBe(0);
   });
 
   test('extracts variable type refs', () => {
@@ -103,8 +104,9 @@ describe('C type refs (extended)', () => {
   });
 
   test('extracts sizeof type refs', () => {
+    // sizeof(Point) is parsed as sizeof_expression(parenthesized_expression) — not a type context
     const sizeofRefs = result.typeRefs.filter(r => r.refKind === 'sizeof');
-    expect(sizeofRefs.length).toBeGreaterThanOrEqual(0);
+    expect(sizeofRefs.length).toBe(0);
   });
 
   test('extracts function prototype declartion', () => {

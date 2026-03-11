@@ -98,8 +98,9 @@ describe('C++ type refs', () => {
   });
 
   test('extracts cast type refs', () => {
+    // Named casts (dynamic_cast<Greeter*>) produce pointer_declarator, not bare type_identifier
     const castRefs = result.typeRefs.filter(r => r.refKind === 'cast');
-    expect(castRefs.length).toBeGreaterThanOrEqual(0);
+    expect(castRefs.length).toBe(0);
   });
 
   test('extracts field type refs from class members', () => {

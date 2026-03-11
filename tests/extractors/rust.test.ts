@@ -58,7 +58,8 @@ describe('Rust type refs', () => {
   });
 
   test('extracts field type refs from structs', () => {
+    // Rust struct fields use primitive types (f64) which are not type_identifier nodes
     const fieldRefs = result.typeRefs.filter(r => r.refKind === 'field');
-    expect(fieldRefs.length).toBeGreaterThanOrEqual(0);
+    expect(fieldRefs.length).toBe(0);
   });
 });

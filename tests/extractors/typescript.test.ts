@@ -134,8 +134,8 @@ describe('TypeScript function expression & generator', () => {
   });
 
   test('extracts cast type refs from as-expression and type assertion', () => {
-    // value as string, <number>value — uses type_identifier nodes
+    // value as string — extractTsCastTypeRef only matches type_identifier/generic_type/nested_type_identifier
     const castRefs = result.typeRefs.filter(r => r.refKind === 'cast');
-    expect(castRefs.length).toBeGreaterThanOrEqual(0);
+    expect(castRefs.length).toBe(0);
   });
 });
