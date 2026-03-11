@@ -544,7 +544,10 @@ export class ScipSourceStage implements PipelineStage {
 
             const targetName = extractNameFromScipSymbol(rel.symbol);
             const targetId = scipToLoreId.get(rel.symbol) ?? null;
-            // Find a definition location for the line/character
+            // Find a definition location for the line/character.
+            // Some SCIP indexers (e.g. scip-go) emit SymbolInformation with
+            // relationships for symbols whose definition is in another file or
+            // external package, so defLoc may be undefined.
             const defLoc = symbolDefinitions.get(symInfo.symbol);
 
             insertRelationship.run(
