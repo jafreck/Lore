@@ -33,6 +33,34 @@ export interface RepoInstance {
   indexed: boolean;
   /** Index build time in milliseconds. */
   indexTimeMs?: number;
+  /** Indexing mode used to build the DB. */
+  indexMode?: IndexMode;
+}
+
+// ─── Indexing configuration ───────────────────────────────────────────────────
+
+/**
+ * Indexing mode controls which enrichment stages run during `indexRepo`.
+ *
+ * - `tree-sitter`:  Tree-sitter only — no SCIP, no LSP, no embeddings.
+ * - `scip`:         Tree-sitter + SCIP enrichment (primary production mode).
+ * - `full`:         Tree-sitter + SCIP + embeddings (enables semantic search).
+ */
+export type IndexMode = 'tree-sitter' | 'scip' | 'full';
+
+/** Options for `indexRepo`. */
+export interface IndexOptions {
+  /** Indexing mode (default: 'tree-sitter'). */
+  mode?: IndexMode;
+  /** Git history depth for blame/ownership (default: 100). */
+  historyDepth?: number;
+  /** Embedding model identifier (default: Lore's default model). */
+  embeddingModel?: string;
+  /**
+   * Directory containing pre-computed SCIP index files.
+   * If set, Lore reads `<dir>/<language>.scip` instead of running indexers.
+   */
+  scipIndexDir?: string;
 }
 
 // ─── Comparison arms ──────────────────────────────────────────────────────────

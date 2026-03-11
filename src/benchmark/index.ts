@@ -25,6 +25,8 @@ export type {
   RunScore,
   BenchmarkRunResult,
   BenchmarkSuiteConfig,
+  IndexMode,
+  IndexOptions,
 } from './types.js';
 
 export { RepoManager } from './repo-manager.js';

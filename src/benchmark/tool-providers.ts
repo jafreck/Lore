@@ -14,6 +14,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { openReadOnly } from '../db/read-only.js';
+import type { EmbeddingProvider } from '../embeddings/embedder.js';
 import type { AgentTool } from './types.js';
 import type { BenchmarkArm } from './types.js';
 
@@ -169,7 +170,7 @@ function wrapTool(
  * Build real Lore MCP tool wrappers backed by an actual Lore DB.
  * Each tool directly calls the handler from the tool module.
  */
-async function buildLoreTools(dbPath: string): Promise<AgentTool[]> {
+async function buildLoreTools(dbPath: string, embedder?: EmbeddingProvider): Promise<AgentTool[]> {
   const db = openReadOnly(dbPath);
 
   // Import each tool module individually to preserve type information
@@ -195,8 +196,8 @@ async function buildLoreTools(dbPath: string): Promise<AgentTool[]> {
   ]);
 
   return [
-    wrapTool(lookup.toolDef.name, lookup.toolDef.description, (args) => lookup.handler(db, args as any)),
-    wrapTool(search.toolDef.name, search.toolDef.description, (args) => search.handler(db, args as any)),
+    wrapTool(lookup.toolDef.name, lookup.toolDef.description, (args) => lookup.handler(db, args as any, embedder)),
+    wrapTool(search.toolDef.name, search.toolDef.description, (args) => search.handler(db, args as any, embedder)),
     wrapTool(graph.toolDef.name, graph.toolDef.description, (args) => graph.handler(db, args as any)),
     wrapTool(graphAnalysis.toolDef.name, graphAnalysis.toolDef.description, (args) => graphAnalysis.handler(db, args as any)),
     wrapTool(docs.toolDef.name, docs.toolDef.description, (args) => docs.handler(db, args as any)),
@@ -218,7 +219,7 @@ async function buildLoreTools(dbPath: string): Promise<AgentTool[]> {
  * A simple embedding search tool that acts as the "semantic baseline" arm.
  * Uses Lore's search in semantic-only mode to provide fair comparison.
  */
-async function buildSemanticSearchTool(dbPath: string): Promise<AgentTool> {
+async function buildSemanticSearchTool(dbPath: string, embedder?: EmbeddingProvider): Promise<AgentTool> {
   const db = openReadOnly(dbPath);
   const searchMod = await import('../server/tools/search.js');
 
@@ -232,7 +233,7 @@ async function buildSemanticSearchTool(dbPath: string): Promise<AgentTool> {
           query: String(args['query'] ?? ''),
           mode: 'semantic' as const,
           limit: Number(args['limit'] ?? 20),
-        });
+        }, embedder);
         return typeof result === 'string' ? result : JSON.stringify(result);
       } catch (e: any) {
         return `Error: ${e.message}`;
@@ -250,6 +251,7 @@ export async function buildToolsForArm(
   arm: BenchmarkArm,
   repoPath: string,
   dbPath?: string,
+  embedder?: EmbeddingProvider,
 ): Promise<AgentTool[]> {
   const baseTools = buildBaseTools(repoPath);
 
@@ -259,13 +261,13 @@ export async function buildToolsForArm(
 
     case 'semantic-baseline': {
       if (!dbPath) throw new Error('semantic-baseline arm requires a Lore DB for embedding search');
-      const semanticTool = await buildSemanticSearchTool(dbPath);
+      const semanticTool = await buildSemanticSearchTool(dbPath, embedder);
       return [...baseTools, semanticTool, ...buildStubLoreTools()];
     }
 
     case 'lore-enabled': {
       if (!dbPath) throw new Error('lore-enabled arm requires a Lore DB');
-      const loreTools = await buildLoreTools(dbPath);
+      const loreTools = await buildLoreTools(dbPath, embedder);
       return [...baseTools, ...loreTools];
     }
 
