@@ -259,14 +259,36 @@ function inferTypeRefKind(sourceLines: string[], refLine: number, refChar: numbe
 export class ScipSourceStage implements PipelineStage {
   readonly name = 'scip-source';
 
-  async execute(context: PipelineContext, _mode: 'build' | 'update'): Promise<void> {
+  async execute(context: PipelineContext, mode: 'build' | 'update'): Promise<void> {
     if (!context.scip?.enabled) return;
 
     const log = context.log;
     const rootDir = context.walkerConfig.rootDir;
 
+    // In update mode, determine which SCIP-supported languages have changed
+    // files so we only re-run the indexers that are actually stale.
+    let staleLanguages: Set<string> | null = null;
+    if (mode === 'update' && context.changedFiles && context.changedFiles.length > 0) {
+      staleLanguages = new Set<string>();
+      for (const filePath of context.changedFiles) {
+        const dotIdx = filePath.lastIndexOf('.');
+        if (dotIdx >= 0) {
+          const ext = filePath.slice(dotIdx).toLowerCase();
+          const lang = EXT_TO_LANG[ext];
+          if (lang && SCIP_SUPPORTED_LANGUAGES.has(lang)) {
+            staleLanguages.add(lang);
+          }
+        }
+      }
+      if (staleLanguages.size === 0) {
+        log.indexing('scip-source: no SCIP-supported languages in changed files, skipping');
+        return;
+      }
+      log.indexing('scip-source: stale languages', { languages: [...staleLanguages] });
+    }
+
     // Load SCIP index
-    const indexBuffer = this.loadScipIndex(context.scip, rootDir);
+    const indexBuffer = this.loadScipIndex(context.scip, rootDir, staleLanguages);
     if (!indexBuffer) {
       log.indexing('scip-source: no SCIP index available');
       return;
@@ -771,9 +793,23 @@ export class ScipSourceStage implements PipelineStage {
 
   // ─── SCIP index loading ──────────────────────────────────────────────────
 
-  private loadScipIndex(settings: EffectiveScipSettings, rootDir: string): Uint8Array | null {
+  private loadScipIndex(
+    settings: EffectiveScipSettings,
+    rootDir: string,
+    staleLanguages: Set<string> | null = null,
+  ): Uint8Array | null {
     // Try pre-computed index directory first
     if (settings.indexDir) {
+      // When staleLanguages is set, prefer per-language index files so
+      // we only load the languages that actually need re-processing.
+      if (staleLanguages) {
+        for (const lang of staleLanguages) {
+          const candidate = join(rootDir, settings.indexDir, `${lang}.scip`);
+          if (existsSync(candidate)) {
+            return readFileSync(candidate);
+          }
+        }
+      }
       const candidates = [
         join(rootDir, settings.indexDir, 'index.scip'),
         // Language-specific index files
@@ -792,6 +828,8 @@ export class ScipSourceStage implements PipelineStage {
     const resolvedIndexers = resolveScipIndexerRegistry(settings.indexers);
     for (const [lang, indexer] of Object.entries(resolvedIndexers)) {
       if (!indexer.available) continue;
+      // Per-language staleness: skip indexers for languages that haven't changed.
+      if (staleLanguages && !staleLanguages.has(lang)) continue;
       try {
         const outputPath = join(rootDir, `.lore-scip-${lang}.scip`);
         const args = indexer.args.map(a => a.replace(/\{output\}/g, outputPath));

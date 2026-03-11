@@ -413,4 +413,152 @@ describe('FileWatcher', () => {
       expect(parsed.source).toBe('FileWatcher');
     });
   });
+
+  describe('SCIP throttling', () => {
+    const scipSettings = { enabled: true, timeoutMs: 120_000, indexers: {}, indexDir: null };
+
+    it('should not include SCIP on immediate flush when scipQuietPeriodMs > 0', async () => {
+      const watcher = new FileWatcher('/db.sqlite', walkerConfig, {
+        debounceMs: 50,
+        scip: scipSettings,
+        scipQuietPeriodMs: 5000,
+      });
+      watcher.start();
+
+      const watchCb = vi.mocked(fs.watch).mock.calls[0]?.[2] as (
+        event: string,
+        filename: string,
+      ) => void;
+      watchCb('change', 'a.ts');
+      await vi.advanceTimersByTimeAsync(50);
+
+      expect(mockUpdate).toHaveBeenCalledOnce();
+      // IndexBuilder should have been created WITHOUT scip
+      const opts = vi.mocked(IndexBuilder).mock.calls[0]![3] as Record<string, unknown>;
+      expect(opts.scip).toBeUndefined();
+    });
+
+    it('should schedule a SCIP-enabled update after the quiet period', async () => {
+      const watcher = new FileWatcher('/db.sqlite', walkerConfig, {
+        debounceMs: 50,
+        scip: scipSettings,
+        scipQuietPeriodMs: 500,
+      });
+      watcher.start();
+
+      const watchCb = vi.mocked(fs.watch).mock.calls[0]?.[2] as (
+        event: string,
+        filename: string,
+      ) => void;
+      watchCb('change', 'a.ts');
+      await vi.advanceTimersByTimeAsync(50); // flush fires (no SCIP)
+
+      expect(mockUpdate).toHaveBeenCalledOnce();
+
+      // Wait for SCIP quiet period
+      await vi.advanceTimersByTimeAsync(500);
+
+      expect(mockUpdate).toHaveBeenCalledTimes(2);
+      // Second call should include SCIP
+      const opts = vi.mocked(IndexBuilder).mock.calls[1]![3] as Record<string, unknown>;
+      expect(opts.scip).toEqual(scipSettings);
+    });
+
+    it('should reset the SCIP timer on each new change', async () => {
+      const watcher = new FileWatcher('/db.sqlite', walkerConfig, {
+        debounceMs: 50,
+        scip: scipSettings,
+        scipQuietPeriodMs: 500,
+      });
+      watcher.start();
+
+      const watchCb = vi.mocked(fs.watch).mock.calls[0]?.[2] as (
+        event: string,
+        filename: string,
+      ) => void;
+      watchCb('change', 'a.ts');
+      await vi.advanceTimersByTimeAsync(50); // flush 1
+
+      // Another change before SCIP quiet period expires
+      await vi.advanceTimersByTimeAsync(300);
+      watchCb('change', 'b.ts');
+      await vi.advanceTimersByTimeAsync(50); // flush 2
+
+      // 300ms elapsed since last flush — SCIP should NOT have fired yet
+      await vi.advanceTimersByTimeAsync(300);
+      expect(mockUpdate).toHaveBeenCalledTimes(2); // only tree-sitter flushes
+
+      // Wait remaining quiet period
+      await vi.advanceTimersByTimeAsync(200);
+      expect(mockUpdate).toHaveBeenCalledTimes(3); // now SCIP fires
+    });
+
+    it('should cancel SCIP timer on stop()', async () => {
+      const watcher = new FileWatcher('/db.sqlite', walkerConfig, {
+        debounceMs: 50,
+        scip: scipSettings,
+        scipQuietPeriodMs: 500,
+      });
+      watcher.start();
+
+      const watchCb = vi.mocked(fs.watch).mock.calls[0]?.[2] as (
+        event: string,
+        filename: string,
+      ) => void;
+      watchCb('change', 'a.ts');
+      await vi.advanceTimersByTimeAsync(50);
+      watcher.stop();
+
+      await vi.advanceTimersByTimeAsync(1000);
+      // Only the tree-sitter flush should have run
+      expect(mockUpdate).toHaveBeenCalledOnce();
+    });
+
+    it('should include SCIP on every flush when scipQuietPeriodMs is 0', async () => {
+      const watcher = new FileWatcher('/db.sqlite', walkerConfig, {
+        debounceMs: 50,
+        scip: scipSettings,
+        scipQuietPeriodMs: 0,
+      });
+      watcher.start();
+
+      const watchCb = vi.mocked(fs.watch).mock.calls[0]?.[2] as (
+        event: string,
+        filename: string,
+      ) => void;
+      watchCb('change', 'a.ts');
+      await vi.advanceTimersByTimeAsync(50);
+
+      expect(mockUpdate).toHaveBeenCalledOnce();
+      const opts = vi.mocked(IndexBuilder).mock.calls[0]![3] as Record<string, unknown>;
+      expect(opts.scip).toEqual(scipSettings);
+    });
+
+    it('should accumulate paths across multiple flushes for the deferred SCIP update', async () => {
+      const watcher = new FileWatcher('/db.sqlite', walkerConfig, {
+        debounceMs: 50,
+        scip: scipSettings,
+        scipQuietPeriodMs: 500,
+      });
+      watcher.start();
+
+      const watchCb = vi.mocked(fs.watch).mock.calls[0]?.[2] as (
+        event: string,
+        filename: string,
+      ) => void;
+
+      watchCb('change', 'a.ts');
+      await vi.advanceTimersByTimeAsync(50); // flush 1
+      watchCb('change', 'b.ts');
+      await vi.advanceTimersByTimeAsync(50); // flush 2
+
+      // SCIP fires after quiet period from last change
+      await vi.advanceTimersByTimeAsync(500);
+
+      expect(mockUpdate).toHaveBeenCalledTimes(3);
+      const scipPaths = mockUpdate.mock.calls[2]![0] as string[];
+      expect(scipPaths).toContain(`${walkerConfig.rootDir}/a.ts`);
+      expect(scipPaths).toContain(`${walkerConfig.rootDir}/b.ts`);
+    });
+  });
 });

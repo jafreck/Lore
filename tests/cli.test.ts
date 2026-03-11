@@ -419,48 +419,6 @@ describe('cli', () => {
       });
     });
 
-    it('should allow explicit --no-lsp to override .lore.config defaults', async () => {
-      const dbPath = freshDb();
-      nodeFs.writeFileSync(
-        nodePath.join(tmpDir, '.lore.config'),
-        JSON.stringify({
-          lsp: {
-            enabled: true,
-          },
-        }),
-        'utf8',
-      );
-
-      let capturedOptions: unknown;
-      await loadCli(
-        ['index', '--db', dbPath, '--root', tmpDir, '--no-lsp'],
-        () => {
-          mockIndexBuilderWithOptionsCapture((options) => {
-            capturedOptions = options;
-          });
-        },
-      );
-      await vi.waitFor(() => {
-        expect(capturedOptions).toBeDefined();
-      });
-
-      expect(capturedOptions).toMatchObject({
-        lsp: {
-          enabled: false,
-        },
-      });
-    });
-
-    it('should report an error when --lsp and --no-lsp are combined', async () => {
-      const dbPath = freshDb();
-      await loadCli(['index', '--db', dbPath, '--root', tmpDir, '--lsp', '--no-lsp']);
-
-      expect(exitSpy).toHaveBeenCalledWith(1);
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        expect.stringContaining('cannot combine --lsp and --no-lsp'),
-      );
-    });
-
     it('should keep indexing successful when configured LSP server is unavailable and leave enrichment metadata empty', async () => {
       const dbPath = freshDb();
       nodeFs.writeFileSync(
@@ -560,37 +518,6 @@ describe('cli', () => {
       });
     });
 
-    it('should allow explicit --no-lsp to override .lore.config defaults', async () => {
-      nodeFs.writeFileSync(
-        nodePath.join(tmpDir, '.lore.config'),
-        JSON.stringify({
-          lsp: {
-            enabled: true,
-          },
-        }),
-        'utf8',
-      );
-
-      let capturedOptions: unknown;
-      await loadCli(
-        ['refresh', '--db', freshDb(), '--root', tmpDir, '--no-lsp'],
-        () => {
-          mockIndexBuilderWithOptionsCapture((options) => {
-            capturedOptions = options;
-          });
-        },
-      );
-      await vi.waitFor(() => {
-        expect(capturedOptions).toBeDefined();
-      });
-
-      expect(capturedOptions).toMatchObject({
-        lsp: {
-          enabled: false,
-        },
-      });
-    });
-
     it('should report an explicit error for malformed .lore.config LSP settings', async () => {
       nodeFs.writeFileSync(
         nodePath.join(tmpDir, '.lore.config'),
@@ -610,14 +537,6 @@ describe('cli', () => {
       );
     });
 
-    it('should report an error when --lsp and --no-lsp are combined', async () => {
-      await loadCli(['refresh', '--db', freshDb(), '--root', tmpDir, '--lsp', '--no-lsp']);
-
-      expect(exitSpy).toHaveBeenCalledWith(1);
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        expect.stringContaining('cannot combine --lsp and --no-lsp'),
-      );
-    });
   });
 
   // ── ingest-coverage subcommand ─────────────────────────────────────────────
@@ -796,7 +715,7 @@ describe('cli', () => {
       expect(hookContent).not.toContain('--no-lsp');
     });
 
-    it('should allow explicit --no-lsp to override .lore.config defaults for hook generation', async () => {
+    it('should not emit --no-lsp in hook command when lspEnabled is false (LSP off is the default)', async () => {
       nodeFs.mkdirSync(nodePath.join(tmpDir, '.git', 'hooks'), { recursive: true });
       nodeFs.writeFileSync(
         nodePath.join(tmpDir, '.lore.config'),
@@ -805,12 +724,12 @@ describe('cli', () => {
       );
 
       const dbPath = freshDb();
-      await loadCli(['hooks', '--db', dbPath, '--root', tmpDir, '--no-lsp']);
+      await loadCli(['hooks', '--db', dbPath, '--root', tmpDir]);
       await waitForStderr(stderrSpy, 'git hooks installed');
 
       const hookPath = nodePath.join(tmpDir, '.git', 'hooks', 'post-commit');
       const hookContent = nodeFs.readFileSync(hookPath, 'utf8');
-      expect(hookContent).toContain('--no-lsp');
+      expect(hookContent).not.toContain('--no-lsp');
     });
 
     it('should report an explicit error for malformed .lore.config LSP settings', async () => {
@@ -828,14 +747,6 @@ describe('cli', () => {
       );
     });
 
-    it('should report an error when --lsp and --no-lsp are combined', async () => {
-      await loadCli(['hooks', '--db', freshDb(), '--root', tmpDir, '--lsp', '--no-lsp']);
-
-      expect(exitSpy).toHaveBeenCalledWith(1);
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        expect.stringContaining('cannot combine --lsp and --no-lsp'),
-      );
-    });
   });
 
   // ── refresh subcommand — argument validation ───────────────────────────────

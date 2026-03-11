@@ -411,4 +411,86 @@ describe('FilePoller', () => {
       expect(mockUpdate).toHaveBeenCalledTimes(2);
     });
   });
+
+  describe('SCIP throttling', () => {
+    const scipSettings = { enabled: true, timeoutMs: 120_000, indexers: {}, indexDir: null };
+
+    it('should not include SCIP on immediate poll when scipQuietPeriodMs > 0', async () => {
+      vi.mocked(walkFiles).mockResolvedValue([makeEntry('/tmp/testroot/a.ts')]);
+      vi.mocked(fs.statSync).mockReturnValue({ mtimeMs: 1000 } as Stats);
+
+      const poller = new FilePoller('/db.sqlite', walkerConfig, {
+        intervalMs: 100,
+        scip: scipSettings,
+        scipQuietPeriodMs: 5000,
+      });
+      poller.start();
+      await vi.advanceTimersByTimeAsync(100);
+      poller.stop();
+
+      expect(mockUpdate).toHaveBeenCalledOnce();
+      const opts = vi.mocked(IndexBuilder).mock.calls[0]![3] as Record<string, unknown>;
+      expect(opts.scip).toBeUndefined();
+    });
+
+    it('should schedule a SCIP-enabled update after the quiet period', async () => {
+      vi.mocked(walkFiles).mockResolvedValue([makeEntry('/tmp/testroot/a.ts')]);
+      vi.mocked(fs.statSync).mockReturnValue({ mtimeMs: 1000 } as Stats);
+
+      const poller = new FilePoller('/db.sqlite', walkerConfig, {
+        intervalMs: 100,
+        scip: scipSettings,
+        scipQuietPeriodMs: 500,
+      });
+      poller.start();
+      await vi.advanceTimersByTimeAsync(100); // first poll detects new file
+
+      expect(mockUpdate).toHaveBeenCalledOnce();
+
+      // Wait for SCIP quiet period (mtime unchanged so no new tree-sitter update)
+      await vi.advanceTimersByTimeAsync(500);
+      poller.stop();
+
+      expect(mockUpdate).toHaveBeenCalledTimes(2);
+      const opts = vi.mocked(IndexBuilder).mock.calls[1]![3] as Record<string, unknown>;
+      expect(opts.scip).toEqual(scipSettings);
+    });
+
+    it('should cancel SCIP timer on stop()', async () => {
+      vi.mocked(walkFiles).mockResolvedValue([makeEntry('/tmp/testroot/a.ts')]);
+      vi.mocked(fs.statSync).mockReturnValue({ mtimeMs: 1000 } as Stats);
+
+      const poller = new FilePoller('/db.sqlite', walkerConfig, {
+        intervalMs: 100,
+        scip: scipSettings,
+        scipQuietPeriodMs: 500,
+      });
+      poller.start();
+      await vi.advanceTimersByTimeAsync(100);
+      poller.stop();
+
+      // Clear timer counts to isolate SCIP timer check
+      await vi.advanceTimersByTimeAsync(1000);
+      // Only the initial update should have run
+      expect(mockUpdate).toHaveBeenCalledOnce();
+    });
+
+    it('should include SCIP on every poll when scipQuietPeriodMs is 0', async () => {
+      vi.mocked(walkFiles).mockResolvedValue([makeEntry('/tmp/testroot/a.ts')]);
+      vi.mocked(fs.statSync).mockReturnValue({ mtimeMs: 1000 } as Stats);
+
+      const poller = new FilePoller('/db.sqlite', walkerConfig, {
+        intervalMs: 100,
+        scip: scipSettings,
+        scipQuietPeriodMs: 0,
+      });
+      poller.start();
+      await vi.advanceTimersByTimeAsync(100);
+      poller.stop();
+
+      expect(mockUpdate).toHaveBeenCalledOnce();
+      const opts = vi.mocked(IndexBuilder).mock.calls[0]![3] as Record<string, unknown>;
+      expect(opts.scip).toEqual(scipSettings);
+    });
+  });
 });

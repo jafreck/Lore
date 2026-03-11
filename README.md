@@ -421,7 +421,7 @@ SQLite-only — language servers are never invoked at runtime.
 
 LSP precedence:
 
-1. CLI flags (`--lsp` / `--no-lsp`)
+1. CLI flag (`--lsp`)
 2. `.lore.config` `lsp.enabled`
 3. Built-in default (`false`)
 
@@ -519,7 +519,7 @@ are fast even on large repositories.
 Build or update a knowledge base.
 
 ```bash
-npx @jafreck/lore index --root <dir> --db <path> [--embedding-model <id>] [--blocking-embedder] [--index-deps] [--history] [--history-depth <n>] [--history-all] [--include <glob>] [--exclude <glob>] [--language <lang>] [--docs-include <glob>] [--docs-exclude <glob>] [--docs-extension <ext>] [--docs-auto-notes|--no-docs-auto-notes] [--lsp] [--no-lsp]
+npx @jafreck/lore index --root <dir> --db <path> [--embedding-model <id>] [--blocking-embedder] [--index-deps] [--history] [--history-depth <n>] [--history-all] [--include <glob>] [--exclude <glob>] [--language <lang>] [--docs-include <glob>] [--docs-exclude <glob>] [--docs-extension <ext>] [--docs-auto-notes|--no-docs-auto-notes] [--lsp] [--no-scip]
 ```
 
 ### lore refresh
@@ -527,9 +527,9 @@ npx @jafreck/lore index --root <dir> --db <path> [--embedding-model <id>] [--blo
 Incremental refresh (one-shot, watch, or poll).
 
 ```bash
-npx @jafreck/lore refresh --db <path> --root <dir> [--index-deps] [--history] [--history-depth <n>] [--history-all] [--docs-include <glob>] [--docs-exclude <glob>] [--docs-extension <ext>] [--docs-auto-notes|--no-docs-auto-notes] [--lsp] [--no-lsp]
-npx @jafreck/lore refresh --db <path> --root <dir> --watch [--index-deps] [--history] [--docs-include <glob>] [--docs-exclude <glob>] [--docs-extension <ext>] [--lsp] [--no-lsp]
-npx @jafreck/lore refresh --db <path> --root <dir> --poll [--index-deps] [--history] [--docs-include <glob>] [--docs-exclude <glob>] [--docs-extension <ext>] [--lsp] [--no-lsp]
+npx @jafreck/lore refresh --db <path> --root <dir> [--index-deps] [--history] [--history-depth <n>] [--history-all] [--docs-include <glob>] [--docs-exclude <glob>] [--docs-extension <ext>] [--docs-auto-notes|--no-docs-auto-notes] [--lsp] [--no-scip]
+npx @jafreck/lore refresh --db <path> --root <dir> --watch [--index-deps] [--history] [--docs-include <glob>] [--docs-exclude <glob>] [--docs-extension <ext>] [--lsp] [--no-scip]
+npx @jafreck/lore refresh --db <path> --root <dir> --poll [--index-deps] [--history] [--docs-include <glob>] [--docs-exclude <glob>] [--docs-extension <ext>] [--lsp] [--no-scip]
 ```
 
 ### lore hooks
@@ -537,7 +537,7 @@ npx @jafreck/lore refresh --db <path> --root <dir> --poll [--index-deps] [--hist
 Install repo-local git hooks for automatic refresh.
 
 ```bash
-npx @jafreck/lore hooks --root <repo> --db <path> [--history] [--lsp] [--no-lsp]
+npx @jafreck/lore hooks --root <repo> --db <path> [--history] [--lsp] [--no-scip]
 ```
 
 ### lore ingest-coverage
