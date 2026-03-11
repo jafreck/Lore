@@ -11,6 +11,8 @@
 /**
  * Resolution confidence tiers, ordered from highest to lowest confidence.
  *
+ * - `scip_definition` — the SCIP index provided a precise definition that was
+ *   directly resolved during SCIP-primary source indexing.
  * - `lsp_definition` — the LSP server returned a precise definition location
  *   that was mapped to the narrowest enclosing indexed symbol.
  * - `name_same_file` — no LSP data was available; the callee/type name matched
@@ -26,6 +28,7 @@
  *   dangling name.
  */
 export const RESOLUTION_METHODS = [
+  'scip_definition',
   'lsp_definition',
   'name_same_file',
   'name_unique',
@@ -42,6 +45,7 @@ export type ResolutionMethod = (typeof RESOLUTION_METHODS)[number];
  * Useful for filtering edges to only include high-confidence results.
  */
 export const RESOLVED_METHODS: ReadonlySet<ResolutionMethod> = new Set([
+  'scip_definition',
   'lsp_definition',
   'name_same_file',
   'name_unique',

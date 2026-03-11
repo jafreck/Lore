@@ -38,6 +38,7 @@ export { ImportResolver } from './indexer/resolver.js';
 export { installGitHooks } from './indexer/git-hooks.js';
 export type { InstallGitHooksOptions } from './indexer/git-hooks.js';
 export type { EffectiveLspSettings, LspSettingsOverrides } from './indexer/lsp/config.js';
+export type { EffectiveScipSettings, ScipSettingsOverrides } from './indexer/scip/config.js';
 export { TransformersJsProvider, LazyEmbeddingProvider, DEFAULT_EMBEDDING_MODEL, tokenAwareBatch, hashEmbeddingText } from './indexer/embedder.js';
 export type { EmbeddingProvider, OnnxDtype } from './indexer/embedder.js';
 export type {
