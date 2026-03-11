@@ -15,7 +15,7 @@ import { mergeScipIndexerRegistry } from './registry.js';
 
 // ─── Effective settings ───────────────────────────────────────────────────────
 
-export const DEFAULT_SCIP_ENABLED = false;
+export const DEFAULT_SCIP_ENABLED = true;
 export const DEFAULT_SCIP_TIMEOUT_MS = 120_000; // 2 minutes per indexer run
 
 export interface EffectiveScipSettings {

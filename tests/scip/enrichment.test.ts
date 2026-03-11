@@ -158,4 +158,188 @@ describe('ScipEnrichmentCoordinator', () => {
     await coordinator.dispose();
     rmSync(rootDir, { recursive: true, force: true });
   });
+
+  it('returns null for targets with no definition and no signature', async () => {
+    const rootDir = mkdtempSync(join(tmpdir(), 'lore-scip-nodef-'));
+    const indexDir = join(rootDir, '.scip-indexes');
+    mkdirSync(indexDir, { recursive: true });
+
+    // Build an index with an occurrence that has no definition and no symbol info.
+    const symbol = 'npm . lib 1.0 `unknown()`.';
+    const indexBytes = buildIndexBytes([{
+      relativePath: 'src/file.ts',
+      language: 'TypeScript',
+      occurrences: [
+        { range: [10, 0, 10, 5], symbol, symbolRoles: 0 },
+      ],
+      symbols: [],
+    }]);
+    writeFileSync(join(indexDir, 'typescript.scip'), indexBytes);
+
+    const settings: EffectiveScipSettings = {
+      enabled: true,
+      timeoutMs: 5000,
+      indexers: {},
+      indexDir: '.scip-indexes',
+    };
+
+    const coordinator = new ScipEnrichmentCoordinator(settings, rootDir);
+    await coordinator.start(['typescript']);
+
+    const results = coordinator.enrich({
+      filePath: join(rootDir, 'src/file.ts'),
+      language: 'typescript',
+      source: '',
+      targets: [{ line: 10, character: 0 }],
+    });
+
+    expect(results).toHaveLength(1);
+    expect(results[0]).toBeNull();
+
+    await coordinator.dispose();
+    rmSync(rootDir, { recursive: true, force: true });
+  });
+
+  it('returns definition without return type when docs have no signature', async () => {
+    const rootDir = mkdtempSync(join(tmpdir(), 'lore-scip-defonly-'));
+    const indexDir = join(rootDir, '.scip-indexes');
+    mkdirSync(indexDir, { recursive: true });
+
+    const defSymbol = 'npm . lib 1.0 `src/`/helper().';
+    const indexBytes = buildIndexBytes([{
+      relativePath: 'src/main.ts',
+      language: 'TypeScript',
+      occurrences: [
+        { range: [3, 0, 3, 6], symbol: defSymbol, symbolRoles: SymbolRole.Definition },
+        { range: [10, 2, 10, 8], symbol: defSymbol, symbolRoles: 0 },
+      ],
+      symbols: [{
+        symbol: defSymbol,
+        documentation: [],
+        displayName: 'helper',
+      }],
+    }]);
+    writeFileSync(join(indexDir, 'typescript.scip'), indexBytes);
+
+    mkdirSync(join(rootDir, 'src'), { recursive: true });
+    writeFileSync(join(rootDir, 'src', 'main.ts'), 'function helper() {}');
+
+    const settings: EffectiveScipSettings = {
+      enabled: true,
+      timeoutMs: 5000,
+      indexers: {},
+      indexDir: '.scip-indexes',
+    };
+
+    const coordinator = new ScipEnrichmentCoordinator(settings, rootDir);
+    await coordinator.start(['typescript']);
+
+    const results = coordinator.enrich({
+      filePath: join(rootDir, 'src/main.ts'),
+      language: 'typescript',
+      source: 'function helper() {}',
+      targets: [{ line: 10, character: 2 }],
+    });
+
+    expect(results).toHaveLength(1);
+    const m = results[0];
+    expect(m).not.toBeNull();
+    expect(m!.definitionPath).toBe(join(rootDir, 'src/main.ts'));
+    expect(m!.definitionLine).toBe(3);
+
+    await coordinator.dispose();
+    rmSync(rootDir, { recursive: true, force: true });
+  });
+
+  it('falls back to generic index.scip when language-specific index not found', async () => {
+    const rootDir = mkdtempSync(join(tmpdir(), 'lore-scip-generic-'));
+    const indexDir = join(rootDir, '.scip-indexes');
+    mkdirSync(indexDir, { recursive: true });
+
+    const defSymbol = 'npm . project 1.0 `src/`/main().';
+    const indexBytes = buildIndexBytes([{
+      relativePath: 'src/app.ts',
+      language: 'TypeScript',
+      occurrences: [
+        { range: [1, 0, 1, 4], symbol: defSymbol, symbolRoles: SymbolRole.Definition },
+      ],
+      symbols: [{
+        symbol: defSymbol,
+        documentation: ['function main(): void'],
+        displayName: 'main',
+      }],
+    }]);
+    // Write as generic index.scip, not typescript.scip
+    writeFileSync(join(indexDir, 'index.scip'), indexBytes);
+
+    const settings: EffectiveScipSettings = {
+      enabled: true,
+      timeoutMs: 5000,
+      indexers: {},
+      indexDir: '.scip-indexes',
+    };
+
+    const coordinator = new ScipEnrichmentCoordinator(settings, rootDir);
+    const covered = await coordinator.start(['typescript']);
+
+    expect(covered.has('typescript')).toBe(true);
+    await coordinator.dispose();
+    rmSync(rootDir, { recursive: true, force: true });
+  });
+
+  it('returns all nulls for language not enriched', async () => {
+    const rootDir = mkdtempSync(join(tmpdir(), 'lore-scip-nolang-'));
+    const indexDir = join(rootDir, '.scip-indexes');
+    mkdirSync(indexDir, { recursive: true });
+
+    writeFileSync(join(indexDir, 'typescript.scip'), buildIndexBytes([]));
+
+    const settings: EffectiveScipSettings = {
+      enabled: true,
+      timeoutMs: 5000,
+      indexers: {},
+      indexDir: '.scip-indexes',
+    };
+
+    const coordinator = new ScipEnrichmentCoordinator(settings, rootDir);
+    await coordinator.start(['typescript']);
+
+    // python was never enriched
+    const results = coordinator.enrich({
+      filePath: '/some/file.py',
+      language: 'python',
+      source: '',
+      targets: [{ line: 1, character: 0 }],
+    });
+
+    expect(results).toEqual([null]);
+
+    await coordinator.dispose();
+    rmSync(rootDir, { recursive: true, force: true });
+  });
+
+  it('dispose clears state and is safe to call multiple times', async () => {
+    const rootDir = mkdtempSync(join(tmpdir(), 'lore-scip-dispose-'));
+    const indexDir = join(rootDir, '.scip-indexes');
+    mkdirSync(indexDir, { recursive: true });
+    writeFileSync(join(indexDir, 'typescript.scip'), buildIndexBytes([]));
+
+    const settings: EffectiveScipSettings = {
+      enabled: true,
+      timeoutMs: 5000,
+      indexers: {},
+      indexDir: '.scip-indexes',
+    };
+
+    const coordinator = new ScipEnrichmentCoordinator(settings, rootDir);
+    await coordinator.start(['typescript']);
+
+    await coordinator.dispose();
+    expect(coordinator.coveredLanguages.size).toBe(0);
+
+    // Safe to call dispose again
+    await coordinator.dispose();
+
+    rmSync(rootDir, { recursive: true, force: true });
+  });
 });

@@ -39,7 +39,7 @@ export { installGitHooks } from './git/hooks.js';
 export type { InstallGitHooksOptions } from './git/hooks.js';
 export type { EffectiveLspSettings, LspSettingsOverrides } from './lsp/config.js';
 export type { EffectiveScipSettings, ScipSettingsOverrides } from './scip/config.js';
-export { TransformersJsProvider, LazyEmbeddingProvider, DEFAULT_EMBEDDING_MODEL, tokenAwareBatch, hashEmbeddingText } from './embeddings/embedder.js';
+export { TransformersJsProvider, LazyEmbeddingProvider, DEFAULT_EMBEDDING_MODEL, tokenAwareBatch, hashEmbeddingText, buildStructuralEmbeddingText } from './embeddings/embedder.js';
 export type { EmbeddingProvider, OnnxDtype } from './embeddings/embedder.js';
 export type {
   ExtractionResult,
@@ -57,10 +57,12 @@ export type { ResolutionMethod } from './resolution/resolution-method.js';
 export { IndexPipeline } from './indexer/pipeline.js';
 export type { PipelineContext, PipelineStage } from './indexer/pipeline.js';
 export {
+  ScipSourceStage,
   SourceIndexStage,
   DocsIndexStage,
   ImportResolutionStage,
   DependencyApiStage,
+  ScipEnrichmentStage,
   LspEnrichmentStage,
   EmbeddingStage,
 } from './indexer/stages/index.js';

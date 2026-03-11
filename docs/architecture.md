@@ -145,17 +145,23 @@ orchestrated by `IndexPipeline` (`pipeline.ts`). The stage ordering enforces
 data dependencies structurally rather than by call-site discipline:
 
 ```
-SourceIndex → DocsIndex → ImportResolution → DependencyApi
+ScipSource → SourceIndex → DocsIndex → ImportResolution → DependencyApi
   → LspEnrichment → Resolution → TestMap → History → Embedding
 ```
 
+SCIP is the default source stage. `ScipSourceStage` runs first for languages
+that have a SCIP indexer, populating symbols and pre-resolved edges directly.
+`SourceIndexStage` then handles remaining languages via tree-sitter as a
+fallback. LSP enrichment is optional for either path.
+
 The **enrichment → resolution** ordering is load-bearing: `resolveSymbolEdges`
 reads `definition_path` / `definition_line` columns that are only populated
-during the LSP enrichment stage.
+during enrichment stages.
 
 | Stage | Module | What it does |
 |-------|--------|--------------|
-| SourceIndex | `stages/source-index.ts` | Walk + parse + extract + insert; handles both full-build and incremental-update (changed-file diff, stale-symbol tracking) |
+| ScipSource | `stages/scip-source.ts` | Run SCIP indexers (or read pre-computed `.scip` files) for covered languages; populates symbols + refs with pre-resolved edges; enabled by default |
+| SourceIndex | `stages/source-index.ts` | Tree-sitter fallback for non-SCIP languages; walk + parse + extract + insert; handles both full-build and incremental-update (changed-file diff, stale-symbol tracking) |
 | DocsIndex | `stages/docs-index.ts` | Documentation walk + chunk + note seeding; update mode processes only changed docs |
 | ImportResolution | `stages/import-resolution.ts` | Resolve raw imports to file IDs using a bulk `Map<path, fileId>` lookup |
 | DependencyApi | `stages/dependency-api.ts` | Optional (`--index-deps`) declaration-only indexing from direct deps across npm (`.d.ts`), Python (`.pyi` / `py.typed`), Go (`go.mod`), Rust (`Cargo.toml`); excludes transitive deps |

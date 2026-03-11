@@ -135,6 +135,7 @@ export class LoreRuntime {
         history: this.config.history,
         indexDependencies: this.config.indexDependencies,
         lsp: this.config.lsp ?? undefined,
+        scip: this.config.scip ?? undefined,
         embedder: this._embedder ?? undefined,
       });
       watcher.start();
@@ -152,6 +153,7 @@ export class LoreRuntime {
         history: this.config.history,
         indexDependencies: this.config.indexDependencies,
         lsp: this.config.lsp ?? undefined,
+        scip: this.config.scip ?? undefined,
         embedder: this._embedder ?? undefined,
       });
       poller.start();

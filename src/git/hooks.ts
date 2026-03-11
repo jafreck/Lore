@@ -39,8 +39,8 @@ function makeHookScript(
     '--db',
     shellEscapeSingle(dbPath),
     ...(includeHistory ? ['--history'] : []),
-    ...(lspEnabled === true ? ['--lsp'] : lspEnabled === false ? ['--no-lsp'] : []),
-    ...(scipEnabled === true ? ['--scip'] : scipEnabled === false ? ['--no-scip'] : []),
+    ...(lspEnabled === true ? ['--lsp'] : []),
+    ...(scipEnabled === false ? ['--no-scip'] : []),
   ].join(' ');
 
   return [

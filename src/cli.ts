@@ -40,7 +40,7 @@ function usage(): never {
   lore refresh --db <path> --root <dir> [--index-deps] [--history] [--history-depth <n>] [--history-all]  Run an incremental index update and exit
   lore refresh --db <path> --root <dir> --watch [--embedding-model <id>] Watch for file changes and refresh automatically
   lore refresh --db <path> --root <dir> --poll [--embedding-model <id>]  Poll for file changes and refresh automatically
-  lore hooks --db <path> --root <dir> [--history] [--history-depth <n>] [--history-all] [--lsp] [--no-lsp]
+  lore hooks --db <path> --root <dir> [--history] [--history-depth <n>] [--history-all] [--lsp]
                          Install git hooks for automatic refresh on commit/merge/checkout
   lore ingest-coverage --db <path> --root <dir> --file <path> --format <lcov|cobertura> [--commit <sha>]
                          Ingest an explicit coverage report file into the knowledge base
@@ -65,10 +65,8 @@ Options:
   --no-docs-auto-notes     Disable doc-based note seeding during indexing
   --watch                  Enable fs-event watch mode (low-latency, may miss events on some platforms)
   --poll                   Enable polling mode (reliable but higher CPU/IO cost)
-  --lsp                    Force-enable index-time LSP settings
-  --no-lsp                 Force-disable index-time LSP settings
-  --scip                   Force-enable index-time SCIP enrichment
-  --no-scip                Force-disable index-time SCIP enrichment
+  --lsp                    Enable index-time LSP enrichment (disabled by default)
+  --no-scip                Disable index-time SCIP indexing (enabled by default)
   --file <path>            Coverage report path (required for ingest-coverage)
   --format <name>          Coverage format: lcov or cobertura (required for ingest-coverage)
   --commit <sha>           Commit SHA to associate with coverage ingestion (default: HEAD)
@@ -107,24 +105,12 @@ function docsAutoNotesFlag(args: string[]): boolean {
 }
 
 function explicitLspEnabled(args: string[]): boolean | undefined {
-  const enabled = args.includes('--lsp');
-  const disabled = args.includes('--no-lsp');
-  if (enabled && disabled) {
-    throw new Error('cannot combine --lsp and --no-lsp');
-  }
-  if (enabled) return true;
-  if (disabled) return false;
+  if (args.includes('--lsp')) return true;
   return undefined;
 }
 
 function explicitScipEnabled(args: string[]): boolean | undefined {
-  const enabled = args.includes('--scip');
-  const disabled = args.includes('--no-scip');
-  if (enabled && disabled) {
-    throw new Error('cannot combine --scip and --no-scip');
-  }
-  if (enabled) return true;
-  if (disabled) return false;
+  if (args.includes('--no-scip')) return false;
   return undefined;
 }
 
