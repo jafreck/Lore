@@ -76,6 +76,26 @@ describe('loadScipSettingsFromLoreConfig', () => {
     }
   });
 
+  it('throws on malformed JSON in .lore.config', () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, '.lore.config'), 'not valid json!!!');
+    try {
+      expect(() => loadScipSettingsFromLoreConfig(dir)).toThrow('Invalid .lore.config');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('throws when .lore.config root is not an object', () => {
+    const dir = tmpDir();
+    writeFileSync(join(dir, '.lore.config'), '"just a string"');
+    try {
+      expect(() => loadScipSettingsFromLoreConfig(dir)).toThrow('root must be a JSON object');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('loads indexer overrides', () => {
     const dir = tmpDir();
     writeFileSync(join(dir, '.lore.config'), JSON.stringify({
@@ -123,5 +143,28 @@ describe('resolveEffectiveScipSettings', () => {
     expect(effective.indexers.typescript!.command).toBe('custom-ts');
     // Python should still have the default.
     expect(effective.indexers.python).toBeDefined();
+  });
+
+  it('merges explicit indexer overrides with config indexer overrides', () => {
+    const effective = resolveEffectiveScipSettings(
+      { indexers: { typescript: { command: 'config-ts', args: ['--index'] } } },
+      { indexers: { typescript: { command: 'override-ts' } } },
+    );
+    expect(effective.indexers.typescript!.command).toBe('override-ts');
+  });
+
+  it('uses indexDir from explicit overrides over config', () => {
+    const effective = resolveEffectiveScipSettings(
+      { indexDir: 'config-dir' },
+      { indexDir: 'override-dir' },
+    );
+    expect(effective.indexDir).toBe('override-dir');
+  });
+
+  it('uses indexDir from config when no explicit override', () => {
+    const effective = resolveEffectiveScipSettings(
+      { indexDir: 'config-dir' },
+    );
+    expect(effective.indexDir).toBe('config-dir');
   });
 });

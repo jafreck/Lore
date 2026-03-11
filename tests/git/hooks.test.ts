@@ -80,7 +80,7 @@ describe('installGitHooks', () => {
     expect(content).not.toContain('--no-lsp');
   });
 
-  it('should include --no-lsp in hook command when requested', () => {
+  it('should not include --no-lsp in hook command when lspEnabled is false (LSP off is already the default)', () => {
     installGitHooks({
       repoRoot,
       rootDir: repoRoot,
@@ -90,8 +90,8 @@ describe('installGitHooks', () => {
 
     const hookPath = path.join(repoRoot, '.git', 'hooks', 'post-commit');
     const content = fs.readFileSync(hookPath, 'utf8');
-    expect(content).toContain('--no-lsp');
-    expect(content).not.toContain('--lsp ');
+    expect(content).not.toContain('--no-lsp');
+    expect(content).not.toContain('--lsp');
   });
 
   it('should preserve existing hook content while adding lore block', () => {

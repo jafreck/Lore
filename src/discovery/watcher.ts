@@ -10,6 +10,7 @@ import * as fs from 'node:fs';
 import { IndexBuilder } from '../indexer/index.js';
 import type { EmbeddingProvider } from '../embeddings/embedder.js';
 import type { EffectiveLspSettings } from '../lsp/config.js';
+import type { EffectiveScipSettings } from '../scip/config.js';
 import type { WalkerConfig } from './walker.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -26,6 +27,16 @@ export interface WatcherOptions {
   indexDependencies?: boolean;
   /** Effective LSP settings forwarded to update cycles. */
   lsp?: EffectiveLspSettings;
+  /** Effective SCIP settings forwarded to update cycles. */
+  scip?: EffectiveScipSettings;
+  /**
+   * Quiet-period in milliseconds before running a SCIP-enabled update.
+   * After each change, tree-sitter updates run immediately.  SCIP
+   * re-indexing is deferred until no new changes arrive for this duration.
+   * Set to `0` to run SCIP on every update (no throttling).
+   * Defaults to 10 000 (10 s).
+   */
+  scipQuietPeriodMs?: number;
   /**
    * Optional long-lived embedding provider. When supplied, each incremental
    * update cycle will generate embeddings for changed symbols and docs.
@@ -56,12 +67,19 @@ export class FileWatcher {
   private readonly history: boolean | { depth?: number; all?: boolean };
   private readonly indexDependencies: boolean;
   private readonly lsp: EffectiveLspSettings | undefined;
+  private readonly scip: EffectiveScipSettings | undefined;
+  private readonly scipQuietPeriodMs: number;
   private readonly embedder: EmbeddingProvider | undefined;
 
   private watcher: fs.FSWatcher | null = null;
   private pendingPaths: Set<string> = new Set();
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
   private flushRunning = false;
+
+  /** Paths changed since the last SCIP-enabled update. */
+  private pathsSinceLastScip: Set<string> = new Set();
+  /** Timer for the deferred SCIP update. */
+  private scipTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(dbPath: string, walkerConfig: WalkerConfig, options: WatcherOptions = {}) {
     this.dbPath = dbPath;
@@ -71,6 +89,8 @@ export class FileWatcher {
     this.history = options.history ?? false;
     this.indexDependencies = options.indexDependencies ?? false;
     this.lsp = options.lsp;
+    this.scip = options.scip;
+    this.scipQuietPeriodMs = options.scipQuietPeriodMs ?? 10_000;
     this.embedder = options.embedder;
   }
 
@@ -117,6 +137,10 @@ export class FileWatcher {
       clearTimeout(this.debounceTimer);
       this.debounceTimer = null;
     }
+    if (this.scipTimer !== null) {
+      clearTimeout(this.scipTimer);
+      this.scipTimer = null;
+    }
     if (this.watcher) {
       this.watcher.close();
       this.watcher = null;
@@ -142,10 +166,16 @@ export class FileWatcher {
 
       if (paths.length === 0) return;
 
+      // Determine whether to include SCIP in this update cycle.
+      // When a quiet-period is configured, immediate flushes run tree-sitter
+      // only (scip: null); SCIP re-indexing is deferred to scheduleScipFlush().
+      const useScip = this.scip && this.scipQuietPeriodMs === 0;
+
       const builder = new IndexBuilder(this.dbPath, this.walkerConfig, this.embedder, {
         history: this.history,
         ...(this.indexDependencies && { indexDependencies: true }),
         ...(this.lsp && { lsp: this.lsp }),
+        ...(useScip && { scip: this.scip }),
       });
       let errorCount = 0;
 
@@ -167,11 +197,63 @@ export class FileWatcher {
           errors: errorCount,
         }) + '\n',
       );
+
+      // If SCIP is configured with throttling, accumulate paths and
+      // schedule a deferred SCIP-enabled update after the quiet period.
+      if (this.scip && this.scipQuietPeriodMs > 0) {
+        for (const p of paths) this.pathsSinceLastScip.add(p);
+        this.scheduleScipFlush();
+      }
     } finally {
       this.flushRunning = false;
       if (this.pendingPaths.size > 0) {
         this.scheduleFlush();
       }
     }
+  }
+
+  /**
+   * Schedule (or reschedule) a SCIP-enabled update after the quiet period.
+   *
+   * Every call resets the timer so that SCIP only runs once editing stops
+   * for `scipQuietPeriodMs` milliseconds.
+   */
+  private scheduleScipFlush(): void {
+    if (this.scipTimer !== null) {
+      clearTimeout(this.scipTimer);
+    }
+    this.scipTimer = setTimeout(() => this.scipFlush(), this.scipQuietPeriodMs);
+  }
+
+  private async scipFlush(): Promise<void> {
+    this.scipTimer = null;
+    const paths = [...this.pathsSinceLastScip];
+    this.pathsSinceLastScip.clear();
+
+    if (paths.length === 0) return;
+
+    const builder = new IndexBuilder(this.dbPath, this.walkerConfig, this.embedder, {
+      history: this.history,
+      ...(this.indexDependencies && { indexDependencies: true }),
+      ...(this.lsp && { lsp: this.lsp }),
+      scip: this.scip!,
+    });
+
+    try {
+      await builder.update(paths);
+    } catch (err) {
+      process.stderr.write(
+        JSON.stringify({ level: 'error', source: 'FileWatcher', message: String(err) }) + '\n',
+      );
+    }
+
+    process.stderr.write(
+      JSON.stringify({
+        level: 'info',
+        source: 'FileWatcher',
+        message: 'scip refresh cycle complete',
+        files: paths.length,
+      }) + '\n',
+    );
   }
 }
