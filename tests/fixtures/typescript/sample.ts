@@ -47,6 +47,10 @@ export class Circle extends BaseShape implements Shape {
 
 export const multiply = (a: number, b: number): number => a * b;
 
+export const handler = function(req: Request): Response { return new Response(); };
+
+export const gen = function* () { yield 1; };
+
 export const formatPath = (p: string): string => path.normalize(p);
 
 export function convert(value: unknown): string {
@@ -57,3 +61,9 @@ export function convert(value: unknown): string {
 
 const items: Point[] = [];
 const config: Shape | null = null;
+const combo: Shape & Describable = {} as Shape & Describable;
+
+export function* sequence(): Generator<number> {
+  yield 1;
+  yield 2;
+}

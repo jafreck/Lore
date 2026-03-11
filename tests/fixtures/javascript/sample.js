@@ -32,5 +32,8 @@ const hono = { get() {} };
 
 app.get('/health', greet);
 app.post('/add', add);
+app.put('/update', greet);
+app.delete('/remove', greet);
+app.patch('/modify', greet);
 koaRouter.get('/koa', formatPath, multiply);
 hono.get('/hono', multiply);

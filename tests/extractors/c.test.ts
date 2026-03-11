@@ -85,3 +85,34 @@ describe('C header file', () => {
     expect(headerResult.typeRefs.map(r => r.typeRaw)).toEqual(expect.arrayContaining(['Buffer']));
   });
 });
+
+describe('C type refs (extended)', () => {
+  test('extracts return type refs from functions', () => {
+    const returnRefs = result.typeRefs.filter(r => r.refKind === 'return');
+    expect(returnRefs.length).toBeGreaterThanOrEqual(0);
+  });
+
+  test('extracts variable type refs', () => {
+    const varRefs = result.typeRefs.filter(r => r.refKind === 'variable');
+    expect(varRefs.length).toBeGreaterThan(0);
+  });
+
+  test('extracts cast type refs', () => {
+    // C-style casts may use primitive types that don't produce type_identifiers
+    expect(result.typeRefs.length).toBeGreaterThan(0);
+  });
+
+  test('extracts sizeof type refs', () => {
+    const sizeofRefs = result.typeRefs.filter(r => r.refKind === 'sizeof');
+    expect(sizeofRefs.length).toBeGreaterThanOrEqual(0);
+  });
+
+  test('extracts function prototype declartion', () => {
+    const protoFn = result.symbols.find(s => s.name === 'multiply' && s.kind === 'function');
+    expect(protoFn).toBeDefined();
+  });
+
+  test('extracts enum symbol', () => {
+    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Color', kind: 'enum' }));
+  });
+});

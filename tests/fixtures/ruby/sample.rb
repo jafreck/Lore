@@ -38,4 +38,11 @@ def main
   total = add(1, 2)
   c = Geometry::Circle.new(5.0)
   puts c.area
+  x = c.is_a?(Geometry::Circle)
+end
+
+class Dog < Geometry::Circle
+  def bark
+    "Woof!"
+  end
 end

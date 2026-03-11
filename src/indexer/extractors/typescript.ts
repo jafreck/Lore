@@ -202,8 +202,6 @@ function isNodeExported(node: Parser.SyntaxNode): boolean {
   let current: Parser.SyntaxNode | null = node;
   while (current) {
     if (current.type === 'export_statement') return true;
-    if (current.children.some((child) => child.type === 'export')) return true;
-    if (current.text.trimStart().startsWith('export ')) return true;
     current = current.parent;
   }
   return false;
@@ -311,8 +309,7 @@ function extractTsFunctionTypeRefs(funcNode: Parser.SyntaxNode, refs: RawTypeRef
       if (param.type === 'required_parameter' || param.type === 'optional_parameter' || param.type === 'rest_parameter') {
         const typeAnnotation = param.childForFieldName('type');
         if (typeAnnotation) {
-          // type_annotation wraps the actual type
-          const actualType = typeAnnotation.type === 'type_annotation' ? typeAnnotation.namedChildren[0] : typeAnnotation;
+          const actualType = typeAnnotation.namedChildren[0];
           if (actualType) emitTsTypeRef(refs, funcName, actualType, 'parameter');
         }
       }
@@ -321,7 +318,7 @@ function extractTsFunctionTypeRefs(funcNode: Parser.SyntaxNode, refs: RawTypeRef
   // Return type
   const returnType = funcNode.childForFieldName('return_type');
   if (returnType) {
-    const actualType = returnType.type === 'type_annotation' ? returnType.namedChildren[0] : returnType;
+    const actualType = returnType.namedChildren[0];
     if (actualType) emitTsTypeRef(refs, funcName, actualType, 'return');
   }
 }
@@ -356,7 +353,7 @@ function extractTsClassFieldTypeRefs(classNode: Parser.SyntaxNode, refs: RawType
     if (child.type === 'public_field_definition' || child.type === 'property_declaration') {
       const typeAnnotation = child.childForFieldName('type');
       if (typeAnnotation) {
-        const actualType = typeAnnotation.type === 'type_annotation' ? typeAnnotation.namedChildren[0] : typeAnnotation;
+        const actualType = typeAnnotation.namedChildren[0];
         if (actualType) emitTsTypeRef(refs, className, actualType, 'field');
       }
     }
@@ -390,7 +387,7 @@ function extractTsInterfaceTypeRefs(ifaceNode: Parser.SyntaxNode, refs: RawTypeR
     if (child.type === 'property_signature') {
       const typeAnnotation = child.childForFieldName('type');
       if (typeAnnotation) {
-        const actualType = typeAnnotation.type === 'type_annotation' ? typeAnnotation.namedChildren[0] : typeAnnotation;
+        const actualType = typeAnnotation.namedChildren[0];
         if (actualType) emitTsTypeRef(refs, name, actualType, 'field');
       }
     }
@@ -401,14 +398,14 @@ function extractTsInterfaceTypeRefs(ifaceNode: Parser.SyntaxNode, refs: RawTypeR
         for (const param of params.namedChildren) {
           const typeAnnotation = param.childForFieldName('type');
           if (typeAnnotation) {
-            const actualType = typeAnnotation.type === 'type_annotation' ? typeAnnotation.namedChildren[0] : typeAnnotation;
+            const actualType = typeAnnotation.namedChildren[0];
             if (actualType) emitTsTypeRef(refs, methodName, actualType, 'parameter');
           }
         }
       }
       const returnType = child.childForFieldName('return_type');
       if (returnType) {
-        const actualType = returnType.type === 'type_annotation' ? returnType.namedChildren[0] : returnType;
+        const actualType = returnType.namedChildren[0];
         if (actualType) emitTsTypeRef(refs, methodName, actualType, 'return');
       }
     }
@@ -421,7 +418,7 @@ function extractTsVariableTypeRefs(declNode: Parser.SyntaxNode, refs: RawTypeRef
     const typeAnnotation = child.childForFieldName('type');
     if (!typeAnnotation) continue;
     const enclosing = findEnclosingSymbolName(child, TS_SYMBOL_NODE_TYPES);
-    const actualType = typeAnnotation.type === 'type_annotation' ? typeAnnotation.namedChildren[0] : typeAnnotation;
+    const actualType = typeAnnotation.namedChildren[0];
     if (actualType) emitTsTypeRef(refs, enclosing, actualType, 'variable');
   }
 }
@@ -436,11 +433,9 @@ function extractTsCastTypeRef(node: Parser.SyntaxNode, refs: RawTypeRef[]): void
 }
 
 function extractTsTypeAssertionRef(node: Parser.SyntaxNode, refs: RawTypeRef[]): void {
-  // <Type>expr
-  const typeAnnotation = node.childForFieldName('type');
-  if (!typeAnnotation) return;
-  const actualType = typeAnnotation.type === 'type_annotation' ? typeAnnotation.namedChildren[0] : typeAnnotation;
-  if (!actualType) return;
+  // <Type>expr — type field returns the type directly (not wrapped in type_annotation)
+  const typeNode = node.childForFieldName('type');
+  if (!typeNode) return;
   const enclosing = findEnclosingSymbolName(node, TS_SYMBOL_NODE_TYPES);
-  emitTsTypeRef(refs, enclosing, actualType, 'cast');
+  emitTsTypeRef(refs, enclosing, typeNode, 'cast');
 }

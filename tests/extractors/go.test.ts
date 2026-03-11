@@ -65,6 +65,11 @@ describe('Go symbols', () => {
     expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Add', kind: 'function' }));
     expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Setup', kind: 'function' }));
     expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Convert', kind: 'function' }));
+    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'SplitString', kind: 'function' }));
+  });
+
+  test('extracts Encoder interface', () => {
+    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Encoder', kind: 'interface' }));
   });
 });
 
@@ -127,6 +132,12 @@ describe('Go type refs', () => {
     expect(result.typeRefs.length).toBeGreaterThanOrEqual(15);
   });
 
+  test('extracts named return type refs', () => {
+    // SplitString has named returns (head string, tail string)
+    const splitRefs = result.typeRefs.filter(r => r.enclosingSymbol === 'SplitString' && r.refKind === 'return');
+    expect(splitRefs.length).toBeGreaterThanOrEqual(2);
+  });
+
   test('all type refs have line numbers', () => {
     for (const ref of result.typeRefs) {
       expect(typeof ref.line).toBe('number');
@@ -154,5 +165,25 @@ describe('Go gin routes', () => {
         framework: 'gin',
       }),
     );
+  });
+
+  test('extracts gin routes from fixture with multiple HTTP methods', () => {
+    expect(result.routes.length).toBeGreaterThanOrEqual(7);
+  });
+
+  test('captures POST, PUT, DELETE, PATCH routes', () => {
+    expect(result.routes).toContainEqual(expect.objectContaining({ method: 'POST', path: '/users' }));
+    expect(result.routes).toContainEqual(expect.objectContaining({ method: 'PUT', path: '/users/:id' }));
+    expect(result.routes).toContainEqual(expect.objectContaining({ method: 'DELETE', path: '/users/:id' }));
+    expect(result.routes).toContainEqual(expect.objectContaining({ method: 'PATCH', path: '/config' }));
+  });
+
+  test('captures OPTIONS and HEAD routes', () => {
+    expect(result.routes).toContainEqual(expect.objectContaining({ method: 'OPTIONS', path: '/api' }));
+    expect(result.routes).toContainEqual(expect.objectContaining({ method: 'HEAD', path: '/status' }));
+  });
+
+  test('captures Any as ALL method', () => {
+    expect(result.routes).toContainEqual(expect.objectContaining({ method: 'ALL', path: '/fallback' }));
   });
 });

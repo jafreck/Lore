@@ -59,7 +59,11 @@ void run() {
 
   Base* base = &g;
   Greeter* derived = dynamic_cast<Greeter*>(base);
+  Greeter* s = static_cast<Greeter*>(base);
+  void* r = reinterpret_cast<void*>(base);
+  const Base* cb2 = const_cast<const Base*>(base);
   int x = (int)3.14;
+  auto align = alignof(int);
 
   std::string name = "test";
 
@@ -76,4 +80,13 @@ void run() {
 
   std::function<void(int)> wrapped = handler;
   wrapped(5);
+}
+
+template<typename... Args>
+int count_args(Args... args) {
+  return sizeof...(args);
+}
+
+namespace MyNamespace {
+  void helper() {}
 }

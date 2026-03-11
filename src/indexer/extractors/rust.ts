@@ -153,7 +153,7 @@ function collectLeafIdentifiers(
   node: Parser.SyntaxNode,
   out: string[],
 ): void {
-  if (node.type === 'identifier' && node.namedChildCount === 0) {
+  if (node.type === 'identifier') {
     out.push(node.text);
     return;
   }

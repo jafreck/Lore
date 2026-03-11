@@ -29,4 +29,11 @@ function main()
     println(msg)
 end
 
+abstract type AbstractShape end
+
+mutable struct Rectangle <: AbstractShape
+    width::Float64
+    height::Float64
+end
+
 end # module

@@ -34,11 +34,7 @@ export class HaskellExtractor implements SymbolExtractor {
           break;
         case 'adt':
         case 'data_type':
-          result.symbols.push(extractDataType(node, 'type'));
-          break;
         case 'newtype':
-          result.symbols.push(extractDataType(node, 'type'));
-          break;
         case 'type_alias':
           result.symbols.push(extractDataType(node, 'type'));
           break;

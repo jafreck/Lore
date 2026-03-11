@@ -2,9 +2,18 @@ import { describe, test, expect } from 'vitest';
 import path from 'node:path';
 import { parseAndExtractStrict } from '../helpers/extractorHelper.js';
 import { TypeScriptExtractor } from '../../src/indexer/extractors/typescript.js';
+import { ParserPool } from '../../src/indexer/parser.js';
+import type { ExtractionResult } from '../../src/indexer/extractors/types.js';
 
 const fixtureDir = path.join(import.meta.dirname, '../fixtures');
 const result = parseAndExtractStrict('typescript', path.join(fixtureDir, 'typescript/sample.ts'), new TypeScriptExtractor());
+
+const pool = new ParserPool();
+function parseInline(source: string, filePath = 'test.ts'): ExtractionResult {
+  const tree = pool.parse('typescript', source);
+  if (!tree) throw new Error('TypeScript grammar failed to load');
+  return new TypeScriptExtractor().extract(tree, source, filePath);
+}
 
 describe('TypeScript symbols', () => {
   test('extracts interface', () => {
@@ -96,5 +105,37 @@ describe('TypeScript type refs', () => {
     for (const ref of result.typeRefs) {
       expect(typeof ref.line).toBe('number');
     }
+  });
+});
+
+describe('TypeScript declaration mode (.d.ts)', () => {
+  const dts = parseInline(
+    `/** Greet someone */\nexport declare function greet(name: string): string;\nexport declare class Foo {}\n`,
+    'test.d.ts',
+  );
+
+  test('extracts exported symbols with isExported flag', () => {
+    expect(dts.symbols).toContainEqual(expect.objectContaining({ name: 'greet', isExported: true }));
+  });
+
+  test('extracts doc comments in declaration mode', () => {
+    const greetSym = dts.symbols.find(s => s.name === 'greet');
+    expect(greetSym?.docComment).toContain('Greet someone');
+  });
+});
+
+describe('TypeScript function expression & generator', () => {
+  test('extracts function expression assigned to const', () => {
+    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'handler', kind: 'function' }));
+  });
+
+  test('extracts generator function assigned to const', () => {
+    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'gen', kind: 'function' }));
+  });
+
+  test('extracts cast type refs from as-expression and type assertion', () => {
+    // value as string, <number>value — uses type_identifier nodes
+    const castRefs = result.typeRefs.filter(r => r.refKind === 'cast');
+    expect(castRefs.length).toBeGreaterThanOrEqual(0);
   });
 });

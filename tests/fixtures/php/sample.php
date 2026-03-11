@@ -18,12 +18,19 @@ interface Shape {
     public function perimeter(): float;
 }
 
+interface Movable {
+    public function move(float $x, float $y): void;
+}
+
 class Animal {
     public string $name;
+    public ?int $age = null;
 }
 
 class Circle extends Animal implements Shape {
-    public function __construct(private float $radius) {}
+    public function __construct(private float $radius) {
+        parent::__construct();
+    }
 
     public function area(): float {
         return M_PI * $this->radius ** 2;
@@ -47,4 +54,14 @@ function main(): void {
     echo $c->area();
     $c->perimeter();
     $items = new \ArrayObject();
+    $name = (string) $sum;
+    $x = $c instanceof Shape;
+    $val = Circle::class;
+    echo Animal::class;
+}
+
+enum Color {
+    case Red;
+    case Green;
+    case Blue;
 }

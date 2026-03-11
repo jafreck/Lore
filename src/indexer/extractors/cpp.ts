@@ -165,7 +165,7 @@ function extractDeclaratorName(declarator: Parser.SyntaxNode): string {
       node.childForFieldName('declarator') ??
       node.namedChildren[0] ??
       null;
-    if (!inner || inner === node) break;
+    if (!inner) break;
     node = inner;
   }
   if (node?.type === 'function_declarator') {
@@ -366,17 +366,17 @@ function extractInnermostIdentifier(node: Parser.SyntaxNode): string | null {
     // pointer_expression: skip the `*` operator and look at the argument
     if (current.type === 'pointer_expression') {
       const arg: Parser.SyntaxNode | null = current.childForFieldName('argument') ?? current.namedChildren[current.namedChildren.length - 1] ?? null;
-      if (arg && arg !== current) { current = arg; continue; }
+      if (arg) { current = arg; continue; }
     }
     // parenthesized_expression: unwrap the parens
     if (current.type === 'parenthesized_expression') {
       const inner: Parser.SyntaxNode | null = current.namedChildren[0] ?? null;
-      if (inner && inner !== current) { current = inner; continue; }
+      if (inner) { current = inner; continue; }
     }
     // subscript_expression: take the argument (the array base)
     if (current.type === 'subscript_expression') {
       const arg: Parser.SyntaxNode | null = current.childForFieldName('argument') ?? current.namedChildren[0] ?? null;
-      if (arg && arg !== current) { current = arg; continue; }
+      if (arg) { current = arg; continue; }
     }
     break;
   }
@@ -498,8 +498,6 @@ function extractCppFieldTypeRefs(classNode: Parser.SyntaxNode, refs: RawTypeRef[
 function extractCppVariableTypeRefs(declNode: Parser.SyntaxNode, refs: RawTypeRef[]): void {
   const typeNode = declNode.childForFieldName('type');
   if (!typeNode) return;
-  const typeName = extractCppTypeName(typeNode);
-  if (!typeName) return;
   const enclosing = findEnclosingSymbolName(declNode, CPP_SYMBOL_NODE_TYPES);
   emitCppTypeRef(refs, enclosing, typeNode, 'variable');
 }
@@ -524,10 +522,7 @@ function extractCppSizeofTypeRef(node: Parser.SyntaxNode, refs: RawTypeRef[], re
   // sizeof(Type), alignof(Type), sizeof...(Pack)
   const valueNode = node.childForFieldName('value') ?? node.childForFieldName('type');
   if (valueNode) {
-    const typeName = extractCppTypeName(valueNode);
-    if (typeName) {
-      const enclosing = findEnclosingSymbolName(node, CPP_SYMBOL_NODE_TYPES);
-      emitCppTypeRef(refs, enclosing, valueNode, refKind);
-    }
+    const enclosing = findEnclosingSymbolName(node, CPP_SYMBOL_NODE_TYPES);
+    emitCppTypeRef(refs, enclosing, valueNode, refKind);
   }
 }

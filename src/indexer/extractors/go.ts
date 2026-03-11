@@ -60,7 +60,6 @@ export class GoExtractor implements SymbolExtractor {
           if (ref) result.callRefs.push(ref);
           break;
         }
-        case 'short_var_declaration':
         case 'var_declaration': {
           extractGoVarTypeRefs(node, result.typeRefs);
           break;

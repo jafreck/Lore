@@ -31,3 +31,6 @@ def main():
     dog = Dog("Rex")
     dog.speak()
     print(greeting)
+    items: List[str] = []
+    data: Optional[bytes] = None
+    ENV_VAR = os.environ.get("HOME")

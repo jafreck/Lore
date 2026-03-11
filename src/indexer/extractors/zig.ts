@@ -35,10 +35,6 @@ export class ZigExtractor implements SymbolExtractor {
         case 'test_declaration':
           result.symbols.push(extractTest(node));
           break;
-        case 'ContainerDecl':
-        case 'container_declaration':
-          // struct/enum/union — try to find enclosing VarDecl for the name
-          break;
         case 'VarDecl':
         case 'variable_declaration': {
           const sym = extractVarDecl(node);

@@ -62,3 +62,50 @@ func Convert(v interface{}) string {
 	s := v.(string)
 	return s
 }
+
+// Named return types — triggers parameter_list result branches
+func SplitString(s string) (head string, tail string) {
+	return "", ""
+}
+
+func (c *Circle) Bounds() (minX float64, maxX float64) {
+	return -c.Radius, c.Radius
+}
+
+// Interface with method signatures that have named returns and param types
+type Encoder interface {
+	Encode(v interface{}) (n int, err error)
+	Reset()
+}
+
+// Gin-style routes (covers route extraction branches)
+func initRoutes(r Router) {
+	r.GET("/users", listUsers)
+	r.POST("/users", createUser)
+	r.PUT(`/users/:id`, updateUser)
+	r.DELETE("/users/:id", deleteUser)
+	r.PATCH("/config", patchConfig)
+	r.OPTIONS("/api", optionsHandler)
+	r.HEAD("/status", headHandler)
+	r.Any("/fallback", catchAll)
+}
+
+type Router struct{}
+
+func (e Router) GET(path string, h func())     {}
+func (e Router) POST(path string, h func())    {}
+func (e Router) PUT(path string, h func())     {}
+func (e Router) DELETE(path string, h func())  {}
+func (e Router) PATCH(path string, h func())   {}
+func (e Router) OPTIONS(path string, h func()) {}
+func (e Router) HEAD(path string, h func())    {}
+func (e Router) Any(path string, h func())     {}
+
+func listUsers()      {}
+func createUser()     {}
+func updateUser()     {}
+func deleteUser()     {}
+func patchConfig()    {}
+func optionsHandler() {}
+func headHandler()    {}
+func catchAll()       {}

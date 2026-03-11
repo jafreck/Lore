@@ -63,5 +63,15 @@ func main() {
     let x = sum as Any
     let items: [Int] = []
     let opt: Int? = nil
+    let r = Rectangle(width: 3.0, height: 4.0)
+    let map: [String: Int] = [:]
     print(msg)
+}
+
+protocol Printable: Shape {
+    func printDescription()
+}
+
+class Box: Rectangle {
+    var label: String = ""
 }

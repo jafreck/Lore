@@ -11,6 +11,23 @@ describe('Haskell symbols', () => {
     expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Shape', kind: 'type' }));
   });
 
+  test('extracts newtype', () => {
+    expect(result.symbols).toContainEqual(expect.objectContaining({ kind: 'type' }));
+  });
+
+  test('extracts type alias', () => {
+    // type Name = String — extracted as a 'type' kind symbol
+    expect(result.symbols.some(s => s.kind === 'type')).toBe(true);
+  });
+
+  test('extracts type class', () => {
+    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Describable', kind: 'class' }));
+  });
+
+  test('extracts instance', () => {
+    expect(result.symbols.some(s => s.kind === 'instance')).toBe(true);
+  });
+
   test('extracts type signature', () => {
     expect(result.symbols.some(s => s.kind === 'signature')).toBe(true);
   });

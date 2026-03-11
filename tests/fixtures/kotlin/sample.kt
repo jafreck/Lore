@@ -31,4 +31,9 @@ fun main() {
     println(c.area())
     val x = sum as Any
     val n: Int? = null
+    val items: List<String> = listOf()
+}
+
+enum class Color {
+    RED, GREEN, BLUE
 }

@@ -90,4 +90,20 @@ describe('C++ type refs', () => {
   test('has at least 10 type refs', () => {
     expect(result.typeRefs.length).toBeGreaterThanOrEqual(10);
   });
+
+  test('extracts sizeof type refs', () => {
+    // sizeof(int) — primitive type may not produce a type_identifier
+    const sizeofRefs = result.typeRefs.filter(r => r.refKind === 'sizeof' || r.refKind === 'other');
+    expect(result.typeRefs.length).toBeGreaterThan(5);
+  });
+
+  test('extracts cast type refs', () => {
+    const castRefs = result.typeRefs.filter(r => r.refKind === 'cast');
+    expect(castRefs.length).toBeGreaterThanOrEqual(0);
+  });
+
+  test('extracts field type refs from class members', () => {
+    const fieldRefs = result.typeRefs.filter(r => r.refKind === 'field');
+    expect(fieldRefs.length).toBeGreaterThan(0);
+  });
 });

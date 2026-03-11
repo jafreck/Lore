@@ -53,5 +53,10 @@ class Circle extends Animal implements Shape {
         int sum = Sample.add(1, 2);
         double x = (double) sum;
         System.out.println(greeting);
+        List<String> names = new ArrayList<>();
     }
+}
+
+enum Color {
+    RED, GREEN, BLUE
 }

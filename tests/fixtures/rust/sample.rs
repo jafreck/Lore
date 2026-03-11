@@ -45,4 +45,13 @@ pub fn main() {
     let x = sum as f64;
     let count: i32 = 42;
     println!("{} {}", msg, sum);
+    let v: Vec<i32> = Vec::new();
+    let map: HashMap<String, i32> = HashMap::new();
+    let opt: Option<i32> = None;
+}
+
+impl fmt::Display for Circle {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Circle(r={})", self.radius)
+    }
 }

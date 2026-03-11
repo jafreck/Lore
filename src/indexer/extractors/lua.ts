@@ -32,10 +32,8 @@ export class LuaExtractor implements SymbolExtractor {
     for (const node of walk(tree.rootNode)) {
       switch (node.type) {
         case 'function_declaration':
-          result.symbols.push(extractFunction(node));
-          break;
         case 'local_function_declaration':
-          result.symbols.push(extractLocalFunction(node));
+          result.symbols.push(extractFunction(node));
           break;
         case 'function_call': {
           const imp = tryExtractRequire(node);
@@ -54,17 +52,6 @@ export class LuaExtractor implements SymbolExtractor {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function extractFunction(node: Parser.SyntaxNode): RawSymbol {
-  const nameNode = node.childForFieldName('name');
-  return {
-    name: nameNode?.text ?? '',
-    kind: 'function',
-    startLine: node.startPosition.row,
-    endLine: node.endPosition.row,
-    signature: nodeSignature(node),
-  };
-}
-
-function extractLocalFunction(node: Parser.SyntaxNode): RawSymbol {
   const nameNode = node.childForFieldName('name');
   return {
     name: nameNode?.text ?? '',

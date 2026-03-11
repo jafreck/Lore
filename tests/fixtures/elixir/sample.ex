@@ -24,3 +24,11 @@ end
 defimpl Stringify, for: Integer do
   def to_str(value), do: Integer.to_string(value)
 end
+
+defmodule Sample.Macros do
+  defmacro debug(expr) do
+    quote do
+      IO.inspect(unquote(expr))
+    end
+  end
+end

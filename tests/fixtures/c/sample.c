@@ -44,4 +44,21 @@ void run() {
 
   // Higher-order function
   apply(add, 10, 20);
+
+  // Cast expression
+  void *ptr = (void *)&p;
+  int val = (int)p.x;
+
+  // sizeof expression
+  size_t sz = sizeof(Point);
+
+  // Subscript-based indirect call (function pointer array)
+  BinaryOp ops[2] = { add, add };
+  (ops[0])(1, 2);
 }
+
+// Function declaration (prototype)
+int multiply(int a, int b);
+
+// Enum
+enum Color { RED, GREEN, BLUE };

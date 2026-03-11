@@ -30,6 +30,25 @@ namespace Sample
         int Add(int a, int b);
     }
 
+    public interface IAdvancedCalculator : ICalculator
+    {
+        double Sqrt(double x);
+    }
+
+    public class MathCalc : IAdvancedCalculator
+    {
+        private double _lastResult;
+        public int Add(int a, int b) { return a + b; }
+        public double Sqrt(double x) { return Math.Sqrt(x); }
+    }
+
+    public enum Color
+    {
+        Red,
+        Green,
+        Blue
+    }
+
     public static class Program
     {
         public static void Main()
