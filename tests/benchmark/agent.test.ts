@@ -26,6 +26,7 @@ function makeTask(): BenchmarkTask {
     repoName: 'test-repo',
     family: 'localization',
     prompt: 'Find the main entry point.',
+    expectedAnswer: 'main\nindex.ts',
     expectedAnswerParts: ['main', 'index.ts'],
   };
 }

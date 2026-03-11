@@ -1,50 +1,56 @@
 /**
- * Integration test: Runs the full benchmark pipeline against the Lore codebase itself.
+ * Integration test: Runs the full benchmark pipeline against a pinned clone
+ * of the Lore codebase.
+ *
+ * The repo is cloned at the exact SHA specified in `PILOT_REPOS` so that
+ * expected answers never diverge as the codebase evolves.
  *
  * This test:
- * 1. Indexes the Lore repo with IndexBuilder
- * 2. Provisions tools for control and lore-enabled arms
- * 3. Runs scripted agents (control + Lore) against benchmark tasks
- * 4. Scores results and verifies Lore outperforms control
- *
- * This is the core end-to-end benchmark test that validates the full pipeline.
+ * 1. Clones Lore at the pinned SHA
+ * 2. Indexes the clone with Lore (SCIP mode)
+ * 3. Provisions tools for control and lore-enabled arms
+ * 4. Runs scripted agents (control + Lore) against benchmark tasks
+ * 5. Scores results and verifies Lore outperforms control
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { join } from 'node:path';
-import { existsSync, unlinkSync, mkdtempSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { IndexBuilder } from '../../src/indexer/index.js';
+import { RepoManager } from '../../src/benchmark/repo-manager.js';
+import { indexRepo } from '../../src/benchmark/indexer.js';
 import { buildToolsForArm } from '../../src/benchmark/tool-providers.js';
 import { runScriptedAgent, runProgrammaticAgent } from '../../src/benchmark/agent.js';
 import { buildControlStrategy, buildLoreStrategy, buildDynamicLoreStrategy } from '../../src/benchmark/strategies.js';
 import { scoreRun, aggregateScores, formatReport, compareReports } from '../../src/benchmark/scorer.js';
 import { LORE_SELF_TASKS } from '../../src/benchmark/tasks.js';
+import { PILOT_REPOS } from '../../src/benchmark/repos.js';
 import type { BenchmarkTask, RunScore } from '../../src/benchmark/types.js';
 
 // ─── Setup ────────────────────────────────────────────────────────────────────
 
-const LORE_ROOT = join(import.meta.dirname, '..', '..');
-const DB_DIR = mkdtempSync(join(tmpdir(), 'lore-bench-'));
-const DB_PATH = join(DB_DIR, 'lore-bench.db');
+const WORK_DIR = mkdtempSync(join(tmpdir(), 'lore-bench-'));
+const loreSpec = PILOT_REPOS.find((r) => r.name === 'lore-self')!;
 
 describe('Benchmark integration: Lore self-evaluation', () => {
-  // Index the Lore repo once before all tests
-  beforeAll(async () => {
-    const builder = new IndexBuilder(DB_PATH, { rootDir: LORE_ROOT }, undefined, {
-      history: { depth: 50 },
-      docsAutoNotes: true,
-      indexDependencies: false,
-    });
-    await builder.build();
-  }, 120_000); // Allow up to 2 minutes for indexing
+  const repoManager = new RepoManager(WORK_DIR);
+  let repoPath: string;
+  let dbPath: string;
 
-  afterAll(() => {
-    // Clean up DB
-    for (const suffix of ['', '-wal', '-shm']) {
-      const p = DB_PATH + suffix;
-      if (existsSync(p)) unlinkSync(p);
-    }
+  // Clone and index the Lore repo once before all tests
+  beforeAll(async () => {
+    const instance = await repoManager.prepare(loreSpec);
+    repoPath = instance.localPath;
+
+    const indexed = await indexRepo(instance, { mode: 'scip' });
+    dbPath = indexed.dbPath!;
+
+    expect(indexed.indexed).toBe(true);
+    console.log(`Lore cloned at ${loreSpec.sha.slice(0, 8)}, indexed in ${indexed.indexTimeMs}ms`);
+  }, 300_000); // 5 min for clone + index
+
+  afterAll(async () => {
+    await repoManager.removeAll();
   });
 
   // ─── Per-task tests ─────────────────────────────────────────────────────
@@ -52,7 +58,7 @@ describe('Benchmark integration: Lore self-evaluation', () => {
   for (const task of LORE_SELF_TASKS) {
     describe(`Task ${task.id} (${task.family})`, () => {
       it(`control arm should produce a result`, async () => {
-        const tools = await buildToolsForArm('control', LORE_ROOT);
+        const tools = await buildToolsForArm('control', repoPath);
         const strategy = buildControlStrategy(task);
         const trace = await runScriptedAgent(strategy, tools);
 
@@ -61,7 +67,7 @@ describe('Benchmark integration: Lore self-evaluation', () => {
       });
 
       it(`lore-enabled arm should produce a result`, async () => {
-        const tools = await buildToolsForArm('lore-enabled', LORE_ROOT, DB_PATH);
+        const tools = await buildToolsForArm('lore-enabled', repoPath, dbPath);
         const strategy = buildLoreStrategy(task);
         const trace = await runScriptedAgent(strategy, tools);
 
@@ -70,7 +76,7 @@ describe('Benchmark integration: Lore self-evaluation', () => {
       });
 
       it(`lore-enabled dynamic arm should produce a result`, async () => {
-        const tools = await buildToolsForArm('lore-enabled', LORE_ROOT, DB_PATH);
+        const tools = await buildToolsForArm('lore-enabled', repoPath, dbPath);
         const strategy = buildDynamicLoreStrategy(task);
         const trace = await runProgrammaticAgent(strategy, task, tools);
 
@@ -89,7 +95,7 @@ describe('Benchmark integration: Lore self-evaluation', () => {
 
     for (const task of LORE_SELF_TASKS) {
       // Control arm
-      const controlTools = await buildToolsForArm('control', LORE_ROOT);
+      const controlTools = await buildToolsForArm('control', repoPath);
       const controlStrategy = buildControlStrategy(task);
       const controlStart = performance.now();
       const controlTrace = await runScriptedAgent(controlStrategy, controlTools);
@@ -97,7 +103,7 @@ describe('Benchmark integration: Lore self-evaluation', () => {
       controlScores.push(scoreRun(task, controlTrace, controlTime));
 
       // Lore arm (scripted)
-      const loreTools = await buildToolsForArm('lore-enabled', LORE_ROOT, DB_PATH);
+      const loreTools = await buildToolsForArm('lore-enabled', repoPath, dbPath);
       const loreStrategy = buildLoreStrategy(task);
       const loreStart = performance.now();
       const loreTrace = await runScriptedAgent(loreStrategy, loreTools);
@@ -105,7 +111,7 @@ describe('Benchmark integration: Lore self-evaluation', () => {
       loreScores.push(scoreRun(task, loreTrace, loreTime));
 
       // Lore arm (dynamic — chains results)
-      const loreDynTools = await buildToolsForArm('lore-enabled', LORE_ROOT, DB_PATH);
+      const loreDynTools = await buildToolsForArm('lore-enabled', repoPath, dbPath);
       const loreDynStrategy = buildDynamicLoreStrategy(task);
       const loreDynStart = performance.now();
       const loreDynTrace = await runProgrammaticAgent(loreDynStrategy, task, loreDynTools);

@@ -19,6 +19,7 @@ function makeTask(overrides?: Partial<BenchmarkTask>): BenchmarkTask {
     repoName: 'test-repo',
     family: 'localization',
     prompt: 'Find the function that handles user login.',
+    expectedAnswer: 'handleLogin\nauth.ts',
     expectedAnswerParts: ['handleLogin', 'auth.ts'],
     expectedFiles: ['src/auth.ts'],
     expectedSymbols: ['handleLogin'],
@@ -57,6 +58,7 @@ describe('scoreRun', () => {
 
     const score = scoreRun(task, trace, 1000);
     expect(score.taskSuccess).toBe(1);
+    expect(score.correctness).toBe(1);
     expect(score.answerCoverage).toBe(1);
     expect(score.fileCoverage).toBe(1);
     expect(score.symbolCoverage).toBe(1);
@@ -87,6 +89,36 @@ describe('scoreRun', () => {
     const score = scoreRun(task, trace, 3000);
     expect(score.taskSuccess).toBe(0);
     expect(score.answerCoverage).toBe(0);
+  });
+
+  it('should compute correctness from expectedAnswer', () => {
+    const task = makeTask({ expectedAnswer: 'handleLogin' });
+    const trace = makeTrace({
+      finalAnswer: 'The answer is handleLogin in auth.ts.',
+    });
+
+    const score = scoreRun(task, trace, 100);
+    expect(score.correctness).toBe(1);
+  });
+
+  it('should score correctness as 0 when no expected parts match', () => {
+    const task = makeTask({ expectedAnswer: 'handleLogin\nauth.ts' });
+    const trace = makeTrace({
+      finalAnswer: 'I have no idea what the answer is.',
+    });
+
+    const score = scoreRun(task, trace, 100);
+    expect(score.correctness).toBe(0);
+  });
+
+  it('should score partial correctness', () => {
+    const task = makeTask({ expectedAnswer: 'handleLogin\nauth.ts' });
+    const trace = makeTrace({
+      finalAnswer: 'The function is handleLogin.',
+    });
+
+    const score = scoreRun(task, trace, 100);
+    expect(score.correctness).toBe(0.5);
   });
 
   it('should handle tasks with no expected files or symbols', () => {
@@ -166,6 +198,7 @@ describe('aggregateScores', () => {
     const scores: RunScore[] = [
       {
         taskSuccess: 1,
+        correctness: 1,
         firstPassAccurate: true,
         toolCallCount: 3,
         uniqueFilesRead: 2,
@@ -179,6 +212,7 @@ describe('aggregateScores', () => {
       },
       {
         taskSuccess: 0.5,
+        correctness: 0.5,
         firstPassAccurate: false,
         toolCallCount: 5,
         uniqueFilesRead: 4,
@@ -192,6 +226,7 @@ describe('aggregateScores', () => {
       },
       {
         taskSuccess: 0,
+        correctness: 0,
         firstPassAccurate: false,
         toolCallCount: 10,
         uniqueFilesRead: 8,
@@ -223,6 +258,7 @@ describe('formatReport', () => {
     const report = aggregateScores('control', [
       {
         taskSuccess: 1,
+        correctness: 1,
         firstPassAccurate: true,
         toolCallCount: 3,
         uniqueFilesRead: 2,
@@ -239,6 +275,7 @@ describe('formatReport', () => {
     const output = formatReport(report);
     expect(output).toContain('Arm: control');
     expect(output).toContain('Success: 100.0%');
+    expect(output).toContain('Correctness: 100.0%');
     expect(output).toContain('Runs: 1');
   });
 });
@@ -250,6 +287,7 @@ describe('compareReports', () => {
     const baseline = aggregateScores('control', [
       {
         taskSuccess: 0,
+        correctness: 0,
         firstPassAccurate: false,
         toolCallCount: 10,
         uniqueFilesRead: 8,
@@ -266,6 +304,7 @@ describe('compareReports', () => {
     const treatment = aggregateScores('lore-enabled', [
       {
         taskSuccess: 1,
+        correctness: 1,
         firstPassAccurate: true,
         toolCallCount: 3,
         uniqueFilesRead: 2,

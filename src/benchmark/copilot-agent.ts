@@ -69,7 +69,7 @@ interface CopilotRunResult {
 function writeLoreMcpConfig(dbPath: string, repoPath: string): string {
   const configPath = join(tmpdir(), `lore-mcp-${randomUUID()}.json`);
   const config = {
-    servers: {
+    mcpServers: {
       lore: {
         type: 'stdio',
         command: 'node',
@@ -95,8 +95,8 @@ function parseCopilotOutput(raw: string): CopilotRunResult {
   let totalApiDurationMs = 0;
   let outputTokens = 0;
 
-  // Track pending tool starts for duration computation
-  const toolStarts = new Map<string, number>();
+  // Track pending tool starts: toolCallId → { timestamp, toolName, args }
+  const toolStarts = new Map<string, { ts: number; toolName: string; args: Record<string, unknown> }>();
 
   for (const line of lines) {
     let ev: any;
@@ -110,7 +110,13 @@ function parseCopilotOutput(raw: string): CopilotRunResult {
       case 'tool.execution_start': {
         const d = ev.data;
         if (d?.toolCallId) {
-          toolStarts.set(d.toolCallId, Date.parse(ev.timestamp) || Date.now());
+          // Prefer mcpToolName (e.g. "lore_search") over the prefixed toolName (e.g. "lore-lore_search")
+          const name = d.mcpToolName ?? d.toolName ?? '';
+          toolStarts.set(d.toolCallId, {
+            ts: Date.parse(ev.timestamp) || Date.now(),
+            toolName: name,
+            args: typeof d.arguments === 'object' ? d.arguments : {},
+          });
         }
         break;
       }
@@ -118,22 +124,24 @@ function parseCopilotOutput(raw: string): CopilotRunResult {
       case 'tool.execution_complete': {
         const d = ev.data;
         if (!d) break;
-        const startTs = toolStarts.get(d.toolCallId) ?? Date.now();
+        const start = toolStarts.get(d.toolCallId);
+        const startTs = start?.ts ?? Date.now();
         const endTs = Date.parse(ev.timestamp) || Date.now();
         const resultContent = d.result?.content ?? d.result?.detailedContent ?? '';
+        const toolName = start?.toolName ?? d.toolName ?? '';
+        const args = start?.args ?? (typeof d.arguments === 'object' ? d.arguments : {});
 
         toolCalls.push({
-          toolName: d.toolName ?? '',
-          args: typeof d.arguments === 'object' ? d.arguments : {},
+          toolName,
+          args,
           result: typeof resultContent === 'string' ? resultContent : JSON.stringify(resultContent),
           durationMs: endTs - startTs,
           timestamp: endTs,
         });
 
         // Track file reads
-        const toolName = d.toolName ?? '';
         if (toolName === 'view' || toolName === 'read_file') {
-          const path = d.arguments?.path ?? d.result?.path;
+          const path = args?.path ?? d.result?.path;
           if (path) filesRead.add(String(path));
         }
         break;
@@ -152,7 +160,11 @@ function parseCopilotOutput(raw: string): CopilotRunResult {
         if (d?.toolRequests && Array.isArray(d.toolRequests)) {
           for (const req of d.toolRequests) {
             if (req.name) {
-              toolStarts.set(req.toolCallId, Date.parse(ev.timestamp) || Date.now());
+              toolStarts.set(req.toolCallId, {
+                ts: Date.parse(ev.timestamp) || Date.now(),
+                toolName: req.name,
+                args: typeof req.arguments === 'object' ? req.arguments : {},
+              });
             }
           }
         }

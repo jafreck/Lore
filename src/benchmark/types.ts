@@ -109,6 +109,12 @@ export interface BenchmarkTask {
    */
   expectedAnswerParts: string[];
   /**
+   * The canonical correct answer for exact-match correctness scoring.
+   * Prompts should instruct the agent to respond in this exact format
+   * (e.g., "Answer with only the count as a single integer").
+   */
+  expectedAnswer: string;
+  /**
    * Optional: files that the correct answer should reference.
    */
   expectedFiles?: string[];
@@ -171,6 +177,11 @@ export interface BenchmarkAgent {
 export interface RunScore {
   /** 0 = failed, 0.5 = partial, 1 = success. */
   taskSuccess: 0 | 0.5 | 1;
+  /**
+   * Exact-match correctness score (0–1).
+   * 1 when the agent's normalised answer matches the canonical expected answer.
+   */
+  correctness: number;
   /** Whether the first referenced file/symbol was correct. */
   firstPassAccurate: boolean;
   /** Count of tool calls. */

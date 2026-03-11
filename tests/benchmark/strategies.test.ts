@@ -12,6 +12,7 @@ function makeTask(overrides?: Partial<BenchmarkTask>): BenchmarkTask {
     repoName: 'lore-self',
     family: 'localization',
     prompt: 'What functions directly call `openDb`?',
+    expectedAnswer: 'openDb',
     expectedAnswerParts: ['openDb'],
     expectedFiles: ['src/indexer/db.ts'],
     expectedSymbols: ['openDb'],

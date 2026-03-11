@@ -46,6 +46,9 @@ export function scoreRun(
     (symbol) => answer.includes(symbol.toLowerCase()),
   );
 
+  // ── Correctness: exact-match against canonical expected answer ─────────
+  const correctness = computeCorrectness(task.expectedAnswer, trace.finalAnswer);
+
   // ── Task success: composite score ─────────────────────────────────────
   const taskSuccess = computeTaskSuccess(answerCoverage, fileCoverage, symbolCoverage);
 
@@ -60,6 +63,7 @@ export function scoreRun(
 
   return {
     taskSuccess,
+    correctness,
     firstPassAccurate,
     toolCallCount: trace.toolCalls.length,
     uniqueFilesRead: new Set(trace.filesRead).size,
@@ -95,6 +99,26 @@ function computeTaskSuccess(
   if (composite >= 0.8) return 1;
   if (composite >= 0.4) return 0.5;
   return 0;
+}
+
+/**
+ * Compute correctness by checking how many expected-answer lines
+ * appear in the agent's actual response (case-insensitive, trimmed).
+ * Returns a fraction 0–1.
+ */
+function computeCorrectness(expectedAnswer: string, actualAnswer: string): number {
+  const normalise = (s: string) =>
+    s
+      .split('\n')
+      .map((l) => l.trim().toLowerCase())
+      .filter(Boolean);
+
+  const expectedParts = normalise(expectedAnswer);
+  if (expectedParts.length === 0) return 1;
+
+  const actual = actualAnswer.toLowerCase();
+  const matched = expectedParts.filter((part) => actual.includes(part)).length;
+  return matched / expectedParts.length;
 }
 
 /**
@@ -139,6 +163,7 @@ export interface AggregateReport {
   successRate: number;
   partialRate: number;
   failRate: number;
+  meanCorrectness: number;
   meanToolCalls: number;
   meanUniqueFiles: number;
   meanWallTimeMs: number;
@@ -167,6 +192,7 @@ export function aggregateScores(arm: string, scores: RunScore[]): AggregateRepor
       successRate: 0,
       partialRate: 0,
       failRate: 0,
+      meanCorrectness: 0,
       meanToolCalls: 0,
       meanUniqueFiles: 0,
       meanWallTimeMs: 0,
@@ -195,6 +221,7 @@ export function aggregateScores(arm: string, scores: RunScore[]): AggregateRepor
     successRate: successes / n,
     partialRate: partials / n,
     failRate: failures / n,
+    meanCorrectness: mean(scores.map((s) => s.correctness)),
     meanToolCalls: mean(scores.map((s) => s.toolCallCount)),
     meanUniqueFiles: mean(scores.map((s) => s.uniqueFilesRead)),
     meanWallTimeMs: mean(scores.map((s) => s.wallTimeMs)),
@@ -224,6 +251,7 @@ export function formatReport(report: AggregateReport): string {
     `  Success: ${(report.successRate * 100).toFixed(1)}%`,
     `  Partial: ${(report.partialRate * 100).toFixed(1)}%`,
     `  Failed:  ${(report.failRate * 100).toFixed(1)}%`,
+    `  Correctness: ${(report.meanCorrectness * 100).toFixed(1)}%`,
     `  First-pass accuracy: ${(report.firstPassAccuracyRate * 100).toFixed(1)}%`,
     `  Mean tool calls: ${report.meanToolCalls.toFixed(1)}`,
     `  Mean unique files: ${report.meanUniqueFiles.toFixed(1)}`,
@@ -250,6 +278,7 @@ export function compareReports(baseline: AggregateReport, treatment: AggregateRe
   return [
     `Comparison: ${treatment.arm} vs ${baseline.arm}`,
     `  Success rate: ${diff(baseline.successRate, treatment.successRate)}`,
+    `  Correctness: ${diff(baseline.meanCorrectness, treatment.meanCorrectness)}`,
     `  First-pass accuracy: ${diff(baseline.firstPassAccuracyRate, treatment.firstPassAccuracyRate)}`,
     `  Answer coverage: ${diff(baseline.meanAnswerCoverage, treatment.meanAnswerCoverage)}`,
     `  Tool calls: ${(treatment.meanToolCalls - baseline.meanToolCalls).toFixed(1)} (${treatment.meanToolCalls.toFixed(1)} vs ${baseline.meanToolCalls.toFixed(1)})`,
