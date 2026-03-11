@@ -8,10 +8,12 @@ Detailed view of Lore's indexing pipeline, storage schema, and MCP tool surface.
 LoreRuntime              ← lifecycle owner (DB, embedder, LSP, watcher/poller)
   └─ IndexBuilder        ← façade over IndexPipeline
        └─ IndexPipeline  ← ordered, composable stage chain
-            ├─ SourceIndexStage
+            ├─ ScipSourceStage        (default source)
+            ├─ SourceIndexStage       (tree-sitter fallback)
             ├─ DocsIndexStage
             ├─ ImportResolutionStage
             ├─ DependencyApiStage
+            ├─ ScipEnrichmentStage
             ├─ LspEnrichmentStage
             ├─ ResolutionStage        (inline)
             ├─ TestMapStage           (inline)
@@ -46,6 +48,7 @@ flowchart LR
     end
 
     subgraph Lore Indexer
+        SCIPSRC[SCIP Source<br/>pre-resolved symbols + refs]
         WALK[Walker<br/>fast-glob · extension map]
         PARSE[ParserPool<br/>tree-sitter 0.25 grammars]
         EXTRACT[Extractors<br/>symbols · imports · call refs<br/>type refs · routes · annotations]
@@ -54,6 +57,7 @@ flowchart LR
         CALLGRAPH[Relationship Resolver<br/>3-tier resolution · topo sort]
         DOCINGEST[Docs Ingest<br/>discover · classify · chunk]
         DOCNOTES[Doc Note Seeding<br/>README · architecture · ADR]
+        SCIPENRICH[SCIP Enrichment<br/>definition + type metadata from SCIP]
         LSP[LSP Enrichment<br/>batch-pipelined hover + definition<br/>persisted metadata]
         COVER[Coverage Ingest<br/>LCOV · Cobertura]
         EMBED[Embedder<br/>Transformers.js ONNX<br/>async init · overlapped batches]
@@ -111,6 +115,7 @@ flowchart LR
         VSCODE ~~~ CURSOR ~~~ CHAT ~~~ ORCH
     end
 
+    SRC --> SCIPSRC --> FILES & SYM & REFS & TYPES
     SRC --> WALK --> PARSE --> EXTRACT
     EXTRACT --> RESOLVE --> IMP
     RESOLVE --> DEPAPI --> EXT
@@ -118,6 +123,10 @@ flowchart LR
     EXTRACT --> CALLGRAPH --> TYPES
     EXTRACT --> ANN
     EXTRACT --> ROUTE_STORE
+    EXTRACT --> SCIPENRICH
+    SCIPENRICH --> SYM
+    SCIPENRICH --> REFS
+    SCIPENRICH --> TYPES
     EXTRACT --> LSP
     LSP --> SYM
     LSP --> REFS
@@ -146,7 +155,7 @@ data dependencies structurally rather than by call-site discipline:
 
 ```
 ScipSource → SourceIndex → DocsIndex → ImportResolution → DependencyApi
-  → LspEnrichment → Resolution → TestMap → History → Embedding
+  → ScipEnrichment → LspEnrichment → Resolution → TestMap → History → Embedding
 ```
 
 SCIP is the default source stage. `ScipSourceStage` runs first for languages
@@ -156,7 +165,7 @@ fallback. LSP enrichment is optional for either path.
 
 The **enrichment → resolution** ordering is load-bearing: `resolveSymbolEdges`
 reads `definition_path` / `definition_line` columns that are only populated
-during enrichment stages.
+during enrichment stages (SCIP enrichment and/or LSP enrichment).
 
 | Stage | Module | What it does |
 |-------|--------|--------------|
@@ -165,7 +174,8 @@ during enrichment stages.
 | DocsIndex | `stages/docs-index.ts` | Documentation walk + chunk + note seeding; update mode processes only changed docs |
 | ImportResolution | `stages/import-resolution.ts` | Resolve raw imports to file IDs using a bulk `Map<path, fileId>` lookup |
 | DependencyApi | `stages/dependency-api.ts` | Optional (`--index-deps`) declaration-only indexing from direct deps across npm (`.d.ts`), Python (`.pyi` / `py.typed`), Go (`go.mod`), Rust (`Cargo.toml`); excludes transitive deps |
-| LspEnrichment | `stages/lsp-enrichment.ts` | Batch-pipelined LSP hover + definition lookups (parallel per position, concurrent batches of 30); persists resolved type signature/return/definition metadata |
+| ScipEnrichment | `stages/scip-enrichment.ts` | Enrich symbols, refs, and relationships with SCIP-derived definition locations and type metadata; runs before LSP so the LSP stage skips SCIP-covered languages |
+| LspEnrichment | `stages/lsp-enrichment.ts` | Batch-pipelined LSP hover + definition lookups (parallel per position, concurrent batches of 30); persists resolved type signature/return/definition metadata; skips languages already covered by SCIP enrichment |
 | Resolution | inline in `IndexBuilder` | 3-tier resolution via `call-graph.ts`: LSP containment → same-file name match → unique name match |
 | TestMap | inline in `IndexBuilder` | Refresh test-to-source mappings |
 | History | inline in `IndexBuilder` | Git history ingestion via `simple-git` |
@@ -175,18 +185,19 @@ during enrichment stages.
 
 | Module | What it does |
 |--------|--------------|
-| `walker.ts` | Discovers source files via `fast-glob`, maps extensions to languages |
-| `parser.ts` | Lazily creates one tree-sitter 0.25 `Parser` per language, caches for reuse |
-| `extractors/*` | Language-specific AST visitors for symbols, imports, call refs, type refs, annotations, and API routes; all 23 supported languages extract call references |
-| `resolver.ts` | Classifies each raw import as internal (resolved to a file ID) or external (third-party / stdlib) |
-| `call-graph.ts` | 3-tier symbol resolution with LSP-first ref resolution and name-based fallback; supports topo sort and cycle detection |
-| `graph-analysis.ts` | Higher-level graph primitives: Tarjan SCC on symbol adjacency, union-find connected components, SCC-contracted bounded clustering, and condensed codebase summary |
-| `docs.ts` | Discovers docs from default/configured globs, infers kind/title, chunks by heading hierarchy |
-| `coverage.ts` | Parses LCOV/Cobertura reports, normalizes per-file/per-line hit data, persists runs linked to commit SHA/source mtime |
-| `embedder.ts` | Optional — uses `@huggingface/transformers` (Transformers.js) to run ONNX embedding models natively in Node.js; default model `Qwen/Qwen3-Embedding-0.6B`; supports CoreML/WebGPU hardware acceleration, quantized ONNX dtype (fp32/fp16/q8/q4), skip-unchanged hash-based re-embedding, and lazy on-demand initialization |
+| `discovery/walker.ts` | Discovers source files via `fast-glob`, maps extensions to languages |
+| `parsing/parser.ts` | Lazily creates one tree-sitter 0.25 `Parser` per language, caches for reuse |
+| `parsing/extractors/*` | Language-specific AST visitors for symbols, imports, call refs, type refs, annotations, and API routes; all 23 supported languages extract call references |
+| `resolution/resolver.ts` | Classifies each raw import as internal (resolved to a file ID) or external (third-party / stdlib) |
+| `resolution/call-graph.ts` | 3-tier symbol resolution with SCIP/LSP-first ref resolution and name-based fallback; supports topo sort and cycle detection |
+| `resolution/graph-analysis.ts` | Higher-level graph primitives: Tarjan SCC on symbol adjacency, union-find connected components, SCC-contracted bounded clustering, and condensed codebase summary |
+| `scip/*` | SCIP index reading, enrichment coordinator, indexer config, and protobuf definitions |
+| `docs/docs.ts` | Discovers docs from default/configured globs, infers kind/title, chunks by heading hierarchy |
+| `testing/coverage.ts` | Parses LCOV/Cobertura reports, normalizes per-file/per-line hit data, persists runs linked to commit SHA/source mtime |
+| `embeddings/embedder.ts` | Optional — uses `@huggingface/transformers` (Transformers.js) to run ONNX embedding models natively in Node.js; default model `Qwen/Qwen3-Embedding-0.6B`; supports CoreML/WebGPU hardware acceleration, quantized ONNX dtype (fp32/fp16/q8/q4), skip-unchanged hash-based re-embedding, and lazy on-demand initialization |
 | `process-tracker.ts` | Global registry of spawned child processes; `killAllTracked()` ensures cleanup on SIGINT/SIGTERM/exit |
-| `git-history.ts` | Ingests commits, per-file diffs, and branch/tag refs via `simple-git` |
-| `resolution-method.ts` | Authoritative taxonomy for `resolution_method` column values shared by writers and readers |
+| `git/history.ts` | Ingests commits, per-file diffs, and branch/tag refs via `simple-git` |
+| `resolution/resolution-method.ts` | Authoritative taxonomy for `resolution_method` column values shared by writers and readers |
 
 Coverage ingestion accepts reports from auto-detected paths (`coverage/lcov.info`, `coverage/cobertura-coverage.xml`, `coverage.xml`) during build/update/refresh, plus manual CLI ingestion from an explicit `--file` and `--format`. LCOV/Cobertura inputs are normalized into a run (`coverage_runs`), per-file totals (`coverage_files`), and per-line hits (`coverage_lines`), which are then consumed by MCP coverage-aware tools.
 
