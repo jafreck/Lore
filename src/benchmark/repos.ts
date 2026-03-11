@@ -8,7 +8,7 @@
 import type { RepoSpec } from './types.js';
 
 /**
- * Pilot panel: 5 repos chosen for diversity across language, size, and structure.
+ * Pilot panel: 6 repos chosen for diversity across language, size, and structure.
  * SHAs are pinned to ensure reproducibility.
  */
 export const PILOT_REPOS: RepoSpec[] = [
@@ -51,6 +51,14 @@ export const PILOT_REPOS: RepoSpec[] = [
     languages: ['typescript'],
     size: 'medium',
     structure: 'cli',
+  },
+  {
+    name: 'postgres',
+    url: 'https://github.com/postgres/postgres.git',
+    sha: '62d6c7d3df6287f1bd83199c1a746e50d31571a0',
+    languages: ['c'],
+    size: 'very-large',
+    structure: 'service',
   },
 ];
 
