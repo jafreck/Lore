@@ -165,6 +165,11 @@ describe('TransformersJsProvider', () => {
     const provider = new TransformersJsProvider('some-model');
     expect(provider.dtype).toBe('fp32');
   });
+
+  it('should report device as unknown before init', () => {
+    const provider = new TransformersJsProvider('some-model');
+    expect(provider.device).toBe('unknown');
+  });
 });
 
 describe('LazyEmbeddingProvider', () => {
@@ -182,5 +187,10 @@ describe('LazyEmbeddingProvider', () => {
   it('should resolve safely from dispose() when never used', async () => {
     const provider = new LazyEmbeddingProvider('some-model');
     await expect(provider.dispose()).resolves.toBeUndefined();
+  });
+
+  it('should throw from dims getter before init (delegates to inner)', () => {
+    const provider = new LazyEmbeddingProvider('some-model');
+    expect(() => provider.dims).toThrow('EmbeddingProvider not initialised');
   });
 });

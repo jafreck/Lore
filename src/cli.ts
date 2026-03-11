@@ -67,7 +67,7 @@ Options:
   --poll                   Enable polling mode (reliable but higher CPU/IO cost)
   --lsp                    Force-enable index-time LSP settings
   --no-lsp                 Force-disable index-time LSP settings
-  --scip                   Force-enable index-time SCIP enrichment
+  --scip                   Force-enable index-time SCIP enrichment (default)
   --no-scip                Force-disable index-time SCIP enrichment
   --file <path>            Coverage report path (required for ingest-coverage)
   --format <name>          Coverage format: lcov or cobertura (required for ingest-coverage)

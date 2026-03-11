@@ -15,8 +15,9 @@ Lore-enabled agents achieve up to **2.1× faster** responses, up to **79% fewer 
 
 ## What Lore does
 
-- Parses source files and extracts symbols, imports, call refs, type refs, annotations, and API routes across all 23 supported languages
-- Resolves internal vs external imports and builds call/import/module/inheritance/type-dependency graph edges using a 3-tier resolution strategy (LSP containment, same-file name match, unique name match)
+- Indexes source files using SCIP indexers by default for pre-resolved symbols and edges, with tree-sitter parsing as a fallback for languages without a SCIP indexer
+- Extracts symbols, imports, call refs, type refs, annotations, and API routes across all 23 supported languages
+- Resolves internal vs external imports and builds call/import/module/inheritance/type-dependency graph edges using a 3-tier resolution strategy (SCIP/LSP containment, same-file name match, unique name match)
 - Discovers and indexes documentation (`.md`, `.rst`, `.adoc`, `.txt`) with inferred kinds/titles
 - Stores everything in a normalized SQL schema with optional vector search
 - Enables RAG-style retrieval with semantic/fused search across symbols and doc sections
@@ -37,6 +38,7 @@ flowchart LR
     end
 
     subgraph Lore Indexer
+      SCIPDIRECT[SCIP Source<br/>pre-resolved symbols + refs] --> WALK
       WALK[Walker] --> PARSE[Parser] --> EXTRACT[Extractors<br/>symbols · imports · call refs<br/>type refs · routes · annotations]
         EXTRACT --> RESOLVE[Import Resolver<br/>internal ↔ external]
       EXTRACT --> CALLGRAPH[Relationship Resolver]
@@ -103,20 +105,21 @@ by `IndexPipeline`. `IndexBuilder` is now a thin façade (~310 lines, down from
 updates. The stage ordering enforces data dependencies structurally:
 
 ```
-SourceIndex → DocsIndex → ImportResolution → DependencyApi
+ScipSource → SourceIndex → DocsIndex → ImportResolution → DependencyApi
   → LspEnrichment → Resolution → TestMap → History → Embedding
 ```
 
-Each stage walks source files, parses them into ASTs, and extracts
-symbols/imports/call-refs via language-specific extractors, then resolves
-imports (internal vs external) and resolves symbol references using a
-**3-tier resolution** strategy: LSP containment → same-file name match →
-unique name match. An optional **LSP enrichment** stage queries language
-servers with batch-pipelined hover + definition requests. An optional
-**embedder** generates dense vectors for semantic search (with async
-initialization so the MCP server starts instantly), and a parallel **git
-history** ingest captures commits, diffs, and refs. Everything is persisted to
-a normalized SQL database.
+**SCIP is the default source stage.** `ScipSourceStage` runs first and
+populates symbols, refs, and pre-resolved edges for every language that has
+a SCIP indexer available. `SourceIndexStage` then handles remaining languages
+(or all languages if SCIP is explicitly disabled) via tree-sitter as a
+fallback. An optional **LSP enrichment** stage can enrich symbols from either
+path with batch-pipelined hover + definition requests. Symbol references are
+resolved using a **3-tier strategy**: SCIP/LSP containment → same-file name
+match → unique name match. An optional **embedder** generates dense vectors
+for semantic search (with async initialization so the MCP server starts
+instantly), and a parallel **git history** ingest captures commits, diffs,
+and refs. Everything is persisted to a normalized SQL database.
 
 The **MCP server** uses a `ToolRegistry` that auto-discovers tool modules
 from their exported `toolDef` / `handler` definitions — no duplicate schema
@@ -289,10 +292,11 @@ has its own ingestion pipeline and can be enabled independently.
 
 ### Source code
 
-The indexer walks source files, parses them into ASTs via tree-sitter, and
-extracts symbols, imports, and call references through language-specific
-extractors. The import resolver classifies each import as internal or external,
-and a call-graph builder creates edges between symbols.
+The indexer uses a SCIP-first strategy: for languages with a SCIP indexer it
+produces symbols and pre-resolved edges directly, then falls back to tree-sitter
+parsing for remaining languages. Optional LSP enrichment can augment symbols
+from either path. The import resolver classifies each import as internal or
+external, and a call-graph builder creates edges between symbols.
 
 Programmatic example:
 
