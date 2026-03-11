@@ -3,16 +3,20 @@
  *
  * Builds a Lore index for a benchmark repo using the IndexBuilder API.
  *
- * Supports three indexing modes:
+ * Supports three indexing modes matching Lore's pipeline hierarchy:
+ *
  * - `tree-sitter`: Tree-sitter parsing only (fastest, no external tools).
- * - `scip`:        Tree-sitter + SCIP enrichment (primary production mode).
- * - `full`:        Tree-sitter + SCIP + embeddings (enables semantic search).
+ * - `scip`:        SCIP (primary) + tree-sitter (fallback). Standard
+ *                  production indexing with accurate cross-references.
+ * - `full`:        SCIP + tree-sitter + LSP enrichment + embeddings.
+ *                  Maximum quality: resolved types and semantic search.
  */
 
 import { join } from 'node:path';
 import { IndexBuilder } from '../indexer/index.js';
 import { LazyEmbeddingProvider, DEFAULT_EMBEDDING_MODEL } from '../embeddings/embedder.js';
 import { resolveEffectiveScipSettings } from '../scip/config.js';
+import { resolveEffectiveLspSettings } from '../lsp/config.js';
 import type { WalkerConfig } from '../discovery/walker.js';
 import type { EmbeddingProvider } from '../embeddings/embedder.js';
 import type { RepoInstance, IndexOptions, IndexMode } from './types.js';
@@ -54,6 +58,11 @@ export async function indexRepo(
     embedder = new LazyEmbeddingProvider(embeddingModel);
   }
 
+  // ── LSP settings (for 'full' mode) ────────────────────────────────────
+  const lsp = mode === 'full'
+    ? resolveEffectiveLspSettings({}, { enabled: true })
+    : undefined;
+
   const start = performance.now();
 
   try {
@@ -62,6 +71,7 @@ export async function indexRepo(
       docsAutoNotes: true,
       indexDependencies: false,
       scip: scip ?? undefined,
+      lsp: lsp ?? undefined,
     });
 
     await builder.build();

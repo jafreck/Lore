@@ -42,9 +42,15 @@ export interface RepoInstance {
 /**
  * Indexing mode controls which enrichment stages run during `indexRepo`.
  *
+ * Lore's pipeline runs SCIP first (primary source), then tree-sitter for
+ * languages SCIP doesn't cover, then optional LSP enrichment on top.
+ *
  * - `tree-sitter`:  Tree-sitter only — no SCIP, no LSP, no embeddings.
- * - `scip`:         Tree-sitter + SCIP enrichment (primary production mode).
- * - `full`:         Tree-sitter + SCIP + embeddings (enables semantic search).
+ *                   Fastest mode, suitable for quick iteration.
+ * - `scip`:         SCIP (primary) + tree-sitter (fallback) — no LSP,
+ *                   no embeddings. Standard production indexing.
+ * - `full`:         SCIP + tree-sitter + LSP enrichment + embeddings.
+ *                   Maximum quality: resolved types, semantic search.
  */
 export type IndexMode = 'tree-sitter' | 'scip' | 'full';
 
