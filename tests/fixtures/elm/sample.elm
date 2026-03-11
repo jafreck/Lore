@@ -1,4 +1,4 @@
-module Sample exposing (greet, add)
+module Sample exposing (greet, add, version)
 
 import Html exposing (Html, text)
 import String
@@ -12,6 +12,8 @@ type Shape
     = Circle Float
     | Rectangle Float Float
 
+port sendMessage : String -> Cmd msg
+
 greet : String -> String
 greet name =
     "Hello, " ++ name ++ "!"
@@ -19,3 +21,12 @@ greet name =
 add : Int -> Int -> Int
 add a b =
     a + b
+
+version =
+    "1.0.0"
+
+view model =
+    Html.div []
+        [ Html.text (String.fromInt model)
+        , Html.button [] [ Html.text "+" ]
+        ]

@@ -29,13 +29,23 @@ describe('Go symbols', () => {
     );
   });
 
-  test('extracts struct declaration', () => {
+  test('extracts interface with embedding', () => {
     expect(result.symbols).toContainEqual(
-      expect.objectContaining({ name: 'Circle', kind: 'struct' }),
+      expect.objectContaining({ name: 'Reader', kind: 'interface' }),
     );
   });
 
-  test('extracts method receivers', () => {
+  test('extracts struct declarations', () => {
+    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Circle', kind: 'struct' }));
+    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Config', kind: 'struct' }));
+    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Item', kind: 'struct' }));
+  });
+
+  test('extracts type alias', () => {
+    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'ID', kind: 'type' }));
+  });
+
+  test('extracts value receiver methods', () => {
     expect(result.symbols).toContainEqual(
       expect.objectContaining({ name: 'Circle.Area', kind: 'method' }),
     );
@@ -44,13 +54,17 @@ describe('Go symbols', () => {
     );
   });
 
+  test('extracts pointer receiver method', () => {
+    expect(result.symbols).toContainEqual(
+      expect.objectContaining({ name: 'Config.Reset', kind: 'method' }),
+    );
+  });
+
   test('extracts standalone functions', () => {
-    expect(result.symbols).toContainEqual(
-      expect.objectContaining({ name: 'Greet', kind: 'function' }),
-    );
-    expect(result.symbols).toContainEqual(
-      expect.objectContaining({ name: 'Add', kind: 'function' }),
-    );
+    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Greet', kind: 'function' }));
+    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Add', kind: 'function' }));
+    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Setup', kind: 'function' }));
+    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Convert', kind: 'function' }));
   });
 });
 
@@ -58,12 +72,12 @@ describe('Go symbols', () => {
 
 describe('Go imports', () => {
   test('extracts grouped imports', () => {
-    expect(result.imports).toContainEqual(
-      expect.objectContaining({ source: 'fmt' }),
-    );
-    expect(result.imports).toContainEqual(
-      expect.objectContaining({ source: 'math' }),
-    );
+    expect(result.imports).toContainEqual(expect.objectContaining({ source: 'fmt' }));
+    expect(result.imports).toContainEqual(expect.objectContaining({ source: 'math' }));
+  });
+
+  test('extracts aliased import', () => {
+    expect(result.imports).toContainEqual(expect.objectContaining({ source: 'os' }));
   });
 });
 
@@ -84,14 +98,33 @@ describe('Go call refs', () => {
 // ─── Type refs ────────────────────────────────────────────────────────────────
 
 describe('Go type refs', () => {
-  test('extracts parameter type refs from functions', () => {
-    const paramRefs = result.typeRefs.filter(r => r.refKind === 'parameter');
-    expect(paramRefs.length).toBeGreaterThanOrEqual(0);
+  test('extracts field type refs from structs', () => {
+    const fieldRefs = result.typeRefs.filter(r => r.refKind === 'field');
+    expect(fieldRefs.length).toBeGreaterThan(0);
   });
 
-  test('extracts return type refs from functions', () => {
+  test('extracts variable type refs', () => {
+    const varRefs = result.typeRefs.filter(r => r.refKind === 'variable');
+    expect(varRefs.length).toBeGreaterThan(0);
+  });
+
+  test('extracts cast type refs from type assertion', () => {
+    const castRefs = result.typeRefs.filter(r => r.refKind === 'cast');
+    expect(castRefs.length).toBeGreaterThan(0);
+  });
+
+  test('extracts parameter type refs', () => {
+    const paramRefs = result.typeRefs.filter(r => r.refKind === 'parameter');
+    expect(paramRefs.length).toBeGreaterThan(0);
+  });
+
+  test('extracts return type refs', () => {
     const returnRefs = result.typeRefs.filter(r => r.refKind === 'return');
-    expect(returnRefs.length).toBeGreaterThanOrEqual(0);
+    expect(returnRefs.length).toBeGreaterThan(0);
+  });
+
+  test('has at least 15 type refs total', () => {
+    expect(result.typeRefs.length).toBeGreaterThanOrEqual(15);
   });
 
   test('all type refs have line numbers', () => {

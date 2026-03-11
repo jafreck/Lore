@@ -30,6 +30,14 @@ describe('JavaScript imports', () => {
   test('extracts default import', () => {
     expect(result.imports).toContainEqual(expect.objectContaining({ source: 'path' }));
   });
+
+  test('extracts namespace import', () => {
+    expect(result.imports).toContainEqual(expect.objectContaining({ source: 'os' }));
+  });
+
+  test('extracts require() as import', () => {
+    expect(result.imports).toContainEqual(expect.objectContaining({ source: 'utils' }));
+  });
 });
 
 describe('JavaScript call refs', () => {

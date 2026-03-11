@@ -8,6 +8,13 @@ struct Point
     y::Float64
 end
 
+macro sayhello(name)
+    return :(println("Hello, ", $(esc(name))))
+end
+
+f(x) = x + 1
+square(x) = x * x
+
 function greet(name::String)::String
     return "Hello, $name!"
 end

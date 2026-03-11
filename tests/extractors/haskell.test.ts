@@ -11,6 +11,10 @@ describe('Haskell symbols', () => {
     expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Shape', kind: 'type' }));
   });
 
+  test('extracts type signature', () => {
+    expect(result.symbols.some(s => s.kind === 'signature')).toBe(true);
+  });
+
   test('extracts functions', () => {
     expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'greet', kind: 'function' }));
     expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'add', kind: 'function' }));

@@ -6,6 +6,10 @@ protocol Shape {
     func perimeter() -> Double
 }
 
+enum Direction {
+    case north, south, east, west
+}
+
 struct Circle: Shape {
     let radius: Double
 
@@ -21,6 +25,7 @@ struct Circle: Shape {
 class Rectangle: Shape {
     let width: Double
     let height: Double
+    var label: String = ""
 
     init(width: Double, height: Double) {
         self.width = width
@@ -55,5 +60,8 @@ func main() {
     let a = c.area()
     let msg = greet(name: "World")
     let sum = add(1, 2)
+    let x = sum as Any
+    let items: [Int] = []
+    let opt: Int? = nil
     print(msg)
 }

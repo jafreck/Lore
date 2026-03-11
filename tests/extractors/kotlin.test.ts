@@ -26,6 +26,32 @@ describe('Kotlin symbols', () => {
   });
 });
 
+describe('Kotlin relationships', () => {
+  test('captures inheritance', () => {
+    expect(result.relationships).toContainEqual(
+      expect.objectContaining({ kind: 'extends', fromSymbol: 'Circle', toSymbol: 'Shape' }),
+    );
+  });
+});
+
+describe('Kotlin type refs', () => {
+  test('extracts return type refs', () => {
+    expect(result.typeRefs.filter(r => r.refKind === 'return').length).toBeGreaterThan(0);
+  });
+
+  test('extracts bound type refs from inheritance', () => {
+    expect(result.typeRefs.filter(r => r.refKind === 'bound').length).toBeGreaterThan(0);
+  });
+
+  test('extracts cast type refs', () => {
+    expect(result.typeRefs.filter(r => r.refKind === 'cast').length).toBeGreaterThan(0);
+  });
+
+  test('has at least 9 type refs', () => {
+    expect(result.typeRefs.length).toBeGreaterThanOrEqual(9);
+  });
+});
+
 describe('Kotlin imports', () => {
   test('extracts imports', () => {
     expect(result.imports.length).toBeGreaterThan(0);

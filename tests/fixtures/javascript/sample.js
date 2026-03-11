@@ -1,5 +1,8 @@
 import { readFileSync } from 'fs';
 import path from 'path';
+import * as os from 'os';
+
+const utils = require('utils');
 
 export function greet(name) {
   return `Hello, ${name}!`;

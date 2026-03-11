@@ -1,5 +1,7 @@
 <?php
 
+namespace App\Controllers;
+
 use App\Models\User;
 use App\Services\{Mailer, Logger};
 
@@ -16,7 +18,11 @@ interface Shape {
     public function perimeter(): float;
 }
 
-class Circle implements Shape {
+class Animal {
+    public string $name;
+}
+
+class Circle extends Animal implements Shape {
     public function __construct(private float $radius) {}
 
     public function area(): float {
@@ -39,4 +45,6 @@ function main(): void {
     $sum = add(1, 2);
     $c = new Circle(5.0);
     echo $c->area();
+    $c->perimeter();
+    $items = new \ArrayObject();
 }

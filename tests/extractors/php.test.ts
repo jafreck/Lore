@@ -17,7 +17,8 @@ describe('PHP symbols', () => {
     expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Shape', kind: 'interface' }));
   });
 
-  test('extracts class', () => {
+  test('extracts classes', () => {
+    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Animal', kind: 'class' }));
     expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Circle', kind: 'class' }));
   });
 
@@ -39,6 +40,12 @@ describe('PHP call refs', () => {
 });
 
 describe('PHP relationships', () => {
+  test('captures extends', () => {
+    expect(result.relationships).toContainEqual(
+      expect.objectContaining({ kind: 'extends', fromSymbol: 'Circle', toSymbol: 'Animal' }),
+    );
+  });
+
   test('captures implements', () => {
     expect(result.relationships).toContainEqual(
       expect.objectContaining({ kind: 'implements', fromSymbol: 'Circle', toSymbol: 'Shape' }),
@@ -47,7 +54,23 @@ describe('PHP relationships', () => {
 });
 
 describe('PHP type refs', () => {
-  test('produces type refs', () => {
-    expect(result.typeRefs.length).toBeGreaterThan(0);
+  test('extracts parameter type refs', () => {
+    expect(result.typeRefs.filter(r => r.refKind === 'parameter').length).toBeGreaterThan(0);
+  });
+
+  test('extracts return type refs', () => {
+    expect(result.typeRefs.filter(r => r.refKind === 'return').length).toBeGreaterThan(0);
+  });
+
+  test('extracts field type refs', () => {
+    expect(result.typeRefs.filter(r => r.refKind === 'field').length).toBeGreaterThan(0);
+  });
+
+  test('extracts bound type refs from inheritance', () => {
+    expect(result.typeRefs.filter(r => r.refKind === 'bound').length).toBeGreaterThan(0);
+  });
+
+  test('has at least 14 type refs', () => {
+    expect(result.typeRefs.length).toBeGreaterThanOrEqual(14);
   });
 });

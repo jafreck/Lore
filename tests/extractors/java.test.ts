@@ -42,4 +42,38 @@ describe('Java relationships', () => {
       expect.objectContaining({ kind: 'implements', fromSymbol: 'Circle', toSymbol: 'Shape' }),
     );
   });
+
+  test('captures extends relationship', () => {
+    expect(result.relationships).toContainEqual(
+      expect.objectContaining({ kind: 'extends', fromSymbol: 'Circle', toSymbol: 'Animal' }),
+    );
+  });
+
+  test('captures interface extends interface', () => {
+    expect(result.relationships).toContainEqual(
+      expect.objectContaining({ kind: 'extends', fromSymbol: 'Describable', toSymbol: 'Shape' }),
+    );
+  });
+});
+
+describe('Java type refs', () => {
+  test('extracts field type refs', () => {
+    expect(result.typeRefs.filter(r => r.refKind === 'field').length).toBeGreaterThan(0);
+  });
+
+  test('extracts parameter type refs', () => {
+    expect(result.typeRefs.filter(r => r.refKind === 'parameter').length).toBeGreaterThan(0);
+  });
+
+  test('extracts return type refs', () => {
+    expect(result.typeRefs.filter(r => r.refKind === 'return').length).toBeGreaterThan(0);
+  });
+
+  test('extracts variable type refs', () => {
+    expect(result.typeRefs.filter(r => r.refKind === 'variable').length).toBeGreaterThan(0);
+  });
+
+  test('has at least 10 type refs', () => {
+    expect(result.typeRefs.length).toBeGreaterThanOrEqual(10);
+  });
 });

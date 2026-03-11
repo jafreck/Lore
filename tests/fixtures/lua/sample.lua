@@ -23,5 +23,6 @@ local function main()
     local msg = greet("World")
     local sum = add(1, 2)
     local sq = square(sum)
+    local clamped = clamp(sum, 0, 10)
     print(msg)
 end

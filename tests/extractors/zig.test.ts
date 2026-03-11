@@ -11,6 +11,7 @@ describe('Zig symbols', () => {
     expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'greet', kind: 'function' }));
     expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'add', kind: 'function' }));
     expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'square', kind: 'function' }));
+    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'main', kind: 'function' }));
   });
 
   test('extracts struct', () => {
@@ -19,6 +20,10 @@ describe('Zig symbols', () => {
 
   test('extracts enum', () => {
     expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Color' }));
+  });
+
+  test('extracts const declarations', () => {
+    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'MAX_SIZE' }));
   });
 
   test('extracts test declaration', () => {

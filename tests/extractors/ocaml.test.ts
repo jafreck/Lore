@@ -18,12 +18,25 @@ describe('OCaml symbols', () => {
     expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'area', kind: 'function' }));
   });
 
-  test('extracts variant type', () => {
+  test('extracts fun expression as function', () => {
+    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'apply', kind: 'function' }));
+  });
+
+  test('extracts variant types', () => {
     expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'shape', kind: 'type' }));
+    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'color', kind: 'type' }));
   });
 
   test('extracts module definition', () => {
     expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'MathUtils', kind: 'module' }));
+  });
+
+  test('extracts module type definition', () => {
+    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Printable', kind: 'module_type' }));
+  });
+
+  test('extracts main function with call ref', () => {
+    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'main', kind: 'function' }));
   });
 });
 

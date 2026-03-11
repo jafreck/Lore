@@ -11,6 +11,10 @@ describe('Swift symbols', () => {
     expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Shape', kind: 'interface' }));
   });
 
+  test('extracts enum', () => {
+    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Direction', kind: 'class' }));
+  });
+
   test('extracts struct (reported as class kind by Swift extractor)', () => {
     expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Circle', kind: 'class' }));
   });
@@ -51,8 +55,28 @@ describe('Swift relationships', () => {
 });
 
 describe('Swift type refs', () => {
-  test('produces type refs', () => {
-    expect(result.typeRefs.length).toBeGreaterThan(0);
+  test('extracts bound type refs from conformance', () => {
+    expect(result.typeRefs.filter(r => r.refKind === 'bound').length).toBeGreaterThan(0);
+  });
+
+  test('extracts field type refs', () => {
+    expect(result.typeRefs.filter(r => r.refKind === 'field').length).toBeGreaterThan(0);
+  });
+
+  test('extracts variable type refs', () => {
+    expect(result.typeRefs.filter(r => r.refKind === 'variable').length).toBeGreaterThan(0);
+  });
+
+  test('extracts parameter type refs', () => {
+    expect(result.typeRefs.filter(r => r.refKind === 'parameter').length).toBeGreaterThan(0);
+  });
+
+  test('extracts cast type refs', () => {
+    expect(result.typeRefs.filter(r => r.refKind === 'cast').length).toBeGreaterThan(0);
+  });
+
+  test('has at least 16 type refs', () => {
+    expect(result.typeRefs.length).toBeGreaterThanOrEqual(16);
   });
 
   test('all type refs have line numbers', () => {

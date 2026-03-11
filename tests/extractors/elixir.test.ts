@@ -11,6 +11,10 @@ describe('Elixir symbols', () => {
     expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Sample', kind: 'module' }));
   });
 
+  test('extracts struct', () => {
+    expect(result.symbols.some(s => s.kind === 'struct')).toBe(true);
+  });
+
   test('extracts public function', () => {
     expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'greet', kind: 'function' }));
     expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'add', kind: 'function' }));
@@ -18,6 +22,14 @@ describe('Elixir symbols', () => {
 
   test('extracts private function', () => {
     expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'format', kind: 'function' }));
+  });
+
+  test('extracts protocol', () => {
+    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Stringify', kind: 'interface' }));
+  });
+
+  test('extracts protocol implementation', () => {
+    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Stringify', kind: 'impl' }));
   });
 });
 

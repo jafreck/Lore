@@ -1,5 +1,6 @@
 const std = @import("std");
 const math = @import("std").math;
+const builtin = @import("builtin");
 
 pub fn greet(name: []const u8) void {
     std.debug.print("Hello, {s}!\n", .{name});
@@ -29,6 +30,13 @@ pub const Color = enum {
     Green,
     Blue,
 };
+
+pub const MAX_SIZE = 1024;
+
+pub fn main() void {
+    const result = add(1, 2);
+    std.debug.print("{d}\n", .{result});
+}
 
 test "add returns correct sum" {
     try std.testing.expectEqual(@as(i32, 5), add(2, 3));

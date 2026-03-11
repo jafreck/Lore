@@ -33,6 +33,10 @@ describe('Python imports', () => {
     expect(result.imports).toContainEqual(expect.objectContaining({ source: 'pathlib' }));
     expect(result.imports).toContainEqual(expect.objectContaining({ source: 'typing' }));
   });
+
+  test('extracts aliased from...import', () => {
+    expect(result.imports).toContainEqual(expect.objectContaining({ source: 'os.path' }));
+  });
 });
 
 describe('Python call refs', () => {

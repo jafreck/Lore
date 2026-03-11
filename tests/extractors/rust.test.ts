@@ -12,6 +12,10 @@ describe('Rust symbols', () => {
     expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Rectangle', kind: 'struct' }));
   });
 
+  test('extracts enum', () => {
+    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Color', kind: 'enum' }));
+  });
+
   test('extracts trait', () => {
     expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Shape', kind: 'trait' }));
   });

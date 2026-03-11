@@ -15,9 +15,21 @@ describe('Elm symbols', () => {
     expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Shape', kind: 'type' }));
   });
 
+  test('extracts port annotation', () => {
+    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'sendMessage', kind: 'port' }));
+  });
+
   test('extracts functions', () => {
     expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'greet', kind: 'function' }));
     expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'add', kind: 'function' }));
+  });
+
+  test('extracts plain value declaration', () => {
+    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'version' }));
+  });
+
+  test('extracts function with body call refs', () => {
+    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'view' }));
   });
 });
 
@@ -28,7 +40,7 @@ describe('Elm imports', () => {
 });
 
 describe('Elm call refs', () => {
-  test('produces call refs array', () => {
-    expect(Array.isArray(result.callRefs)).toBe(true);
+  test('produces non-empty call refs from view function', () => {
+    expect(result.callRefs.length).toBeGreaterThan(0);
   });
 });

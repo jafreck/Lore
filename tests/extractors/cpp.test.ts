@@ -7,12 +7,21 @@ const fixtureDir = path.join(import.meta.dirname, '../fixtures');
 const result = parseAndExtractStrict('cpp', path.join(fixtureDir, 'cpp/sample.cpp'), new CppExtractor());
 
 describe('C++ symbols', () => {
-  test('extracts class', () => {
+  test('extracts classes', () => {
     expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Greeter', kind: 'class' }));
+    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Base', kind: 'class' }));
   });
 
   test('extracts struct', () => {
     expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Callback', kind: 'struct' }));
+  });
+
+  test('extracts enum', () => {
+    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Color', kind: 'enum' }));
+  });
+
+  test('extracts typedef', () => {
+    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'HandlerFn', kind: 'typedef' }));
   });
 
   test('extracts functions', () => {
@@ -25,6 +34,14 @@ describe('C++ symbols', () => {
     const macros = result.symbols.filter(s => s.kind === 'macro');
     expect(macros.length).toBeGreaterThan(0);
     expect(macros.map(m => m.name)).toContain('MAX');
+  });
+});
+
+describe('C++ relationships', () => {
+  test('captures extends relationship', () => {
+    expect(result.relationships).toContainEqual(
+      expect.objectContaining({ kind: 'extends', fromSymbol: 'Greeter', toSymbol: 'Base' }),
+    );
   });
 });
 
@@ -56,5 +73,21 @@ describe('C++ type refs', () => {
 
   test('extracts return type refs', () => {
     expect(result.typeRefs.filter(r => r.refKind === 'return').length).toBeGreaterThan(0);
+  });
+
+  test('extracts field type refs', () => {
+    expect(result.typeRefs.filter(r => r.refKind === 'field').length).toBeGreaterThan(0);
+  });
+
+  test('extracts variable type refs', () => {
+    expect(result.typeRefs.filter(r => r.refKind === 'variable').length).toBeGreaterThan(0);
+  });
+
+  test('extracts bound type refs from inheritance', () => {
+    expect(result.typeRefs.filter(r => r.refKind === 'bound').length).toBeGreaterThan(0);
+  });
+
+  test('has at least 10 type refs', () => {
+    expect(result.typeRefs.length).toBeGreaterThanOrEqual(10);
   });
 });

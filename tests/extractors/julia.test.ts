@@ -15,6 +15,10 @@ describe('Julia symbols', () => {
     expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Point', kind: 'struct' }));
   });
 
+  test('extracts macro definition', () => {
+    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'sayhello', kind: 'macro' }));
+  });
+
   test('extracts functions', () => {
     expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'greet', kind: 'function' }));
     expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'add', kind: 'function' }));

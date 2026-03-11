@@ -7,20 +7,36 @@ const fixtureDir = path.join(import.meta.dirname, '../fixtures');
 const result = parseAndExtractStrict('objc', path.join(fixtureDir, 'objc/sample.m'), new ObjcExtractor());
 
 describe('Objective-C symbols', () => {
+  test('extracts protocol declaration', () => {
+    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Drawable', kind: 'interface' }));
+  });
+
   test('extracts class', () => {
     expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Circle', kind: 'class' }));
   });
 
-  test('extracts methods (reported as function kind)', () => {
+  test('extracts category', () => {
+    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'NSString' }));
+  });
+
+  test('extracts methods', () => {
     expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'initWithRadius', kind: 'function' }));
     expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'area', kind: 'function' }));
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'perimeter', kind: 'function' }));
+    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'processData', kind: 'function' }));
+  });
+
+  test('extracts class implementation', () => {
+    expect(result.symbols).toContainEqual(expect.objectContaining({ kind: 'impl' }));
   });
 });
 
 describe('Objective-C imports', () => {
   test('extracts #import directives', () => {
     expect(result.imports.length).toBeGreaterThan(0);
+  });
+
+  test('extracts @import module directive', () => {
+    expect(result.imports).toContainEqual(expect.objectContaining({ source: 'UIKit' }));
   });
 });
 
