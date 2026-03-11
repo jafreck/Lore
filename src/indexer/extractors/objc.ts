@@ -28,6 +28,7 @@ const OBJC_SYMBOL_NODE_TYPES = [
   'class_implementation',
   'protocol_declaration',
   'category_interface',
+  'category_implementation',
 ] as const;
 
 // ─── ObjcExtractor ───────────────────────────────────────────────────────────
@@ -57,6 +58,7 @@ export class ObjcExtractor implements SymbolExtractor {
           extractObjcMethodTypeRefs(node, result.typeRefs);
           break;
         case 'category_interface':
+        case 'category_implementation':
           result.symbols.push(extractCategory(node));
           break;
         case 'preproc_import':

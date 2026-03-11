@@ -2,140 +2,173 @@ import { describe, test, expect } from 'vitest';
 import path from 'node:path';
 import { parseAndExtractStrict } from '../helpers/extractorHelper.js';
 import { TypeScriptExtractor } from '../../src/indexer/extractors/typescript.js';
-import { ParserPool } from '../../src/indexer/parser.js';
-import type { ExtractionResult } from '../../src/indexer/extractors/types.js';
 
-const fixtureDir = path.join(import.meta.dirname, '../fixtures');
-const result = parseAndExtractStrict('typescript', path.join(fixtureDir, 'typescript/sample.ts'), new TypeScriptExtractor());
+const ext = new TypeScriptExtractor();
+const fixture = (name: string) => parseAndExtractStrict('typescript', path.join(import.meta.dirname, '../fixtures/typescript', name), ext);
 
-const pool = new ParserPool();
-function parseInline(source: string, filePath = 'test.ts'): ExtractionResult {
-  const tree = pool.parse('typescript', source);
-  if (!tree) throw new Error('TypeScript grammar failed to load');
-  return new TypeScriptExtractor().extract(tree, source, filePath);
-}
-
-describe('TypeScript symbols', () => {
-  test('extracts interface', () => {
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Shape', kind: 'interface' }));
-  });
-
-  test('extracts interface with extends', () => {
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Describable', kind: 'interface' }));
-  });
-
-  test('extracts type alias', () => {
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Point', kind: 'type' }));
-  });
-
-  test('extracts enum', () => {
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Color', kind: 'enum' }));
-  });
-
-  test('extracts exported functions', () => {
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'greet', kind: 'function' }));
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'add', kind: 'function' }));
-  });
-
-  test('extracts class', () => {
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Circle', kind: 'class' }));
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'BaseShape', kind: 'class' }));
-  });
-
-  test('extracts arrow function exports', () => {
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'multiply' }));
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'formatPath' }));
-  });
-
-  test('extracts function from const with cast/assertion', () => {
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'convert', kind: 'function' }));
+describe('TS function extraction', () => {
+  const r = fixture('function.ts');
+  test('extracts exported function', () => {
+    expect(r.symbols).toHaveLength(1);
+    expect(r.symbols[0]).toMatchObject({ name: 'greet', kind: 'function' });
   });
 });
 
-describe('TypeScript imports', () => {
-  test('extracts named import', () => {
-    expect(result.imports).toContainEqual(expect.objectContaining({ source: 'fs' }));
-  });
-
-  test('extracts default import', () => {
-    expect(result.imports).toContainEqual(expect.objectContaining({ source: 'path' }));
-  });
-
-  test('extracts namespace import', () => {
-    expect(result.imports).toContainEqual(expect.objectContaining({ source: 'os' }));
+describe('TS arrow function extraction', () => {
+  const r = fixture('arrow-function.ts');
+  test('extracts arrow function from const declaration', () => {
+    expect(r.symbols).toHaveLength(1);
+    expect(r.symbols[0]).toMatchObject({ name: 'multiply', kind: 'function' });
   });
 });
 
-describe('TypeScript call refs', () => {
-  test('produces non-empty call refs', () => {
-    expect(result.callRefs.length).toBeGreaterThan(0);
+describe('TS function expression extraction', () => {
+  const r = fixture('function-expression.ts');
+  test('extracts function expression from const', () => {
+    expect(r.symbols).toHaveLength(1);
+    expect(r.symbols[0]).toMatchObject({ name: 'handler', kind: 'function' });
   });
 });
 
-describe('TypeScript relationships', () => {
-  test('captures extends relationship', () => {
-    expect(result.relationships).toContainEqual(
-      expect.objectContaining({ kind: 'extends', fromSymbol: 'Circle', toSymbol: 'BaseShape' }),
-    );
-  });
-
-  test('captures extends relationship only (TS uses extends for all heritage)', () => {
-    expect(result.relationships).toContainEqual(
-      expect.objectContaining({ kind: 'extends', fromSymbol: 'Circle', toSymbol: 'BaseShape' }),
-    );
+describe('TS generator function extraction', () => {
+  const r = fixture('generator-function.ts');
+  test('extracts generator function declaration', () => {
+    expect(r.symbols).toHaveLength(1);
+    expect(r.symbols[0]).toMatchObject({ name: 'gen', kind: 'function' });
   });
 });
 
-describe('TypeScript type refs', () => {
-  test('extracts bound type refs', () => {
-    const boundRefs = result.typeRefs.filter(r => r.refKind === 'bound');
-    expect(boundRefs.length).toBeGreaterThan(0);
-  });
-
-  test('extracts variable type refs', () => {
-    const varRefs = result.typeRefs.filter(r => r.refKind === 'variable');
-    expect(varRefs.length).toBeGreaterThan(0);
-  });
-
-  test('has at least 5 type refs', () => {
-    expect(result.typeRefs.length).toBeGreaterThanOrEqual(5);
-  });
-
-  test('all type refs have line numbers', () => {
-    for (const ref of result.typeRefs) {
-      expect(typeof ref.line).toBe('number');
-    }
+describe('TS class extraction', () => {
+  const r = fixture('class.ts');
+  test('extracts class with extends relationship', () => {
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'Circle', kind: 'class' }));
+    expect(r.relationships).toContainEqual(expect.objectContaining({
+      kind: 'extends', fromSymbol: 'Circle', toSymbol: 'Base',
+    }));
   });
 });
 
-describe('TypeScript declaration mode (.d.ts)', () => {
-  const dts = parseInline(
-    `/** Greet someone */\nexport declare function greet(name: string): string;\nexport declare class Foo {}\n`,
-    'test.d.ts',
-  );
-
-  test('extracts exported symbols with isExported flag', () => {
-    expect(dts.symbols).toContainEqual(expect.objectContaining({ name: 'greet', isExported: true }));
+describe('TS interface extraction', () => {
+  const r = fixture('interface.ts');
+  test('extracts interfaces', () => {
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'Shape', kind: 'interface' }));
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'Describable', kind: 'interface' }));
   });
+});
 
-  test('extracts doc comments in declaration mode', () => {
-    const greetSym = dts.symbols.find(s => s.name === 'greet');
+describe('TS type alias and enum extraction', () => {
+  const r = fixture('type-and-enum.ts');
+  test('extracts type alias and enum', () => {
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'Point', kind: 'type' }));
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'Color', kind: 'enum' }));
+  });
+});
+
+describe('TS declaration mode', () => {
+  const r = fixture('declaration-mode.d.ts');
+  test('marks symbols as exported', () => {
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'greet', isExported: true }));
+  });
+  test('extracts doc comments', () => {
+    const greetSym = r.symbols.find(s => s.name === 'greet');
     expect(greetSym?.docComment).toContain('Greet someone');
   });
 });
 
-describe('TypeScript function expression & generator', () => {
-  test('extracts function expression assigned to const', () => {
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'handler', kind: 'function' }));
+describe('TS named import', () => {
+  const r = fixture('import-named.ts');
+  test('extracts source', () => {
+    expect(r.imports).toHaveLength(1);
+    expect(r.imports[0]).toMatchObject({ source: 'fs' });
   });
+});
 
-  test('extracts generator function assigned to const', () => {
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'gen', kind: 'function' }));
+describe('TS default import', () => {
+  const r = fixture('import-default.ts');
+  test('extracts default import', () => {
+    expect(r.imports).toHaveLength(1);
+    expect(r.imports[0]).toMatchObject({ source: 'path' });
   });
+});
 
-  test('extracts cast type refs from as-expression and type assertion', () => {
-    // value as string — extractTsCastTypeRef only matches type_identifier/generic_type/nested_type_identifier
-    const castRefs = result.typeRefs.filter(r => r.refKind === 'cast');
-    expect(castRefs.length).toBe(0);
+describe('TS namespace import', () => {
+  const r = fixture('import-namespace.ts');
+  test('extracts namespace import', () => {
+    expect(r.imports).toHaveLength(1);
+    expect(r.imports[0]!.source).toBe('os');
+  });
+});
+
+describe('TS call-ref extraction', () => {
+  const r = fixture('callref.ts');
+  test('extracts call ref with callerSymbol', () => {
+    expect(r.callRefs).toHaveLength(1);
+    expect(r.callRefs[0]).toMatchObject({ calleeRaw: 'bar', callerSymbol: 'foo' });
+  });
+});
+
+describe('TS parameter type refs', () => {
+  const r = fixture('typeref-parameter.ts');
+  test('extracts parameter type ref', () => {
+    const params = r.typeRefs.filter(t => t.refKind === 'parameter');
+    expect(params).toHaveLength(1);
+    expect(params[0]).toMatchObject({ typeRaw: 'Foo', enclosingSymbol: 'greet' });
+  });
+});
+
+describe('TS return type refs', () => {
+  const r = fixture('typeref-return.ts');
+  test('extracts return type ref', () => {
+    const returns = r.typeRefs.filter(t => t.refKind === 'return');
+    expect(returns).toHaveLength(1);
+    expect(returns[0]).toMatchObject({ typeRaw: 'Foo', enclosingSymbol: 'load' });
+  });
+});
+
+describe('TS class field type refs', () => {
+  const r = fixture('typeref-field.ts');
+  test('extracts field type ref', () => {
+    const fields = r.typeRefs.filter(t => t.refKind === 'field');
+    expect(fields).toContainEqual(expect.objectContaining({ typeRaw: 'Point' }));
+  });
+});
+
+describe('TS variable type refs', () => {
+  const r = fixture('typeref-variable.ts');
+  test('extracts variable type ref for array element type', () => {
+    const vars = r.typeRefs.filter(t => t.refKind === 'variable');
+    expect(vars).toContainEqual(expect.objectContaining({ typeRaw: 'Shape' }));
+  });
+});
+
+describe('TS union type refs', () => {
+  const r = fixture('typeref-union.ts');
+  test('extracts constituent type from union', () => {
+    const vars = r.typeRefs.filter(t => t.refKind === 'variable');
+    expect(vars).toContainEqual(expect.objectContaining({ typeRaw: 'Shape' }));
+  });
+});
+
+describe('TS interface extends type refs', () => {
+  const r = fixture('typeref-interface-extends.ts');
+  test('extracts bound type ref from extends clause', () => {
+    const bounds = r.typeRefs.filter(t => t.refKind === 'bound');
+    expect(bounds).toContainEqual(expect.objectContaining({ typeRaw: 'Shape' }));
+  });
+});
+
+describe('TS as-expression cast', () => {
+  const r = fixture('typeref-as-cast.ts');
+  test('extracts cast type ref', () => {
+    const casts = r.typeRefs.filter(t => t.refKind === 'cast');
+    expect(casts).toContainEqual(expect.objectContaining({ typeRaw: 'Foo' }));
+  });
+});
+
+describe('TS type assertion cast', () => {
+  const r = fixture('typeref-assertion-cast.ts');
+  test('parses file with angle-bracket assertion', () => {
+    // <Foo>x type assertions produce the type node directly — verify extraction runs
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'f', kind: 'function' }));
   });
 });

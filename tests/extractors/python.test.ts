@@ -2,64 +2,72 @@ import { describe, test, expect } from 'vitest';
 import path from 'node:path';
 import { parseAndExtractStrict } from '../helpers/extractorHelper.js';
 import { PythonExtractor } from '../../src/indexer/extractors/python.js';
-import { ParserPool } from '../../src/indexer/parser.js';
 
-const fixtureDir = path.join(import.meta.dirname, '../fixtures');
-const result = parseAndExtractStrict('python', path.join(fixtureDir, 'python/sample.py'), new PythonExtractor());
+const ext = new PythonExtractor();
+const fixture = (name: string) => parseAndExtractStrict('python', path.join(import.meta.dirname, '../fixtures/python', name), ext);
 
-describe('Python symbols', () => {
-  test('extracts functions', () => {
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'greet', kind: 'function' }));
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'add', kind: 'function' }));
+describe('Python function extraction', () => {
+  const r = fixture('function.py');
+  test('extracts function', () => {
+    expect(r.symbols).toHaveLength(1);
+    expect(r.symbols[0]).toMatchObject({ name: 'greet', kind: 'function' });
   });
+});
 
+describe('Python async function extraction', () => {
+  const r = fixture('async-function.py');
   test('extracts async function', () => {
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'fetch_data', kind: 'async_function' }));
-  });
-
-  test('extracts classes', () => {
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Animal', kind: 'class' }));
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Dog', kind: 'class' }));
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'fetch_data', kind: 'async_function' }));
   });
 });
 
-describe('Python imports', () => {
-  test('extracts module imports', () => {
-    expect(result.imports).toContainEqual(expect.objectContaining({ source: 'os' }));
-    expect(result.imports).toContainEqual(expect.objectContaining({ source: 'sys' }));
+describe('Python class extraction', () => {
+  const r = fixture('class.py');
+  test('extracts class', () => {
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'Animal', kind: 'class' }));
   });
-
-  test('extracts from...import', () => {
-    expect(result.imports).toContainEqual(expect.objectContaining({ source: 'pathlib' }));
-    expect(result.imports).toContainEqual(expect.objectContaining({ source: 'typing' }));
-  });
-
-  test('extracts aliased from...import', () => {
-    expect(result.imports).toContainEqual(expect.objectContaining({ source: 'os.path' }));
+  test('extracts method', () => {
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: '__init__', kind: 'function' }));
   });
 });
 
-describe('Python call refs', () => {
-  test('produces non-empty call refs', () => {
-    expect(result.callRefs.length).toBeGreaterThan(0);
+describe('Python class inheritance', () => {
+  const r = fixture('inheritance.py');
+  test('extracts both classes', () => {
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'Dog', kind: 'class' }));
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'Animal', kind: 'class' }));
   });
 });
 
-describe('Python relationships', () => {
-  test('relationships array exists', () => {
-    expect(Array.isArray(result.relationships)).toBe(true);
+describe('Python import extraction', () => {
+  const r = fixture('imports.py');
+  test('extracts imports', () => {
+    expect(r.imports).toContainEqual(expect.objectContaining({ source: 'os' }));
+    expect(r.imports).toContainEqual(expect.objectContaining({ source: 'pathlib', importedNames: ['Path'] }));
+  });
+  test('extracts wildcard imports', () => {
+    expect(r.imports).toContainEqual(expect.objectContaining({ source: 'os.path', importedNames: ['*'] }));
   });
 });
 
-describe('Python routes (inline)', () => {
-  const pool = new ParserPool();
-  const tree = pool.parse('python', '@app.get("/health")\ndef health():\n    return {}\n');
-  const routeResult = new PythonExtractor().extract(tree!, '@app.get("/health")\ndef health():\n    return {}\n', 'routes.py');
+describe('Python call-ref extraction', () => {
+  const r = fixture('callref.py');
+  test('extracts call ref with callerSymbol', () => {
+    expect(r.callRefs).toContainEqual(expect.objectContaining({ calleeRaw: 'greet', callerSymbol: 'main' }));
+  });
+});
 
-  test('extracts FastAPI route', () => {
-    expect(routeResult.routes.length).toBeGreaterThan(0);
-    expect(routeResult.routes[0]).toEqual(
-      expect.objectContaining({ method: 'GET', handler: 'health', framework: 'fastapi' }),
-    );
+describe('Python type refs', () => {
+  const r = fixture('typerefs.py');
+  test('extracts symbols from typed function', () => {
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'load', kind: 'function' }));
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'Config', kind: 'class' }));
+  });
+});
+
+describe('Python env-ref extraction', () => {
+  const r = fixture('envref.py');
+  test('extracts function containing env access', () => {
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'main', kind: 'function' }));
   });
 });

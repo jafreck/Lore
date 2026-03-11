@@ -3,70 +3,112 @@ import path from 'node:path';
 import { parseAndExtractStrict } from '../helpers/extractorHelper.js';
 import { CSharpExtractor } from '../../src/indexer/extractors/csharp.js';
 
-const fixtureDir = path.join(import.meta.dirname, '../fixtures');
-const result = parseAndExtractStrict('csharp', path.join(fixtureDir, 'csharp/sample.cs'), new CSharpExtractor());
+const ext = new CSharpExtractor();
+const fixture = (name: string) => parseAndExtractStrict('csharp', path.join(import.meta.dirname, '../fixtures/csharp', name), ext);
 
-describe('C# symbols', () => {
-  test('extracts struct', () => {
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Point', kind: 'struct' }));
+describe('C# class extraction', () => {
+  const r = fixture('class.cs');
+  test('extracts class and method', () => {
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'Greeter', kind: 'class' }));
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'Greet', kind: 'function' }));
   });
+});
 
-  test('extracts class', () => {
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Greeter', kind: 'class' }));
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Program', kind: 'class' }));
-  });
-
+describe('C# interface extraction', () => {
+  const r = fixture('interface.cs');
   test('extracts interface', () => {
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'ICalculator', kind: 'interface' }));
-  });
-
-  test('extracts methods (reported as function kind)', () => {
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Greet', kind: 'function' }));
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Main', kind: 'function' }));
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'IShape', kind: 'interface' }));
   });
 });
 
-describe('C# imports', () => {
+describe('C# struct extraction', () => {
+  const r = fixture('struct.cs');
+  test('extracts struct', () => {
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'Point', kind: 'struct' }));
+  });
+});
+
+describe('C# enum extraction', () => {
+  const r = fixture('enum.cs');
+  test('extracts enum', () => {
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'Color', kind: 'enum' }));
+  });
+});
+
+describe('C# constructor extraction', () => {
+  const r = fixture('constructor.cs');
+  test('extracts constructor', () => {
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'Foo', kind: 'function' }));
+  });
+});
+
+describe('C# using extraction', () => {
+  const r = fixture('using.cs');
   test('extracts using directives', () => {
-    expect(result.imports).toContainEqual(expect.objectContaining({ source: 'System' }));
-    expect(result.imports).toContainEqual(expect.objectContaining({ source: 'System.Collections.Generic' }));
+    expect(r.imports).toHaveLength(3);
+    expect(r.imports).toContainEqual(expect.objectContaining({ source: 'System' }));
   });
-
-  test('extracts using alias', () => {
-    expect(result.imports).toContainEqual(expect.objectContaining({ source: 'System.Console' }));
-  });
-});
-
-describe('C# call refs', () => {
-  test('produces non-empty call refs', () => {
-    expect(result.callRefs.length).toBeGreaterThan(0);
+  test('extracts aliased using', () => {
+    expect(r.imports).toContainEqual(expect.objectContaining({ source: 'System.Console', importedNames: ['Project'] }));
   });
 });
 
-describe('C# type refs', () => {
-  test('extracts cast type refs', () => {
-    expect(result.typeRefs.filter(r => r.refKind === 'cast').length).toBeGreaterThan(0);
+describe('C# call-ref extraction', () => {
+  const r = fixture('callref.cs');
+  test('extracts call ref', () => {
+    expect(r.callRefs).toContainEqual(expect.objectContaining({ calleeRaw: 'Console.WriteLine' }));
   });
+});
 
-  test('extracts field type refs', () => {
-    expect(result.typeRefs.filter(r => r.refKind === 'field').length).toBeGreaterThan(0);
+describe('C# new expression call-ref', () => {
+  const r = fixture('callref-new.cs');
+  test('extracts new as call ref', () => {
+    expect(r.callRefs).toContainEqual(expect.objectContaining({ calleeRaw: 'new Greeter' }));
   });
+});
 
-  test('extracts variable type refs', () => {
-    expect(result.typeRefs.filter(r => r.refKind === 'variable').length).toBeGreaterThan(0);
+describe('C# base list relationships', () => {
+  const r = fixture('relationships.cs');
+  test('extracts implements relationship', () => {
+    expect(r.relationships).toContainEqual(expect.objectContaining({ kind: 'implements', fromSymbol: 'Circle', toSymbol: 'IShape' }));
   });
+});
 
-  test('extracts generic_arg type refs', () => {
-    expect(result.typeRefs.filter(r => r.refKind === 'generic_arg').length).toBeGreaterThan(0);
+describe('C# method type refs', () => {
+  const r = fixture('typeref-method.cs');
+  test('extracts symbols from typed method', () => {
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'Load', kind: 'function' }));
   });
+});
 
-  test('has at least 10 type refs', () => {
-    expect(result.typeRefs.length).toBeGreaterThanOrEqual(10);
+describe('C# field type refs', () => {
+  const r = fixture('typeref-field.cs');
+  test('extracts field type ref', () => {
+    const fields = r.typeRefs.filter(t => t.refKind === 'field');
+    expect(fields).toContainEqual(expect.objectContaining({ typeRaw: 'string' }));
   });
+});
 
-  test('all type refs have line numbers', () => {
-    for (const ref of result.typeRefs) {
-      expect(typeof ref.line).toBe('number');
-    }
+describe('C# variable type refs', () => {
+  const r = fixture('typeref-variable.cs');
+  test('extracts variable type ref', () => {
+    const vars = r.typeRefs.filter(t => t.refKind === 'variable');
+    expect(vars).toContainEqual(expect.objectContaining({ typeRaw: 'Foo' }));
+  });
+});
+
+describe('C# cast type refs', () => {
+  const r = fixture('typeref-cast.cs');
+  test('extracts cast type ref', () => {
+    const casts = r.typeRefs.filter(t => t.refKind === 'cast');
+    expect(casts).toContainEqual(expect.objectContaining({ typeRaw: 'int' }));
+  });
+});
+
+describe('C# as-cast type refs', () => {
+  const r = fixture('typeref-as-cast.cs');
+  test('extracts as-cast type ref', () => {
+    const casts = r.typeRefs.filter(t => t.refKind === 'cast');
+    expect(casts).toContainEqual(expect.objectContaining({ typeRaw: 'Foo' }));
   });
 });

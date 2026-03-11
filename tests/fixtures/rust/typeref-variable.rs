@@ -1,0 +1,2 @@
+struct Foo {}
+fn main() { let x: Foo = Foo{}; }

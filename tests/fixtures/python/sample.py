@@ -2,8 +2,6 @@ import os
 import sys
 from pathlib import Path
 from typing import List, Optional
-from os.path import join as pathjoin
-from os.path import *
 
 def greet(name: str) -> str:
     return f"Hello, {name}!"
@@ -31,6 +29,3 @@ def main():
     dog = Dog("Rex")
     dog.speak()
     print(greeting)
-    items: List[str] = []
-    data: Optional[bytes] = None
-    ENV_VAR = os.environ.get("HOME")

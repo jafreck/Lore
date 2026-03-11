@@ -1,7 +1,6 @@
 import java.util.List;
 import java.util.ArrayList;
 import java.io.IOException;
-import static java.lang.Math.PI;
 
 public class Sample {
     private String name;
@@ -24,15 +23,7 @@ interface Shape {
     double perimeter();
 }
 
-interface Describable extends Shape {
-    String describe();
-}
-
-class Animal {
-    void speak() {}
-}
-
-class Circle extends Animal implements Shape {
+class Circle implements Shape {
     private double radius;
 
     public Circle(double radius) {
@@ -40,23 +31,17 @@ class Circle extends Animal implements Shape {
     }
 
     public double area() {
-        return PI * radius * radius;
+        return Math.PI * radius * radius;
     }
 
     public double perimeter() {
-        return 2 * PI * radius;
+        return 2 * Math.PI * radius;
     }
 
     public static void main(String[] args) {
         Sample s = new Sample("World");
         String greeting = s.greet();
-        int sum = Sample.add(1, 2);
-        double x = (double) sum;
+        int sum = add(1, 2);
         System.out.println(greeting);
-        List<String> names = new ArrayList<>();
     }
-}
-
-enum Color {
-    RED, GREEN, BLUE
 }

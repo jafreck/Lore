@@ -3,62 +3,93 @@ import path from 'node:path';
 import { parseAndExtractStrict } from '../helpers/extractorHelper.js';
 import { JavaScriptExtractor } from '../../src/indexer/extractors/javascript.js';
 
-const fixtureDir = path.join(import.meta.dirname, '../fixtures');
-const result = parseAndExtractStrict('javascript', path.join(fixtureDir, 'javascript/sample.js'), new JavaScriptExtractor());
+const ext = new JavaScriptExtractor();
+const fixture = (name: string) => parseAndExtractStrict('javascript', path.join(import.meta.dirname, '../fixtures/javascript', name), ext);
 
-describe('JavaScript symbols', () => {
-  test('extracts exported functions', () => {
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'greet', kind: 'function' }));
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'add', kind: 'function' }));
+describe('JS function extraction', () => {
+  const r = fixture('functions.js');
+  test('extracts named functions', () => {
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'greet', kind: 'function' }));
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'add', kind: 'function' }));
   });
+});
 
+describe('JS arrow function extraction', () => {
+  const r = fixture('arrow-function.js');
+  test('extracts arrow function from const', () => {
+    expect(r.symbols).toHaveLength(1);
+    expect(r.symbols[0]).toMatchObject({ name: 'multiply', kind: 'function' });
+  });
+});
+
+describe('JS class extraction', () => {
+  const r = fixture('class.js');
   test('extracts class', () => {
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Animal', kind: 'class' }));
-  });
-
-  test('extracts arrow function exports', () => {
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'multiply' }));
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'formatPath' }));
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'Animal', kind: 'class' }));
   });
 });
 
-describe('JavaScript imports', () => {
+describe('JS named import', () => {
+  const r = fixture('import-named.js');
   test('extracts named import', () => {
-    expect(result.imports).toContainEqual(expect.objectContaining({ source: 'fs' }));
+    expect(r.imports).toHaveLength(1);
+    expect(r.imports[0]).toMatchObject({ source: 'fs' });
   });
+});
 
+describe('JS default import', () => {
+  const r = fixture('import-default.js');
   test('extracts default import', () => {
-    expect(result.imports).toContainEqual(expect.objectContaining({ source: 'path' }));
+    expect(r.imports).toHaveLength(1);
+    expect(r.imports[0]).toMatchObject({ source: 'path' });
   });
+});
 
+describe('JS namespace import', () => {
+  const r = fixture('import-namespace.js');
   test('extracts namespace import', () => {
-    expect(result.imports).toContainEqual(expect.objectContaining({ source: 'os' }));
+    expect(r.imports).toHaveLength(1);
+    expect(r.imports[0]!.source).toBe('os');
   });
+});
 
+describe('JS require import', () => {
+  const r = fixture('import-require.js');
   test('extracts require() as import', () => {
-    expect(result.imports).toContainEqual(expect.objectContaining({ source: 'utils' }));
+    expect(r.imports).toHaveLength(1);
+    expect(r.imports[0]).toMatchObject({ source: 'utils' });
   });
 });
 
-describe('JavaScript call refs', () => {
-  test('produces non-empty call refs', () => {
-    expect(result.callRefs.length).toBeGreaterThan(0);
+describe('JS call-ref extraction', () => {
+  const r = fixture('callref.js');
+  test('extracts call with callerSymbol', () => {
+    expect(r.callRefs).toHaveLength(1);
+    expect(r.callRefs[0]).toMatchObject({ calleeRaw: 'path.normalize', callerSymbol: 'fmt' });
   });
 });
 
-describe('JavaScript routes', () => {
-  test('extracts route registrations', () => {
-    expect(result.routes.length).toBeGreaterThan(0);
+describe('JS express route extraction', () => {
+  const r = fixture('routes-express.js');
+  test('extracts routes with method, path, handler', () => {
+    expect(r.routes).toHaveLength(2);
+    expect(r.routes).toContainEqual(expect.objectContaining({ method: 'GET', path: '/health', framework: 'express' }));
+    expect(r.routes).toContainEqual(expect.objectContaining({ method: 'POST', path: '/users', framework: 'express' }));
   });
+});
 
-  test('infers framework names from route receivers', () => {
-    const frameworks = new Set(result.routes.map(r => r.framework));
-    expect(frameworks).toEqual(new Set(['express', 'koa', 'hono']));
+describe('JS koa route extraction', () => {
+  const r = fixture('routes-koa.js');
+  test('infers koa framework', () => {
+    expect(r.routes).toHaveLength(1);
+    expect(r.routes[0]).toMatchObject({ framework: 'koa', method: 'GET', path: '/koa' });
   });
+});
 
-  test('captures route method and path', () => {
-    expect(result.routes).toContainEqual(
-      expect.objectContaining({ method: 'GET', path: '/health', handler: 'greet', framework: 'express' }),
-    );
+describe('JS route with middleware', () => {
+  const r = fixture('routes-middleware.js');
+  test('captures middleware', () => {
+    expect(r.routes).toHaveLength(1);
+    expect(r.routes[0]!.middleware).toHaveLength(1);
   });
 });

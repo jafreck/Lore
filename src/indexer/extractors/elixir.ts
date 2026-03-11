@@ -118,7 +118,7 @@ function extractCallRef(node: Parser.SyntaxNode, target: Parser.SyntaxNode): Raw
   while (current) {
     if (current.type === 'call') {
       const t = current.childForFieldName('target');
-      if (t && (t.text === 'def' || t.text === 'defp')) {
+      if (t && (t.text === 'def' || t.text === 'defp' || t.text === 'defmacro' || t.text === 'defmacrop')) {
         const args = current.childForFieldName('arguments');
         if (args?.namedChildren[0]) {
           const first = args.namedChildren[0];

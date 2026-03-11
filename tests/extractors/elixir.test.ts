@@ -3,44 +3,57 @@ import path from 'node:path';
 import { parseAndExtractStrict } from '../helpers/extractorHelper.js';
 import { ElixirExtractor } from '../../src/indexer/extractors/elixir.js';
 
-const fixtureDir = path.join(import.meta.dirname, '../fixtures');
-const result = parseAndExtractStrict('elixir', path.join(fixtureDir, 'elixir/sample.ex'), new ElixirExtractor());
+const ext = new ElixirExtractor();
+const fixture = (name: string) => parseAndExtractStrict('elixir', path.join(import.meta.dirname, '../fixtures/elixir', name), ext);
 
-describe('Elixir symbols', () => {
+describe('Elixir module and function extraction', () => {
+  const r = fixture('module-functions.ex');
   test('extracts module', () => {
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Sample', kind: 'module' }));
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'Sample', kind: 'module' }));
   });
-
-  test('extracts struct', () => {
-    expect(result.symbols.some(s => s.kind === 'struct')).toBe(true);
-  });
-
   test('extracts public function', () => {
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'greet', kind: 'function' }));
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'add', kind: 'function' }));
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'greet', kind: 'function' }));
   });
-
   test('extracts private function', () => {
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'format', kind: 'function' }));
-  });
-
-  test('extracts protocol', () => {
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Stringify', kind: 'interface' }));
-  });
-
-  test('extracts protocol implementation', () => {
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Stringify', kind: 'impl' }));
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'format', kind: 'function' }));
   });
 });
 
-describe('Elixir imports', () => {
-  test('extracts alias/import/use directives', () => {
-    expect(result.imports.length).toBeGreaterThan(0);
+describe('Elixir struct extraction', () => {
+  const r = fixture('struct.ex');
+  test('extracts struct', () => {
+    expect(r.symbols).toContainEqual(expect.objectContaining({ kind: 'struct' }));
   });
 });
 
-describe('Elixir call refs', () => {
-  test('produces non-empty call refs', () => {
-    expect(result.callRefs.length).toBeGreaterThan(0);
+describe('Elixir protocol and impl extraction', () => {
+  const r = fixture('protocol.ex');
+  test('extracts protocol as interface', () => {
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'Stringify', kind: 'interface' }));
+  });
+  test('extracts impl', () => {
+    expect(r.symbols).toContainEqual(expect.objectContaining({ kind: 'impl' }));
+  });
+});
+
+describe('Elixir macro extraction', () => {
+  const r = fixture('macro.ex');
+  test('extracts macro', () => {
+    expect(r.symbols).toContainEqual(expect.objectContaining({ kind: 'macro' }));
+  });
+});
+
+describe('Elixir import directives', () => {
+  const r = fixture('imports.ex');
+  test('extracts alias, import, use, require as imports', () => {
+    expect(r.imports).toHaveLength(4);
+  });
+});
+
+describe('Elixir call-ref extraction', () => {
+  const r = fixture('callref.ex');
+  test('extracts call ref', () => {
+    const refs = r.callRefs.filter(c => c.calleeRaw === 'to_string');
+    expect(refs).toHaveLength(1);
   });
 });

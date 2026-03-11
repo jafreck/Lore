@@ -24,6 +24,7 @@ export class HaskellExtractor implements SymbolExtractor {
     const result = emptyResult();
 
     for (const node of walk(tree.rootNode)) {
+      if (!node.isNamed) continue;
       switch (node.type) {
         case 'function':
           result.symbols.push(extractFunction(node));

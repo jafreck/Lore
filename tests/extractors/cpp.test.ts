@@ -3,108 +3,124 @@ import path from 'node:path';
 import { parseAndExtractStrict } from '../helpers/extractorHelper.js';
 import { CppExtractor } from '../../src/indexer/extractors/cpp.js';
 
-const fixtureDir = path.join(import.meta.dirname, '../fixtures');
-const result = parseAndExtractStrict('cpp', path.join(fixtureDir, 'cpp/sample.cpp'), new CppExtractor());
+const ext = new CppExtractor();
+const fixture = (name: string) => parseAndExtractStrict('cpp', path.join(import.meta.dirname, '../fixtures/cpp', name), ext);
 
-describe('C++ symbols', () => {
+describe('C++ class extraction', () => {
+  const r = fixture('class.cpp');
   test('extracts classes', () => {
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Greeter', kind: 'class' }));
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Base', kind: 'class' }));
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'Greeter', kind: 'class' }));
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'Base', kind: 'class' }));
   });
+  test('extracts inheritance relationship', () => {
+    expect(r.relationships).toContainEqual(expect.objectContaining({ kind: 'extends', fromSymbol: 'Greeter', toSymbol: 'Base' }));
+  });
+});
 
+describe('C++ struct extraction', () => {
+  const r = fixture('struct.cpp');
   test('extracts struct', () => {
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Callback', kind: 'struct' }));
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'Callback', kind: 'struct' }));
   });
+});
 
+describe('C++ enum extraction', () => {
+  const r = fixture('enum.cpp');
   test('extracts enum', () => {
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Color', kind: 'enum' }));
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'Color', kind: 'enum' }));
   });
+});
 
+describe('C++ typedef extraction', () => {
+  const r = fixture('typedef.cpp');
   test('extracts typedef', () => {
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'HandlerFn', kind: 'typedef' }));
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'HandlerFn', kind: 'typedef' }));
   });
+});
 
-  test('extracts functions', () => {
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'add', kind: 'function' }));
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'handler', kind: 'function' }));
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'run', kind: 'function' }));
-  });
-
+describe('C++ macro extraction', () => {
+  const r = fixture('macros.cpp');
   test('extracts macros', () => {
-    const macros = result.symbols.filter(s => s.kind === 'macro');
-    expect(macros.length).toBeGreaterThan(0);
-    expect(macros.map(m => m.name)).toContain('MAX');
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'MAX', kind: 'macro' }));
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'VERSION', kind: 'macro' }));
   });
 });
 
-describe('C++ relationships', () => {
-  test('captures extends relationship', () => {
-    expect(result.relationships).toContainEqual(
-      expect.objectContaining({ kind: 'extends', fromSymbol: 'Greeter', toSymbol: 'Base' }),
-    );
+describe('C++ function extraction', () => {
+  const r = fixture('function.cpp');
+  test('extracts function', () => {
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'add', kind: 'function' }));
   });
 });
 
-describe('C++ imports', () => {
-  test('extracts #include directives', () => {
-    expect(result.imports.length).toBeGreaterThan(0);
+describe('C++ function prototype extraction', () => {
+  const r = fixture('prototype.cpp');
+  test('extracts forward declaration', () => {
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'add', kind: 'function' }));
   });
 });
 
-describe('C++ call refs', () => {
-  test('produces non-empty call refs', () => {
-    expect(result.callRefs.length).toBeGreaterThan(0);
-  });
-
-  test('tags macro call-refs', () => {
-    expect(result.callRefs.some(r => r.callKind === 'macro' && r.calleeRaw === 'MAX')).toBe(true);
-  });
-
-  test('tags indirect call-refs via function pointer', () => {
-    const indirectRefs = result.callRefs.filter(r => r.isIndirect === true);
-    expect(indirectRefs.length).toBeGreaterThan(0);
+describe('C++ include extraction', () => {
+  const r = fixture('includes.cpp');
+  test('extracts includes', () => {
+    expect(r.imports).toContainEqual(expect.objectContaining({ source: 'iostream' }));
+    expect(r.imports).toContainEqual(expect.objectContaining({ source: 'myheader.h' }));
   });
 });
 
-describe('C++ type refs', () => {
-  test('extracts parameter type refs', () => {
-    expect(result.typeRefs.filter(r => r.refKind === 'parameter').length).toBeGreaterThan(0);
+describe('C++ direct call-ref', () => {
+  const r = fixture('callref-direct.cpp');
+  test('extracts call with callerSymbol', () => {
+    expect(r.callRefs).toContainEqual(expect.objectContaining({ calleeRaw: 'bar', callerSymbol: 'foo', callKind: 'direct' }));
   });
+});
 
-  test('extracts return type refs', () => {
-    expect(result.typeRefs.filter(r => r.refKind === 'return').length).toBeGreaterThan(0);
+describe('C++ macro call-ref', () => {
+  const r = fixture('callref-macro.cpp');
+  test('tags macro call', () => {
+    expect(r.callRefs).toContainEqual(expect.objectContaining({ calleeRaw: 'MAX', callKind: 'macro' }));
   });
+});
 
-  test('extracts field type refs', () => {
-    expect(result.typeRefs.filter(r => r.refKind === 'field').length).toBeGreaterThan(0);
+describe('C++ indirect call-ref', () => {
+  const r = fixture('callref-indirect.cpp');
+  test('tags indirect call', () => {
+    const indirect = r.callRefs.filter(c => c.isIndirect === true);
+    expect(indirect.length).toBeGreaterThan(0);
+    expect(indirect[0]!.callKind).toBe('indirect');
   });
+});
 
-  test('extracts variable type refs', () => {
-    expect(result.typeRefs.filter(r => r.refKind === 'variable').length).toBeGreaterThan(0);
+describe('C++ function type refs', () => {
+  const r = fixture('typeref-function.cpp');
+  test('extracts parameter and return type refs', () => {
+    const params = r.typeRefs.filter(t => t.refKind === 'parameter');
+    const returns = r.typeRefs.filter(t => t.refKind === 'return');
+    expect(params).toContainEqual(expect.objectContaining({ typeRaw: 'Config' }));
+    expect(returns).toContainEqual(expect.objectContaining({ typeRaw: 'Config' }));
   });
+});
 
-  test('extracts bound type refs from inheritance', () => {
-    expect(result.typeRefs.filter(r => r.refKind === 'bound').length).toBeGreaterThan(0);
+describe('C++ field type refs', () => {
+  const r = fixture('typeref-field.cpp');
+  test('extracts field type ref', () => {
+    const fields = r.typeRefs.filter(t => t.refKind === 'field');
+    expect(fields).toContainEqual(expect.objectContaining({ typeRaw: 'Item' }));
   });
+});
 
-  test('has at least 10 type refs', () => {
-    expect(result.typeRefs.length).toBeGreaterThanOrEqual(10);
+describe('C++ variable type refs', () => {
+  const r = fixture('typeref-variable.cpp');
+  test('extracts variable type ref', () => {
+    const vars = r.typeRefs.filter(t => t.refKind === 'variable');
+    expect(vars).toContainEqual(expect.objectContaining({ typeRaw: 'Foo' }));
   });
+});
 
-  test('extracts sizeof type refs', () => {
-    // sizeof(int) — primitive type may not produce a type_identifier
-    const sizeofRefs = result.typeRefs.filter(r => r.refKind === 'sizeof' || r.refKind === 'other');
-    expect(result.typeRefs.length).toBeGreaterThan(5);
-  });
-
-  test('extracts cast type refs', () => {
-    // Named casts (dynamic_cast<Greeter*>) produce pointer_declarator, not bare type_identifier
-    const castRefs = result.typeRefs.filter(r => r.refKind === 'cast');
-    expect(castRefs.length).toBe(0);
-  });
-
-  test('extracts field type refs from class members', () => {
-    const fieldRefs = result.typeRefs.filter(r => r.refKind === 'field');
-    expect(fieldRefs.length).toBeGreaterThan(0);
+describe('C++ bound type refs from inheritance', () => {
+  const r = fixture('typeref-bound.cpp');
+  test('extracts bound type ref', () => {
+    const bounds = r.typeRefs.filter(t => t.refKind === 'bound');
+    expect(bounds).toContainEqual(expect.objectContaining({ typeRaw: 'Base' }));
   });
 });

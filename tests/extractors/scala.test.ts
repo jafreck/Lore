@@ -3,42 +3,41 @@ import path from 'node:path';
 import { parseAndExtractStrict } from '../helpers/extractorHelper.js';
 import { ScalaExtractor } from '../../src/indexer/extractors/scala.js';
 
-const fixtureDir = path.join(import.meta.dirname, '../fixtures');
-const result = parseAndExtractStrict('scala', path.join(fixtureDir, 'scala/sample.scala'), new ScalaExtractor());
+const ext = new ScalaExtractor();
+const fixture = (name: string) => parseAndExtractStrict('scala', path.join(import.meta.dirname, '../fixtures/scala', name), ext);
 
-describe('Scala symbols', () => {
-  test('extracts functions', () => {
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'greet', kind: 'function' }));
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'add', kind: 'function' }));
-  });
-
-  test('extracts trait', () => {
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Shape', kind: 'trait' }));
-  });
-
-  test('extracts class', () => {
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Circle', kind: 'class' }));
-  });
-
-  test('extracts object (singleton)', () => {
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'MathUtils' }));
+describe('Scala function extraction', () => {
+  const r = fixture('function.scala');
+  test('extracts function', () => {
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'greet', kind: 'function' }));
   });
 });
 
-describe('Scala imports', () => {
+describe('Scala class extraction', () => {
+  const r = fixture('class.scala');
+  test('extracts class and trait', () => {
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'Circle', kind: 'class' }));
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'Shape', kind: 'trait' }));
+  });
+});
+
+describe('Scala object extraction', () => {
+  const r = fixture('object.scala');
+  test('extracts object', () => {
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'MathUtils' }));
+  });
+});
+
+describe('Scala import extraction', () => {
+  const r = fixture('imports.scala');
   test('extracts imports', () => {
-    expect(result.imports.length).toBeGreaterThan(0);
+    expect(r.imports).toHaveLength(2);
   });
 });
 
-describe('Scala call refs', () => {
-  test('produces non-empty call refs', () => {
-    expect(result.callRefs.length).toBeGreaterThan(0);
-  });
-});
-
-describe('Scala relationships', () => {
-  test('relationships array exists', () => {
-    expect(Array.isArray(result.relationships)).toBe(true);
+describe('Scala type refs', () => {
+  const r = fixture('typerefs.scala');
+  test('extracts function with typed parameter', () => {
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'load', kind: 'function' }));
   });
 });

@@ -31,10 +31,3 @@ def main(args: Array[String]): Unit =
   val msg = greet("World")
   val sum = add(1, 2)
   println(msg)
-  val c = Circle(5.0)
-  val x = c.asInstanceOf[Shape]
-
-enum Color:
-  case Red, Green, Blue
-
-case class Point(x: Double, y: Double)

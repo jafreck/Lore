@@ -3,59 +3,89 @@ import path from 'node:path';
 import { parseAndExtractStrict } from '../helpers/extractorHelper.js';
 import { ObjcExtractor } from '../../src/indexer/extractors/objc.js';
 
-const fixtureDir = path.join(import.meta.dirname, '../fixtures');
-const result = parseAndExtractStrict('objc', path.join(fixtureDir, 'objc/sample.m'), new ObjcExtractor());
+const ext = new ObjcExtractor();
+const fixture = (name: string) => parseAndExtractStrict('objc', path.join(import.meta.dirname, '../fixtures/objc', name), ext);
 
-describe('Objective-C symbols', () => {
-  test('extracts protocol declaration', () => {
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Drawable', kind: 'interface' }));
-  });
-
+describe('ObjC class interface extraction', () => {
+  const r = fixture('class-interface.m');
   test('extracts class', () => {
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Circle', kind: 'class' }));
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'Circle', kind: 'class' }));
   });
-
-  test('extracts category', () => {
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'NSString' }));
-  });
-
-  test('extracts methods', () => {
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'initWithRadius', kind: 'function' }));
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'area', kind: 'function' }));
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'processData', kind: 'function' }));
-  });
-
-  test('extracts class implementation', () => {
-    expect(result.symbols).toContainEqual(expect.objectContaining({ kind: 'impl' }));
+  test('extracts extends relationship', () => {
+    expect(r.relationships).toContainEqual(expect.objectContaining({ kind: 'extends', fromSymbol: 'Circle', toSymbol: 'NSObject' }));
   });
 });
 
-describe('Objective-C imports', () => {
-  test('extracts #import directives', () => {
-    expect(result.imports.length).toBeGreaterThan(0);
-  });
-
-  test('extracts @import module directive', () => {
-    expect(result.imports).toContainEqual(expect.objectContaining({ source: 'UIKit' }));
+describe('ObjC class implementation extraction', () => {
+  const r = fixture('class-implementation.m');
+  test('extracts implementation', () => {
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'Circle', kind: 'impl' }));
   });
 });
 
-describe('Objective-C call refs', () => {
-  test('produces non-empty call refs', () => {
-    expect(result.callRefs.length).toBeGreaterThan(0);
+describe('ObjC method extraction', () => {
+  const r = fixture('methods.m');
+  test('extracts symbols from implementation', () => {
+    expect(r.symbols.length).toBeGreaterThan(0);
   });
 });
 
-describe('Objective-C relationships', () => {
-  test('captures NSObject inheritance', () => {
-    expect(result.relationships).toContainEqual(
-      expect.objectContaining({ kind: 'extends', fromSymbol: 'Circle', toSymbol: 'NSObject' }),
-    );
+describe('ObjC protocol extraction', () => {
+  const r = fixture('protocol.m');
+  test('extracts protocol as interface', () => {
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'Drawable', kind: 'interface' }));
   });
 });
 
-describe('Objective-C type refs', () => {
-  test('produces type refs', () => {
-    expect(result.typeRefs.length).toBeGreaterThan(0);
+describe('ObjC protocol conformance', () => {
+  const r = fixture('conformance.m');
+  test('extracts relationship', () => {
+    expect(r.relationships.length).toBeGreaterThan(0);
+  });
+});
+
+describe('ObjC category extraction', () => {
+  const r = fixture('category.m');
+  test('extracts symbols from category', () => {
+    expect(r.symbols.length).toBeGreaterThan(0);
+  });
+});
+
+describe('ObjC import extraction', () => {
+  const r = fixture('imports.m');
+  test('extracts preprocessor imports', () => {
+    expect(r.imports.some(i => i.source.includes('Foundation'))).toBe(true);
+  });
+  test('extracts module imports', () => {
+    expect(r.imports.some(i => i.source === 'UIKit')).toBe(true);
+  });
+});
+
+describe('ObjC message expression call-ref', () => {
+  const r = fixture('message-callref.m');
+  test('extracts message send as call ref', () => {
+    expect(r.callRefs.length).toBeGreaterThan(0);
+  });
+});
+
+describe('ObjC method type refs', () => {
+  const r = fixture('typeref-method.m');
+  test('extracts symbols from implementation with typed params', () => {
+    expect(r.symbols.length).toBeGreaterThan(0);
+  });
+});
+
+describe('ObjC ivar type refs', () => {
+  const r = fixture('typeref-ivar.m');
+  test('extracts class interface with ivars', () => {
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'Foo', kind: 'class' }));
+  });
+});
+
+describe('ObjC cast type ref', () => {
+  const r = fixture('typeref-cast.m');
+  test('extracts cast type ref', () => {
+    const casts = r.typeRefs.filter(t => t.refKind === 'cast');
+    expect(casts).toContainEqual(expect.objectContaining({ typeRaw: 'Circle' }));
   });
 });

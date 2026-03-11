@@ -3,74 +3,71 @@ import path from 'node:path';
 import { parseAndExtractStrict } from '../helpers/extractorHelper.js';
 import { PhpExtractor } from '../../src/indexer/extractors/php.js';
 
-const fixtureDir = path.join(import.meta.dirname, '../fixtures');
-const result = parseAndExtractStrict('php', path.join(fixtureDir, 'php/sample.php'), new PhpExtractor());
+const ext = new PhpExtractor();
+const fixture = (name: string) => parseAndExtractStrict('php', path.join(import.meta.dirname, '../fixtures/php', name), ext);
 
-describe('PHP symbols', () => {
-  test('extracts functions', () => {
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'greet', kind: 'function' }));
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'add', kind: 'function' }));
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'main', kind: 'function' }));
+describe('PHP function extraction', () => {
+  const r = fixture('function.php');
+  test('extracts function', () => {
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'greet', kind: 'function' }));
   });
+});
 
+describe('PHP class extraction', () => {
+  const r = fixture('class.php');
+  test('extracts class and method', () => {
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'Circle', kind: 'class' }));
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'area', kind: 'function' }));
+  });
+});
+
+describe('PHP interface extraction', () => {
+  const r = fixture('interface.php');
   test('extracts interface', () => {
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Shape', kind: 'interface' }));
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'Shape', kind: 'interface' }));
   });
+});
 
-  test('extracts classes', () => {
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Animal', kind: 'class' }));
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Circle', kind: 'class' }));
-  });
-
+describe('PHP trait extraction', () => {
+  const r = fixture('trait.php');
   test('extracts trait', () => {
-    expect(result.symbols.some(s => s.name === 'Greetable')).toBe(true);
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'Greetable', kind: 'trait' }));
   });
 });
 
-describe('PHP imports', () => {
-  test('extracts use statements', () => {
-    expect(result.imports.length).toBeGreaterThan(0);
+describe('PHP class inheritance', () => {
+  const r = fixture('inheritance.php');
+  test('extracts extends and implements relationships', () => {
+    expect(r.relationships).toContainEqual(expect.objectContaining({ kind: 'extends', fromSymbol: 'Circle', toSymbol: 'Animal' }));
+    expect(r.relationships).toContainEqual(expect.objectContaining({ kind: 'implements', fromSymbol: 'Circle', toSymbol: 'Shape' }));
   });
 });
 
-describe('PHP call refs', () => {
-  test('produces non-empty call refs', () => {
-    expect(result.callRefs.length).toBeGreaterThan(0);
+describe('PHP use declaration extraction', () => {
+  const r = fixture('use-declaration.php');
+  test('extracts use declarations', () => {
+    expect(r.imports.length).toBeGreaterThanOrEqual(2);
   });
 });
 
-describe('PHP relationships', () => {
-  test('captures extends', () => {
-    expect(result.relationships).toContainEqual(
-      expect.objectContaining({ kind: 'extends', fromSymbol: 'Circle', toSymbol: 'Animal' }),
-    );
+describe('PHP call-ref extraction', () => {
+  const r = fixture('callref.php');
+  test('extracts call ref', () => {
+    expect(r.callRefs).toContainEqual(expect.objectContaining({ calleeRaw: 'greet' }));
   });
+});
 
-  test('captures implements', () => {
-    expect(result.relationships).toContainEqual(
-      expect.objectContaining({ kind: 'implements', fromSymbol: 'Circle', toSymbol: 'Shape' }),
-    );
+describe('PHP new expression call-ref', () => {
+  const r = fixture('callref-new.php');
+  test('extracts new as call ref', () => {
+    expect(r.callRefs).toContainEqual(expect.objectContaining({ calleeRaw: expect.stringContaining('Foo') }));
   });
 });
 
 describe('PHP type refs', () => {
-  test('extracts parameter type refs', () => {
-    expect(result.typeRefs.filter(r => r.refKind === 'parameter').length).toBeGreaterThan(0);
-  });
-
-  test('extracts return type refs', () => {
-    expect(result.typeRefs.filter(r => r.refKind === 'return').length).toBeGreaterThan(0);
-  });
-
-  test('extracts field type refs', () => {
-    expect(result.typeRefs.filter(r => r.refKind === 'field').length).toBeGreaterThan(0);
-  });
-
-  test('extracts bound type refs from inheritance', () => {
-    expect(result.typeRefs.filter(r => r.refKind === 'bound').length).toBeGreaterThan(0);
-  });
-
-  test('has at least 14 type refs', () => {
-    expect(result.typeRefs.length).toBeGreaterThanOrEqual(14);
+  const r = fixture('typerefs.php');
+  test('extracts parameter and return type refs', () => {
+    expect(r.typeRefs.filter(t => t.refKind === 'parameter')).toContainEqual(expect.objectContaining({ typeRaw: 'Config' }));
+    expect(r.typeRefs.filter(t => t.refKind === 'return')).toContainEqual(expect.objectContaining({ typeRaw: 'Config' }));
   });
 });

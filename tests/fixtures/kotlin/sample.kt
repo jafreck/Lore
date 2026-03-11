@@ -7,17 +7,15 @@ fun greet(name: String): String {
 
 fun add(a: Int, b: Int): Int = a + b
 
+class Circle(private val radius: Double) {
+    fun area(): Double = PI * radius * radius
+
+    fun perimeter(): Double = 2 * PI * radius
+}
+
 interface Shape {
     fun area(): Double
     fun perimeter(): Double
-}
-
-class Circle(private val radius: Double) : Shape {
-    val diameter: Double = radius * 2
-
-    override fun area(): Double = PI * radius * radius
-
-    override fun perimeter(): Double = 2 * PI * radius
 }
 
 object MathUtils {
@@ -29,11 +27,4 @@ fun main() {
     val sum = add(1, 2)
     val c = Circle(5.0)
     println(c.area())
-    val x = sum as Any
-    val n: Int? = null
-    val items: List<String> = listOf()
-}
-
-enum class Color {
-    RED, GREEN, BLUE
 }

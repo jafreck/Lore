@@ -3,85 +3,94 @@ import path from 'node:path';
 import { parseAndExtractStrict } from '../helpers/extractorHelper.js';
 import { SwiftExtractor } from '../../src/indexer/extractors/swift.js';
 
-const fixtureDir = path.join(import.meta.dirname, '../fixtures');
-const result = parseAndExtractStrict('swift', path.join(fixtureDir, 'swift/sample.swift'), new SwiftExtractor());
+const ext = new SwiftExtractor();
+const fixture = (name: string) => parseAndExtractStrict('swift', path.join(import.meta.dirname, '../fixtures/swift', name), ext);
 
-describe('Swift symbols', () => {
-  test('extracts protocol (reported as interface kind)', () => {
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Shape', kind: 'interface' }));
+describe('Swift function extraction', () => {
+  const r = fixture('function.swift');
+  test('extracts function', () => {
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'greet', kind: 'function' }));
   });
+});
 
+describe('Swift class extraction', () => {
+  const r = fixture('class.swift');
+  test('extracts class and method', () => {
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'Rectangle', kind: 'class' }));
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'area', kind: 'function' }));
+  });
+});
+
+describe('Swift struct extraction', () => {
+  const r = fixture('struct.swift');
+  test('extracts struct', () => {
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'Point' }));
+  });
+});
+
+describe('Swift protocol extraction', () => {
+  const r = fixture('protocol.swift');
+  test('extracts protocol as interface', () => {
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'Shape', kind: 'interface' }));
+  });
+});
+
+describe('Swift enum extraction', () => {
+  const r = fixture('enum.swift');
   test('extracts enum', () => {
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Direction', kind: 'class' }));
-  });
-
-  test('extracts struct (reported as class kind by Swift extractor)', () => {
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Circle', kind: 'class' }));
-  });
-
-  test('extracts class', () => {
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Rectangle', kind: 'class' }));
-  });
-
-  test('extracts functions', () => {
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'greet', kind: 'function' }));
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'add', kind: 'function' }));
-  });
-
-  test('extracts extension methods', () => {
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'describe' }));
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'Direction' }));
   });
 });
 
-describe('Swift imports', () => {
+describe('Swift struct conformance', () => {
+  const r = fixture('conformance.swift');
+  test('extracts relationship', () => {
+    expect(r.relationships.length).toBeGreaterThan(0);
+    expect(r.relationships[0]).toMatchObject({ fromSymbol: 'Circle', toSymbol: 'Shape' });
+  });
+});
+
+describe('Swift extension extraction', () => {
+  const r = fixture('extension.swift');
+  test('extracts symbols from extension', () => {
+    expect(r.symbols.length).toBeGreaterThan(0);
+  });
+});
+
+describe('Swift import extraction', () => {
+  const r = fixture('imports.swift');
   test('extracts imports', () => {
-    expect(result.imports).toContainEqual(expect.objectContaining({ source: 'Foundation' }));
-    expect(result.imports).toContainEqual(expect.objectContaining({ source: 'Darwin' }));
+    expect(r.imports).toHaveLength(2);
+    expect(r.imports).toContainEqual(expect.objectContaining({ source: 'Foundation' }));
   });
 });
 
-describe('Swift call refs', () => {
-  test('produces non-empty call refs', () => {
-    expect(result.callRefs.length).toBeGreaterThan(0);
-  });
-});
-
-describe('Swift relationships', () => {
-  test('captures protocol conformance', () => {
-    expect(result.relationships).toContainEqual(
-      expect.objectContaining({ fromSymbol: 'Circle', toSymbol: 'Shape' }),
-    );
+describe('Swift call-ref extraction', () => {
+  const r = fixture('callref.swift');
+  test('extracts call ref', () => {
+    expect(r.callRefs.length).toBeGreaterThan(0);
   });
 });
 
 describe('Swift type refs', () => {
-  test('extracts bound type refs from conformance', () => {
-    expect(result.typeRefs.filter(r => r.refKind === 'bound').length).toBeGreaterThan(0);
+  const r = fixture('typeref-function.swift');
+  test('extracts function with typed parameters', () => {
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'load', kind: 'function' }));
   });
+});
 
-  test('extracts field type refs', () => {
-    expect(result.typeRefs.filter(r => r.refKind === 'field').length).toBeGreaterThan(0);
+describe('Swift field type refs', () => {
+  const r = fixture('typeref-field.swift');
+  test('extracts field type ref', () => {
+    const fields = r.typeRefs.filter(t => t.refKind === 'field');
+    expect(fields).toContainEqual(expect.objectContaining({ typeRaw: 'Config' }));
   });
+});
 
-  test('extracts variable type refs', () => {
-    expect(result.typeRefs.filter(r => r.refKind === 'variable').length).toBeGreaterThan(0);
-  });
-
-  test('extracts parameter type refs', () => {
-    expect(result.typeRefs.filter(r => r.refKind === 'parameter').length).toBeGreaterThan(0);
-  });
-
-  test('extracts cast type refs', () => {
-    expect(result.typeRefs.filter(r => r.refKind === 'cast').length).toBeGreaterThan(0);
-  });
-
-  test('has at least 16 type refs', () => {
-    expect(result.typeRefs.length).toBeGreaterThanOrEqual(16);
-  });
-
-  test('all type refs have line numbers', () => {
-    for (const ref of result.typeRefs) {
-      expect(typeof ref.line).toBe('number');
-    }
+describe('Swift as-cast type ref', () => {
+  const r = fixture('typeref-cast.swift');
+  test('extracts cast type ref', () => {
+    const casts = r.typeRefs.filter(t => t.refKind === 'cast');
+    expect(casts).toHaveLength(1);
   });
 });

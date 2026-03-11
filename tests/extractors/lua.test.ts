@@ -3,31 +3,36 @@ import path from 'node:path';
 import { parseAndExtractStrict } from '../helpers/extractorHelper.js';
 import { LuaExtractor } from '../../src/indexer/extractors/lua.js';
 
-const fixtureDir = path.join(import.meta.dirname, '../fixtures');
-const result = parseAndExtractStrict('lua', path.join(fixtureDir, 'lua/sample.lua'), new LuaExtractor());
+const ext = new LuaExtractor();
+const fixture = (name: string) => parseAndExtractStrict('lua', path.join(import.meta.dirname, '../fixtures/lua', name), ext);
 
-describe('Lua symbols', () => {
-  test('extracts global functions', () => {
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'greet', kind: 'function' }));
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'add', kind: 'function' }));
-  });
-
-  test('extracts local functions', () => {
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'square', kind: 'function' }));
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'clamp', kind: 'function' }));
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'main', kind: 'function' }));
+describe('Lua function extraction', () => {
+  const r = fixture('function.lua');
+  test('extracts function', () => {
+    expect(r.symbols).toHaveLength(1);
+    expect(r.symbols[0]).toMatchObject({ name: 'greet', kind: 'function' });
   });
 });
 
-describe('Lua imports', () => {
-  test('extracts require calls', () => {
-    expect(result.imports).toContainEqual(expect.objectContaining({ source: 'json' }));
-    expect(result.imports).toContainEqual(expect.objectContaining({ source: 'utils' }));
+describe('Lua local function extraction', () => {
+  const r = fixture('local-function.lua');
+  test('extracts local function', () => {
+    expect(r.symbols).toHaveLength(1);
+    expect(r.symbols[0]).toMatchObject({ name: 'helper', kind: 'function' });
   });
 });
 
-describe('Lua call refs', () => {
-  test('produces non-empty call refs', () => {
-    expect(result.callRefs.length).toBeGreaterThan(0);
+describe('Lua require import extraction', () => {
+  const r = fixture('imports.lua');
+  test('extracts require calls as imports', () => {
+    expect(r.imports).toContainEqual(expect.objectContaining({ source: 'json' }));
+    expect(r.imports).toContainEqual(expect.objectContaining({ source: 'utils' }));
+  });
+});
+
+describe('Lua call-ref extraction', () => {
+  const r = fixture('callref.lua');
+  test('extracts call refs', () => {
+    expect(r.callRefs.length).toBeGreaterThan(0);
   });
 });

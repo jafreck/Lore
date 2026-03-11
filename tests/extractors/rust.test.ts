@@ -3,63 +3,88 @@ import path from 'node:path';
 import { parseAndExtractStrict } from '../helpers/extractorHelper.js';
 import { RustExtractor } from '../../src/indexer/extractors/rust.js';
 
-const fixtureDir = path.join(import.meta.dirname, '../fixtures');
-const result = parseAndExtractStrict('rust', path.join(fixtureDir, 'rust/sample.rs'), new RustExtractor());
+const ext = new RustExtractor();
+const fixture = (name: string) => parseAndExtractStrict('rust', path.join(import.meta.dirname, '../fixtures/rust', name), ext);
 
-describe('Rust symbols', () => {
-  test('extracts structs', () => {
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Circle', kind: 'struct' }));
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Rectangle', kind: 'struct' }));
+describe('Rust struct extraction', () => {
+  const r = fixture('struct.rs');
+  test('extracts struct', () => {
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'Circle', kind: 'struct' }));
   });
+});
 
+describe('Rust enum extraction', () => {
+  const r = fixture('enum.rs');
   test('extracts enum', () => {
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Color', kind: 'enum' }));
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'Color', kind: 'enum' }));
   });
+});
 
+describe('Rust trait extraction', () => {
+  const r = fixture('trait.rs');
   test('extracts trait', () => {
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'Shape', kind: 'trait' }));
-  });
-
-  test('extracts functions', () => {
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'greet', kind: 'function' }));
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'add', kind: 'function' }));
-    expect(result.symbols).toContainEqual(expect.objectContaining({ name: 'main', kind: 'function' }));
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'Shape', kind: 'trait' }));
   });
 });
 
-describe('Rust imports', () => {
+describe('Rust impl extraction', () => {
+  const r = fixture('impl.rs');
+  test('extracts impl with trait relationship', () => {
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'Shape for Circle', kind: 'impl' }));
+    expect(r.relationships).toContainEqual(expect.objectContaining({ kind: 'implements', toSymbol: 'Shape' }));
+  });
+});
+
+describe('Rust function extraction', () => {
+  const r = fixture('function.rs');
+  test('extracts function', () => {
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'greet', kind: 'function' }));
+  });
+});
+
+describe('Rust use import extraction', () => {
+  const r = fixture('imports.rs');
   test('extracts use imports', () => {
-    expect(result.imports).toContainEqual(expect.objectContaining({ source: 'std::fmt' }));
-    expect(result.imports).toContainEqual(expect.objectContaining({ source: 'std::collections::HashMap' }));
+    expect(r.imports).toContainEqual(expect.objectContaining({ source: 'std::fmt' }));
+    expect(r.imports).toContainEqual(expect.objectContaining({ source: 'std::collections::HashMap' }));
   });
 });
 
-describe('Rust call refs', () => {
-  test('produces non-empty call refs', () => {
-    expect(result.callRefs.length).toBeGreaterThan(0);
+describe('Rust call-ref extraction', () => {
+  const r = fixture('callref.rs');
+  test('extracts macro call ref', () => {
+    expect(r.callRefs).toContainEqual(expect.objectContaining({ calleeRaw: 'format!', callerSymbol: 'greet' }));
   });
 });
 
-describe('Rust relationships', () => {
-  test('captures trait implementation', () => {
-    expect(result.relationships).toContainEqual(
-      expect.objectContaining({ kind: 'implements', toSymbol: 'Shape' }),
-    );
+describe('Rust return type ref', () => {
+  const r = fixture('typeref-return.rs');
+  test('extracts return type ref', () => {
+    const returns = r.typeRefs.filter(t => t.refKind === 'return');
+    expect(returns).toContainEqual(expect.objectContaining({ typeRaw: 'Config', enclosingSymbol: 'load' }));
   });
 });
 
-describe('Rust type refs', () => {
-  test('extracts return type refs', () => {
-    const returnRefs = result.typeRefs.filter(r => r.refKind === 'return');
-    expect(returnRefs.length).toBeGreaterThan(0);
-    expect(returnRefs).toContainEqual(
-      expect.objectContaining({ typeRaw: 'String', enclosingSymbol: 'greet' }),
-    );
+describe('Rust parameter type ref', () => {
+  const r = fixture('typeref-parameter.rs');
+  test('extracts parameter type ref', () => {
+    const params = r.typeRefs.filter(t => t.refKind === 'parameter');
+    expect(params).toContainEqual(expect.objectContaining({ typeRaw: 'Config', enclosingSymbol: 'save' }));
   });
+});
 
-  test('extracts field type refs from structs', () => {
-    // Rust struct fields use primitive types (f64) which are not type_identifier nodes
-    const fieldRefs = result.typeRefs.filter(r => r.refKind === 'field');
-    expect(fieldRefs.length).toBe(0);
+describe('Rust cast type ref', () => {
+  const r = fixture('typeref-cast.rs');
+  test('parses file with as-cast without error', () => {
+    // Rust as-casts use primitive types that don't produce type_identifier nodes
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'main', kind: 'function' }));
+  });
+});
+
+describe('Rust variable type ref', () => {
+  const r = fixture('typeref-variable.rs');
+  test('extracts variable type ref', () => {
+    const vars = r.typeRefs.filter(t => t.refKind === 'variable');
+    expect(vars).toContainEqual(expect.objectContaining({ typeRaw: 'Foo' }));
   });
 });
