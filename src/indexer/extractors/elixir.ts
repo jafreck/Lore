@@ -17,14 +17,6 @@ import {
   walk,
 } from './types.js';
 
-/** Elixir keywords that define modules/functions rather than calling them. */
-const ELIXIR_DEFINITION_KEYWORDS = new Set([
-  'def', 'defp', 'defmodule', 'defmacro', 'defmacrop',
-  'defstruct', 'defprotocol', 'defimpl', 'defguard', 'defguardp',
-  'defdelegate', 'defexception', 'defoverridable',
-  'alias', 'import', 'use', 'require',
-]);
-
 // ─── ElixirExtractor ──────────────────────────────────────────────────────────
 
 export class ElixirExtractor implements SymbolExtractor {
@@ -66,12 +58,16 @@ export class ElixirExtractor implements SymbolExtractor {
         case 'require':
           result.imports.push(extractElixirImport(node, targetText));
           break;
+        case 'defguard':
+        case 'defguardp':
+        case 'defdelegate':
+        case 'defexception':
+        case 'defoverridable':
+          break;
         default: {
           // Regular function call (not a definition keyword)
-          if (!ELIXIR_DEFINITION_KEYWORDS.has(targetText)) {
-            const ref = extractCallRef(node, target);
-            if (ref) result.callRefs.push(ref);
-          }
+          const ref = extractCallRef(node, target);
+          if (ref) result.callRefs.push(ref);
           break;
         }
       }
@@ -116,14 +112,13 @@ function extractDef(node: Parser.SyntaxNode, kind: string): RawSymbol {
 
 function extractCallRef(node: Parser.SyntaxNode, target: Parser.SyntaxNode): RawCallRef | null {
   const calleeRaw = target.text;
-  if (!calleeRaw) return null;
   // Walk up to find enclosing def/defp
   let callerSymbol = '';
   let current: Parser.SyntaxNode | null = node.parent;
   while (current) {
     if (current.type === 'call') {
       const t = current.childForFieldName('target');
-      if (t && (t.text === 'def' || t.text === 'defp')) {
+      if (t && (t.text === 'def' || t.text === 'defp' || t.text === 'defmacro' || t.text === 'defmacrop')) {
         const args = current.childForFieldName('arguments');
         if (args?.namedChildren[0]) {
           const first = args.namedChildren[0];

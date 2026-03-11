@@ -28,10 +28,6 @@ export class OcamlExtractor implements SymbolExtractor {
         case 'let_binding':
           result.symbols.push(extractLetBinding(node));
           break;
-        case 'value_definition': {
-          // Contains one or more let_bindings — handled via children
-          break;
-        }
         case 'type_definition':
           result.symbols.push(extractTypeDefinition(node));
           break;
@@ -81,9 +77,7 @@ function extractTypeDefinition(node: Parser.SyntaxNode): RawSymbol {
   // tree-sitter-ocaml wraps the name inside a `type_binding` child.
   const binding = node.namedChildren.find(c => c.type === 'type_binding') ?? node;
   const nameNode = binding.childForFieldName('name') ??
-    binding.namedChildren.find(c => c.type === 'type_constructor') ??
-    node.childForFieldName('name') ??
-    node.namedChildren.find(c => c.type === 'type_constructor');
+    binding.namedChildren.find(c => c.type === 'type_constructor');
   return {
     name: nameNode?.text ?? '',
     kind: 'type',
@@ -97,9 +91,7 @@ function extractModuleDefinition(node: Parser.SyntaxNode): RawSymbol {
   // tree-sitter-ocaml wraps the name inside a `module_binding` child.
   const binding = node.namedChildren.find(c => c.type === 'module_binding') ?? node;
   const nameNode = binding.childForFieldName('name') ??
-    binding.namedChildren.find(c => c.type === 'module_name') ??
-    node.childForFieldName('name') ??
-    node.namedChildren.find(c => c.type === 'module_name');
+    binding.namedChildren.find(c => c.type === 'module_name');
   return {
     name: nameNode?.text ?? '',
     kind: 'module',

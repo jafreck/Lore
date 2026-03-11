@@ -28,6 +28,7 @@ const OBJC_SYMBOL_NODE_TYPES = [
   'class_implementation',
   'protocol_declaration',
   'category_interface',
+  'category_implementation',
 ] as const;
 
 // ─── ObjcExtractor ───────────────────────────────────────────────────────────
@@ -57,6 +58,7 @@ export class ObjcExtractor implements SymbolExtractor {
           extractObjcMethodTypeRefs(node, result.typeRefs);
           break;
         case 'category_interface':
+        case 'category_implementation':
           result.symbols.push(extractCategory(node));
           break;
         case 'preproc_import':
@@ -95,7 +97,6 @@ function extractMessageCallRef(node: Parser.SyntaxNode): RawCallRef | null {
   const selectorNode = node.childForFieldName('selector') ??
     node.namedChildren.find(c => c.type === 'selector' || c.type === 'keyword_selector');
   const receiverNode = node.childForFieldName('receiver') ?? node.namedChildren[0];
-  if (!selectorNode && !receiverNode) return null;
   const callee = selectorNode?.text ?? receiverNode?.text ?? '';
   // Find enclosing method
   let callerSymbol = '';
@@ -266,10 +267,8 @@ function extractObjcClassInheritance(
     node.namedChildren.find(c => c.type === 'superclass_reference');
   if (superclass) {
     const superName = superclass.namedChildren.find(c => c.type === 'identifier')?.text ?? superclass.text;
-    if (superName) {
-      relationships.push({ kind: 'extends', fromSymbol: name, toSymbol: superName, line: superclass.startPosition.row, character: superclass.startPosition.column });
-      typeRefs.push({ enclosingSymbol: name, typeRaw: superName, refKind: 'bound', line: superclass.startPosition.row, character: superclass.startPosition.column });
-    }
+    relationships.push({ kind: 'extends', fromSymbol: name, toSymbol: superName, line: superclass.startPosition.row, character: superclass.startPosition.column });
+    typeRefs.push({ enclosingSymbol: name, typeRaw: superName, refKind: 'bound', line: superclass.startPosition.row, character: superclass.startPosition.column });
   }
   // Protocol conformance
   const protocols = node.namedChildren.find(c => c.type === 'protocol_qualifiers');
