@@ -102,7 +102,7 @@ CREATE TABLE IF NOT EXISTS symbol_relationships (
   target_symbol_id   INTEGER REFERENCES symbols(id),
   target_symbol_name TEXT    NOT NULL,
   relationship_type  TEXT    NOT NULL,
-  line               INTEGER NOT NULL,
+  line               INTEGER,
   character          INTEGER,
   definition_uri     TEXT,
   definition_path    TEXT,
