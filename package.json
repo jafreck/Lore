@@ -20,6 +20,10 @@
     "./server/tools/*": {
       "types": "./dist/server/tools/*.d.ts",
       "default": "./dist/server/tools/*.js"
+    },
+    "./benchmark": {
+      "types": "./dist/benchmark/index.d.ts",
+      "default": "./dist/benchmark/index.js"
     }
   },
   "bin": {
@@ -36,6 +40,8 @@
     "prepublishOnly": "npm run clean && npm run build",
     "test": "vitest run",
     "test:lsp-smoke": "vitest run tests/lsp/smoke.test.ts",
+    "test:benchmark": "vitest run tests/benchmark/",
+    "test:benchmark:integration": "vitest run tests/benchmark/integration.test.ts",
     "coverage": "vitest run --coverage"
   },
   "repository": {
