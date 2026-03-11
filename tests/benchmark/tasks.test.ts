@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { LORE_SELF_TASKS, getTasksForRepo, getAllTasks } from '../../src/benchmark/tasks.js';
+import { LORE_SELF_TASKS, getTasksForRepo, getAllTasks } from './util/tasks.js';
 
 describe('LORE_SELF_TASKS', () => {
   it('should have unique task IDs', () => {

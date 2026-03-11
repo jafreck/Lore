@@ -13,8 +13,8 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { openReadOnly } from '../db/read-only.js';
-import type { EmbeddingProvider } from '../embeddings/embedder.js';
+import { openReadOnly } from '../../../src/db/read-only.js';
+import type { EmbeddingProvider } from '../../../src/embeddings/embedder.js';
 import type { AgentTool } from './types.js';
 import type { BenchmarkArm } from './types.js';
 
@@ -179,20 +179,20 @@ async function buildLoreTools(dbPath: string, embedder?: EmbeddingProvider): Pro
     architecture, testMap, snippet, blame, metrics, coverage,
     history, annotations,
   ] = await Promise.all([
-    import('../server/tools/lookup.js'),
-    import('../server/tools/search.js'),
-    import('../server/tools/graph.js'),
-    import('../server/tools/graph-analysis.js'),
-    import('../server/tools/docs.js'),
-    import('../server/tools/routes.js'),
-    import('../server/tools/architecture.js'),
-    import('../server/tools/test-map.js'),
-    import('../server/tools/snippet.js'),
-    import('../server/tools/blame.js'),
-    import('../server/tools/metrics.js'),
-    import('../server/tools/coverage.js'),
-    import('../server/tools/history.js'),
-    import('../server/tools/annotations.js'),
+    import('../../../src/server/tools/lookup.js'),
+    import('../../../src/server/tools/search.js'),
+    import('../../../src/server/tools/graph.js'),
+    import('../../../src/server/tools/graph-analysis.js'),
+    import('../../../src/server/tools/docs.js'),
+    import('../../../src/server/tools/routes.js'),
+    import('../../../src/server/tools/architecture.js'),
+    import('../../../src/server/tools/test-map.js'),
+    import('../../../src/server/tools/snippet.js'),
+    import('../../../src/server/tools/blame.js'),
+    import('../../../src/server/tools/metrics.js'),
+    import('../../../src/server/tools/coverage.js'),
+    import('../../../src/server/tools/history.js'),
+    import('../../../src/server/tools/annotations.js'),
   ]);
 
   return [
@@ -221,7 +221,7 @@ async function buildLoreTools(dbPath: string, embedder?: EmbeddingProvider): Pro
  */
 async function buildSemanticSearchTool(dbPath: string, embedder?: EmbeddingProvider): Promise<AgentTool> {
   const db = openReadOnly(dbPath);
-  const searchMod = await import('../server/tools/search.js');
+  const searchMod = await import('../../../src/server/tools/search.js');
 
   return {
     name: 'semantic_search',

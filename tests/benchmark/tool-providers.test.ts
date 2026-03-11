@@ -6,7 +6,7 @@ import { describe, it, expect } from 'vitest';
 import { join } from 'node:path';
 import { mkdtempSync, writeFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { buildToolsForArm } from '../../src/benchmark/tool-providers.js';
+import { buildToolsForArm } from './util/tool-providers.js';
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 

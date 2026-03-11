@@ -264,6 +264,7 @@ export async function runCopilotAgent(
       finalAnswer: result.answer,
       totalTokensEstimate: result.outputTokens || estimateTokensFromCalls(result.toolCalls, result.answer),
       loreToolsCalled: extractLoreToolsCalled(result.toolCalls),
+      rawOutput: output,
     };
   } catch (e: any) {
     // If the process timed out or failed, still try to parse partial output
@@ -276,6 +277,7 @@ export async function runCopilotAgent(
         finalAnswer: result.answer || `Error: ${e.message}`,
         totalTokensEstimate: result.outputTokens || 0,
         loreToolsCalled: extractLoreToolsCalled(result.toolCalls),
+        rawOutput: partialOutput,
       };
     }
     return {

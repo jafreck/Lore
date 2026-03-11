@@ -7,8 +7,8 @@ import {
   executeToolCall,
   runScriptedAgent,
   runProgrammaticAgent,
-} from '../../src/benchmark/agent.js';
-import type { AgentTool, BenchmarkTask } from '../../src/benchmark/types.js';
+} from './util/agent.js';
+import type { AgentTool, BenchmarkTask } from './util/types.js';
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 

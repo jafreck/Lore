@@ -8,8 +8,8 @@ import {
   aggregateScores,
   formatReport,
   compareReports,
-} from '../../src/benchmark/scorer.js';
-import type { BenchmarkTask, AgentTrace, RunScore } from '../../src/benchmark/types.js';
+} from './util/scorer.js';
+import type { BenchmarkTask, AgentTrace, RunScore } from './util/types.js';
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 

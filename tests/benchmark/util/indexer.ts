@@ -13,12 +13,12 @@
  */
 
 import { join } from 'node:path';
-import { IndexBuilder } from '../indexer/index.js';
-import { LazyEmbeddingProvider, DEFAULT_EMBEDDING_MODEL } from '../embeddings/embedder.js';
-import { resolveEffectiveScipSettings } from '../scip/config.js';
-import { resolveEffectiveLspSettings } from '../lsp/config.js';
-import type { WalkerConfig } from '../discovery/walker.js';
-import type { EmbeddingProvider } from '../embeddings/embedder.js';
+import { IndexBuilder } from '../../../src/indexer/index.js';
+import { LazyEmbeddingProvider, DEFAULT_EMBEDDING_MODEL } from '../../../src/embeddings/embedder.js';
+import { resolveEffectiveScipSettings } from '../../../src/scip/config.js';
+import { resolveEffectiveLspSettings } from '../../../src/lsp/config.js';
+import type { WalkerConfig } from '../../../src/discovery/walker.js';
+import type { EmbeddingProvider } from '../../../src/embeddings/embedder.js';
 import type { RepoInstance, IndexOptions, IndexMode } from './types.js';
 
 /**

@@ -20,10 +20,6 @@
     "./server/tools/*": {
       "types": "./dist/server/tools/*.d.ts",
       "default": "./dist/server/tools/*.js"
-    },
-    "./benchmark": {
-      "types": "./dist/benchmark/index.d.ts",
-      "default": "./dist/benchmark/index.js"
     }
   },
   "bin": {

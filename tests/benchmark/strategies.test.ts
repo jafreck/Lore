@@ -3,8 +3,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { buildControlStrategy, buildLoreStrategy } from '../../src/benchmark/strategies.js';
-import type { BenchmarkTask } from '../../src/benchmark/types.js';
+import { buildControlStrategy, buildLoreStrategy } from './util/strategies.js';
+import type { BenchmarkTask } from './util/types.js';
 
 function makeTask(overrides?: Partial<BenchmarkTask>): BenchmarkTask {
   return {

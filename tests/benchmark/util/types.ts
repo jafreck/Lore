@@ -157,6 +157,8 @@ export interface AgentTrace {
   totalTokensEstimate: number;
   /** Names of Lore tools that were actually called during the run. */
   loreToolsCalled: string[];
+  /** Raw NDJSON output from the copilot CLI (only present for copilot runs). */
+  rawOutput?: string;
 }
 
 /** Interface that agent implementations must satisfy. */

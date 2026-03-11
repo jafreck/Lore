@@ -7,8 +7,8 @@ import { join } from 'node:path';
 import { mkdtempSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { execFileSync } from 'node:child_process';
-import { RepoManager } from '../../src/benchmark/repo-manager.js';
-import type { RepoSpec } from '../../src/benchmark/types.js';
+import { RepoManager } from './util/repo-manager.js';
+import type { RepoSpec } from './util/types.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

@@ -17,15 +17,15 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { join } from 'node:path';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { RepoManager } from '../../src/benchmark/repo-manager.js';
-import { indexRepo } from '../../src/benchmark/indexer.js';
-import { buildToolsForArm } from '../../src/benchmark/tool-providers.js';
-import { runScriptedAgent, runProgrammaticAgent } from '../../src/benchmark/agent.js';
-import { buildControlStrategy, buildLoreStrategy, buildDynamicLoreStrategy } from '../../src/benchmark/strategies.js';
-import { scoreRun, aggregateScores, formatReport, compareReports } from '../../src/benchmark/scorer.js';
-import { LORE_SELF_TASKS } from '../../src/benchmark/tasks.js';
-import { PILOT_REPOS } from '../../src/benchmark/repos.js';
-import type { BenchmarkTask, RunScore } from '../../src/benchmark/types.js';
+import { RepoManager } from './util/repo-manager.js';
+import { indexRepo } from './util/indexer.js';
+import { buildToolsForArm } from './util/tool-providers.js';
+import { runScriptedAgent, runProgrammaticAgent } from './util/agent.js';
+import { buildControlStrategy, buildLoreStrategy, buildDynamicLoreStrategy } from './util/strategies.js';
+import { scoreRun, aggregateScores, formatReport, compareReports } from './util/scorer.js';
+import { LORE_SELF_TASKS } from './util/tasks.js';
+import { PILOT_REPOS } from './util/repos.js';
+import type { RunScore } from './util/types.js';
 
 // ─── Setup ────────────────────────────────────────────────────────────────────
 
@@ -36,6 +36,11 @@ describe('Benchmark integration: Lore self-evaluation', () => {
   const repoManager = new RepoManager(WORK_DIR);
   let repoPath: string;
   let dbPath: string;
+
+  // Accumulated scores from per-task tests — consumed by the aggregate test
+  const controlScores: RunScore[] = [];
+  const loreScores: RunScore[] = [];
+  const loreDynamicScores: RunScore[] = [];
 
   // Clone and index the Lore repo once before all tests
   beforeAll(async () => {
@@ -60,64 +65,51 @@ describe('Benchmark integration: Lore self-evaluation', () => {
       it(`control arm should produce a result`, async () => {
         const tools = await buildToolsForArm('control', repoPath);
         const strategy = buildControlStrategy(task);
+        const controlStart = performance.now();
         const trace = await runScriptedAgent(strategy, tools);
+        const controlTime = Math.round(performance.now() - controlStart);
 
         expect(trace.toolCalls.length).toBeGreaterThan(0);
         expect(trace.finalAnswer.length).toBeGreaterThan(0);
+
+        controlScores.push(scoreRun(task, trace, controlTime));
       });
 
       it(`lore-enabled arm should produce a result`, async () => {
         const tools = await buildToolsForArm('lore-enabled', repoPath, dbPath);
         const strategy = buildLoreStrategy(task);
+        const loreStart = performance.now();
         const trace = await runScriptedAgent(strategy, tools);
+        const loreTime = Math.round(performance.now() - loreStart);
 
         expect(trace.toolCalls.length).toBeGreaterThan(0);
         expect(trace.finalAnswer.length).toBeGreaterThan(0);
+
+        loreScores.push(scoreRun(task, trace, loreTime));
       });
 
       it(`lore-enabled dynamic arm should produce a result`, async () => {
         const tools = await buildToolsForArm('lore-enabled', repoPath, dbPath);
         const strategy = buildDynamicLoreStrategy(task);
+        const loreDynStart = performance.now();
         const trace = await runProgrammaticAgent(strategy, task, tools);
+        const loreDynTime = Math.round(performance.now() - loreDynStart);
 
         expect(trace.toolCalls.length).toBeGreaterThan(0);
         expect(trace.finalAnswer.length).toBeGreaterThan(0);
+
+        loreDynamicScores.push(scoreRun(task, trace, loreDynTime));
       });
     });
   }
 
   // ─── Aggregate comparison ───────────────────────────────────────────────
 
-  it('should run all tasks and produce aggregate comparison', async () => {
-    const controlScores: RunScore[] = [];
-    const loreScores: RunScore[] = [];
-    const loreDynamicScores: RunScore[] = [];
-
-    for (const task of LORE_SELF_TASKS) {
-      // Control arm
-      const controlTools = await buildToolsForArm('control', repoPath);
-      const controlStrategy = buildControlStrategy(task);
-      const controlStart = performance.now();
-      const controlTrace = await runScriptedAgent(controlStrategy, controlTools);
-      const controlTime = Math.round(performance.now() - controlStart);
-      controlScores.push(scoreRun(task, controlTrace, controlTime));
-
-      // Lore arm (scripted)
-      const loreTools = await buildToolsForArm('lore-enabled', repoPath, dbPath);
-      const loreStrategy = buildLoreStrategy(task);
-      const loreStart = performance.now();
-      const loreTrace = await runScriptedAgent(loreStrategy, loreTools);
-      const loreTime = Math.round(performance.now() - loreStart);
-      loreScores.push(scoreRun(task, loreTrace, loreTime));
-
-      // Lore arm (dynamic — chains results)
-      const loreDynTools = await buildToolsForArm('lore-enabled', repoPath, dbPath);
-      const loreDynStrategy = buildDynamicLoreStrategy(task);
-      const loreDynStart = performance.now();
-      const loreDynTrace = await runProgrammaticAgent(loreDynStrategy, task, loreDynTools);
-      const loreDynTime = Math.round(performance.now() - loreDynStart);
-      loreDynamicScores.push(scoreRun(task, loreDynTrace, loreDynTime));
-    }
+  it('should run all tasks and produce aggregate comparison', () => {
+    // Guard: per-task tests must have run first
+    expect(controlScores.length).toBe(LORE_SELF_TASKS.length);
+    expect(loreScores.length).toBe(LORE_SELF_TASKS.length);
+    expect(loreDynamicScores.length).toBe(LORE_SELF_TASKS.length);
 
     const controlReport = aggregateScores('control', controlScores);
     const loreReport = aggregateScores('lore-scripted', loreScores);
@@ -137,5 +129,5 @@ describe('Benchmark integration: Lore self-evaluation', () => {
 
     // The dynamic Lore arm should have some answer coverage (tools return real data)
     expect(loreDynReport.meanAnswerCoverage).toBeGreaterThanOrEqual(0);
-  }, 120_000);
+  });
 });

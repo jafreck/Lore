@@ -22,13 +22,13 @@ import { join } from 'node:path';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { execFileSync } from 'node:child_process';
-import { RepoManager } from '../../src/benchmark/repo-manager.js';
-import { indexRepo } from '../../src/benchmark/indexer.js';
-import { runCopilotAgent, type CopilotAgentOptions } from '../../src/benchmark/copilot-agent.js';
-import { scoreRun, aggregateScores, formatReport, compareReports } from '../../src/benchmark/scorer.js';
-import { getTasksForRepo } from '../../src/benchmark/tasks.js';
-import { PILOT_REPOS } from '../../src/benchmark/repos.js';
-import type { RunScore } from '../../src/benchmark/types.js';
+import { RepoManager } from './util/repo-manager.js';
+import { indexRepo } from './util/indexer.js';
+import { runCopilotAgent, type CopilotAgentOptions } from './util/copilot-agent.js';
+import { scoreRun, aggregateScores, formatReport, compareReports } from './util/scorer.js';
+import { getTasksForRepo } from './util/tasks.js';
+import { PILOT_REPOS } from './util/repos.js';
+import type { RunScore } from './util/types.js';
 
 // ─── Configuration ────────────────────────────────────────────────────────────
 
@@ -53,6 +53,10 @@ describe.skipIf(SKIP)(`Copilot agent benchmark: ${TARGET_REPO}`, () => {
   const repoManager = new RepoManager(WORK_DIR);
   let repoPath: string;
   let dbPath: string;
+
+  // Accumulated scores from per-task tests — consumed by the aggregate test
+  const controlScores: RunScore[] = [];
+  const loreScores: RunScore[] = [];
 
   beforeAll(async () => {
     // Ensure Lore MCP server is built (used by lore-enabled arm)
@@ -92,6 +96,7 @@ describe.skipIf(SKIP)(`Copilot agent benchmark: ${TARGET_REPO}`, () => {
         expect(trace.loreToolsCalled).toHaveLength(0);
 
         const score = scoreRun(task, trace, wallTimeMs);
+        controlScores.push(score);
 
         // Wallclock time must be captured (non-zero)
         expect(score.wallTimeMs).toBeGreaterThan(0);
@@ -114,6 +119,7 @@ describe.skipIf(SKIP)(`Copilot agent benchmark: ${TARGET_REPO}`, () => {
         expect(trace.loreToolsCalled.length).toBeGreaterThan(0);
 
         const score = scoreRun(task, trace, wallTimeMs);
+        loreScores.push(score);
 
         // Wallclock time must be captured (non-zero)
         expect(score.wallTimeMs).toBeGreaterThan(0);
@@ -132,26 +138,16 @@ describe.skipIf(SKIP)(`Copilot agent benchmark: ${TARGET_REPO}`, () => {
 
   // ─── Aggregate comparison ───────────────────────────────────────────────
 
-  it('aggregate: full report — control vs lore-enabled', async () => {
-    const controlScores: RunScore[] = [];
-    const loreScores: RunScore[] = [];
+  it('aggregate: full report — control vs lore-enabled', () => {
+    // Guard: per-task tests must have run first (vitest runs tests in order within a describe)
+    expect(controlScores.length).toBe(COPILOT_TASKS.length);
+    expect(loreScores.length).toBe(COPILOT_TASKS.length);
 
-    for (const task of COPILOT_TASKS) {
-      // Control arm
-      const ctrlStart = performance.now();
-      const ctrlTrace = await runCopilotAgent(task, 'control', repoPath, undefined, COPILOT_OPTIONS);
-      const ctrlWall = Math.round(performance.now() - ctrlStart);
-      controlScores.push(scoreRun(task, ctrlTrace, ctrlWall));
-
-      // Lore arm
-      const loreStart = performance.now();
-      const loreTrace = await runCopilotAgent(task, 'lore-enabled', repoPath, dbPath, COPILOT_OPTIONS);
-      const loreWall = Math.round(performance.now() - loreStart);
-      loreScores.push(scoreRun(task, loreTrace, loreWall));
-
-      // Per-task detail
-      const cs = controlScores[controlScores.length - 1]!;
-      const ls = loreScores[loreScores.length - 1]!;
+    // Print per-task detail from already-collected scores
+    for (let i = 0; i < COPILOT_TASKS.length; i++) {
+      const task = COPILOT_TASKS[i]!;
+      const cs = controlScores[i]!;
+      const ls = loreScores[i]!;
       console.log(`\n── ${task.id} (${task.family}) ──`);
       console.log(`  CONTROL: success=${cs.taskSuccess} correctness=${cs.correctness.toFixed(2)} ans=${cs.answerCoverage.toFixed(2)} file=${cs.fileCoverage.toFixed(2)} sym=${cs.symbolCoverage.toFixed(2)} tools=${cs.toolCallCount} tokens=${cs.tokensUsed} wall=${(cs.wallTimeMs / 1000).toFixed(1)}s`);
       console.log(`  LORE:    success=${ls.taskSuccess} correctness=${ls.correctness.toFixed(2)} ans=${ls.answerCoverage.toFixed(2)} file=${ls.fileCoverage.toFixed(2)} sym=${ls.symbolCoverage.toFixed(2)} tools=${ls.toolCallCount} tokens=${ls.tokensUsed} wall=${(ls.wallTimeMs / 1000).toFixed(1)}s lore=[${ls.loreToolsUsed.join(',')}]`);
@@ -185,5 +181,5 @@ describe.skipIf(SKIP)(`Copilot agent benchmark: ${TARGET_REPO}`, () => {
     // Correctness should be computed for both arms
     expect(controlReport.meanCorrectness).toBeGreaterThanOrEqual(0);
     expect(loreReport.meanCorrectness).toBeGreaterThanOrEqual(0);
-  }, 600_000);
+  });
 });
