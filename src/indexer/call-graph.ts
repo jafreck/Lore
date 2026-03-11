@@ -60,6 +60,27 @@ export function normalizeTypeName(raw: string): string {
   return s.trim();
 }
 
+/**
+ * Extract the bare method/function name from a member-access callee,
+ * stripping the receiver portion.
+ *
+ * Examples:
+ *   `db.prepare`           → `prepare`
+ *   `node.childForFieldName` → `childForFieldName`
+ *   `JSON.stringify`       → `stringify`
+ *   `Math.max`             → `max`
+ *   `node.namedChildren.find` → `find`
+ *   `console.error`        → `error`
+ *   `simpleName`           → `simpleName` (no change)
+ */
+export function extractBareName(raw: string): string {
+  const dotIdx = raw.lastIndexOf('.');
+  if (dotIdx === -1) return raw;
+  // Handle multi-line callee names like "db\n    .prepare"
+  const after = raw.slice(dotIdx + 1).trim();
+  return after || raw;
+}
+
 // ─── resolveSymbolEdges ───────────────────────────────────────────────────────
 
 /**
@@ -93,6 +114,22 @@ export function resolveSymbolEdges(db: Database.Database): void {
          JOIN symbols s ON s.id = sr.caller_id
          WHERE sr.callee_id IS NULL AND sr.resolution_method = 'unresolved'`,
       ),
+    });
+
+    // Pass 2b: Bare-name fallback for member-access call refs.
+    // When `db.prepare` can't match, try just `prepare`.
+    // This resolves ~73% of tree-sitter call refs that use dotted names.
+    resolveByNameFallback(db, nameMap, {
+      tableName: 'symbol_refs',
+      targetIdColumn: 'callee_id',
+      selectUnresolved: db.prepare(
+        `SELECT sr.id, sr.callee_name AS target_name, s.file_id AS source_file_id
+         FROM symbol_refs sr
+         JOIN symbols s ON s.id = sr.caller_id
+         WHERE sr.callee_id IS NULL AND sr.resolution_method = 'unresolved'
+           AND sr.callee_name LIKE '%.%'`,
+      ),
+      normalizeTargetName: extractBareName,
     });
 
     resolveByNameFallback(db, nameMap, {

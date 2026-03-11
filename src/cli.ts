@@ -21,6 +21,10 @@ import {
   loadLspSettingsFromLoreConfig,
   resolveEffectiveLspSettings,
 } from './indexer/lsp/config.js';
+import {
+  loadScipSettingsFromLoreConfig,
+  resolveEffectiveScipSettings,
+} from './indexer/scip/config.js';
 import { initLogger, LogLevel, LOG_LEVEL_NAMES } from './logger.js';
 import { killAllTracked } from './process-tracker.js';
 import { LoreRuntime } from './runtime.js';
@@ -63,6 +67,8 @@ Options:
   --poll                   Enable polling mode (reliable but higher CPU/IO cost)
   --lsp                    Force-enable index-time LSP settings
   --no-lsp                 Force-disable index-time LSP settings
+  --scip                   Force-enable index-time SCIP enrichment
+  --no-scip                Force-disable index-time SCIP enrichment
   --file <path>            Coverage report path (required for ingest-coverage)
   --format <name>          Coverage format: lcov or cobertura (required for ingest-coverage)
   --commit <sha>           Commit SHA to associate with coverage ingestion (default: HEAD)
@@ -105,6 +111,17 @@ function explicitLspEnabled(args: string[]): boolean | undefined {
   const disabled = args.includes('--no-lsp');
   if (enabled && disabled) {
     throw new Error('cannot combine --lsp and --no-lsp');
+  }
+  if (enabled) return true;
+  if (disabled) return false;
+  return undefined;
+}
+
+function explicitScipEnabled(args: string[]): boolean | undefined {
+  const enabled = args.includes('--scip');
+  const disabled = args.includes('--no-scip');
+  if (enabled && disabled) {
+    throw new Error('cannot combine --scip and --no-scip');
   }
   if (enabled) return true;
   if (disabled) return false;
@@ -173,8 +190,10 @@ async function main(): Promise<void> {
     }
 
     let lspEnabled: boolean | undefined;
+    let scipEnabled: boolean | undefined;
     try {
       lspEnabled = explicitLspEnabled(args);
+      scipEnabled = explicitScipEnabled(args);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.error(`Error: ${message}.\n`);
@@ -188,6 +207,20 @@ async function main(): Promise<void> {
       lspSettings = resolveEffectiveLspSettings(
         lspConfig,
         { ...(lspEnabled !== undefined && { enabled: lspEnabled }) },
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`Error: ${message}\n`);
+      process.exit(1);
+      return;
+    }
+
+    let scipSettings;
+    try {
+      const scipConfig = loadScipSettingsFromLoreConfig(rootDir);
+      scipSettings = resolveEffectiveScipSettings(
+        scipConfig,
+        { ...(scipEnabled !== undefined && { enabled: scipEnabled }) },
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -253,6 +286,7 @@ async function main(): Promise<void> {
       docsAutoNotes,
       indexDependencies,
       lsp: lspSettings,
+      scip: scipSettings,
       ...(embeddingModel && { embeddingModel }),
       ...(shouldEnableHistory && {
         history: {
@@ -331,6 +365,7 @@ async function main(): Promise<void> {
       rootDir: rootDir ?? '.',
       walkerConfig: { rootDir: rootDir ?? '.' },
       lsp: null,
+      scip: null,
       history: false,
       indexDependencies: false,
       docsAutoNotes: true,
@@ -398,8 +433,10 @@ async function main(): Promise<void> {
     }
 
     let lspEnabled: boolean | undefined;
+    let scipEnabled2: boolean | undefined;
     try {
       lspEnabled = explicitLspEnabled(args);
+      scipEnabled2 = explicitScipEnabled(args);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.error(`Error: ${message}.\n`);
@@ -413,6 +450,20 @@ async function main(): Promise<void> {
       lspSettings = resolveEffectiveLspSettings(
         lspConfig,
         { ...(lspEnabled !== undefined && { enabled: lspEnabled }) },
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`Error: ${message}\n`);
+      process.exit(1);
+      return;
+    }
+
+    let scipSettings;
+    try {
+      const scipConfig = loadScipSettingsFromLoreConfig(rootDir);
+      scipSettings = resolveEffectiveScipSettings(
+        scipConfig,
+        { ...(scipEnabled2 !== undefined && { enabled: scipEnabled2 }) },
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -442,6 +493,7 @@ async function main(): Promise<void> {
     const refreshOptions = {
       indexDependencies,
       lsp: lspSettings,
+      scip: scipSettings,
       ...(shouldEnableHistory && { history: historyOption }),
     };
 
@@ -454,6 +506,7 @@ async function main(): Promise<void> {
         rootDir,
         walkerConfig,
         lsp: lspSettings,
+        scip: scipSettings,
         history: shouldEnableHistory ? historyOption : false,
         indexDependencies,
         docsAutoNotes,
@@ -514,8 +567,10 @@ async function main(): Promise<void> {
     const includeHistory = historyEnabled || historyAll || historyDepthRaw !== undefined;
 
     let lspEnabled: boolean | undefined;
+    let scipEnabled3: boolean | undefined;
     try {
       lspEnabled = explicitLspEnabled(args);
+      scipEnabled3 = explicitScipEnabled(args);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.error(`Error: ${message}.\n`);
@@ -537,6 +592,17 @@ async function main(): Promise<void> {
       return;
     }
 
+    let scipSettings;
+    try {
+      const scipConfig = loadScipSettingsFromLoreConfig(rootDir);
+      scipSettings = resolveEffectiveScipSettings(
+        scipConfig,
+        { ...(scipEnabled3 !== undefined && { enabled: scipEnabled3 }) },
+      );
+    } catch {
+      // SCIP config errors in hooks are non-fatal.
+    }
+
     const { installGitHooks } = await import('./indexer/git-hooks.js');
     const result = installGitHooks({
       repoRoot: rootDir,
@@ -544,6 +610,7 @@ async function main(): Promise<void> {
       dbPath,
       includeHistory,
       lspEnabled: lspSettings.enabled,
+      scipEnabled: scipSettings?.enabled ?? false,
     });
 
     process.stderr.write(

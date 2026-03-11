@@ -7,21 +7,28 @@
  * ## Stage ordering (data-dependency chain)
  *
  * ```
- * SourceIndexStage → DocsIndexStage → ImportResolutionStage
- *   → DependencyApiStage → LspEnrichmentStage → ResolutionStage
+ * ScipSourceStage → SourceIndexStage → DocsIndexStage
+ *   → ImportResolutionStage → DependencyApiStage
+ *   → LspEnrichmentStage → ResolutionStage
  *   → TestMapStage → HistoryStage → EmbeddingStage
  * ```
  *
- * The enrichment → resolution ordering is **load-bearing**:
- * `resolveSymbolEdges` reads `definition_path` / `definition_line` columns that
- * are only populated during the LSP enrichment stage.  Running resolution before
- * enrichment yields only name-based fallback results.
+ * `ScipSourceStage` runs first for SCIP-covered languages, populating
+ * symbols AND refs directly with pre-resolved edges.  `SourceIndexStage`
+ * then handles remaining languages via tree-sitter.
+ *
+ * LSP enrichment is optional for both paths (adds type signatures to
+ * SCIP-sourced symbols, enriches non-SCIP refs with definition data).
+ *
+ * The resolution stage only processes refs that are still `unresolved`
+ * (i.e. non-SCIP languages without LSP enrichment).
  */
 
 import type { Database } from './db.js';
 import type { WalkerConfig } from './walker.js';
 import type { EmbeddingProvider } from './embedder.js';
 import type { EffectiveLspSettings } from './lsp/config.js';
+import type { EffectiveScipSettings } from './scip/config.js';
 import type { LoreLogger } from '../logger.js';
 import { getLogger } from '../logger.js';
 
@@ -42,6 +49,8 @@ export interface PipelineContext {
   branch: string;
   /** Effective LSP settings (null = disabled). */
   lsp: EffectiveLspSettings | null;
+  /** Effective SCIP settings (null = disabled). */
+  scip: EffectiveScipSettings | null;
   /** Optional embedding provider. */
   embedder: EmbeddingProvider | null;
   /** Logger instance. */
@@ -87,6 +96,26 @@ export interface PipelineContext {
    * embedding.  Accumulated by DocsIndexStage in update mode.
    */
   changedDocPaths: string[];
+
+  /**
+   * Languages for which SCIP enrichment already provided data.
+   * Set by `ScipEnrichmentStage`; read by `LspEnrichmentStage` to skip
+   * languages that don't need LSP fallback.
+   */
+  scipCoveredLanguages?: ReadonlySet<string>;
+
+  /**
+   * Languages fully sourced from SCIP (symbols + refs).
+   * Set by `ScipSourceStage`; read by `SourceIndexStage` to skip
+   * tree-sitter extraction for these languages, and by `LspEnrichmentStage`.
+   */
+  scipSourcedLanguages?: ReadonlySet<string>;
+
+  /**
+   * Absolute file paths sourced from SCIP.
+   * Set by `ScipSourceStage`; read by `SourceIndexStage` to skip files.
+   */
+  scipSourcedFiles?: ReadonlySet<string>;
 }
 
 /**
