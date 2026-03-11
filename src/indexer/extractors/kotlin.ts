@@ -172,8 +172,9 @@ const emitKotlinTypeRef = createTypeRefEmitter({
 });
 
 function extractKotlinFunctionTypeRefs(funcNode: Parser.SyntaxNode, refs: RawTypeRef[]): void {
-  const funcName = funcNode.childForFieldName('name')?.text ??
-    funcNode.namedChildren.find(c => c.type === 'simple_identifier')?.text ?? '';
+  const nameNode = funcNode.childForFieldName('name')
+    ?? funcNode.namedChildren.find(c => c.type === 'simple_identifier');
+  const funcName = nameNode?.text ?? '';
   // Parameters — use emitter so generic args are extracted
   const params = funcNode.namedChildren.find(c => c.type === 'function_value_parameters');
   if (params) {
@@ -189,7 +190,7 @@ function extractKotlinFunctionTypeRefs(funcNode: Parser.SyntaxNode, refs: RawTyp
   // Return type — prefer childForFieldName('return_type') for robustness;
   // fall back to first user_type not equal to the name for older grammar versions
   const returnType = funcNode.childForFieldName('return_type')
-    ?? funcNode.namedChildren.find(c => c.type === 'user_type' && c !== funcNode.childForFieldName('name'));
+    ?? funcNode.namedChildren.find(c => c.type === 'user_type' && c !== nameNode);
   if (returnType) {
     emitKotlinTypeRef(refs, funcName, returnType, 'return');
   }

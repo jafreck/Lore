@@ -145,7 +145,7 @@ function extractDeclaratorName(declarator: Parser.SyntaxNode): string {
       node.childForFieldName('declarator') ??
       node.namedChildren[0] ??
       null;
-    if (!inner || inner === node) break;
+    if (!inner) break;
     node = inner;
   }
   if (node?.type === 'function_declarator') {
@@ -357,15 +357,15 @@ function extractInnermostIdentifier(node: Parser.SyntaxNode): string | null {
 
     if (current.type === 'pointer_expression') {
       const arg: Parser.SyntaxNode | null = current.childForFieldName('argument') ?? current.namedChildren[current.namedChildren.length - 1] ?? null;
-      if (arg && arg !== current) { current = arg; continue; }
+      if (arg) { current = arg; continue; }
     }
     if (current.type === 'parenthesized_expression') {
       const inner: Parser.SyntaxNode | null = current.namedChildren[0] ?? null;
-      if (inner && inner !== current) { current = inner; continue; }
+      if (inner) { current = inner; continue; }
     }
     if (current.type === 'subscript_expression') {
       const arg: Parser.SyntaxNode | null = current.childForFieldName('argument') ?? current.namedChildren[0] ?? null;
-      if (arg && arg !== current) { current = arg; continue; }
+      if (arg) { current = arg; continue; }
     }
     break;
   }

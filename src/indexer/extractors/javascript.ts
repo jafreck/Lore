@@ -222,10 +222,9 @@ function maybeExtractRoute(node: Parser.SyntaxNode): RawRoute | null {
   if (!JS_HTTP_METHODS.has(method)) return null;
 
   const argsNode = node.childForFieldName('arguments');
-  const pathNode = argsNode?.namedChildren[0];
   if (!argsNode || argsNode.namedChildren.length < 2) return null;
-  const handlerNode = argsNode.namedChildren[argsNode.namedChildren.length - 1];
-  if (!pathNode || !handlerNode) return null;
+  const pathNode = argsNode.namedChildren[0]!;
+  const handlerNode = argsNode.namedChildren[argsNode.namedChildren.length - 1]!;
   if (pathNode.type !== 'string' && pathNode.type !== 'template_string') return null;
 
   const middleware = argsNode.namedChildren.slice(1, -1).map((n) => n.text);

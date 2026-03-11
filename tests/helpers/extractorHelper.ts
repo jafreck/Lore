@@ -42,3 +42,26 @@ export function parseAndExtractStrict(
   }
   return extractor.extract(tree, source, fixturePath);
 }
+
+/**
+ * Parses an inline source string for the given `language` and runs
+ * `extractor.extract()`.  Throws when the grammar fails to load.
+ *
+ * Use for focused scenario tests that need exact assertions rather than
+ * aggregate checks over a large fixture file.
+ */
+export function parseInlineSource(
+  language: string,
+  source: string,
+  extractor: SymbolExtractor,
+  filePath = `test.${language}`,
+): ExtractionResult {
+  const tree = pool.parse(language, source);
+  if (!tree) {
+    throw new Error(
+      `Grammar for '${language}' failed to load. ` +
+      `Run \`npm rebuild tree-sitter-${language}\` to fix native bindings.`,
+    );
+  }
+  return extractor.extract(tree, source, filePath);
+}

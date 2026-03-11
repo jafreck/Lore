@@ -194,8 +194,7 @@ function extractCsBaseListRelationships(
 // ─── Type-ref extraction ──────────────────────────────────────────────────────
 
 function extractCsTypeName(typeNode: Parser.SyntaxNode): string | null {
-  if (typeNode.type === 'identifier' || typeNode.type === 'qualified_name' || typeNode.type === 'generic_name') return typeNode.text;
-  if (typeNode.type === 'predefined_type') return typeNode.text;
+  if (typeNode.type === 'identifier' || typeNode.type === 'qualified_name' || typeNode.type === 'generic_name' || typeNode.type === 'predefined_type') return typeNode.text;
   if (typeNode.type === 'nullable_type' || typeNode.type === 'array_type') {
     const inner = typeNode.namedChildren[0];
     return inner ? extractCsTypeName(inner) : null;
@@ -248,8 +247,6 @@ function extractCsFieldTypeRefs(classNode: Parser.SyntaxNode, refs: RawTypeRef[]
 function extractCsVariableTypeRefs(varDeclNode: Parser.SyntaxNode, refs: RawTypeRef[]): void {
   const typeNode = varDeclNode.childForFieldName('type');
   if (!typeNode) return;
-  const typeName = extractCsTypeName(typeNode);
-  if (!typeName) return;
   const enclosing = findEnclosingSymbolName(varDeclNode, CS_SYMBOL_NODE_TYPES);
   emitCsTypeRef(refs, enclosing, typeNode, 'variable');
 }
