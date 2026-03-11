@@ -175,7 +175,7 @@ describe('cli', () => {
     it('should query symbol_refs and docs tables without error against a real schema', async () => {
       // Regression: cli.ts previously used non-existent table names
       // "call_graph" and "documentation", silently reporting 0 edges/docs.
-      const { openDb } = await import('../../src/indexer/db.js');
+      const { openDb } = await import('../../src/db/schema.js');
       const dbPath = freshDb();
       const db = openDb(dbPath);
 

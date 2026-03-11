@@ -11,10 +11,10 @@
  */
 
 import * as fs from 'node:fs';
-import type { EmbeddingProvider } from './indexer/embedder.js';
-import type { EffectiveLspSettings } from './indexer/lsp/config.js';
-import type { EffectiveScipSettings } from './indexer/scip/config.js';
-import type { WalkerConfig } from './indexer/walker.js';
+import type { EmbeddingProvider } from './embeddings/embedder.js';
+import type { EffectiveLspSettings } from './lsp/config.js';
+import type { EffectiveScipSettings } from './scip/config.js';
+import type { WalkerConfig } from './discovery/walker.js';
 import { getLogger, type LoreLogger } from './logger.js';
 import { killAllTracked } from './process-tracker.js';
 
@@ -112,7 +112,7 @@ export class LoreRuntime {
     // ── Embedder ─────────────────────────────────────────────────────────────
     if (this.config.embeddingModel) {
       try {
-        const { LazyEmbeddingProvider } = await import('./indexer/embedder.js');
+        const { LazyEmbeddingProvider } = await import('./embeddings/embedder.js');
         const provider = new LazyEmbeddingProvider(this.config.embeddingModel);
         this._embedder = provider;
         this.log.startup('embedding model configured (lazy — loads on first use)', {
@@ -130,7 +130,7 @@ export class LoreRuntime {
 
     // ── Refresher (watch / poll) ─────────────────────────────────────────────
     if (this.config.refreshMode === 'watch') {
-      const { FileWatcher } = await import('./indexer/watcher.js');
+      const { FileWatcher } = await import('./discovery/watcher.js');
       const watcher = new FileWatcher(this.config.dbPath, this.config.walkerConfig, {
         history: this.config.history,
         indexDependencies: this.config.indexDependencies,
@@ -147,7 +147,7 @@ export class LoreRuntime {
         JSON.stringify({ level: 'info', source: 'cli', message: 'watch mode started', rootDir: this.config.rootDir, embeddingEnabled: !!this._embedder }) + '\n',
       );
     } else if (this.config.refreshMode === 'poll') {
-      const { FilePoller } = await import('./indexer/poller.js');
+      const { FilePoller } = await import('./discovery/poller.js');
       const poller = new FilePoller(this.config.dbPath, this.config.walkerConfig, {
         history: this.config.history,
         indexDependencies: this.config.indexDependencies,

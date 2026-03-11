@@ -7,7 +7,7 @@
  */
 
 import type { PipelineContext, PipelineStage } from '../pipeline.js';
-import { ImportResolver } from '../resolver.js';
+import { ImportResolver } from '../../resolution/resolver.js';
 
 // ─── Stage ────────────────────────────────────────────────────────────────────
 
