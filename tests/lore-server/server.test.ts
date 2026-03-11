@@ -24,7 +24,7 @@ vi.mock('@modelcontextprotocol/sdk/server/mcp.js', () => ({
   },
 }));
 
-import { createLoreMcpServer, type LoreServerOptions } from '../../src/lore-server/server.js';
+import { createLoreMcpServer, createLoreMcpServerAsync, type LoreServerOptions } from '../../src/lore-server/server.js';
 
 function schemaDescription(schema: { description?: string; _def?: { description?: string } }): string {
   return schema.description ?? schema._def?.description ?? '';
@@ -829,6 +829,36 @@ describe('createLoreMcpServer', () => {
     createLoreMcpServer(db, '/tmp/test.db', undefined, { logger: customLogger as any });
 
     const toolNames = mockTool.mock.calls.map((call) => call[0]);
+    expect(toolNames.length).toBeGreaterThan(0);
+  });
+});
+
+describe('createLoreMcpServerAsync', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should register all tools via async factory', async () => {
+    const db = new Database(':memory:');
+    await createLoreMcpServerAsync(db, '/tmp/test.db');
+
+    const toolNames = mockTool.mock.calls.map((call: unknown[]) => call[0]);
+    expect(toolNames).toContain('lore_lookup');
+    expect(toolNames).toContain('lore_graph');
+    expect(toolNames).toContain('lore_search');
+    expect(toolNames).toContain('lore_analyze');
+    expect(toolNames).toContain('lore_history');
+    expect(toolNames).toContain('lore_annotations');
+  });
+
+  it('should accept embedder and options in async factory', async () => {
+    const db = new Database(':memory:');
+    const embedder = createStubEmbedder();
+    const observer = vi.fn();
+
+    await createLoreMcpServerAsync(db, '/tmp/test.db', embedder, { searchObserver: observer });
+
+    const toolNames = mockTool.mock.calls.map((call: unknown[]) => call[0]);
     expect(toolNames.length).toBeGreaterThan(0);
   });
 });

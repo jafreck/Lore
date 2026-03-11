@@ -2,7 +2,11 @@ import { describe, it, expect, vi } from 'vitest';
 import { z } from 'zod';
 import {
   inputSchemaToZodShape,
+  buildToolModules,
+  registerTools,
   type ToolDefinition,
+  type ToolModule,
+  type ToolDependencies,
 } from '../../src/lore-server/tool-registry.js';
 
 describe('tool-registry', () => {
@@ -115,6 +119,150 @@ describe('tool-registry', () => {
       // In Zod v4, optional().describe() preserves description
       expect(shape.branch).toBeDefined();
       expect((shape.branch as any).description).toBe('Optional branch filter');
+    });
+
+    it('should convert number properties with minimum and maximum', () => {
+      const schema = {
+        type: 'object' as const,
+        properties: {
+          score: { type: 'number', minimum: 0, maximum: 100, description: 'Score' },
+        },
+        required: ['score'] as const,
+      };
+      const shape = inputSchemaToZodShape(schema);
+      expect(shape.score!.safeParse(50).success).toBe(true);
+      expect(shape.score!.safeParse(-1).success).toBe(false);
+      expect(shape.score!.safeParse(101).success).toBe(false);
+    });
+
+    it('should fallback to z.any() for unknown types', () => {
+      const schema = {
+        type: 'object' as const,
+        properties: {
+          data: { type: 'object', description: 'Arbitrary data' },
+        },
+      };
+      const shape = inputSchemaToZodShape(schema);
+      expect(shape.data!.safeParse({ a: 1 }).success).toBe(true);
+      expect(shape.data!.safeParse('anything').success).toBe(true);
+    });
+  });
+
+  describe('buildToolModules', () => {
+    it('should return all tool modules via dynamic imports', async () => {
+      const modules = await buildToolModules();
+      expect(modules.length).toBeGreaterThan(0);
+      const names = modules.map(m => m.def.name);
+      expect(names).toContain('lore_lookup');
+      expect(names).toContain('lore_graph');
+      expect(names).toContain('lore_search');
+      expect(names).toContain('lore_analyze');
+    });
+
+    it('should produce modules with valid handlerFactory functions', async () => {
+      const modules = await buildToolModules();
+      for (const mod of modules) {
+        expect(typeof mod.handlerFactory).toBe('function');
+        expect(typeof mod.def.name).toBe('string');
+        expect(typeof mod.def.description).toBe('string');
+      }
+    });
+  });
+
+  describe('registerTools', () => {
+    it('should call server.tool for each module', () => {
+      const mockServerTool = vi.fn();
+      const mockServer = { tool: mockServerTool } as any;
+
+      const modules: ToolModule[] = [
+        {
+          def: {
+            name: 'test_tool',
+            description: 'A test tool',
+            inputSchema: {
+              type: 'object',
+              properties: { name: { type: 'string' } },
+              required: ['name'],
+            },
+          },
+          handlerFactory: () => (args: any) => ({ result: args.name }),
+        },
+      ];
+
+      const deps: ToolDependencies = {
+        db: {} as any,
+        dbPath: '/tmp/test.db',
+        logger: { toolCall: vi.fn(), startup: vi.fn(), indexing: vi.fn(), warn: vi.fn() } as any,
+      };
+
+      registerTools(mockServer, modules, deps);
+      expect(mockServerTool).toHaveBeenCalledTimes(1);
+      expect(mockServerTool.mock.calls[0][0]).toBe('test_tool');
+    });
+
+    it('should wrap handler with logging (success path)', async () => {
+      const toolCallLog = vi.fn();
+      const mockServerTool = vi.fn();
+      const mockServer = { tool: mockServerTool } as any;
+
+      const modules: ToolModule[] = [
+        {
+          def: {
+            name: 'logged_tool',
+            description: 'Test logging',
+            inputSchema: { type: 'object', properties: { x: { type: 'string' } }, required: ['x'] },
+          },
+          handlerFactory: () => (args: any) => ({ echo: args.x }),
+        },
+      ];
+
+      const deps: ToolDependencies = {
+        db: {} as any,
+        dbPath: '/tmp/test.db',
+        logger: { toolCall: toolCallLog, startup: vi.fn(), indexing: vi.fn(), warn: vi.fn() } as any,
+      };
+
+      registerTools(mockServer, modules, deps);
+
+      // Get the registered handler (4th arg to server.tool)
+      const wrappedHandler = mockServerTool.mock.calls[0][3];
+      const result = await wrappedHandler({ x: 'hello' });
+
+      expect(result.content[0].text).toContain('hello');
+      expect(toolCallLog).toHaveBeenCalledWith(
+        expect.objectContaining({ tool: 'logged_tool', status: 'success' }),
+      );
+    });
+
+    it('should log errors when handler throws', async () => {
+      const toolCallLog = vi.fn();
+      const mockServerTool = vi.fn();
+      const mockServer = { tool: mockServerTool } as any;
+
+      const modules: ToolModule[] = [
+        {
+          def: {
+            name: 'error_tool',
+            description: 'Test error',
+            inputSchema: { type: 'object', properties: {} },
+          },
+          handlerFactory: () => () => { throw new Error('boom'); },
+        },
+      ];
+
+      const deps: ToolDependencies = {
+        db: {} as any,
+        dbPath: '/tmp/test.db',
+        logger: { toolCall: toolCallLog, startup: vi.fn(), indexing: vi.fn(), warn: vi.fn() } as any,
+      };
+
+      registerTools(mockServer, modules, deps);
+      const wrappedHandler = mockServerTool.mock.calls[0][3];
+
+      await expect(wrappedHandler({})).rejects.toThrow('boom');
+      expect(toolCallLog).toHaveBeenCalledWith(
+        expect.objectContaining({ tool: 'error_tool', status: 'error', error: 'boom' }),
+      );
     });
   });
 });
