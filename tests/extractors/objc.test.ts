@@ -89,3 +89,10 @@ describe('ObjC cast type ref', () => {
     expect(casts).toContainEqual(expect.objectContaining({ typeRaw: 'Circle' }));
   });
 });
+
+describe('ObjC category implementation extraction', () => {
+  const r = fixture('category-implementation.m');
+  test('extracts symbols from category implementation', () => {
+    expect(r.symbols.length).toBeGreaterThan(0);
+  });
+});

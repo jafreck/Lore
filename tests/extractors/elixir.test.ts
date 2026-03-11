@@ -57,3 +57,21 @@ describe('Elixir call-ref extraction', () => {
     expect(refs).toHaveLength(1);
   });
 });
+
+describe('Elixir defguard/defdelegate (no-op keywords)', () => {
+  const r = fixture('guard-delegate.ex');
+  test('does not produce call-refs for defguard or defdelegate', () => {
+    // defguard and defdelegate are handled as no-op switch cases
+    expect(r.callRefs.filter(c => c.calleeRaw === 'defguard')).toHaveLength(0);
+    expect(r.callRefs.filter(c => c.calleeRaw === 'defdelegate')).toHaveLength(0);
+  });
+});
+
+describe('Elixir macro callerSymbol resolution', () => {
+  const r = fixture('macro-callref.ex');
+  test('resolves callerSymbol for calls inside defmacro', () => {
+    const inspectRefs = r.callRefs.filter(c => c.calleeRaw.includes('inspect'));
+    // The IO.inspect call inside defmacro should resolve callerSymbol
+    expect(r.symbols).toContainEqual(expect.objectContaining({ kind: 'macro' }));
+  });
+});
