@@ -204,6 +204,8 @@ export interface RunScore {
   loreToolCallCount: number;
   /** Distinct Lore tools invoked. */
   loreToolsUsed: string[];
+  /** Call count per tool name (all tools, not just Lore). */
+  toolCallCounts: Record<string, number>;
 }
 
 // ─── Run result ───────────────────────────────────────────────────────────────

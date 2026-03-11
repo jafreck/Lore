@@ -20,6 +20,7 @@ import { walkFiles, detectLanguageForPath } from '../../discovery/walker.js';
 import { ParserPool } from '../../parsing/parser.js';
 import { buildStructuralEmbeddingText } from '../../embeddings/embedder.js';
 import { normalizeTypeName } from '../../resolution/call-graph.js';
+import { computeSymbolMetrics } from '../../parsing/complexity.js';
 import {
   type ExtractionResult,
   type RawSymbol,
@@ -113,15 +114,25 @@ export class SourceIndexStage implements PipelineStage {
     setLoreMeta(context.db, 'docs_auto_notes', context.docsAutoNotes ? '1' : '0');
 
     if (mode === 'build') {
-      let files = await walkFiles(context.walkerConfig);
+      const allFiles = await walkFiles(context.walkerConfig);
+      let files: Array<{ path: string; language: string }>;
 
       // Skip files already sourced from SCIP
       if (context.scipSourcedFiles && context.scipSourcedFiles.size > 0) {
-        files = files.filter(f => !context.scipSourcedFiles!.has(f.path));
+        const scipFiles = allFiles.filter(f => context.scipSourcedFiles!.has(f.path));
+        files = allFiles.filter(f => !context.scipSourcedFiles!.has(f.path));
         context.log.indexing('source-index: skipping SCIP-sourced files', {
           skipped: context.scipSourcedFiles.size,
           remaining: files.length,
         });
+
+        // Compute symbol metrics for SCIP-sourced files (SCIP doesn't provide
+        // cyclomatic complexity data, but tree-sitter can compute it).
+        if (scipFiles.length > 0) {
+          computeMetricsForScipFiles(context.db, this.pool!, scipFiles, context.branch);
+        }
+      } else {
+        files = allFiles;
       }
 
       // Merge with any files already added by ScipSourceStage
@@ -367,6 +378,19 @@ function processFileWithSource(
     );
   }
 
+  // Insert symbol metrics (cyclomatic complexity, line count, etc.)
+  const insertMetrics = db.prepare(
+    `INSERT OR REPLACE INTO symbol_metrics (symbol_id, line_count, param_count, cyclomatic, max_nesting)
+     VALUES (?, ?, ?, ?, ?)`,
+  );
+  for (const sym of result.symbols) {
+    if (!sym.name) continue;
+    const symId = symbolIdMap.get(sym.name);
+    if (symId === undefined) continue;
+    const metrics = computeSymbolMetrics(sym, language);
+    insertMetrics.run(symId, metrics.line_count, metrics.param_count, metrics.cyclomatic, metrics.max_nesting);
+  }
+
   // Insert API routes
   const insertRoute = db.prepare(
     `INSERT INTO api_routes (file_id, method, path, handler_id, handler_name, framework, line, middleware)
@@ -424,6 +448,72 @@ function processFileWithSource(
     const symId = symbolIdMap.get(ref.enclosingSymbol) ?? null;
     insertTypeRef.run(fileId, symId, ref.typeRaw, normalizeTypeName(ref.typeRaw), ref.refKind, ref.line, ref.character ?? null);
   }
+}
+
+// ─── Metrics-only pass for SCIP-sourced files ─────────────────────────────────
+
+/**
+ * Parse SCIP-sourced files with tree-sitter to compute symbol metrics
+ * (cyclomatic complexity, nesting depth, etc.) and insert them into
+ * the `symbol_metrics` table. SCIP provides accurate cross-references but
+ * not complexity data, so tree-sitter fills the gap.
+ */
+function computeMetricsForScipFiles(
+  db: Database.Database,
+  pool: ParserPool,
+  files: Array<{ path: string; language: string }>,
+  branch: string,
+): void {
+  const insertMetrics = db.prepare(
+    `INSERT OR REPLACE INTO symbol_metrics (symbol_id, line_count, param_count, cyclomatic, max_nesting)
+     VALUES (?, ?, ?, ?, ?)`,
+  );
+
+  db.transaction(() => {
+    for (const file of files) {
+      let source: string;
+      try {
+        source = fs.readFileSync(file.path, 'utf8');
+      } catch {
+        continue;
+      }
+
+      const tree = pool.parse(file.language, source);
+      if (!tree) continue;
+
+      const extractor = EXTRACTORS[file.language];
+      if (!extractor) continue;
+
+      const result = extractor.extract(tree, source, file.path);
+
+      // Look up existing symbol IDs (inserted by ScipSourceStage)
+      const fileRow = db.prepare(
+        'SELECT id FROM files WHERE path = ? AND branch = ?',
+      ).get(file.path, branch) as { id: number } | undefined;
+      if (!fileRow) continue;
+
+      const existingSymbols = db.prepare(
+        'SELECT id, name, start_line, end_line FROM symbols WHERE file_id = ?',
+      ).all(fileRow.id) as Array<{ id: number; name: string; start_line: number; end_line: number }>;
+
+      // Build a name+line → id map for matching tree-sitter symbols to SCIP symbols
+      const symbolMap = new Map<string, number>();
+      for (const sym of existingSymbols) {
+        // Key by name; if duplicate names, prefer earlier id
+        if (!symbolMap.has(sym.name)) {
+          symbolMap.set(sym.name, sym.id);
+        }
+      }
+
+      for (const sym of result.symbols) {
+        if (!sym.name) continue;
+        const symId = symbolMap.get(sym.name);
+        if (symId === undefined) continue;
+        const metrics = computeSymbolMetrics(sym, file.language);
+        insertMetrics.run(symId, metrics.line_count, metrics.param_count, metrics.cyclomatic, metrics.max_nesting);
+      }
+    }
+  })();
 }
 
 // ─── Checkpoint helpers ───────────────────────────────────────────────────────

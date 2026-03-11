@@ -74,12 +74,9 @@ export function buildLoreStrategy(task: BenchmarkTask): ScriptedAgentConfig {
       steps.push(...blastRadiusLoreSteps(task));
       break;
 
-    // Category 3: Import Graph
-    case '3.1':
-      steps.push(...importGraphLoreSteps(task, 'outgoing'));
-      break;
-    case '3.2':
-      steps.push(...importGraphLoreSteps(task, 'incoming'));
+    // Category 2: Type / Inheritance Graph
+    case '2.1':
+      steps.push(...inheritanceLoreSteps(task));
       break;
 
     // Category 4: Test Mapping
@@ -92,17 +89,24 @@ export function buildLoreStrategy(task: BenchmarkTask): ScriptedAgentConfig {
       steps.push(...complexityLoreSteps(task));
       break;
 
-    // Category 7: History
-    case '7.1':
-      steps.push(...ownershipLoreSteps(task));
+    // Category 7: Symbol Search
+    case '7.2':
+      steps.push(...searchLoreSteps(task));
       break;
 
-    // Category 9: Architecture
-    case '9.1':
-      steps.push(...architectureLoreSteps(task));
+    // Category 8: Graph Analysis (cycles)
+    case '8.1':
+      steps.push(...cyclesLoreSteps(task));
       break;
-    case '9.5':
-      steps.push(...metricsLoreSteps(task));
+
+    // Category 3: Module Dependency Summary
+    case '3.3':
+      steps.push(...moduleSummaryLoreSteps(task));
+      break;
+
+    // Category 10: File Symbol Listing
+    case '10.2':
+      steps.push(...symbolListingLoreSteps(task));
       break;
 
     // Category 11: Composite
@@ -181,12 +185,21 @@ function testingGrepSteps(task: BenchmarkTask): ScriptedStep[] {
 }
 
 function historyGrepSteps(task: BenchmarkTask): ScriptedStep[] {
-  // Limited: grep can't really do git history
-  const files = task.expectedFiles ?? [];
+  const files = [...(task.expectedFiles ?? []), ...extractFilesFromPrompt(task.prompt)];
   const steps: ScriptedStep[] = [];
 
+  // Deduplicate
+  const seen = new Set<string>();
   for (const file of files) {
-    steps.push({ toolName: 'read_file', args: { path: file } });
+    if (!seen.has(file)) {
+      seen.add(file);
+      steps.push({ toolName: 'read_file', args: { path: file } });
+    }
+  }
+
+  // If we still have nothing, list directories as fallback
+  if (steps.length === 0) {
+    steps.push({ toolName: 'list_directory', args: { path: 'src' } });
   }
 
   return steps;
@@ -305,16 +318,24 @@ function complexityLoreSteps(_task: BenchmarkTask): ScriptedStep[] {
   return [
     {
       toolName: 'lore_metrics',
-      args: { mode: 'complexity', limit: 5 },
+      args: { limit: 5 },
     },
   ];
 }
 
-function ownershipLoreSteps(task: BenchmarkTask): ScriptedStep[] {
+function searchLoreSteps(task: BenchmarkTask): ScriptedStep[] {
+  const symbols = extractSymbolsFromPrompt(task.prompt);
+  return symbols.map((sym) => ({
+    toolName: 'lore_search' as const,
+    args: { query: sym, mode: 'structural' },
+  }));
+}
+
+function symbolListingLoreSteps(task: BenchmarkTask): ScriptedStep[] {
   const files = extractFilesFromPrompt(task.prompt);
   return files.map((file) => ({
-    toolName: 'lore_blame' as const,
-    args: { file_path: file, mode: 'ownership' },
+    toolName: 'lore_lookup' as const,
+    args: { kind: 'symbol', path_prefix: file },
   }));
 }
 
@@ -324,9 +345,33 @@ function architectureLoreSteps(_task: BenchmarkTask): ScriptedStep[] {
   ];
 }
 
-function metricsLoreSteps(_task: BenchmarkTask): ScriptedStep[] {
+function inheritanceLoreSteps(task: BenchmarkTask): ScriptedStep[] {
+  const symbols = extractSymbolsFromPrompt(task.prompt);
+  const steps: ScriptedStep[] = [];
+
+  for (const sym of symbols) {
+    steps.push({
+      toolName: 'lore_lookup',
+      args: { kind: 'symbol', query: sym, mode: 'exact' },
+    });
+    steps.push({
+      toolName: 'lore_graph',
+      args: { kind: 'inheritance', target_id: 0 },
+    });
+  }
+
+  return steps;
+}
+
+function cyclesLoreSteps(_task: BenchmarkTask): ScriptedStep[] {
   return [
-    { toolName: 'lore_metrics', args: { mode: 'aggregate' } },
+    { toolName: 'lore_analyze', args: { mode: 'cycles' } },
+  ];
+}
+
+function moduleSummaryLoreSteps(_task: BenchmarkTask): ScriptedStep[] {
+  return [
+    { toolName: 'lore_analyze', args: { mode: 'summary' } },
   ];
 }
 
@@ -511,24 +556,23 @@ export function buildDynamicLoreStrategy(task: BenchmarkTask): ProgrammaticAgent
           case '1.4':
             if (symbolId != null) return { toolName: 'lore_graph', args: { symbol_id: symbolId, direction: 'incoming', edge_kind: 'call' } };
             break;
-          case '3.1':
-          case '3.2': {
-            const dir = task.questionId === '3.1' ? 'outgoing' : 'incoming';
-            if (symbolId != null) return { toolName: 'lore_graph', args: { symbol_id: symbolId, direction: dir, edge_kind: 'both' } };
+          case '2.1':
+            if (symbolId != null) return { toolName: 'lore_graph', args: { kind: 'inheritance', target_id: symbolId } };
             break;
-          }
           case '4.1':
             if (filePath) return { toolName: 'lore_test_map', args: { file_path: filePath } };
             break;
           case '6.1':
-            return { toolName: 'lore_metrics', args: { mode: 'complexity', limit: 5 } };
-          case '7.1':
-            if (filePath) return { toolName: 'lore_blame', args: { file_path: filePath, mode: 'ownership' } };
+            return { toolName: 'lore_metrics', args: { limit: 5 } };
+          case '7.2':
+            return { toolName: 'lore_search', args: { query: symbols[0] ?? task.prompt, mode: 'structural' } };
+          case '8.1':
+            return { toolName: 'lore_analyze', args: { mode: 'cycles' } };
+          case '3.3':
+            return { toolName: 'lore_analyze', args: { mode: 'summary' } };
+          case '10.2':
+            if (filePath) return { toolName: 'lore_lookup', args: { kind: 'symbol', path_prefix: filePath } };
             break;
-          case '9.1':
-            return { toolName: 'lore_architecture', args: {} };
-          case '9.5':
-            return { toolName: 'lore_metrics', args: { mode: 'aggregate' } };
           case '11.1':
             if (filePath) return { toolName: 'lore_test_map', args: { file_path: filePath } };
             if (symbolId != null) return { toolName: 'lore_graph', args: { symbol_id: symbolId, direction: 'incoming', edge_kind: 'call' } };

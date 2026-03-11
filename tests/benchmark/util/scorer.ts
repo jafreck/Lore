@@ -9,6 +9,7 @@ import type {
   AgentTrace,
   BenchmarkTask,
   RunScore,
+  ToolCallRecord,
 } from './types.js';
 
 /**
@@ -61,6 +62,12 @@ export function scoreRun(
   );
   const loreToolsUsed = [...new Set(loreToolCalls.map((c) => c.toolName))];
 
+  // Per-tool call counts
+  const toolCallCounts: Record<string, number> = {};
+  for (const c of trace.toolCalls) {
+    toolCallCounts[c.toolName] = (toolCallCounts[c.toolName] ?? 0) + 1;
+  }
+
   return {
     taskSuccess,
     correctness,
@@ -74,6 +81,7 @@ export function scoreRun(
     symbolCoverage,
     loreToolCallCount: loreToolCalls.length,
     loreToolsUsed,
+    toolCallCounts,
   };
 }
 
@@ -178,6 +186,8 @@ export interface AggregateReport {
   loreToolUsageRate: number;
   /** All distinct Lore tools observed across runs. */
   allLoreToolsUsed: string[];
+  /** Total call count per tool name across all runs. */
+  toolCallCounts: Record<string, number>;
 }
 
 /**
@@ -204,6 +214,7 @@ export function aggregateScores(arm: string, scores: RunScore[]): AggregateRepor
       meanLoreToolCalls: 0,
       loreToolUsageRate: 0,
       allLoreToolsUsed: [],
+      toolCallCounts: {},
     };
   }
 
@@ -211,8 +222,12 @@ export function aggregateScores(arm: string, scores: RunScore[]): AggregateRepor
   const partials = scores.filter((s) => s.taskSuccess === 0.5).length;
   const failures = scores.filter((s) => s.taskSuccess === 0).length;
   const allLoreTools = new Set<string>();
+  const toolCounts: Record<string, number> = {};
   for (const s of scores) {
     for (const t of s.loreToolsUsed) allLoreTools.add(t);
+    for (const [tool, count] of Object.entries(s.toolCallCounts ?? {})) {
+      toolCounts[tool] = (toolCounts[tool] ?? 0) + count;
+    }
   }
 
   return {
@@ -233,6 +248,7 @@ export function aggregateScores(arm: string, scores: RunScore[]): AggregateRepor
     meanLoreToolCalls: mean(scores.map((s) => s.loreToolCallCount)),
     loreToolUsageRate: scores.filter((s) => s.loreToolCallCount > 0).length / n,
     allLoreToolsUsed: [...allLoreTools],
+    toolCallCounts: toolCounts,
   };
 }
 
@@ -262,6 +278,9 @@ export function formatReport(report: AggregateReport): string {
     `  Symbol coverage: ${(report.meanSymbolCoverage * 100).toFixed(1)}%`,
     `  Lore tool calls: ${report.meanLoreToolCalls.toFixed(1)} (${(report.loreToolUsageRate * 100).toFixed(0)}% of runs)`,
     report.allLoreToolsUsed.length > 0 ? `  Lore tools used: ${report.allLoreToolsUsed.join(', ')}` : '',
+    Object.keys(report.toolCallCounts).length > 0
+      ? `  Tool call counts: ${Object.entries(report.toolCallCounts).sort(([, a], [, b]) => b - a).map(([t, c]) => `${t}×${c}`).join(', ')}`
+      : '',
   ].filter(Boolean).join('\n');
 }
 
@@ -275,6 +294,16 @@ export function compareReports(baseline: AggregateReport, treatment: AggregateRe
     return `${sign}${(d * 100).toFixed(1)}pp`;
   };
 
+  const pctDelta = (a: number, b: number) => {
+    if (a === 0) return 'N/A';
+    const pct = ((b - a) / a) * 100;
+    const sign = pct >= 0 ? '+' : '';
+    return `${sign}${pct.toFixed(1)}%`;
+  };
+
+  const tokenDelta = treatment.meanTokens - baseline.meanTokens;
+  const wallDelta = treatment.meanWallTimeMs - baseline.meanWallTimeMs;
+
   return [
     `Comparison: ${treatment.arm} vs ${baseline.arm}`,
     `  Success rate: ${diff(baseline.successRate, treatment.successRate)}`,
@@ -282,7 +311,77 @@ export function compareReports(baseline: AggregateReport, treatment: AggregateRe
     `  First-pass accuracy: ${diff(baseline.firstPassAccuracyRate, treatment.firstPassAccuracyRate)}`,
     `  Answer coverage: ${diff(baseline.meanAnswerCoverage, treatment.meanAnswerCoverage)}`,
     `  Tool calls: ${(treatment.meanToolCalls - baseline.meanToolCalls).toFixed(1)} (${treatment.meanToolCalls.toFixed(1)} vs ${baseline.meanToolCalls.toFixed(1)})`,
-    `  Wall time: ${((treatment.meanWallTimeMs - baseline.meanWallTimeMs) / 1000).toFixed(1)}s`,
-    `  Tokens: ${(treatment.meanTokens - baseline.meanTokens).toFixed(0)}`,
+    `  Tokens: ${tokenDelta >= 0 ? '+' : ''}${tokenDelta.toFixed(0)} (${pctDelta(baseline.meanTokens, treatment.meanTokens)})`,
+    `  Wall time: ${wallDelta >= 0 ? '+' : ''}${(wallDelta / 1000).toFixed(1)}s (${pctDelta(baseline.meanWallTimeMs, treatment.meanWallTimeMs)})`,
   ].join('\n');
+}
+
+// ─── Diagnostic helpers ─────────────────────────────────────────────────────
+
+/** Summarise tool call frequency: { toolName: count }. */
+export function toolCallFrequency(calls: ToolCallRecord[]): Record<string, number> {
+  const freq: Record<string, number> = {};
+  for (const c of calls) {
+    freq[c.toolName] = (freq[c.toolName] ?? 0) + 1;
+  }
+  return freq;
+}
+
+/** Format tool call frequency as a compact string e.g. "grep_search×3, read_file×2". */
+export function formatToolFrequency(calls: ToolCallRecord[]): string {
+  const freq = toolCallFrequency(calls);
+  return Object.entries(freq)
+    .sort(([, a], [, b]) => b - a)
+    .map(([name, count]) => `${name}×${count}`)
+    .join(', ');
+}
+
+/** Identify which expected parts matched / missed in the final answer. */
+export function diagnoseExpectations(
+  task: BenchmarkTask,
+  trace: AgentTrace,
+): { matched: string[]; missed: string[]; correctnessDetail: { matched: string[]; missed: string[] } } {
+  const answer = trace.finalAnswer.toLowerCase();
+
+  const matched = task.expectedAnswerParts.filter((p) => answer.includes(p.toLowerCase()));
+  const missed = task.expectedAnswerParts.filter((p) => !answer.includes(p.toLowerCase()));
+
+  const expectedLines = task.expectedAnswer
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean);
+  const correctnessMatched = expectedLines.filter((l) => answer.includes(l.toLowerCase()));
+  const correctnessMissed = expectedLines.filter((l) => !answer.includes(l.toLowerCase()));
+
+  return {
+    matched,
+    missed,
+    correctnessDetail: { matched: correctnessMatched, missed: correctnessMissed },
+  };
+}
+
+/** Truncate a string to maxLen, appending "…" if truncated. */
+export function truncate(s: string, maxLen = 200): string {
+  if (s.length <= maxLen) return s;
+  return s.slice(0, maxLen) + '…';
+}
+
+/**
+ * Format a compact summary of Lore tool calls with their key arguments.
+ * e.g. "lore_graph(kind=call, depth=1, target_id=42), lore_lookup(kind=symbol, query=openDb)"
+ */
+export function formatLoreToolArgs(calls: ToolCallRecord[]): string {
+  const loreCalls = calls.filter(
+    (c) => c.toolName.startsWith('lore_') && c.result !== 'not available in this configuration',
+  );
+  if (loreCalls.length === 0) return '(none)';
+  return loreCalls
+    .map((c) => {
+      const argParts = Object.entries(c.args)
+        .filter(([, v]) => v !== undefined && v !== null && v !== '')
+        .map(([k, v]) => `${k}=${typeof v === 'string' ? v : JSON.stringify(v)}`)
+        .join(', ');
+      return `${c.toolName}(${argParts})`;
+    })
+    .join(', ');
 }
