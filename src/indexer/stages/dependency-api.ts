@@ -8,16 +8,16 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { PipelineContext, PipelineStage } from '../pipeline.js';
-import type { Database } from '../db.js';
-import { ParserPool } from '../parser.js';
-import { LspEnrichmentCoordinator } from '../lsp/enrichment.js';
+import type { Database } from '../../db/schema.js';
+import { ParserPool } from '../../parsing/parser.js';
+import { LspEnrichmentCoordinator } from '../../lsp/enrichment.js';
 import {
   type ExtractionResult,
   type RawSymbol,
   type SymbolExtractor,
   isPublicDeclarationSurfaceSymbol,
-} from '../extractors/types.js';
-import { TypeScriptExtractor } from '../extractors/typescript.js';
+} from '../../parsing/extractors/types.js';
+import { TypeScriptExtractor } from '../../parsing/extractors/typescript.js';
 
 // ─── Stage ────────────────────────────────────────────────────────────────────
 

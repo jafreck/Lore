@@ -12,15 +12,15 @@
 
 // ── Indexing API ──────────────────────────────────────────────────────────────
 export { IndexBuilder } from './indexer/index.js';
-export { openDb, setLoreMeta, getLoreMeta, createVec0Tables } from './indexer/db.js';
-export type { Database } from './indexer/db.js';
-export { resolveSymbolEdges, topoSort, detectCycles } from './indexer/call-graph.js';
+export { openDb, setLoreMeta, getLoreMeta, createVec0Tables } from './db/schema.js';
+export type { Database } from './db/schema.js';
+export { resolveSymbolEdges, topoSort, detectCycles } from './resolution/call-graph.js';
 export {
   detectSymbolCycles,
   findConnectedComponents,
   clusterSymbols,
   buildCodebaseSummary,
-} from './indexer/graph-analysis.js';
+} from './resolution/graph-analysis.js';
 export type {
   EdgeKind,
   GraphAnalysisOptions,
@@ -30,28 +30,28 @@ export type {
   CodebaseSummaryOptions,
   CodebaseSummary,
   ModuleSummary,
-} from './indexer/graph-analysis.js';
-export { walkFiles, detectLanguageForPath } from './indexer/walker.js';
-export type { WalkerConfig, FileEntry } from './indexer/walker.js';
-export { ImportResolver } from './indexer/resolver.js';
+} from './resolution/graph-analysis.js';
+export { walkFiles, detectLanguageForPath } from './discovery/walker.js';
+export type { WalkerConfig, FileEntry } from './discovery/walker.js';
+export { ImportResolver } from './resolution/resolver.js';
 
-export { installGitHooks } from './indexer/git-hooks.js';
-export type { InstallGitHooksOptions } from './indexer/git-hooks.js';
-export type { EffectiveLspSettings, LspSettingsOverrides } from './indexer/lsp/config.js';
-export type { EffectiveScipSettings, ScipSettingsOverrides } from './indexer/scip/config.js';
-export { TransformersJsProvider, LazyEmbeddingProvider, DEFAULT_EMBEDDING_MODEL, tokenAwareBatch, hashEmbeddingText } from './indexer/embedder.js';
-export type { EmbeddingProvider, OnnxDtype } from './indexer/embedder.js';
+export { installGitHooks } from './git/hooks.js';
+export type { InstallGitHooksOptions } from './git/hooks.js';
+export type { EffectiveLspSettings, LspSettingsOverrides } from './lsp/config.js';
+export type { EffectiveScipSettings, ScipSettingsOverrides } from './scip/config.js';
+export { TransformersJsProvider, LazyEmbeddingProvider, DEFAULT_EMBEDDING_MODEL, tokenAwareBatch, hashEmbeddingText } from './embeddings/embedder.js';
+export type { EmbeddingProvider, OnnxDtype } from './embeddings/embedder.js';
 export type {
   ExtractionResult,
   RawCallRef,
   RawImport,
   RawSymbol,
   SymbolExtractor,
-} from './indexer/extractors/types.js';
+} from './parsing/extractors/types.js';
 
 // ── Resolution method taxonomy (shared constant) ─────────────────────────────
-export { RESOLUTION_METHODS, RESOLVED_METHODS, UNRESOLVED_METHODS } from './indexer/resolution-method.js';
-export type { ResolutionMethod } from './indexer/resolution-method.js';
+export { RESOLUTION_METHODS, RESOLVED_METHODS, UNRESOLVED_METHODS } from './resolution/resolution-method.js';
+export type { ResolutionMethod } from './resolution/resolution-method.js';
 
 // ── Pipeline (composable indexing stages) ─────────────────────────────────────
 export { IndexPipeline } from './indexer/pipeline.js';
@@ -71,17 +71,17 @@ export { LoreRuntime } from './runtime.js';
 export type { RuntimeConfig, Refresher } from './runtime.js';
 
 // ── File watcher / poller ─────────────────────────────────────────────────────
-export { FileWatcher } from './indexer/watcher.js';
-export type { WatcherOptions } from './indexer/watcher.js';
-export { FilePoller } from './indexer/poller.js';
-export type { PollerOptions } from './indexer/poller.js';
+export { FileWatcher } from './discovery/watcher.js';
+export type { WatcherOptions } from './discovery/watcher.js';
+export { FilePoller } from './discovery/poller.js';
+export type { PollerOptions } from './discovery/poller.js';
 
 // ── MCP server ────────────────────────────────────────────────────────────────
-export { createLoreMcpServer, createLoreMcpServerAsync } from './lore-server/server.js';
-export type { LoreServerOptions } from './lore-server/server.js';
-export type { SearchObservation, SearchObserver } from './lore-server/tools/search.js';
-export { registerTools } from './lore-server/tool-registry.js';
-export type { ToolModule, ToolDefinition } from './lore-server/tool-registry.js';
+export { createLoreMcpServer, createLoreMcpServerAsync } from './server/server.js';
+export type { LoreServerOptions } from './server/server.js';
+export type { SearchObservation, SearchObserver } from './server/tools/search.js';
+export { registerTools } from './server/tool-registry.js';
+export type { ToolModule, ToolDefinition } from './server/tool-registry.js';
 export {
   openReadOnly,
   getSymbolById,
@@ -93,7 +93,7 @@ export {
   listResolvedEdges,
   listTypeRefs,
   listSymbolRelationships,
-} from './lore-server/db.js';
+} from './db/read-only.js';
 export type {
   SymbolRow,
   FileRow,
@@ -103,7 +103,7 @@ export type {
   ListTypeRefsOptions,
   SymbolRelationshipEdge,
   ListSymbolRelationshipsOptions,
-} from './lore-server/db.js';
+} from './db/read-only.js';
 
 // ── Logging ───────────────────────────────────────────────────────────────────
 export { LoreLogger, LogLevel, LOG_LEVEL_NAMES, initLogger, getLogger, resetLogger } from './logger.js';

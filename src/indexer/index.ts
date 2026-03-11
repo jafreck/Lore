@@ -27,17 +27,17 @@ import {
   LORE_META_LAST_HEAD_SHA,
   LORE_META_COVERAGE_LAST_SOURCE_PATH,
   LORE_META_COVERAGE_LAST_SOURCE_MTIME,
-} from './db.js';
-import type { Database } from './db.js';
-import type { WalkerConfig } from './walker.js';
-import type { EmbeddingProvider } from './embedder.js';
-import { DEFAULT_EMBEDDING_MODEL } from './embedder.js';
-import { ingestCoverageReport, type CoverageFormat } from './coverage.js';
-import type { EffectiveLspSettings } from './lsp/config.js';
-import type { EffectiveScipSettings } from './scip/config.js';
-import { resolveSymbolEdges } from './call-graph.js';
-import { refreshTestMappings } from './test-mapper.js';
-import { ingestGitHistory } from './git-history.js';
+} from '../db/schema.js';
+import type { Database } from '../db/schema.js';
+import type { WalkerConfig } from '../discovery/walker.js';
+import type { EmbeddingProvider } from '../embeddings/embedder.js';
+import { DEFAULT_EMBEDDING_MODEL } from '../embeddings/embedder.js';
+import { ingestCoverageReport, type CoverageFormat } from '../testing/coverage.js';
+import type { EffectiveLspSettings } from '../lsp/config.js';
+import type { EffectiveScipSettings } from '../scip/config.js';
+import { resolveSymbolEdges } from '../resolution/call-graph.js';
+import { refreshTestMappings } from '../testing/test-mapper.js';
+import { ingestGitHistory } from '../git/history.js';
 import { getLogger } from '../logger.js';
 import { IndexPipeline } from './pipeline.js';
 import type { PipelineContext, PipelineStage } from './pipeline.js';

@@ -11,15 +11,15 @@
       "default": "./dist/index.js"
     },
     "./mcp": {
-      "default": "./dist/lore-server/server.js"
+      "default": "./dist/server/server.js"
     },
-    "./lore-server/db": {
-      "types": "./dist/lore-server/db.d.ts",
-      "default": "./dist/lore-server/db.js"
+    "./db/read-only": {
+      "types": "./dist/db/read-only.d.ts",
+      "default": "./dist/db/read-only.js"
     },
-    "./lore-server/tools/*": {
-      "types": "./dist/lore-server/tools/*.d.ts",
-      "default": "./dist/lore-server/tools/*.js"
+    "./server/tools/*": {
+      "types": "./dist/server/tools/*.d.ts",
+      "default": "./dist/server/tools/*.js"
     }
   },
   "bin": {
@@ -35,7 +35,7 @@
     "prepare": "npm run build",
     "prepublishOnly": "npm run clean && npm run build",
     "test": "vitest run",
-    "test:lsp-smoke": "vitest run tests/indexer/lsp/smoke.test.ts",
+    "test:lsp-smoke": "vitest run tests/lsp/smoke.test.ts",
     "coverage": "vitest run --coverage"
   },
   "repository": {

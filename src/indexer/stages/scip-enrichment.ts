@@ -25,9 +25,9 @@
 
 import * as fs from 'node:fs';
 import type { PipelineContext, PipelineStage } from '../pipeline.js';
-import type { Database } from '../db.js';
-import { ScipEnrichmentCoordinator } from '../scip/enrichment.js';
-import { buildStructuralEmbeddingText } from '../embedder.js';
+import type { Database } from '../../db/schema.js';
+import { ScipEnrichmentCoordinator } from '../../scip/enrichment.js';
+import { buildStructuralEmbeddingText } from '../../embeddings/embedder.js';
 
 /**
  * Enriches indexed artefacts with SCIP-derived metadata.
