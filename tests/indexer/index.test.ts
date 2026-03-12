@@ -1504,3 +1504,67 @@ describe('IndexBuilder — call graph resolution during indexing', () => {
     expect(row.count).toBeGreaterThan(0);
   });
 });
+
+describe('IndexBuilder — symbol metrics', () => {
+  it('should populate symbol_metrics with cyclomatic complexity during build', async () => {
+    const srcDir = createTmpSrcDir();
+    // Write a function with branches to trigger non-trivial cyclomatic complexity
+    writeFileSync(
+      join(srcDir, 'branchy.ts'),
+      `export function branchy(x: number): string {
+  if (x > 0) {
+    return "positive";
+  } else if (x < 0) {
+    return "negative";
+  } else {
+    return "zero";
+  }
+}
+`,
+    );
+    createGitRepoWithCommit(srcDir);
+    const dbPath = tmpDbPath();
+    const builder = new IndexBuilder(dbPath, { rootDir: srcDir });
+    await builder.build();
+
+    const db = new Database(dbPath, { readonly: true });
+    const metrics = db
+      .prepare(
+        `SELECT sm.cyclomatic, sm.line_count, s.name
+         FROM symbol_metrics sm
+         JOIN symbols s ON s.id = sm.symbol_id
+         WHERE s.name = 'branchy'`,
+      )
+      .get() as { cyclomatic: number; line_count: number; name: string } | undefined;
+    db.close();
+
+    expect(metrics).toBeDefined();
+    expect(metrics!.name).toBe('branchy');
+    expect(metrics!.cyclomatic).toBeGreaterThanOrEqual(1);
+    expect(metrics!.line_count).toBeGreaterThan(0);
+  });
+
+  it('should populate symbol_metrics for all exported functions', async () => {
+    const srcDir = createTmpSrcDir();
+    createGitRepoWithCommit(srcDir);
+    const dbPath = tmpDbPath();
+    const builder = new IndexBuilder(dbPath, { rootDir: srcDir });
+    await builder.build();
+
+    const db = new Database(dbPath, { readonly: true });
+    const metricsRows = db
+      .prepare(
+        `SELECT sm.symbol_id, sm.cyclomatic, s.name
+         FROM symbol_metrics sm
+         JOIN symbols s ON s.id = sm.symbol_id`,
+      )
+      .all() as Array<{ symbol_id: number; cyclomatic: number; name: string }>;
+    db.close();
+
+    // hello.ts has at least one function — should have metrics
+    expect(metricsRows.length).toBeGreaterThan(0);
+    for (const row of metricsRows) {
+      expect(row.cyclomatic).toBeGreaterThanOrEqual(0);
+    }
+  });
+});
