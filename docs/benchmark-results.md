@@ -22,14 +22,6 @@
 | **Statistical significance** | — | — | p=0.863 (not significant at p<0.05) |
 | **Total benchmark wall time** | — | — | 13.6 minutes |
 
-### Key Takeaways
-
-- **First-pass accuracy** (both arms correct on first try): Lore achieves **72.2%** vs control's 25.0% — a **+47.2pp** improvement
-- **Token efficiency**: Lore uses **80.9% fewer tokens** on average
-- **Tool efficiency**: Lore uses **69% fewer tool calls** (5.8 vs 18.7)
-- **Lore tool adoption**: 100% of Lore-arm runs used at least one `lore_*` tool
-- Correctness is comparable overall; Lore excels on graph/structural queries but the new cross-file tasks (7.2, 10.2) proved challenging for both arms
-
 ## Per-Task Detail (3-iteration averages)
 
 | Task | Prompt | Ctrl Corr | Lore Corr | Δ Corr | Ctrl Tok | Lore Tok | Tok Δ | Ctrl Wall | Lore Wall | Wall Δ |
