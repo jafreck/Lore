@@ -1,8 +1,11 @@
 # Benchmark Results: Lore vs Baseline
 
 **Date:** 2026-03-11
+
 **Model:** claude-opus-4.6 (via GitHub Copilot CLI)
+
 **Target repo:** lore-self @ `660be2bf`
+
 **Iterations:** 3 per task (36 total runs)
 
 ## Aggregate Summary

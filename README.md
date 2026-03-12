@@ -37,28 +37,34 @@ flowchart LR
         COV[Coverage Reports]
     end
 
-    subgraph Lore Indexer
-      SCIPDIRECT[SCIP Source<br/>pre-resolved symbols + refs] --> WALK
-      WALK[Walker] --> PARSE[Parser] --> EXTRACT[Extractors<br/>symbols · imports · call refs<br/>type refs · routes · annotations]
+    subgraph INDEXER[Lore Indexer]
+        SCIPDIRECT[SCIP Source<br/>pre-resolved symbols + refs] --> WALK
+        WALK[Walker] --> PARSE[Parser] --> EXTRACT[Extractors<br/>symbols · imports · call refs<br/>type refs · routes · annotations]
         EXTRACT --> RESOLVE[Import Resolver<br/>internal ↔ external]
-      EXTRACT --> CALLGRAPH[Relationship Resolver]
+        EXTRACT --> CALLGRAPH[Relationship Resolver]
         EXTRACT -.-> LSPENRICH[LSP Enrichment<br/>type signatures · definition locations]
         DOCSINGEST[Docs Ingest<br/>sections · headings · notes]
         GITHIST[Git History Ingest<br/>commits · diffs · refs]
         COVINGEST[Coverage Ingest<br/>lcov · cobertura]
     end
 
+    SRC --> SCIPDIRECT
+    SRC --> WALK
+    DOCS --> DOCSINGEST
+    GIT --> GITHIST
+    COV --> COVINGEST
+
     DB[(SQL DB)]
     EMBED([Embedding Model])
 
-    subgraph MCP Server
+    subgraph MCP_SERVER[MCP Server]
         LOOKUP[lore_lookup]
         SEARCH[lore_search]
         DOCS_TOOL[lore_docs]
         GRAPH[lore_graph]
-      ROUTES[lore_routes]
-      NOTES[lore_notes_read/write]
-      ARCH[lore_architecture]
+        ROUTES[lore_routes]
+        NOTES[lore_notes_read/write]
+        ARCH[lore_architecture]
         TESTMAP[lore_test_map]
         SNIPPET[lore_snippet]
         BLAME[lore_blame]
@@ -74,20 +80,19 @@ flowchart LR
         CLAUDE_CODE ~~~ COPILOT ~~~ CURSOR ~~~ CUSTOM
     end
 
-    SRC --> WALK
-    DOCS --> DOCSINGEST --> DB
-    GIT --> GITHIST --> DB
-    COV --> COVINGEST --> DB
+    DOCSINGEST --> DB
+    GITHIST --> DB
+    COVINGEST --> DB
 
     RESOLVE & CALLGRAPH --> DB
     LSPENRICH -.->|optional| DB
     RESOLVE -.->|optional| EMBED
     EMBED -.-> DB
 
-    DB --- LOOKUP & SEARCH & DOCS_TOOL & ANNOT & GRAPH & ROUTES & NOTES & ARCH & TESTMAP & SNIPPET & BLAME & HISTORY & METRICS & COVERAGE & WRITEBACK & ANALYZE
+    DB --- LOOKUP & SEARCH & DOCS_TOOL & GRAPH & ROUTES & NOTES & ARCH & TESTMAP & SNIPPET & BLAME & HISTORY & METRICS
     EMBED <-.->|semantic/fused| SEARCH
 
-    LOOKUP & SEARCH & DOCS_TOOL & ANNOT & GRAPH & ROUTES & NOTES & ARCH & TESTMAP & SNIPPET & BLAME & HISTORY & METRICS & COVERAGE & WRITEBACK & ANALYZE <--> MCP_CLIENTS
+    LOOKUP & SEARCH & DOCS_TOOL & GRAPH & ROUTES & NOTES & ARCH & TESTMAP & SNIPPET & BLAME & HISTORY & METRICS <--> MCP_CLIENTS
 ```
 
 Lore sits between your codebase and any LLM-powered tool. A `LoreRuntime`
