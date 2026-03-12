@@ -88,7 +88,6 @@ flowchart LR
         GRAPH[lore_graph]
         ROUTES[lore_routes]
         NOTES_TOOL[lore_notes_read/write]
-        ARCHITECTURE[lore_architecture]
         SNIPPET[lore_snippet]
         TESTMAP[lore_test_map]
         BLAME[lore_blame]
@@ -136,9 +135,9 @@ flowchart LR
     EMBED -.->|optional| VEC
     GIT --> GITHIST --> HIST
 
-    FILES & SYM & IMP & EXT & REFS & TYPES & ANN & ROUTE_STORE & DOCS & NOTES & COV & VEC & HIST & META --- LOOKUP & SEARCH & DOCS_TOOL & ANNOTATIONS & GRAPH & ROUTES & NOTES_TOOL & ARCHITECTURE & SNIPPET & TESTMAP & BLAME & HISTORY & METRICS & LORE_COVERAGE & WRITEBACK & ANALYZE
+    FILES & SYM & IMP & EXT & REFS & TYPES & ANN & ROUTE_STORE & DOCS & NOTES & COV & VEC & HIST & META --- LOOKUP & SEARCH & DOCS_TOOL & GRAPH & ROUTES & NOTES_TOOL & SNIPPET & TESTMAP & BLAME & HISTORY & METRICS
 
-    LOOKUP & SEARCH & DOCS_TOOL & ANNOTATIONS & GRAPH & ROUTES & NOTES_TOOL & ARCHITECTURE & SNIPPET & TESTMAP & BLAME & HISTORY & METRICS & LORE_COVERAGE & WRITEBACK & ANALYZE <--> LLM_AGENTS
+    LOOKUP & SEARCH & DOCS_TOOL & GRAPH & ROUTES & NOTES_TOOL & SNIPPET & TESTMAP & BLAME & HISTORY & METRICS <--> LLM_AGENTS
 
     LLM_AGENTS <--- ENTRY
 ```
@@ -257,7 +256,6 @@ Key optimizations in the indexing pipeline (v0.3.0):
 | `lore_docs` | List indexed docs, fetch full docs with optional sections, or search indexed sections |
 | `lore_routes` | Query extracted API routes/endpoints with optional method, path prefix, and framework filters |
 | `lore_notes_read` / `lore_notes_write` | Persist notes and read note freshness metadata (`source_hash_mismatch`, `doc_missing`, etc.) |
-| `lore_architecture` | Build a component-level architecture view with edges, entry/leaf nodes, and external dependency usage |
 | `lore_graph` | Query call, import, inheritance, or type-dependency edges; supports `source_id` for outbound and `target_id` for inbound/reverse queries (`call` edges include `callee_coverage_percent`) |
 | `lore_snippet` | Return snippets from indexed DB-backed file snapshots by file path + line range or by symbol name; path/symbol resolution is branch-aware and responses include containing-symbol context metadata when available |
 | `lore_test_map` | Return mapped test files (with confidence) for a given source file path |
