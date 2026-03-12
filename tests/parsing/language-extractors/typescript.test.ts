@@ -172,3 +172,16 @@ describe('TS type assertion cast', () => {
     expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'f', kind: 'function' }));
   });
 });
+
+describe('TS dynamic import()', () => {
+  const r = fixture('import-dynamic.ts');
+  test('extracts dynamic import as import edge', () => {
+    const sources = r.imports.map((i: { source: string }) => i.source);
+    expect(sources).toContain('./config');
+  });
+
+  test('still extracts static imports alongside dynamic ones', () => {
+    const sources = r.imports.map((i: { source: string }) => i.source);
+    expect(sources).toContain('./utils');
+  });
+});

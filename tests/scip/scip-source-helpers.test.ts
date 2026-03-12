@@ -348,6 +348,20 @@ describe('extractImportPathFromSource', () => {
     });
   });
 
+  describe('JavaScript / TypeScript — dynamic import()', () => {
+    it('extracts from dynamic import() with single quotes', () => {
+      expect(extractImportPathFromSource("const m = await import('./config');")).toBe('./config');
+    });
+
+    it('extracts from dynamic import() with double quotes', () => {
+      expect(extractImportPathFromSource('const m = await import("./utils");')).toBe('./utils');
+    });
+
+    it('extracts from bare import() without await', () => {
+      expect(extractImportPathFromSource("import('./lazy-module');")).toBe('./lazy-module');
+    });
+  });
+
   describe('Rust', () => {
     it('extracts and converts :: to /', () => {
       expect(extractImportPathFromSource('use std::collections::HashMap;')).toBe('std/collections/HashMap');
