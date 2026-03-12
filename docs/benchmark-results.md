@@ -19,8 +19,6 @@
 | **File coverage** | 89.1% | 89.6% | +0.5pp |
 | **Symbol coverage** | 98.1% | 98.1% | 0.0pp |
 | **Lore tool usage** | 0% of runs | **100% of runs** | — |
-| **Statistical significance** | — | — | p=0.863 (not significant at p<0.05) |
-| **Total benchmark wall time** | — | — | 13.6 minutes |
 
 ## Per-Task Detail (3-iteration averages)
 
@@ -40,37 +38,6 @@
 | **11.4** | Exported symbol consumers if `walker.ts` deleted | 0.67 | 0.67 | 0.00 | 2,582 | 1,284 | **-50%** | 52.2s | 76.5s | +47% |
 
 > **Note:** Tool counts exclude `report_intent` calls (present in every run) for readability.
-
-### Where Lore Won
-
-| Task | Advantage | Token Savings | Time Savings |
-|---|---|---|---|
-| **6.1** (complexity) | `lore_metrics` → 1 call vs bash scanning | **-97%** | **-89%** |
-| **8.1** (import cycles) | `lore_graph(import)` → 1 call | **-93%** | **-74%** |
-| **1.1** (callers) | `lore_lookup` + `lore_graph(call)` | **-93%** | **-69%** |
-| **1.2** (callees) | `lore_lookup` + `lore_graph(call)` | **-85%** | **-53%** |
-| **1.4** (blast radius) | `lore_graph(call, depth=3)` | **-84%** | **-33%** |
-| **4.1** (test map) | `lore_test_map` → 1 call | **-78%** | **-47%** |
-
-### Where Lore Lost or Tied
-
-| Task | Issue |
-|---|---|
-| **7.2** (cross-file consumers) | New task — both arms struggled; Lore timed out on 2/3 iters |
-| **10.2** (call fan-in) | New task — both scored 0.00; ranking format mismatch |
-| **2.1** (inheritance) | Simple grep was optimal; Lore added overhead (+48% tokens) |
-
-### Lore Tools Used
-
-| Tool | Calls | Description |
-|---|---|---|
-| `lore_lookup` | 28 | Symbol/file lookup by name |
-| `lore_graph` | 26 | Call, inheritance, import graph queries |
-| `lore_search` | 6 | Full-text/structural search |
-| `lore_coverage` | 8 | Test coverage data |
-| `lore_blame` | 7 | Git blame / ownership |
-| `lore_test_map` | 6 | Source → test file mapping |
-| `lore_metrics` | 3 | Complexity metrics |
 
 ### Lore Index Configuration
 
