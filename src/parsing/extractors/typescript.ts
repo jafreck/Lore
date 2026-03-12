@@ -108,6 +108,11 @@ export class TypeScriptExtractor implements SymbolExtractor {
           result.imports.push(extractImport(node));
           break;
         case 'call_expression': {
+          // Dynamic import(): import('./module') — treat as an import edge
+          const dynImport = maybeDynamicImport(node);
+          if (dynImport) {
+            result.imports.push(dynImport);
+          }
           const ref = extractCallRef(node);
           if (ref) result.callRefs.push(ref);
           break;
@@ -256,6 +261,16 @@ function extractLeadingDocComment(node: Parser.SyntaxNode, source: string): stri
   const beforeNode = source.slice(0, anchor.startIndex);
   const jsDoc = beforeNode.match(/\/\*\*[\s\S]*?\*\/\s*$/);
   return jsDoc ? jsDoc[0].trim() : undefined;
+}
+
+/** Extract a dynamic `import('...')` as an import edge, or null if not one. */
+function maybeDynamicImport(node: Parser.SyntaxNode): RawImport | null {
+  const fnNode = node.childForFieldName('function');
+  if (!fnNode || fnNode.type !== 'import') return null;
+  const argsNode = node.childForFieldName('arguments');
+  const firstArg = argsNode?.namedChildren[0];
+  if (!firstArg || firstArg.type !== 'string') return null;
+  return { source: stripQuotes(firstArg.text), importedNames: [] };
 }
 
 function extractImport(node: Parser.SyntaxNode): RawImport {

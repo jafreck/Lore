@@ -323,3 +323,78 @@ describe('compareReports', () => {
     expect(output).toContain('Success rate:');
   });
 });
+
+// ─── Arrow-line matching in correctness scoring ─────────────────────────────
+
+describe('scoreRun — arrow-line correctness', () => {
+  it('should match arrow lines regardless of value order', () => {
+    const task = makeTask({
+      expectedAnswer: 'foo → src/a.ts, src/b.ts',
+      expectedAnswerParts: ['foo'],
+      expectedFiles: [],
+      expectedSymbols: [],
+    });
+    // Agent response has b.ts before a.ts — should still match
+    const trace = makeTrace({
+      finalAnswer: 'foo → src/b.ts, src/a.ts',
+    });
+    const score = scoreRun(task, trace, 500);
+    expect(score.correctness).toBe(1);
+  });
+
+  it('should match arrow lines when agent includes extra files', () => {
+    const task = makeTask({
+      expectedAnswer: 'bar → src/x.ts',
+      expectedAnswerParts: ['bar'],
+      expectedFiles: [],
+      expectedSymbols: [],
+    });
+    const trace = makeTrace({
+      finalAnswer: 'bar → src/x.ts, src/y.ts, src/z.ts',
+    });
+    const score = scoreRun(task, trace, 500);
+    expect(score.correctness).toBe(1);
+  });
+
+  it('should fail arrow line when key is missing from response', () => {
+    const task = makeTask({
+      expectedAnswer: 'missingKey → src/a.ts',
+      expectedAnswerParts: ['missingKey'],
+      expectedFiles: [],
+      expectedSymbols: [],
+    });
+    const trace = makeTrace({
+      finalAnswer: 'someOtherKey → src/a.ts',
+    });
+    const score = scoreRun(task, trace, 500);
+    expect(score.correctness).toBe(0);
+  });
+
+  it('should fail arrow line when expected file is missing from response', () => {
+    const task = makeTask({
+      expectedAnswer: 'fn → src/a.ts, src/b.ts',
+      expectedAnswerParts: ['fn'],
+      expectedFiles: [],
+      expectedSymbols: [],
+    });
+    const trace = makeTrace({
+      finalAnswer: 'fn → src/a.ts',
+    });
+    const score = scoreRun(task, trace, 500);
+    expect(score.correctness).toBe(0);
+  });
+
+  it('should treat non-arrow lines as plain substring matches', () => {
+    const task = makeTask({
+      expectedAnswer: 'handleLogin\nauth.ts',
+      expectedAnswerParts: ['handleLogin'],
+      expectedFiles: [],
+      expectedSymbols: [],
+    });
+    const trace = makeTrace({
+      finalAnswer: 'The handleLogin function is in auth.ts.',
+    });
+    const score = scoreRun(task, trace, 500);
+    expect(score.correctness).toBe(1);
+  });
+});

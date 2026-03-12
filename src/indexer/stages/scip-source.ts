@@ -901,12 +901,14 @@ function classifyScipReference(scipSymbol: string): 'call' | 'type' | 'skip' {
 function extractImportPathFromSource(line: string): string | null {
   const trimmed = line.trim();
 
-  // JS/TS: import ... from 'path' | import 'path' | require('path')
+  // JS/TS: import ... from 'path' | import 'path' | require('path') | import('path')
   let m = trimmed.match(/\bfrom\s+['"]([^'"]+)['"]/);
   if (m) return m[1]!;
   m = trimmed.match(/\brequire\s*\(\s*['"]([^'"]+)['"]\s*\)/);
   if (m) return m[1]!;
   m = trimmed.match(/^import\s+['"]([^'"]+)['"]/);
+  if (m) return m[1]!;
+  m = trimmed.match(/\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/);
   if (m) return m[1]!;
 
   // C/C++: #include "path" | #include <path>
