@@ -64,7 +64,6 @@ flowchart LR
         GRAPH[lore_graph]
         ROUTES[lore_routes]
         NOTES[lore_notes_read/write]
-        ARCH[lore_architecture]
         TESTMAP[lore_test_map]
         SNIPPET[lore_snippet]
         BLAME[lore_blame]
@@ -89,10 +88,10 @@ flowchart LR
     RESOLVE -.->|optional| EMBED
     EMBED -.-> DB
 
-    DB --- LOOKUP & SEARCH & DOCS_TOOL & GRAPH & ROUTES & NOTES & ARCH & TESTMAP & SNIPPET & BLAME & HISTORY & METRICS
+    DB --- LOOKUP & SEARCH & DOCS_TOOL & GRAPH & ROUTES & NOTES & TESTMAP & SNIPPET & BLAME & HISTORY & METRICS
     EMBED <-.->|semantic/fused| SEARCH
 
-    LOOKUP & SEARCH & DOCS_TOOL & GRAPH & ROUTES & NOTES & ARCH & TESTMAP & SNIPPET & BLAME & HISTORY & METRICS <--> MCP_CLIENTS
+    LOOKUP & SEARCH & DOCS_TOOL & GRAPH & ROUTES & NOTES & TESTMAP & SNIPPET & BLAME & HISTORY & METRICS <--> MCP_CLIENTS
 ```
 
 Lore sits between your codebase and any LLM-powered tool. A `LoreRuntime`
@@ -193,7 +192,6 @@ await builder.build();
 | `lore_routes` | Query extracted API routes/endpoints with optional method, path prefix, and framework filters |
 | `lore_notes_write` | Upsert agent-authored notes by key and scope, with optional source hash for staleness tracking |
 | `lore_notes_read` | Read notes by exact key or key prefix with scope-aware staleness metadata |
-| `lore_architecture` | Build a component-level architecture view with edges, entry/leaf nodes, and external dependency usage |
 | `lore_graph` | Query call/import/inheritance/type-dependency edges; supports `source_id` for outbound and `target_id` for inbound/reverse queries; call edges include `callee_coverage_percent` |
 | `lore_snippet` | Return snippets from indexed source snapshots by file path + line range or by symbol name; path/symbol resolution is branch-aware and responses include containing-symbol context metadata (name, kind, start/end lines) when available |
 | `lore_test_map` | Return mapped test files (with confidence) for a given source file path |
