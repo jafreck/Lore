@@ -10,7 +10,7 @@ import {
 
 describe('DEFAULT_EMBEDDING_MODEL', () => {
   it('should equal the Qwen3-Embedding-0.6B model identifier', () => {
-    expect(DEFAULT_EMBEDDING_MODEL).toBe('Qwen/Qwen3-Embedding-0.6B');
+    expect(DEFAULT_EMBEDDING_MODEL).toBe('onnx-community/Qwen3-Embedding-0.6B-ONNX');
   });
 });
 
@@ -161,9 +161,9 @@ describe('TransformersJsProvider', () => {
     expect(provider.dtype).toBe('q8');
   });
 
-  it('should default dtype to fp32', () => {
+  it('should default dtype to q8', () => {
     const provider = new TransformersJsProvider('some-model');
-    expect(provider.dtype).toBe('fp32');
+    expect(provider.dtype).toBe('q8');
   });
 
   it('should report device as unknown before init', () => {

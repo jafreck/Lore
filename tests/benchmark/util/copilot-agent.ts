@@ -237,7 +237,7 @@ export async function runCopilotAgent(
     args.push(
       '--deny-tool', 'lore_lookup', 'lore_search', 'lore_graph',
       'lore_graph_analysis', 'lore_docs', 'lore_routes', 'lore_notes',
-      'lore_architecture', 'lore_test_map', 'lore_snippet', 'lore_blame',
+      'lore_test_map', 'lore_snippet', 'lore_blame',
       'lore_metrics', 'lore_coverage', 'lore_writeback', 'lore_history',
       'lore_annotations',
     );

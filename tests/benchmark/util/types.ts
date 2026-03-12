@@ -40,17 +40,20 @@ export interface RepoInstance {
 // ─── Indexing configuration ───────────────────────────────────────────────────
 
 /**
- * Indexing mode controls which enrichment stages run during `indexRepo`.
+ * Indexing mode controls which parsing/enrichment stages run during `indexRepo`.
  *
  * Lore's pipeline runs SCIP first (primary source), then tree-sitter for
  * languages SCIP doesn't cover, then optional LSP enrichment on top.
  *
  * - `tree-sitter`:  Tree-sitter only — no SCIP, no LSP, no embeddings.
  *                   Fastest mode, suitable for quick iteration.
- * - `scip`:         SCIP (primary) + tree-sitter (fallback) — no LSP,
- *                   no embeddings. Standard production indexing.
- * - `full`:         SCIP + tree-sitter + LSP enrichment + embeddings.
- *                   Maximum quality: resolved types, semantic search.
+ * - `scip`:         SCIP (primary) + tree-sitter (fallback) — no LSP.
+ *                   Standard production indexing.
+ * - `full`:         SCIP + tree-sitter + LSP enrichment.
+ *                   Maximum structural quality: resolved types.
+ *
+ * Embeddings are controlled separately via `embeddingModel`.
+ * Pass a model name to enable, or omit/set to `undefined` to disable.
  */
 export type IndexMode = 'tree-sitter' | 'scip' | 'full';
 
@@ -60,8 +63,14 @@ export interface IndexOptions {
   mode?: IndexMode;
   /** Git history depth for blame/ownership (default: 100). */
   historyDepth?: number;
-  /** Embedding model identifier (default: Lore's default model). */
+  /**
+   * Embedding model identifier, or `undefined` to disable embeddings.
+   * Examples: 'onnx-community/Qwen3-Embedding-0.6B-ONNX', 'nomic-ai/nomic-embed-text-v1.5'.
+   * Default: `undefined` (no embeddings).
+   */
   embeddingModel?: string;
+  /** Enable LSP enrichment independently of index mode (default: only when mode='full'). */
+  lsp?: boolean;
   /**
    * Directory containing pre-computed SCIP index files.
    * If set, Lore reads `<dir>/<language>.scip` instead of running indexers.
@@ -204,6 +213,8 @@ export interface RunScore {
   loreToolCallCount: number;
   /** Distinct Lore tools invoked. */
   loreToolsUsed: string[];
+  /** Call count per tool name (all tools, not just Lore). */
+  toolCallCounts: Record<string, number>;
 }
 
 // ─── Run result ───────────────────────────────────────────────────────────────

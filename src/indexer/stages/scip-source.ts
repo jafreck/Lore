@@ -44,14 +44,14 @@ import {
 } from '../../scip/scip_pb.js';
 import type { PipelineContext, PipelineStage } from '../pipeline.js';
 import type { Database } from '../../db/schema.js';
-import { buildStructuralEmbeddingText } from '../../embeddings/embedder.js';
 import { normalizeTypeName } from '../../resolution/call-graph.js';
 import { SCIP_SUPPORTED_LANGUAGES, resolveScipIndexerRegistry } from '../../scip/registry.js';
 import type { EffectiveScipSettings } from '../../scip/config.js';
 import { getLogger } from '../../logger.js';
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { execFileSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 
 // ─── SCIP symbol string → Lore kind mapping ──────────────────────────────────
 
@@ -288,7 +288,7 @@ export class ScipSourceStage implements PipelineStage {
     }
 
     // Load SCIP index
-    const indexBuffer = this.loadScipIndex(context.scip, rootDir, staleLanguages);
+    const indexBuffer = await this.loadScipIndex(context.scip, rootDir, staleLanguages);
     if (!indexBuffer) {
       log.indexing('scip-source: no SCIP index available');
       return;
@@ -379,9 +379,6 @@ export class ScipSourceStage implements PipelineStage {
       `INSERT INTO symbols (file_id, name, kind, start_line, end_line, signature, doc_comment)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
     );
-    const insertFts = db.prepare(
-      'INSERT INTO symbols_fts(rowid, name, signature, kind) VALUES (?, ?, ?, ?)',
-    );
     const insertCallRef = db.prepare(
       `INSERT INTO symbol_refs (caller_id, file_id, callee_id, callee_name, call_line, call_character, call_kind, resolution_method)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -417,6 +414,8 @@ export class ScipSourceStage implements PipelineStage {
         } catch {
           continue;
         }
+        // Cache for downstream stages (metrics computation, enrichment).
+        context.sourceCache.set(absPath, source);
 
         const sizeBytes = Buffer.byteLength(source, 'utf8');
         const hash = crypto.createHash('sha256').update(source).digest('hex');
@@ -425,7 +424,6 @@ export class ScipSourceStage implements PipelineStage {
         const existing = db.prepare('SELECT id FROM files WHERE path = ? AND branch = ?').get(absPath, branch) as
           | { id: number } | undefined;
         if (existing) {
-          db.prepare('DELETE FROM symbols_fts WHERE rowid IN (SELECT id FROM symbols WHERE file_id = ?)').run(existing.id);
           db.prepare('DELETE FROM symbol_relationships WHERE file_id = ?').run(existing.id);
           db.prepare('DELETE FROM type_refs WHERE file_id = ?').run(existing.id);
           db.prepare('UPDATE symbol_refs SET callee_id = NULL WHERE callee_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(existing.id);
@@ -505,12 +503,6 @@ export class ScipSourceStage implements PipelineStage {
           ) as { lastInsertRowid: number | bigint };
           const loreId = Number(info.lastInsertRowid);
           scipToLoreId.set(symInfo.symbol, loreId);
-
-          insertFts.run(
-            loreId, name,
-            buildStructuralEmbeddingText({ name, signature: signature || null }),
-            kind,
-          );
         }
 
         // Insert imports (from Import-role occurrences)
@@ -793,11 +785,11 @@ export class ScipSourceStage implements PipelineStage {
 
   // ─── SCIP index loading ──────────────────────────────────────────────────
 
-  private loadScipIndex(
+  private async loadScipIndex(
     settings: EffectiveScipSettings,
     rootDir: string,
     staleLanguages: Set<string> | null = null,
-  ): Uint8Array | null {
+  ): Promise<Uint8Array | null> {
     // Try pre-computed index directory first
     if (settings.indexDir) {
       // When staleLanguages is set, prefer per-language index files so
@@ -833,10 +825,10 @@ export class ScipSourceStage implements PipelineStage {
       try {
         const outputPath = join(rootDir, `.lore-scip-${lang}.scip`);
         const args = indexer.args.map(a => a.replace(/\{output\}/g, outputPath));
-        execFileSync(indexer.command, args, {
+        const execFileAsync = promisify(execFile);
+        await execFileAsync(indexer.command, args, {
           cwd: rootDir,
           timeout: settings.timeoutMs,
-          stdio: ['ignore', 'pipe', 'pipe'],
         });
         // Check for output
         for (const candidate of [outputPath, join(rootDir, 'index.scip')]) {

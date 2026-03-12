@@ -28,7 +28,6 @@ const LORE_TOOL_NAMES = [
   'lore_docs',
   'lore_routes',
   'lore_notes',
-  'lore_architecture',
   'lore_test_map',
   'lore_snippet',
   'lore_blame',
@@ -176,7 +175,7 @@ async function buildLoreTools(dbPath: string, embedder?: EmbeddingProvider): Pro
   // Import each tool module individually to preserve type information
   const [
     lookup, search, graph, graphAnalysis, docs, routes,
-    architecture, testMap, snippet, blame, metrics, coverage,
+    testMap, snippet, blame, metrics, coverage,
     history, annotations,
   ] = await Promise.all([
     import('../../../src/server/tools/lookup.js'),
@@ -185,7 +184,6 @@ async function buildLoreTools(dbPath: string, embedder?: EmbeddingProvider): Pro
     import('../../../src/server/tools/graph-analysis.js'),
     import('../../../src/server/tools/docs.js'),
     import('../../../src/server/tools/routes.js'),
-    import('../../../src/server/tools/architecture.js'),
     import('../../../src/server/tools/test-map.js'),
     import('../../../src/server/tools/snippet.js'),
     import('../../../src/server/tools/blame.js'),
@@ -202,7 +200,6 @@ async function buildLoreTools(dbPath: string, embedder?: EmbeddingProvider): Pro
     wrapTool(graphAnalysis.toolDef.name, graphAnalysis.toolDef.description, (args) => graphAnalysis.handler(db, args as any)),
     wrapTool(docs.toolDef.name, docs.toolDef.description, (args) => docs.handler(db, args as any)),
     wrapTool(routes.toolDef.name, routes.toolDef.description, (args) => routes.handler(db, args as any)),
-    wrapTool(architecture.toolDef.name, architecture.toolDef.description, (args) => architecture.handler(db, args as any)),
     wrapTool(testMap.toolDef.name, testMap.toolDef.description, (args) => testMap.handler(db, args as any)),
     wrapTool(snippet.toolDef.name, snippet.toolDef.description, (args) => snippet.handler(db, args as any)),
     wrapTool(blame.toolDef.name, blame.toolDef.description, (args) => blame.handler(db, args as any)),

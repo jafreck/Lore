@@ -27,7 +27,6 @@ import * as fs from 'node:fs';
 import type { PipelineContext, PipelineStage } from '../pipeline.js';
 import type { Database } from '../../db/schema.js';
 import { ScipEnrichmentCoordinator } from '../../scip/enrichment.js';
-import { buildStructuralEmbeddingText } from '../../embeddings/embedder.js';
 
 /**
  * Enriches indexed artefacts with SCIP-derived metadata.
@@ -53,7 +52,7 @@ export class ScipEnrichmentStage implements PipelineStage {
     // Store which languages SCIP enriched so the LSP stage can skip them.
     context.scipCoveredLanguages = coveredLanguages;
 
-    await enrichProjectRefsWithScip(context.db, context.branch, context.files, this.coordinator);
+    await enrichProjectRefsWithScip(context.db, context.branch, context.files, this.coordinator, context.sourceCache);
   }
 
   async dispose(): Promise<void> {
@@ -71,6 +70,7 @@ export async function enrichProjectRefsWithScip(
   branch: string,
   files: Array<{ path: string; language: string }>,
   coordinator: ScipEnrichmentCoordinator,
+  sourceCache?: Map<string, string>,
 ): Promise<void> {
 
   const selectSymbols = db.prepare(
@@ -106,9 +106,6 @@ export async function enrichProjectRefsWithScip(
     `UPDATE symbols
      SET resolved_type_signature = ?, resolved_return_type = ?, definition_uri = ?, definition_path = ?
      WHERE id = ?`,
-  );
-  const updateSymbolFts = db.prepare(
-    'UPDATE symbols_fts SET signature = ? WHERE rowid = ?',
   );
   const updateCallRef = db.prepare(
     `UPDATE symbol_refs
@@ -146,10 +143,15 @@ export async function enrichProjectRefsWithScip(
     if (!coordinator.coveredLanguages.has(file.language)) continue;
 
     let source: string;
-    try {
-      source = fs.readFileSync(file.path, 'utf8');
-    } catch {
-      continue;
+    const cached = sourceCache?.get(file.path);
+    if (cached !== undefined) {
+      source = cached;
+    } else {
+      try {
+        source = fs.readFileSync(file.path, 'utf8');
+      } catch {
+        continue;
+      }
     }
 
     const tagged: TaggedTarget[] = [];
@@ -214,15 +216,6 @@ export async function enrichProjectRefsWithScip(
               m.resolvedReturnType,
               m.definitionUri,
               m.definitionPath,
-              tag.rowId,
-            );
-            updateSymbolFts.run(
-              buildStructuralEmbeddingText({
-                name: tag.name!,
-                signature: tag.signature ?? null,
-                resolvedTypeSignature: m.resolvedTypeSignature,
-                resolvedReturnType: m.resolvedReturnType,
-              }),
               tag.rowId,
             );
           });

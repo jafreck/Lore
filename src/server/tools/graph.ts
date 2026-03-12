@@ -112,9 +112,11 @@ export interface GraphArgs {
 export interface GraphEdge {
   source_id: number | null;
   source_name: string;
+  source_file_path?: string | null;
   source_branch: string;
   target_id: number | null;
   target_name: string;
+  target_file_path?: string | null;
   callee_coverage_percent?: number | null;
   ref_kind?: string;
   line?: number;
@@ -128,9 +130,11 @@ export interface GraphEdge {
 export interface CompactGraphEdge {
   source_id: number | null;
   source_name: string;
+  source_file_path?: string | null;
   source_branch: string;
   target_id: number | null;
   target_name: string;
+  target_file_path?: string | null;
   callee_coverage_percent?: number | null;
   ref_kind?: string;
 }
@@ -198,9 +202,11 @@ function getStructuralEdges(
     const sql =
       `SELECT sr.caller_id  AS source_id,
               s_caller.name AS source_name,
+              f_caller.path AS source_file_path,
               f_caller.branch AS source_branch,
               sr.callee_id  AS target_id,
               sr.callee_name AS target_name,
+              sr.definition_path AS target_file_path,
               sr.call_kind  AS call_kind,
               sr.call_line + 1 AS line,
               CASE
@@ -333,9 +339,11 @@ function getStructuralEdges(
     const sql =
       `SELECT rel.source_symbol_id AS source_id,
               s_src.name AS source_name,
+              f_src.path AS source_file_path,
               f_src.branch AS source_branch,
               rel.target_symbol_id AS target_id,
               COALESCE(s_dst.name, rel.target_symbol_name) AS target_name,
+              rel.definition_path AS target_file_path,
               rel.line + 1 AS line,
               CASE
                 WHEN rel.character IS NULL THEN NULL
@@ -379,9 +387,11 @@ function getStructuralEdges(
     const sql =
       `SELECT tr.symbol_id AS source_id,
               COALESCE(s_src.name, '') AS source_name,
+              f_src.path AS source_file_path,
               f_src.branch AS source_branch,
               tr.type_id AS target_id,
               COALESCE(s_dst.name, tr.type_name) AS target_name,
+              tr.definition_path AS target_file_path,
               tr.ref_kind AS ref_kind,
               tr.ref_line + 1 AS line,
               CASE
@@ -436,6 +446,8 @@ function compactEdge(edge: GraphEdge): CompactGraphEdge {
     target_id: edge.target_id,
     target_name: edge.target_name,
   };
+  if (edge.source_file_path != null) compact.source_file_path = edge.source_file_path;
+  if (edge.target_file_path != null) compact.target_file_path = edge.target_file_path;
   if (edge.callee_coverage_percent !== undefined) compact.callee_coverage_percent = edge.callee_coverage_percent;
   if (edge.ref_kind !== undefined) compact.ref_kind = edge.ref_kind;
   return compact;

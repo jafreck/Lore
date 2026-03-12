@@ -78,6 +78,10 @@ function makeContext(rootDir: string, dbPath: string, scipEnabled = true): Pipel
     indexDependencies: false,
     history: false,
     docsAutoNotes: false,
+    staleSymbolIds: [],
+    changedSourcePaths: [],
+    changedDocPaths: [],
+    sourceCache: new Map(),
   };
 }
 

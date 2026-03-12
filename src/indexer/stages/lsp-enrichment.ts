@@ -27,7 +27,6 @@ import * as fs from 'node:fs';
 import type { PipelineContext, PipelineStage } from '../pipeline.js';
 import type { Database } from '../../db/schema.js';
 import { LspEnrichmentCoordinator } from '../../lsp/enrichment.js';
-import { buildStructuralEmbeddingText } from '../../embeddings/embedder.js';
 
 /**
  * Enriches indexed artefacts with LSP-derived metadata.
@@ -77,7 +76,7 @@ export class LspEnrichmentStage implements PipelineStage {
 
     // Full enrichment for non-SCIP files (all targets).
     if (fullEnrichFiles.length > 0) {
-      await enrichProjectRefs(context.db, context.branch, fullEnrichFiles, this.coordinator);
+      await enrichProjectRefs(context.db, context.branch, fullEnrichFiles, this.coordinator, context.sourceCache);
     }
 
     // Targeted enrichment for SCIP-sourced files (only unresolved refs).
@@ -85,7 +84,7 @@ export class LspEnrichmentStage implements PipelineStage {
       context.log.indexing('lsp-enrichment: enriching unresolved SCIP refs', {
         files: scipFiles.length,
       });
-      await enrichUnresolvedScipRefs(context.db, context.branch, scipFiles, this.coordinator);
+      await enrichUnresolvedScipRefs(context.db, context.branch, scipFiles, this.coordinator, context.sourceCache);
     }
   }
 
@@ -108,6 +107,7 @@ export async function enrichProjectRefs(
   branch: string,
   files: Array<{ path: string; language: string }>,
   coordinator: LspEnrichmentCoordinator,
+  sourceCache?: Map<string, string>,
 ): Promise<void> {
 
   const selectSymbols = db.prepare(
@@ -144,9 +144,6 @@ export async function enrichProjectRefs(
      SET resolved_type_signature = ?, resolved_return_type = ?, definition_uri = ?, definition_path = ?
      WHERE id = ?`,
   );
-  const updateSymbolFts = db.prepare(
-    'UPDATE symbols_fts SET signature = ? WHERE rowid = ?',
-  );
   const updateCallRef = db.prepare(
     `UPDATE symbol_refs
      SET resolved_type_signature = ?, resolved_return_type = ?, definition_uri = ?, definition_path = ?, definition_line = ?, definition_character = ?
@@ -179,10 +176,15 @@ export async function enrichProjectRefs(
   for (const file of files) {
     if (!file || !fs.existsSync(file.path)) continue;
     let source: string;
-    try {
-      source = fs.readFileSync(file.path, 'utf8');
-    } catch {
-      continue;
+    const cached = sourceCache?.get(file.path);
+    if (cached !== undefined) {
+      source = cached;
+    } else {
+      try {
+        source = fs.readFileSync(file.path, 'utf8');
+      } catch {
+        continue;
+      }
     }
 
     const tagged: TaggedTarget[] = [];
@@ -249,15 +251,6 @@ export async function enrichProjectRefs(
               m.definitionPath,
               tag.rowId,
             );
-            updateSymbolFts.run(
-              buildStructuralEmbeddingText({
-                name: tag.name!,
-                signature: tag.signature ?? null,
-                resolvedTypeSignature: m.resolvedTypeSignature,
-                resolvedReturnType: m.resolvedReturnType,
-              }),
-              tag.rowId,
-            );
           });
           break;
         case 'callRef':
@@ -320,6 +313,7 @@ async function enrichUnresolvedScipRefs(
   branch: string,
   files: Array<{ path: string; language: string }>,
   coordinator: LspEnrichmentCoordinator,
+  sourceCache?: Map<string, string>,
 ): Promise<void> {
 
   // Only select refs that SCIP left unresolved.
@@ -371,10 +365,15 @@ async function enrichUnresolvedScipRefs(
   for (const file of files) {
     if (!file || !fs.existsSync(file.path)) continue;
     let source: string;
-    try {
-      source = fs.readFileSync(file.path, 'utf8');
-    } catch {
-      continue;
+    const cached = sourceCache?.get(file.path);
+    if (cached !== undefined) {
+      source = cached;
+    } else {
+      try {
+        source = fs.readFileSync(file.path, 'utf8');
+      } catch {
+        continue;
+      }
     }
 
     const tagged: TaggedTarget[] = [];
