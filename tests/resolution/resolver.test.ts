@@ -670,6 +670,85 @@ describe('ImportResolver', () => {
     });
   });
 
+  // ─── JS → TS extension resolution ──────────────────────────────────────────
+
+  describe('JS-to-TS extension probing', () => {
+    it('should resolve import with .js extension to .ts file', () => {
+      const srcDir = path.join(tmpDir, 'src');
+      fs.mkdirSync(srcDir, { recursive: true });
+      fs.writeFileSync(path.join(srcDir, 'utils.ts'), 'export const x = 1;');
+
+      const result = resolver.resolve(
+        { source: './utils.js', kind: 'import', line: 1 },
+        path.join(srcDir, 'app.ts'),
+        tmpDir,
+        'typescript',
+      );
+      expect(result.isExternal).toBe(false);
+      expect(result.resolvedPath).toBe(path.join(srcDir, 'utils.ts'));
+    });
+
+    it('should resolve .mjs specifier to .mts file', () => {
+      const srcDir = path.join(tmpDir, 'src');
+      fs.mkdirSync(srcDir, { recursive: true });
+      fs.writeFileSync(path.join(srcDir, 'config.mts'), 'export default {};');
+
+      const result = resolver.resolve(
+        { source: './config.mjs', kind: 'import', line: 1 },
+        path.join(srcDir, 'app.ts'),
+        tmpDir,
+        'typescript',
+      );
+      expect(result.isExternal).toBe(false);
+      expect(result.resolvedPath).toBe(path.join(srcDir, 'config.mts'));
+    });
+
+    it('should resolve .cjs specifier to .cts file', () => {
+      const srcDir = path.join(tmpDir, 'src');
+      fs.mkdirSync(srcDir, { recursive: true });
+      fs.writeFileSync(path.join(srcDir, 'helper.cts'), 'module.exports = {};');
+
+      const result = resolver.resolve(
+        { source: './helper.cjs', kind: 'import', line: 1 },
+        path.join(srcDir, 'app.ts'),
+        tmpDir,
+        'typescript',
+      );
+      expect(result.isExternal).toBe(false);
+      expect(result.resolvedPath).toBe(path.join(srcDir, 'helper.cts'));
+    });
+
+    it('should prefer actual .js file over .ts when .js exists', () => {
+      const srcDir = path.join(tmpDir, 'src');
+      fs.mkdirSync(srcDir, { recursive: true });
+      fs.writeFileSync(path.join(srcDir, 'lib.js'), 'module.exports = {};');
+
+      const result = resolver.resolve(
+        { source: './lib.js', kind: 'import', line: 1 },
+        path.join(srcDir, 'app.ts'),
+        tmpDir,
+        'typescript',
+      );
+      expect(result.isExternal).toBe(false);
+      expect(result.resolvedPath).toBe(path.join(srcDir, 'lib.js'));
+    });
+
+    it('should resolve .jsx specifier to .tsx file', () => {
+      const srcDir = path.join(tmpDir, 'src');
+      fs.mkdirSync(srcDir, { recursive: true });
+      fs.writeFileSync(path.join(srcDir, 'App.tsx'), 'export default () => null;');
+
+      const result = resolver.resolve(
+        { source: './App.jsx', kind: 'import', line: 1 },
+        path.join(srcDir, 'index.ts'),
+        tmpDir,
+        'typescript',
+      );
+      expect(result.isExternal).toBe(false);
+      expect(result.resolvedPath).toBe(path.join(srcDir, 'App.tsx'));
+    });
+  });
+
   // ─── markExternal ───────────────────────────────────────────────────────────
 
   describe('markExternal shape', () => {

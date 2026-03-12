@@ -193,43 +193,17 @@ const LORE_SELF_ANSWERS: RepoAnswers = {
   languageLabel: 'TypeScript',
   sourceRoot: 'src/',
   questions: {
-    // Q1.1: openDb callers — main does NOT directly call openDb (it calls
-    // builder.build which internally calls openDb). docsAutoNotes1 is the
-    // cli.ts property that calls it directly. Verified against SCIP index.
     '1.1': { symbol: 'openDb', file: 'src/db/schema.ts', expectedAnswer: 'build\nupdate\ningestSummary\ningestCoverage\ndocsAutoNotes1', expectedAnswerParts: ['build', 'update', 'ingestSummary', 'ingestCoverage'], expectedSymbols: ['openDb', 'build', 'update'], expectedFiles: ['src/indexer/index.ts', 'src/cli.ts'] },
-    // Q1.2: build callees — SCIP records `new IndexPipeline(...)` as a call
-    // to `<constructor>`, not to `IndexPipeline`. `pipeline.run` is the
-    // actual callee name in the graph for IndexPipeline.run().
     '1.2': { symbol: 'build', file: 'src/indexer/index.ts', expectedAnswer: 'getLogger\nopenDb\nresolveBranch\n<constructor>\nresolutionStage\ntestMapStage\nhistoryStage\npipeline.run\nsaveLastKnownHead\ngatherDbStats', expectedAnswerParts: ['openDb', 'resolutionStage', 'pipeline.run', 'saveLastKnownHead'], expectedSymbols: ['build', 'openDb'], expectedFiles: ['src/indexer/index.ts'] },
-    // Q1.4: resolveSymbolEdges blast radius — the transitive caller chain is
-    // resolveSymbolEdges → resolutionStage → build/update. The source file
-    // (call-graph.ts) is implicit in the prompt, so the expected answer only
-    // includes the dependent files and functions.
     '1.4': { symbol: 'resolveSymbolEdges', file: 'src/resolution/call-graph.ts', expectedAnswer: 'resolutionStage\nbuild\nupdate', expectedAnswerParts: ['resolutionStage', 'build', 'update'], expectedSymbols: ['resolveSymbolEdges'], expectedFiles: ['src/resolution/call-graph.ts', 'src/indexer/index.ts'] },
     '2.1': { symbol: 'SymbolExtractor', file: 'src/parsing/extractors/types.ts', expectedAnswer: 'TypeScriptExtractor\nJavaScriptExtractor\nPythonExtractor\nGoExtractor\nRustExtractor\nJavaExtractor\nCExtractor\nCppExtractor\nCSharpExtractor\nRubyExtractor\nSwiftExtractor\nKotlinExtractor\nPhpExtractor\nScalaExtractor\nElixirExtractor\nOcamlExtractor\nHaskellExtractor\nElmExtractor\nLuaExtractor\nBashExtractor\nZigExtractor\nJuliaExtractor\nObjcExtractor', expectedAnswerParts: ['TypeScriptExtractor', 'JavaScriptExtractor', 'PythonExtractor', 'GoExtractor', 'RustExtractor'], expectedSymbols: ['SymbolExtractor', 'TypeScriptExtractor', 'PythonExtractor'] },
     '4.1': { symbol: '', file: 'src/parsing/parser.ts', expectedAnswer: 'tests/parsing/parser.test.ts', expectedAnswerParts: ['parser.test.ts'], expectedFiles: ['src/parsing/parser.ts', 'tests/parsing/parser.test.ts'] },
-    // Q6.1: Top-5 by cyclomatic complexity — verified against tree-sitter
-    // symbol_metrics at SHA 660be2bf (ScipSourceStage=90, execute=77,
-    // main=49, ImportResolver=47, clusterSymbols=37).
     '6.1': { symbol: '', file: '', expectedAnswer: 'ScipSourceStage\nexecute\nmain\nImportResolver\nclusterSymbols', expectedAnswerParts: ['ScipSourceStage', 'execute', 'main', 'ImportResolver', 'clusterSymbols'], expectedSymbols: [] },
-    // Q7.2: Cross-file consumer trace — find functions in other files that
-    // consume/reference the EmbeddingProvider interface. Verified via type_refs
-    // at SHA 660be2bf. 25 consuming symbols across 13 source files.
     '7.2': { symbol: 'EmbeddingProvider', file: 'src/embeddings/embedder.ts', expectedAnswer: 'main → src/cli.ts\nembedStructural → src/indexer/stages/embedding.ts\nembedDocumentation → src/indexer/stages/embedding.ts\nembedCommitMessages → src/indexer/stages/embedding.ts\ncreateLoreMcpServer → src/server/server.ts\nhandler → src/server/tools/search.ts\nsemanticLookup → src/server/tools/lookup.ts\nsemanticDocSearch → src/server/tools/docs.ts', expectedAnswerParts: ['embedStructural', 'createLoreMcpServer', 'main', 'handler'], expectedSymbols: ['EmbeddingProvider', 'embedStructural', 'createLoreMcpServer'], expectedFiles: ['src/embeddings/embedder.ts', 'src/indexer/stages/embedding.ts', 'src/server/server.ts', 'src/cli.ts'] },
     '8.1': { symbol: '', file: '', expectedAnswer: 'None', expectedAnswerParts: ['none'], expectedSymbols: [] },
-    // Q3.3: Module dependency summary — verified against actual import
-    // statements at SHA 660be2bf. Paths relative to repo root.
     '3.3': { symbol: '', file: '', expectedAnswer: 'src/indexer → src/db, src/discovery, src/docs, src/embeddings, src/git, src/lsp, src/parsing, src/resolution, src/scip, src/testing\nsrc/server → src/db, src/embeddings, src/resolution\nsrc/discovery → src/docs, src/embeddings, src/indexer, src/lsp\nsrc/resolution → src/db, src/parsing\nsrc/lsp → src/parsing\nsrc/scip → src/lsp\nsrc/git → src/db\nsrc/testing → src/db\nsrc/db → (none)\nsrc/parsing → (none)\nsrc/docs → (none)\nsrc/embeddings → (none)', expectedAnswerParts: ['src/indexer', 'src/server', 'src/resolution', 'src/db', 'src/discovery', 'src/lsp', 'src/scip', 'src/testing'], expectedSymbols: [] },
-    // Q10.2: Cross-module call fan-in — rank functions in read-only.ts by
-    // how many distinct source files call them. Verified via symbol_refs
-    // at SHA 660be2bf. getFileByPath has 3 callers, several others have 2.
     '10.2': { symbol: '', file: 'src/db/read-only.ts', expectedAnswer: '1. getFileByPath — 3 files: src/server/tools/lookup.ts, src/server/tools/snippet.ts, src/server/tools/blame.ts\n2. getLatestCoverageTotals — 2 files: src/server/tools/metrics.ts, src/server/tools/coverage.ts\n3. openReadOnly — 2 files: src/server/server.ts, src/cli.ts', expectedAnswerParts: ['getFileByPath', 'getLatestCoverageTotals', 'openReadOnly'], expectedSymbols: ['getFileByPath', 'getLatestCoverageTotals', 'openReadOnly'], expectedFiles: ['src/db/read-only.ts', 'src/server/tools/lookup.ts', 'src/server/tools/blame.ts'] },
     '11.1': { symbol: 'resolveSymbolEdges', file: 'src/resolution/call-graph.ts', expectedAnswer: 'resolution\ncall-graph\ntest\nJacob Freck', expectedAnswerParts: ['call-graph', 'test', 'resolution'], expectedSymbols: ['resolveSymbolEdges'], expectedFiles: ['src/resolution/call-graph.ts'] },
-    // Q11.4: Deletion impact — which exported symbols from walker.ts are used
-    // elsewhere in source files? Verified at SHA 660be2bf. walkFiles is used via
-    // dynamic import in cli.ts. WalkerConfig type is used in 5 source files.
-    // walkDocumentationFiles and detectLanguageForPath are each used in one stage.
-    // Test files excluded per prompt instructions.
     '11.4': { symbol: '', file: 'src/discovery/walker.ts', expectedAnswer: 'walkFiles → src/indexer/stages/source-index.ts, src/discovery/poller.ts, src/cli.ts\nwalkDocumentationFiles → src/indexer/stages/docs-index.ts\ndetectLanguageForPath → src/indexer/stages/source-index.ts\nWalkerConfig → src/indexer/index.ts, src/indexer/pipeline.ts, src/runtime.ts, src/discovery/poller.ts, src/discovery/watcher.ts', expectedAnswerParts: ['walkFiles', 'walkDocumentationFiles', 'detectLanguageForPath', 'WalkerConfig', 'source-index.ts', 'docs-index.ts'], expectedSymbols: ['walkFiles', 'WalkerConfig', 'detectLanguageForPath'], expectedFiles: ['src/discovery/walker.ts'] },
   },
 };
@@ -272,8 +246,6 @@ const ZOD_ANSWERS: RepoAnswers = {
     '3.3': { symbol: '', file: '', expectedAnswer: 'packages/zod/src/v4/core → (internal)\npackages/zod/src/v4/classic → packages/zod/src/v4/core\npackages/zod/src/v4/mini → packages/zod/src/v4/core\npackages/zod/src/v3 → (standalone)', expectedAnswerParts: ['v4/core', 'v4/classic', 'v4/mini', 'v3'], expectedSymbols: [] },
     '10.2': { symbol: '', file: 'packages/zod/src/v4/core/core.ts', expectedAnswer: '1. $ZodType — files: packages/zod/src/v4/core/schemas.ts, packages/zod/src/v4/core/api.ts', expectedAnswerParts: ['$ZodType', 'schemas.ts'], expectedSymbols: ['$ZodType'], expectedFiles: ['packages/zod/src/v4/core/core.ts', 'packages/zod/src/v4/core/schemas.ts'] },
     '11.1': { symbol: '_parse', file: 'packages/zod/src/v4/core/core.ts', expectedAnswer: 'core\ntest\nColin McDonnell', expectedAnswerParts: ['core', 'test', 'Colin McDonnell'], expectedSymbols: ['_parse'], expectedFiles: ['packages/zod/src/v4/core/core.ts'] },
-    // Q11.4: Deletion impact — which exported symbols from schemas.ts
-    // are used elsewhere? Key exports: all $Zod* schema classes.
     '11.4': { symbol: '', file: 'packages/zod/src/v4/core/schemas.ts', expectedAnswer: '$ZodString → packages/zod/src/v4/core/core.ts, packages/zod/src/v4/core/api.ts\n$ZodNumber → packages/zod/src/v4/core/core.ts, packages/zod/src/v4/core/api.ts\n$ZodObject → packages/zod/src/v4/core/core.ts, packages/zod/src/v4/core/api.ts\n$ZodArray → packages/zod/src/v4/core/core.ts, packages/zod/src/v4/core/api.ts', expectedAnswerParts: ['$ZodString', '$ZodObject', 'packages/zod/src/v4/core/core.ts', 'packages/zod/src/v4/core/api.ts'], expectedSymbols: ['$ZodString', '$ZodObject'], expectedFiles: ['packages/zod/src/v4/core/schemas.ts'] },
   },
 };
@@ -294,8 +266,6 @@ const FASTAPI_ANSWERS: RepoAnswers = {
     '3.3': { symbol: '', file: '', expectedAnswer: 'fastapi/applications → fastapi/routing, fastapi/middleware, fastapi/openapi, fastapi/exceptions\nfastapi/routing → fastapi/dependencies, fastapi/openapi\nfastapi/dependencies → (none)\nfastapi/security → fastapi/dependencies', expectedAnswerParts: ['fastapi/applications', 'fastapi/routing', 'fastapi/dependencies', 'fastapi/security', 'fastapi/openapi'], expectedSymbols: [] },
     '10.2': { symbol: '', file: 'fastapi/routing.py', expectedAnswer: '1. APIRouter — files: fastapi/applications.py, fastapi/__init__.py\n2. APIRoute — files: fastapi/routing.py\n3. get_request_handler — files: fastapi/routing.py', expectedAnswerParts: ['APIRouter', 'APIRoute', 'get_request_handler'], expectedSymbols: ['APIRouter', 'APIRoute'], expectedFiles: ['fastapi/routing.py', 'fastapi/applications.py'] },
     '11.1': { symbol: 'solve_dependencies', file: 'fastapi/dependencies/utils.py', expectedAnswer: 'dependencies\ntest\nSebastián Ramírez', expectedAnswerParts: ['dependencies', 'test', 'Ramírez'], expectedSymbols: ['solve_dependencies'], expectedFiles: ['fastapi/dependencies/utils.py'] },
-    // Q11.4: Deletion impact — which exported symbols from routing.py
-    // are used elsewhere? Key exports: APIRouter, APIRoute, get_request_handler.
     '11.4': { symbol: '', file: 'fastapi/routing.py', expectedAnswer: 'APIRouter → fastapi/applications.py, fastapi/__init__.py\nAPIRoute → fastapi/routing.py\nget_request_handler → fastapi/routing.py', expectedAnswerParts: ['APIRouter', 'APIRoute', 'fastapi/applications.py', 'fastapi/__init__.py'], expectedSymbols: ['APIRouter', 'APIRoute'], expectedFiles: ['fastapi/routing.py'] },
   },
 };
@@ -316,8 +286,6 @@ const ESBUILD_ANSWERS: RepoAnswers = {
     '3.3': { symbol: '', file: '', expectedAnswer: 'pkg/api → pkg/bundler, pkg/js_parser, pkg/css_parser, pkg/config\npkg/bundler → pkg/js_parser, pkg/css_parser, pkg/graph, pkg/linker\npkg/cli → pkg/api', expectedAnswerParts: ['pkg/api', 'pkg/bundler', 'pkg/js_parser', 'pkg/cli'], expectedSymbols: [] },
     '10.2': { symbol: '', file: 'pkg/api/api_impl.go', expectedAnswer: '1. rebuildImpl — files: pkg/api/api.go\n2. serveImpl — files: pkg/api/api.go', expectedAnswerParts: ['rebuildImpl', 'serveImpl', 'pkg/api/api.go'], expectedSymbols: ['rebuildImpl', 'serveImpl'], expectedFiles: ['pkg/api/api_impl.go', 'pkg/api/api.go'] },
     '11.1': { symbol: 'rebuildImpl', file: 'pkg/api/api_impl.go', expectedAnswer: 'api\ntest\nEvan Wallace', expectedAnswerParts: ['api', 'test', 'Evan Wallace'], expectedSymbols: ['rebuildImpl'], expectedFiles: ['pkg/api/api_impl.go'] },
-    // Q11.4: Deletion impact — which exported symbols from api_impl.go
-    // are used elsewhere? Key exports: rebuildImpl, serveImpl.
     '11.4': { symbol: '', file: 'pkg/api/api_impl.go', expectedAnswer: 'rebuildImpl → pkg/api/api.go\nserveImpl → pkg/api/api.go', expectedAnswerParts: ['rebuildImpl', 'serveImpl', 'pkg/api/api.go'], expectedSymbols: ['rebuildImpl'], expectedFiles: ['pkg/api/api_impl.go'] },
   },
 };

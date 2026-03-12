@@ -303,6 +303,18 @@ export class ImportResolver {
 
   // ─── Low-level helpers ────────────────────────────────────────────────────
 
+  /**
+   * JS/TS extension pairs: when a specifier ends with a JS extension,
+   * strip it and probe the corresponding TS extension first.
+   * This mirrors TypeScript's own resolution (import './foo.js' → foo.ts).
+   */
+  private static readonly JS_TO_TS: [string, string][] = [
+    ['.js', '.ts'],
+    ['.jsx', '.tsx'],
+    ['.mjs', '.mts'],
+    ['.cjs', '.cts'],
+  ];
+
   private resolveRelative(
     source: string,
     fromFile: string,
@@ -313,6 +325,17 @@ export class ImportResolver {
       const candidate = base + ext;
       if (this.fileExists(candidate)) return candidate;
     }
+
+    // TypeScript convention: import './foo.js' resolves to './foo.ts'.
+    // Strip JS-family extensions and re-probe with TS equivalents.
+    for (const [jsExt, tsExt] of ImportResolver.JS_TO_TS) {
+      if (source.endsWith(jsExt)) {
+        const stripped = base.slice(0, -jsExt.length);
+        const candidate = stripped + tsExt;
+        if (this.fileExists(candidate)) return candidate;
+      }
+    }
+
     return null;
   }
 

@@ -122,23 +122,50 @@ function computeTaskSuccess(
 }
 
 /**
+ * Check whether a single expected-answer line matches the actual response.
+ *
+ * Lines containing " → " (arrow-delimited key → file-list) are matched
+ * set-wise: the key must appear, and every expected file must appear
+ * somewhere in the actual text, regardless of ordering or extra files.
+ * Plain lines fall back to exact substring matching.
+ *
+ * Both arguments should already be lower-cased.
+ */
+function arrowLineMatches(line: string, actual: string): boolean {
+  const arrowIdx = line.indexOf(' → ');
+  if (arrowIdx === -1) {
+    return actual.includes(line);
+  }
+  const key = line.slice(0, arrowIdx).trim();
+  const expectedValues = line
+    .slice(arrowIdx + 3)
+    .split(',')
+    .map((v) => v.trim())
+    .filter(Boolean);
+
+  if (!actual.includes(key)) return false;
+  return expectedValues.every((v) => actual.includes(v));
+}
+
+/**
  * Compute correctness by checking how many expected-answer lines
  * appear in the agent's actual response (case-insensitive, trimmed).
+ *
  * Returns a fraction 0–1.
  */
 function computeCorrectness(expectedAnswer: string, actualAnswer: string): number {
-  const normalise = (s: string) =>
+  const toLines = (s: string) =>
     s
       .split('\n')
       .map((l) => l.trim().toLowerCase())
       .filter(Boolean);
 
-  const expectedParts = normalise(expectedAnswer);
-  if (expectedParts.length === 0) return 1;
+  const expectedLines = toLines(expectedAnswer);
+  if (expectedLines.length === 0) return 1;
 
   const actual = actualAnswer.toLowerCase();
-  const matched = expectedParts.filter((part) => actual.includes(part)).length;
-  return matched / expectedParts.length;
+  const matched = expectedLines.filter((line) => arrowLineMatches(line, actual)).length;
+  return matched / expectedLines.length;
 }
 
 /**
@@ -515,8 +542,8 @@ export function diagnoseExpectations(
     .split('\n')
     .map((l) => l.trim())
     .filter(Boolean);
-  const correctnessMatched = expectedLines.filter((l) => answer.includes(l.toLowerCase()));
-  const correctnessMissed = expectedLines.filter((l) => !answer.includes(l.toLowerCase()));
+  const correctnessMatched = expectedLines.filter((l) => arrowLineMatches(l.toLowerCase(), answer));
+  const correctnessMissed = expectedLines.filter((l) => !arrowLineMatches(l.toLowerCase(), answer));
 
   return {
     matched,
