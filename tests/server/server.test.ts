@@ -118,7 +118,7 @@ describe('createLoreMcpServer', () => {
 
   });
 
-  it('should register lore_graph kind schema with module and inheritance values', () => {
+  it('should register lore_graph kind schema with inheritance values', () => {
     const db = new Database(':memory:');
 
     createLoreMcpServer(db, '/tmp/test.db');
@@ -135,7 +135,7 @@ describe('createLoreMcpServer', () => {
     };
     expect(graphSchema.kind.safeParse('call').success).toBe(true);
     expect(graphSchema.kind.safeParse('import').success).toBe(true);
-    expect(graphSchema.kind.safeParse('module').success).toBe(true);
+    expect(graphSchema.kind.safeParse('module').success).toBe(false);
     expect(graphSchema.kind.safeParse('inheritance').success).toBe(true);
     expect(graphSchema.kind.safeParse('invalid-kind').success).toBe(false);
     expect(graphSchema.mode.safeParse('structural').success).toBe(true);
@@ -146,23 +146,6 @@ describe('createLoreMcpServer', () => {
     expect(graphSchema.semantic_limit.safeParse(10).success).toBe(true);
     expect(graphSchema.semantic_limit.safeParse('10').success).toBe(false);
     expect(graphSchema.semantic_max_distance.safeParse(0.4).success).toBe(true);
-  });
-
-  it('should register lore_coverage with expected schema fields', () => {
-    const db = new Database(':memory:');
-
-    createLoreMcpServer(db, '/tmp/test.db');
-
-    const coverageToolCall = mockTool.mock.calls.find((call) => call[0] === 'lore_coverage');
-    expect(coverageToolCall).toBeDefined();
-
-    const coverageSchema = coverageToolCall?.[2] as {
-      symbol_id: { safeParse: (v: unknown) => { success: boolean } };
-      symbol_name: { safeParse: (v: unknown) => { success: boolean } };
-    };
-    expect(coverageSchema.symbol_id.safeParse(1).success).toBe(true);
-    expect(coverageSchema.symbol_name.safeParse('render').success).toBe(true);
-    expect(coverageSchema.symbol_id.safeParse('1').success).toBe(false);
   });
 
   it('should register lore_test_map with expected schema fields', () => {
@@ -761,14 +744,13 @@ describe('createLoreMcpServerAsync', () => {
     vi.clearAllMocks();
   });
 
-  it('should register all tools via async path including lore_analyze', async () => {
+  it('should register all tools via async path', async () => {
     const db = new Database(':memory:');
     await createLoreMcpServerAsync(db, '/tmp/test.db');
 
     const toolNames = mockTool.mock.calls.map((call: unknown[]) => call[0]);
     expect(toolNames).toContain('lore_lookup');
     expect(toolNames).toContain('lore_search');
-    expect(toolNames).toContain('lore_analyze');
     expect(toolNames).toContain('lore_graph');
   });
 

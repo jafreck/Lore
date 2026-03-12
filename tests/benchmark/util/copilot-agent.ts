@@ -236,10 +236,9 @@ export async function runCopilotAgent(
   if (arm === 'control') {
     args.push(
       '--deny-tool', 'lore_lookup', 'lore_search', 'lore_graph',
-      'lore_graph_analysis', 'lore_docs', 'lore_routes', 'lore_notes',
+      'lore_docs', 'lore_routes', 'lore_notes',
       'lore_test_map', 'lore_snippet', 'lore_blame',
-      'lore_metrics', 'lore_coverage', 'lore_writeback', 'lore_history',
-      'lore_annotations',
+      'lore_metrics', 'lore_history',
     );
   }
 

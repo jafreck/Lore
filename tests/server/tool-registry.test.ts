@@ -301,7 +301,6 @@ describe('tool-registry', () => {
       const names = modules.map(m => m.def.name);
       expect(names).toContain('lore_lookup');
       expect(names).toContain('lore_graph');
-      expect(names).toContain('lore_analyze');
       expect(names).toContain('lore_search');
       expect(names).toContain('lore_docs');
       expect(names).toContain('lore_routes');
@@ -310,10 +309,7 @@ describe('tool-registry', () => {
       expect(names).toContain('lore_snippet');
       expect(names).toContain('lore_blame');
       expect(names).toContain('lore_metrics');
-      expect(names).toContain('lore_coverage');
-      expect(names).toContain('lore_writeback');
       expect(names).toContain('lore_history');
-      expect(names).toContain('lore_annotations');
     });
 
     it('should return modules with callable handlerFactory', async () => {

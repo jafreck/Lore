@@ -85,7 +85,6 @@ flowchart LR
         LOOKUP[lore_lookup]
         SEARCH[lore_search<br/>BM25 · vector · fused]
         DOCS_TOOL[lore_docs]
-        ANNOTATIONS[lore_annotations]
         GRAPH[lore_graph]
         ROUTES[lore_routes]
         NOTES_TOOL[lore_notes_read/write]
@@ -95,9 +94,6 @@ flowchart LR
         BLAME[lore_blame]
         HISTORY[lore_history]
         METRICS[lore_metrics]
-        LORE_COVERAGE[lore_coverage]
-        WRITEBACK[lore_writeback]
-        ANALYZE[lore_analyze]
     end
 
     subgraph LLM_AGENTS[Agents]
@@ -259,19 +255,15 @@ Key optimizations in the indexing pipeline (v0.3.0):
 | `lore_lookup` | Find symbols by name or files by path (optional branch filter), including external API symbol matches from `external_symbols` and persisted LSP-enrichment metadata when available |
 | `lore_search` | Structural BM25, semantic vector, or fused RRF search; semantic/fused modes can return docs section hits and structural results are augmented by external symbol-name matches from `external_symbols`; returns persisted LSP-enrichment metadata fields when available |
 | `lore_docs` | List indexed docs, fetch full docs with optional sections, or search indexed sections |
-| `lore_annotations` | Return indexed source annotations by kind, with optional file-path and limit filters |
 | `lore_routes` | Query extracted API routes/endpoints with optional method, path prefix, and framework filters |
 | `lore_notes_read` / `lore_notes_write` | Persist notes and read note freshness metadata (`source_hash_mismatch`, `doc_missing`, etc.) |
 | `lore_architecture` | Build a component-level architecture view with edges, entry/leaf nodes, and external dependency usage |
-| `lore_graph` | Query call, import, module, inheritance, or type-dependency edges; supports `source_id` for outbound and `target_id` for inbound/reverse queries (`call` edges include `callee_coverage_percent`) |
+| `lore_graph` | Query call, import, inheritance, or type-dependency edges; supports `source_id` for outbound and `target_id` for inbound/reverse queries (`call` edges include `callee_coverage_percent`) |
 | `lore_snippet` | Return snippets from indexed DB-backed file snapshots by file path + line range or by symbol name; path/symbol resolution is branch-aware and responses include containing-symbol context metadata when available |
 | `lore_test_map` | Return mapped test files (with confidence) for a given source file path |
 | `lore_blame` | Query blame (`mode: "blame"`), line-range evolution (`mode: "history"`), or ownership aggregates (`mode: "ownership"`), including symbol-targeted range resolution |
 | `lore_history` | Query history by file, commit, author, ref, recency, or semantic commit-message similarity (with graceful fallback to recent mode when vectors are unavailable) |
 | `lore_metrics` | Return aggregate index metrics plus global coverage totals and staleness metadata (`coverage_commit`, `current_commit`, `commits_behind`, `stale`) |
-| `lore_coverage` | Return symbol-level coverage, uncovered lines, and staleness metadata for the latest coverage run |
-| `lore_writeback` | Persist symbol summaries into `symbol_summaries` |
-| `lore_analyze` | Run graph analysis: symbol-level SCC (cycle detection), connected components (file or symbol scope), bounded-size symbol clustering, and condensed codebase summary with per-module stats |
 
 `lore_blame` response enrichment:
 - Supports legacy `line`/`start_line`/`end_line` requests and symbol-driven targeting (`symbol` + optional `path`/`branch`), returning `resolved_symbol` when symbol resolution is used.
