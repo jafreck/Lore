@@ -8,7 +8,6 @@ import * as graph from '../../src/server/tools/graph.js';
 import type { EmbeddingProvider } from '../../src/embeddings/embedder.js';
 import * as routes from '../../src/server/tools/routes.js';
 import * as notes from '../../src/server/tools/notes.js';
-import * as architecture from '../../src/server/tools/architecture.js';
 import * as search from '../../src/server/tools/search.js';
 import * as metrics from '../../src/server/tools/metrics.js';
 
@@ -73,7 +72,7 @@ describe('createLoreMcpServer', () => {
     expect(toolNames).toContain('lore_routes');
     expect(toolNames).toContain('lore_notes_write');
     expect(toolNames).toContain('lore_notes_read');
-    expect(toolNames).toContain('lore_architecture');
+
   });
 
   it('should register newly exposed tools with expected schema fields', () => {
@@ -116,13 +115,7 @@ describe('createLoreMcpServer', () => {
     expect(notesReadSchema.limit.safeParse(20).success).toBe(true);
     expect(notesReadSchema.limit.safeParse('20').success).toBe(false);
 
-    const architectureSchema = getToolCall('lore_architecture')[2] as {
-      depth: { safeParse: (v: unknown) => { success: boolean } };
-      branch: { safeParse: (v: unknown) => { success: boolean } };
-    };
-    expect(architectureSchema.depth.safeParse(2).success).toBe(true);
-    expect(architectureSchema.branch.safeParse('main').success).toBe(true);
-    expect(architectureSchema.depth.safeParse('2').success).toBe(false);
+
   });
 
   it('should register lore_graph kind schema with module and inheritance values', () => {
@@ -313,31 +306,6 @@ describe('createLoreMcpServer', () => {
     });
   });
 
-  it('should route lore_architecture tool calls through architecture.handler', async () => {
-    const db = new Database(':memory:');
-    const architectureResult = {
-      components: [],
-      edges: [],
-      entry_points: [],
-      leaf_nodes: [],
-      external_deps: [],
-    };
-    const architectureHandlerSpy = vi.spyOn(architecture, 'handler').mockReturnValue(architectureResult);
-
-    createLoreMcpServer(db, '/tmp/test.db');
-
-    const callback = getToolCall('lore_architecture')[3] as (args: unknown) => Promise<{
-      content: Array<{ type: string; text: string }>;
-    }>;
-    const args = { depth: 3, branch: 'main' };
-    const response = await callback(args);
-
-    expect(architectureHandlerSpy).toHaveBeenCalledWith(db, args);
-    expect(response).toEqual({
-      content: [{ type: 'text', text: JSON.stringify(architectureResult) }],
-    });
-  });
-
   it('should route lore_search tool calls through search.handler with filter args and observer', async () => {
     const db = new Database(':memory:');
     const observer = vi.fn();
@@ -387,12 +355,10 @@ describe('createLoreMcpServer', () => {
       routes: { method: 'GET' },
       notesWrite: { key: 'architecture/overview', content: 'note body' },
       notesRead: { key_prefix: 'architecture/' },
-      architecture: { depth: 2 },
     };
     const routeError = new Error('routes failed');
     const notesWriteError = new Error('notes write failed');
     const notesReadError = new Error('notes read failed');
-    const architectureError = new Error('architecture failed');
 
     vi.spyOn(routes, 'handler').mockImplementation(() => {
       throw routeError;
@@ -403,21 +369,16 @@ describe('createLoreMcpServer', () => {
     vi.spyOn(notes, 'readHandler').mockImplementation(() => {
       throw notesReadError;
     });
-    vi.spyOn(architecture, 'handler').mockImplementation(() => {
-      throw architectureError;
-    });
 
     createLoreMcpServer(db, '/tmp/test.db');
 
     const routesCallback = getToolCall('lore_routes')[3] as (args: unknown) => Promise<unknown>;
     const notesWriteCallback = getToolCall('lore_notes_write')[3] as (args: unknown) => Promise<unknown>;
     const notesReadCallback = getToolCall('lore_notes_read')[3] as (args: unknown) => Promise<unknown>;
-    const architectureCallback = getToolCall('lore_architecture')[3] as (args: unknown) => Promise<unknown>;
 
     await expect(routesCallback(callbackArgs.routes)).rejects.toThrow(routeError);
     await expect(notesWriteCallback(callbackArgs.notesWrite)).rejects.toThrow(notesWriteError);
     await expect(notesReadCallback(callbackArgs.notesRead)).rejects.toThrow(notesReadError);
-    await expect(architectureCallback(callbackArgs.architecture)).rejects.toThrow(architectureError);
   });
 
   it('should register lore_metrics with expected complexity schema fields', () => {
@@ -429,15 +390,11 @@ describe('createLoreMcpServer', () => {
     expect(metricsToolCall).toBeDefined();
 
     const metricsSchema = metricsToolCall?.[2] as {
-      mode: { safeParse: (v: unknown) => { success: boolean } };
       limit: { safeParse: (v: unknown) => { success: boolean } };
       min_cyclomatic: { safeParse: (v: unknown) => { success: boolean } };
     };
-    expect(metricsSchema.mode.safeParse('aggregate').success).toBe(true);
-    expect(metricsSchema.mode.safeParse('complexity').success).toBe(true);
     expect(metricsSchema.limit.safeParse(10).success).toBe(true);
     expect(metricsSchema.min_cyclomatic.safeParse(5).success).toBe(true);
-    expect(metricsSchema.mode.safeParse('invalid').success).toBe(false);
     expect(metricsSchema.limit.safeParse('10').success).toBe(false);
     expect(metricsSchema.min_cyclomatic.safeParse('5').success).toBe(false);
   });
@@ -461,40 +418,6 @@ describe('createLoreMcpServer', () => {
     expect(metricsHandlerSpy).toHaveBeenCalledWith(db, args);
     expect(response).toEqual({
       content: [{ type: 'text', text: JSON.stringify(metricsResult) }],
-    });
-  });
-
-  it('should route lore_metrics with no args to aggregate behavior', async () => {
-    const db = new Database(':memory:');
-    const aggregateResult = {
-      symbol_count: 0,
-      file_count: 0,
-      import_edge_count: 0,
-      coverage_available: false,
-      coverage_commit: null,
-      current_commit: null,
-      commits_behind: 0,
-      stale: false,
-      global_lines_found: null,
-      global_lines_hit: null,
-      global_coverage_percent: null,
-      per_branch: [],
-    };
-    const metricsHandlerSpy = vi.spyOn(metrics, 'handler').mockReturnValue(aggregateResult);
-
-    createLoreMcpServer(db, '/tmp/test.db');
-
-    const metricsToolCall = mockTool.mock.calls.find((call) => call[0] === 'lore_metrics');
-    expect(metricsToolCall).toBeDefined();
-
-    const metricsCallback = metricsToolCall?.[3] as (args?: unknown) => Promise<{
-      content: Array<{ type: string; text: string }>;
-    }>;
-    const response = await metricsCallback();
-
-    expect(metricsHandlerSpy).toHaveBeenCalledWith(db, {});
-    expect(response).toEqual({
-      content: [{ type: 'text', text: JSON.stringify(aggregateResult) }],
     });
   });
 

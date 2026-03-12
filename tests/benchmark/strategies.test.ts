@@ -39,8 +39,8 @@ describe('buildControlStrategy', () => {
     const strategy = buildControlStrategy(
       makeTask({
         family: 'explanation',
-        prompt: 'What are the high-level components?',
-        questionId: '9.1',
+        prompt: 'What are the top-level modules and how do they depend on each other?',
+        questionId: '3.3',
       }),
     );
 
@@ -140,15 +140,58 @@ describe('buildLoreStrategy', () => {
     expect(toolNames).toContain('lore_metrics');
   });
 
-  it('should use lore_architecture for architecture questions (9.1)', () => {
+  it('should use lore_analyze for module summary questions (3.3)', () => {
     const task = makeTask({
-      questionId: '9.1',
-      prompt: 'What are the high-level components?',
+      questionId: '3.3',
+      prompt: 'What are the top-level modules and how do they depend on each other?',
       family: 'explanation',
     });
     const strategy = buildLoreStrategy(task);
     const toolNames = strategy.steps.map((s) => s.toolName);
-    expect(toolNames).toContain('lore_architecture');
+    expect(toolNames).toContain('lore_analyze');
+  });
+
+  it('should use lore_graph inheritance for interface implementation questions (2.1)', () => {
+    const task = makeTask({
+      questionId: '2.1',
+      prompt: 'What classes implement the interface `SymbolExtractor`?',
+    });
+    const strategy = buildLoreStrategy(task);
+    const toolNames = strategy.steps.map((s) => s.toolName);
+    expect(toolNames).toContain('lore_lookup');
+    expect(toolNames).toContain('lore_graph');
+  });
+
+  it('should use lore_analyze for cycle detection questions (8.1)', () => {
+    const task = makeTask({
+      questionId: '8.1',
+      prompt: 'Are there any circular dependencies between source files?',
+      family: 'explanation',
+    });
+    const strategy = buildLoreStrategy(task);
+    const toolNames = strategy.steps.map((s) => s.toolName);
+    expect(toolNames).toContain('lore_analyze');
+  });
+
+  it('should use lore_search for symbol search questions (7.2)', () => {
+    const task = makeTask({
+      questionId: '7.2',
+      prompt: 'Find all functions and classes related to `embedding` in this codebase.',
+    });
+    const strategy = buildLoreStrategy(task);
+    const toolNames = strategy.steps.map((s) => s.toolName);
+    expect(toolNames).toContain('lore_search');
+  });
+
+  it('should use lore_lookup for file symbol listing questions (10.2)', () => {
+    const task = makeTask({
+      questionId: '10.2',
+      prompt: 'What functions, classes, and interfaces are defined in `src/resolution/call-graph.ts`?',
+      family: 'explanation',
+    });
+    const strategy = buildLoreStrategy(task);
+    const toolNames = strategy.steps.map((s) => s.toolName);
+    expect(toolNames).toContain('lore_lookup');
   });
 
   it('should chain multiple Lore tools for composite questions (11.1)', () => {

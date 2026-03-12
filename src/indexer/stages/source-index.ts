@@ -18,8 +18,8 @@ import {
 } from '../../db/schema.js';
 import { walkFiles, detectLanguageForPath } from '../../discovery/walker.js';
 import { ParserPool } from '../../parsing/parser.js';
-import { buildStructuralEmbeddingText } from '../../embeddings/embedder.js';
 import { normalizeTypeName } from '../../resolution/call-graph.js';
+import { computeSymbolMetrics } from '../../parsing/complexity.js';
 import {
   type ExtractionResult,
   type RawSymbol,
@@ -113,15 +113,25 @@ export class SourceIndexStage implements PipelineStage {
     setLoreMeta(context.db, 'docs_auto_notes', context.docsAutoNotes ? '1' : '0');
 
     if (mode === 'build') {
-      let files = await walkFiles(context.walkerConfig);
+      const allFiles = await walkFiles(context.walkerConfig);
+      let files: Array<{ path: string; language: string }>;
 
       // Skip files already sourced from SCIP
       if (context.scipSourcedFiles && context.scipSourcedFiles.size > 0) {
-        files = files.filter(f => !context.scipSourcedFiles!.has(f.path));
+        const scipFiles = allFiles.filter(f => context.scipSourcedFiles!.has(f.path));
+        files = allFiles.filter(f => !context.scipSourcedFiles!.has(f.path));
         context.log.indexing('source-index: skipping SCIP-sourced files', {
           skipped: context.scipSourcedFiles.size,
           remaining: files.length,
         });
+
+        // Compute symbol metrics for SCIP-sourced files (SCIP doesn't provide
+        // cyclomatic complexity data, but tree-sitter can compute it).
+        if (scipFiles.length > 0) {
+          computeMetricsForScipFiles(context.db, this.pool!, scipFiles, context.branch, context.sourceCache);
+        }
+      } else {
+        files = allFiles;
       }
 
       // Merge with any files already added by ScipSourceStage
@@ -159,7 +169,7 @@ export class SourceIndexStage implements PipelineStage {
         for (let i = batchStart; i < batchEnd; i++) {
           const file = files[i];
           if (!file) continue;
-          processFile(db, pool, file.path, file.language, branch);
+          processFile(db, pool, file.path, file.language, branch, context.sourceCache);
         }
       })();
       // Checkpoint between batches — committed outside the batch transaction
@@ -190,7 +200,6 @@ export class SourceIndexStage implements PipelineStage {
             db.prepare('UPDATE symbol_refs SET callee_id = NULL WHERE callee_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(row.id);
             db.prepare('UPDATE type_refs SET type_id = NULL WHERE type_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(row.id);
             db.prepare('UPDATE symbol_relationships SET target_symbol_id = NULL WHERE target_symbol_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(row.id);
-            db.prepare('DELETE FROM symbols_fts WHERE rowid IN (SELECT id FROM symbols WHERE file_id = ?)').run(row.id);
             db.prepare('DELETE FROM files WHERE id = ?').run(row.id);
           }
           continue;
@@ -210,11 +219,10 @@ export class SourceIndexStage implements PipelineStage {
             db.prepare('UPDATE symbol_refs SET callee_id = NULL WHERE callee_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(existingRow.id);
             db.prepare('UPDATE type_refs SET type_id = NULL WHERE type_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(existingRow.id);
             db.prepare('UPDATE symbol_relationships SET target_symbol_id = NULL WHERE target_symbol_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(existingRow.id);
-            db.prepare('DELETE FROM symbols_fts WHERE rowid IN (SELECT id FROM symbols WHERE file_id = ?)').run(existingRow.id);
           }
 
           db.prepare('DELETE FROM files WHERE path = ? AND branch = ?').run(filePath, branch);
-          processFile(db, pool, filePath, language, branch);
+          processFile(db, pool, filePath, language, branch, context.sourceCache);
         }
       }
     })();
@@ -236,6 +244,7 @@ export function processFile(
   filePath: string,
   language: string,
   branch: string,
+  sourceCache?: Map<string, string>,
 ): void {
   // P3: fast-path — check file size via stat before reading+hashing.
   const existing = db.prepare('SELECT id, last_hash, size_bytes FROM files WHERE path = ? AND branch = ?').get(filePath, branch) as
@@ -254,7 +263,7 @@ export function processFile(
         }
         const hash = crypto.createHash('sha256').update(source).digest('hex');
         if (existing.last_hash === hash) return;
-        processFileWithSource(db, pool, filePath, language, branch, source, hash, existing);
+        processFileWithSource(db, pool, filePath, language, branch, source, hash, existing, sourceCache);
         return;
       }
     } catch {
@@ -271,7 +280,7 @@ export function processFile(
   }
   const hash = crypto.createHash('sha256').update(source).digest('hex');
   if (existing?.last_hash === hash) return;
-  processFileWithSource(db, pool, filePath, language, branch, source, hash, existing);
+  processFileWithSource(db, pool, filePath, language, branch, source, hash, existing, sourceCache);
 }
 
 /** Core file processing after source has been read and hashed. */
@@ -284,7 +293,11 @@ function processFileWithSource(
   source: string,
   hash: string,
   existing: FileRow | undefined,
+  sourceCache?: Map<string, string>,
 ): void {
+  // Populate the source cache for later stages (enrichment) to avoid re-reading.
+  if (sourceCache) sourceCache.set(filePath, source);
+
   const sizeBytes = Buffer.byteLength(source, 'utf8');
 
   // Upsert the file row
@@ -295,10 +308,7 @@ function processFileWithSource(
         WHERE id = ?`,
     ).run(language, sizeBytes, hash, source, existing.id);
     fileId = existing.id;
-    // Remove stale symbols / imports / external deps (also clean up FTS5 index)
-    db.prepare(
-      'DELETE FROM symbols_fts WHERE rowid IN (SELECT id FROM symbols WHERE file_id = ?)',
-    ).run(fileId);
+    // Remove stale symbols / imports / external deps
     db.prepare('DELETE FROM symbol_relationships WHERE file_id = ?').run(fileId);
     db.prepare('DELETE FROM type_refs WHERE file_id = ?').run(fileId);
     // NULL out cross-file FK references that point to symbols in this file
@@ -331,13 +341,10 @@ function processFileWithSource(
 
   const result: ExtractionResult = extractor.extract(tree, source, filePath);
 
-  // Insert symbols and keep FTS5 index in sync
+  // Insert symbols (FTS5 index is rebuilt in bulk by ftsRefreshStage)
   const insertSymbol = db.prepare(
     `INSERT INTO symbols (file_id, name, kind, start_line, end_line, signature, doc_comment)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
-  );
-  const insertFts = db.prepare(
-    'INSERT INTO symbols_fts(rowid, name, signature, kind) VALUES (?, ?, ?, ?)',
   );
 
   const symbolIdMap = new Map<string, number>();
@@ -356,15 +363,19 @@ function processFileWithSource(
     ) as { lastInsertRowid: number | bigint };
     const symId = Number(info.lastInsertRowid);
     symbolIdMap.set(sym.name, symId);
-    insertFts.run(
-      symId,
-      sym.name,
-      buildStructuralEmbeddingText({
-        name: sym.name,
-        signature: sym.signature ?? null,
-      }),
-      sym.kind,
-    );
+  }
+
+  // Insert symbol metrics (cyclomatic complexity, line count, etc.)
+  const insertMetrics = db.prepare(
+    `INSERT OR REPLACE INTO symbol_metrics (symbol_id, line_count, param_count, cyclomatic, max_nesting)
+     VALUES (?, ?, ?, ?, ?)`,
+  );
+  for (const sym of result.symbols) {
+    if (!sym.name) continue;
+    const symId = symbolIdMap.get(sym.name);
+    if (symId === undefined) continue;
+    const metrics = computeSymbolMetrics(sym, language);
+    insertMetrics.run(symId, metrics.line_count, metrics.param_count, metrics.cyclomatic, metrics.max_nesting);
   }
 
   // Insert API routes
@@ -424,6 +435,76 @@ function processFileWithSource(
     const symId = symbolIdMap.get(ref.enclosingSymbol) ?? null;
     insertTypeRef.run(fileId, symId, ref.typeRaw, normalizeTypeName(ref.typeRaw), ref.refKind, ref.line, ref.character ?? null);
   }
+}
+
+// ─── Metrics-only pass for SCIP-sourced files ─────────────────────────────────
+
+/**
+ * Parse SCIP-sourced files with tree-sitter to compute symbol metrics
+ * (cyclomatic complexity, nesting depth, etc.) and insert them into
+ * the `symbol_metrics` table. SCIP provides accurate cross-references but
+ * not complexity data, so tree-sitter fills the gap.
+ */
+function computeMetricsForScipFiles(
+  db: Database.Database,
+  pool: ParserPool,
+  files: Array<{ path: string; language: string }>,
+  branch: string,
+  sourceCache?: Map<string, string>,
+): void {
+  const insertMetrics = db.prepare(
+    `INSERT OR REPLACE INTO symbol_metrics (symbol_id, line_count, param_count, cyclomatic, max_nesting)
+     VALUES (?, ?, ?, ?, ?)`,
+  );
+
+  db.transaction(() => {
+    for (const file of files) {
+      // Prefer sourceCache (populated by ScipSourceStage) to avoid re-reading.
+      let source = sourceCache?.get(file.path);
+      if (source === undefined) {
+        try {
+          source = fs.readFileSync(file.path, 'utf8');
+        } catch {
+          continue;
+        }
+      }
+
+      const tree = pool.parse(file.language, source);
+      if (!tree) continue;
+
+      const extractor = EXTRACTORS[file.language];
+      if (!extractor) continue;
+
+      const result = extractor.extract(tree, source, file.path);
+
+      // Look up existing symbol IDs (inserted by ScipSourceStage)
+      const fileRow = db.prepare(
+        'SELECT id FROM files WHERE path = ? AND branch = ?',
+      ).get(file.path, branch) as { id: number } | undefined;
+      if (!fileRow) continue;
+
+      const existingSymbols = db.prepare(
+        'SELECT id, name, start_line, end_line FROM symbols WHERE file_id = ?',
+      ).all(fileRow.id) as Array<{ id: number; name: string; start_line: number; end_line: number }>;
+
+      // Build a name+line → id map for matching tree-sitter symbols to SCIP symbols
+      const symbolMap = new Map<string, number>();
+      for (const sym of existingSymbols) {
+        // Key by name; if duplicate names, prefer earlier id
+        if (!symbolMap.has(sym.name)) {
+          symbolMap.set(sym.name, sym.id);
+        }
+      }
+
+      for (const sym of result.symbols) {
+        if (!sym.name) continue;
+        const symId = symbolMap.get(sym.name);
+        if (symId === undefined) continue;
+        const metrics = computeSymbolMetrics(sym, file.language);
+        insertMetrics.run(symId, metrics.line_count, metrics.param_count, metrics.cyclomatic, metrics.max_nesting);
+      }
+    }
+  })();
 }
 
 // ─── Checkpoint helpers ───────────────────────────────────────────────────────

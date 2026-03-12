@@ -17,7 +17,11 @@ function createStubContext(): PipelineContext {
     indexDependencies: false,
     history: false,
     docsAutoNotes: true,
-  };
+    staleSymbolIds: [],
+    changedSourcePaths: [],
+    changedDocPaths: [],
+    sourceCache: new Map(),
+  } as PipelineContext;
 }
 
 describe('IndexPipeline', () => {
@@ -128,5 +132,71 @@ describe('IndexPipeline', () => {
     const pipeline = new IndexPipeline([stageA, stageB]);
     await pipeline.run(ctx, 'build');
     expect(ctx.files.length).toBe(1);
+  });
+
+  it('should run parallel stage groups concurrently', async () => {
+    const executionOrder: string[] = [];
+
+    const stageA: PipelineStage = {
+      name: 'stage-a',
+      execute: async () => { executionOrder.push('a-start'); await new Promise(r => setTimeout(r, 10)); executionOrder.push('a-end'); },
+    };
+    const stageB: PipelineStage = {
+      name: 'stage-b',
+      execute: async () => { executionOrder.push('b-start'); executionOrder.push('b-end'); },
+    };
+    const stageC: PipelineStage = {
+      name: 'stage-c',
+      execute: async () => { executionOrder.push('c'); },
+    };
+
+    // [stageA, stageB] is a parallel group, stageC is sequential after
+    const pipeline = new IndexPipeline([[stageA, stageB], stageC]);
+    await pipeline.run(createStubContext(), 'build');
+
+    // Both a and b should start before c
+    const cIdx = executionOrder.indexOf('c');
+    expect(executionOrder.indexOf('a-start')).toBeLessThan(cIdx);
+    expect(executionOrder.indexOf('b-start')).toBeLessThan(cIdx);
+    // b should complete before a (b is sync, a has a delay)
+    expect(executionOrder.indexOf('b-end')).toBeLessThan(executionOrder.indexOf('a-end'));
+  });
+
+  it('should flatten parallel group names in stageNames', () => {
+    const pipeline = new IndexPipeline([
+      { name: 'solo', execute: async () => {} },
+      [
+        { name: 'par-a', execute: async () => {} },
+        { name: 'par-b', execute: async () => {} },
+      ],
+      { name: 'tail', execute: async () => {} },
+    ]);
+    expect(pipeline.stageNames).toEqual(['solo', 'par-a', 'par-b', 'tail']);
+  });
+
+  it('should dispose parallel group stages on failure', async () => {
+    const disposed: string[] = [];
+
+    const failing: PipelineStage = {
+      name: 'fail',
+      execute: async () => { throw new Error('boom'); },
+      dispose: async () => { disposed.push('fail'); },
+    };
+    const sibling: PipelineStage = {
+      name: 'sibling',
+      execute: async () => {},
+      dispose: async () => { disposed.push('sibling'); },
+    };
+    const later: PipelineStage = {
+      name: 'later',
+      execute: async () => {},
+      dispose: async () => { disposed.push('later'); },
+    };
+
+    const pipeline = new IndexPipeline([[failing, sibling], later]);
+    await expect(pipeline.run(createStubContext(), 'build')).rejects.toThrow('boom');
+    expect(disposed).toContain('fail');
+    expect(disposed).toContain('sibling');
+    expect(disposed).toContain('later');
   });
 });

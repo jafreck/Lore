@@ -334,6 +334,8 @@ CREATE INDEX IF NOT EXISTS idx_doc_sections_doc_id ON doc_sections(doc_id);
 CREATE INDEX IF NOT EXISTS idx_external_symbols_dependency_ecosystem ON external_symbols(dependency_ecosystem);
 CREATE INDEX IF NOT EXISTS idx_external_symbols_package_name ON external_symbols(package_name);
 CREATE INDEX IF NOT EXISTS idx_external_symbols_symbol_name ON external_symbols(symbol_name);
+CREATE INDEX IF NOT EXISTS idx_symbols_file_id ON symbols(file_id);
+CREATE INDEX IF NOT EXISTS idx_symbols_name ON symbols(name);
 `;
 
 const ENRICHMENT_SCHEMA_MIGRATIONS: Array<{ table: string; column: string; sql: string }> = [
@@ -389,6 +391,12 @@ export function openDb(path: string): Database.Database {
   // WAL mode: readers don't block writers, writers don't block readers.
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
+
+  // Performance pragmas: NORMAL sync is safe under WAL (only risk is
+  // losing the last transaction on OS crash, not corruption).  Larger
+  // cache reduces I/O during enrichment and resolution stages.
+  db.pragma('synchronous = NORMAL');
+  db.pragma('cache_size = -64000');   // 64 MB
 
   // Create all tables in a single transaction.
   db.exec(DDL);

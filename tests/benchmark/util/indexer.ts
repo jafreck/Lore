@@ -3,18 +3,22 @@
  *
  * Builds a Lore index for a benchmark repo using the IndexBuilder API.
  *
- * Supports three indexing modes matching Lore's pipeline hierarchy:
+ * Indexing mode controls parsing stages:
  *
  * - `tree-sitter`: Tree-sitter parsing only (fastest, no external tools).
  * - `scip`:        SCIP (primary) + tree-sitter (fallback). Standard
  *                  production indexing with accurate cross-references.
- * - `full`:        SCIP + tree-sitter + LSP enrichment + embeddings.
- *                  Maximum quality: resolved types and semantic search.
+ * - `full`:        SCIP + tree-sitter + LSP enrichment.
+ *                  Maximum structural quality: resolved types.
+ *
+ * Embeddings are controlled independently via `embeddingModel`:
+ * pass a model name (e.g. 'onnx-community/Qwen3-Embedding-0.6B-ONNX') to enable,
+ * or omit to disable. LSP can also be enabled independently via `lsp`.
  */
 
 import { join } from 'node:path';
 import { IndexBuilder } from '../../../src/indexer/index.js';
-import { LazyEmbeddingProvider, DEFAULT_EMBEDDING_MODEL } from '../../../src/embeddings/embedder.js';
+import { LazyEmbeddingProvider } from '../../../src/embeddings/embedder.js';
 import { resolveEffectiveScipSettings } from '../../../src/scip/config.js';
 import { resolveEffectiveLspSettings } from '../../../src/lsp/config.js';
 import type { WalkerConfig } from '../../../src/discovery/walker.js';
@@ -34,7 +38,8 @@ export async function indexRepo(
 ): Promise<RepoInstance> {
   const mode: IndexMode = options?.mode ?? 'tree-sitter';
   const historyDepth = options?.historyDepth ?? 100;
-  const embeddingModel = options?.embeddingModel ?? DEFAULT_EMBEDDING_MODEL;
+  const embeddingModel = options?.embeddingModel;
+  const enableLsp = options?.lsp ?? (mode === 'full');
 
   const dbPath = join(instance.localPath, '.lore.db');
   const walkerConfig: WalkerConfig = {
@@ -52,14 +57,14 @@ export async function indexRepo(
       )
     : undefined;
 
-  // ── Embedding provider (for 'full' mode) ──────────────────────────────
+  // ── Embedding provider (when a model is specified) ────────────────────
   let embedder: EmbeddingProvider | undefined;
-  if (mode === 'full') {
+  if (embeddingModel) {
     embedder = new LazyEmbeddingProvider(embeddingModel);
   }
 
-  // ── LSP settings (for 'full' mode) ────────────────────────────────────
-  const lsp = mode === 'full'
+  // ── LSP settings (when enabled) ───────────────────────────────────────
+  const lsp = enableLsp
     ? resolveEffectiveLspSettings({}, { enabled: true })
     : undefined;
 

@@ -34,7 +34,7 @@ import { LoreRuntime } from './runtime.js';
 function usage(): never {
   console.error(
     `Usage:
-  lore index --root <dir> --db <path> [--embedding-model <id>] [--index-deps] [--history] [--history-depth <n>] [--history-all]
+  lore index --root <dir> --db <path> [--embeddings] [--embedding-model <id>] [--index-deps] [--history] [--history-depth <n>] [--history-all]
                          Index a codebase into a knowledge-base SQLite file
   lore mcp --db <path> [--root <dir> --watch|--poll]  Start the Lore MCP server (stdio transport), optionally with live indexing
   lore refresh --db <path> --root <dir> [--index-deps] [--history] [--history-depth <n>] [--history-all]  Run an incremental index update and exit
@@ -50,7 +50,9 @@ function usage(): never {
 Options:
   --root <dir>             Root directory to index (required for index, refresh)
   --db <path>              Path to a Lore knowledge-base SQLite file (required for index, mcp, refresh)
-  --embedding-model <id>   Embedding model identifier (default: Qwen/Qwen3-Embedding-4B)
+  --embedding-model <id>   Embedding model identifier (default: Qwen3-Embedding-0.6B-ONNX)
+  --embeddings             Enable embedding generation during indexing (disabled by default)
+  --no-embeddings          Disable embedding generation during indexing (default)
   --index-deps             Enable dependency API indexing (disabled by default)
   --history                Enable git history ingestion
   --history-depth <n>      Limit commit ingestion to the most recent N commits
@@ -159,6 +161,12 @@ async function main(): Promise<void> {
       return;
     }
     const embeddingModel = flag(args, '--embedding-model');
+    const embeddingsEnabled = embeddingModel !== undefined || args.includes('--embeddings');
+    if (args.includes('--embeddings') && args.includes('--no-embeddings')) {
+      console.error('Error: --embeddings and --no-embeddings cannot be used together.\n');
+      usage();
+      return;
+    }
     const indexDependencies = args.includes('--index-deps');
     const historyEnabled = args.includes('--history');
     const historyAll = args.includes('--history-all');
@@ -267,6 +275,13 @@ async function main(): Promise<void> {
 
     const { IndexBuilder } = await import('./indexer/index.js');
 
+    // Create an embedding provider when embeddings are enabled.
+    let embedder: import('./embeddings/embedder.js').EmbeddingProvider | undefined;
+    if (embeddingsEnabled) {
+      const { LazyEmbeddingProvider, DEFAULT_EMBEDDING_MODEL } = await import('./embeddings/embedder.js');
+      embedder = new LazyEmbeddingProvider(embeddingModel ?? DEFAULT_EMBEDDING_MODEL);
+    }
+
     const shouldEnableHistory = historyEnabled || historyAll || historyDepth !== undefined;
     const options = {
       docsAutoNotes,
@@ -293,7 +308,7 @@ async function main(): Promise<void> {
         ...(docsExcludeGlobs.length > 0 && { docsExcludeGlobs }),
         ...(docsExtensions.length > 0 && { docsExtensions }),
       },
-      undefined,
+      embedder,
       options,
     );
     await builder.build();

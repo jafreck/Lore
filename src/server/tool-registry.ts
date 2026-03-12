@@ -237,7 +237,6 @@ export async function buildToolModules(): Promise<ToolModule[]> {
     docsMod,
     routes,
     notes,
-    architecture,
     testMap,
     snippet,
     blame,
@@ -254,7 +253,6 @@ export async function buildToolModules(): Promise<ToolModule[]> {
     import('./tools/docs.js'),
     import('./tools/routes.js'),
     import('./tools/notes.js'),
-    import('./tools/architecture.js'),
     import('./tools/test-map.js'),
     import('./tools/snippet.js'),
     import('./tools/blame.js'),
@@ -297,10 +295,6 @@ export async function buildToolModules(): Promise<ToolModule[]> {
     {
       def: notes.readToolDef,
       handlerFactory: (deps) => (args) => notes.readHandler(deps.db, args),
-    },
-    {
-      def: architecture.toolDef,
-      handlerFactory: (deps) => (args) => architecture.handler(deps.db, args),
     },
     {
       def: testMap.toolDef,
