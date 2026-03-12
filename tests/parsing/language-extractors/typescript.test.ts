@@ -184,4 +184,12 @@ describe('TS dynamic import()', () => {
     const sources = r.imports.map((i: { source: string }) => i.source);
     expect(sources).toContain('./utils');
   });
+
+  test('ignores dynamic import with non-string argument', () => {
+    // import(name) where name is a variable — should not appear as an import
+    const sources = r.imports.map((i: { source: string }) => i.source);
+    expect(sources).not.toContain('name');
+    // Should still only have the two valid imports
+    expect(sources).toHaveLength(2);
+  });
 });
