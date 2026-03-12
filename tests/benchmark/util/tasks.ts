@@ -125,7 +125,7 @@ const QUESTION_TEMPLATES: QuestionTemplate[] = [
   },
 
   // ── Category 8: Graph Analysis ──────────────────────────────────────────
-  // Lore advantage: lore_analyze(mode=cycles) → 1 call; impossible with grep
+  // Lore advantage: lore_graph(kind=import) to detect cycles; difficult with grep
   {
     questionId: '8.1',
     family: 'explanation',
@@ -136,7 +136,7 @@ const QUESTION_TEMPLATES: QuestionTemplate[] = [
   },
 
   // ── Category 3: Module Dependency Summary ───────────────────────────────
-  // Lore advantage: lore_analyze(mode=summary) → 1 call for full module graph
+  // Lore advantage: lore_graph(kind=import) for module graph
   {
     questionId: '3.3',
     family: 'explanation',
@@ -164,7 +164,7 @@ const QUESTION_TEMPLATES: QuestionTemplate[] = [
   },
 
   // ── Category 11: Composite / Multi-Hop ──────────────────────────────────
-  // Lore advantage: chains lore_test_map + lore_coverage + lore_blame → 3 calls
+  // Lore advantage: chains lore_test_map + lore_blame → 2 calls
   {
     questionId: '11.1',
     family: 'localization',

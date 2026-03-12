@@ -98,11 +98,10 @@ function insertSymbolEmbedding(db: Database.Database, symbolId: number, embeddin
 // ─── handler (kind=call) ──────────────────────────────────────────────────────
 
 describe('lore_graph toolDef', () => {
-  it('should expose kind enum values for call, import, module, inheritance, and type_dependency', () => {
+  it('should expose kind enum values for call, import, inheritance, and type_dependency', () => {
     expect(toolDef.inputSchema.properties.kind.enum).toEqual([
       'call',
       'import',
-      'module',
       'inheritance',
       'type_dependency',
     ]);
@@ -291,54 +290,6 @@ describe('graph handler – kind=import', () => {
   });
 });
 
-describe('graph handler – kind=module', () => {
-  let db: Database.Database;
-  let appModuleId: number;
-  let featModuleId: number;
-
-  beforeEach(() => {
-    db = createTestDb();
-    const mainFileId = insertFile(db, 'src/main.ts', 'main');
-    const featFileId = insertFile(db, 'src/feat.ts', 'feat');
-    const sharedFileId = insertFile(db, 'src/shared.ts', 'main');
-
-    appModuleId = insertModule(db, 'app');
-    featModuleId = insertModule(db, 'feat-app');
-    const sharedModuleId = insertModule(db, 'shared');
-
-    mapFileToModule(db, mainFileId, appModuleId);
-    mapFileToModule(db, featFileId, featModuleId);
-    mapFileToModule(db, sharedFileId, sharedModuleId);
-
-    insertImportEdge(db, mainFileId, './shared', sharedFileId);
-    insertImportEdge(db, featFileId, './missing', null);
-  });
-
-  it('should return module edges inferred from file imports', () => {
-    const result = handler(db, { kind: 'module' });
-    expect(result.edges.length).toBe(2);
-  });
-
-  it('should filter module edges by source_id', () => {
-    const result = handler(db, { kind: 'module', source_id: appModuleId });
-    expect(result.edges.length).toBe(1);
-    expect(result.edges[0].source_name).toBe('app');
-    expect(result.edges[0].target_name).toBe('shared');
-  });
-
-  it('should filter module edges by branch', () => {
-    const result = handler(db, { kind: 'module', branch: 'feat' });
-    expect(result.edges.length).toBe(1);
-    expect(result.edges[0].source_name).toBe('feat-app');
-    expect(result.edges[0].target_name).toBe('./missing');
-  });
-
-  it('should return empty module edges when branch does not match', () => {
-    const result = handler(db, { kind: 'module', branch: 'nonexistent' });
-    expect(result.edges).toEqual([]);
-  });
-});
-
 describe('graph handler – kind=inheritance', () => {
   let db: Database.Database;
   let derivedId: number;
@@ -447,19 +398,10 @@ describe('graph handler – semantic mode', () => {
     expect(result.edges).toHaveLength(1);
     const semanticNodes = result.semantic_nodes ?? [];
     const symbolNodes = semanticNodes.filter((node) => node.node_type === 'symbol');
-    const moduleNodes = semanticNodes.filter((node) => node.node_type === 'module');
 
     expect(symbolNodes.map((node) => node.branch)).toEqual(['main', 'main']);
     expect(symbolNodes.map((node) => node.name)).toEqual(['parseConfig', 'renderPage']);
     expect(symbolNodes[0].score).toBeLessThanOrEqual(symbolNodes[1].score);
-    expect(moduleNodes).toHaveLength(1);
-    expect(moduleNodes[0]).toMatchObject({
-      node_type: 'module',
-      name: 'core',
-      branch: 'main',
-      kind: 'package',
-    });
-    expect(moduleNodes[0].score).toBe(symbolNodes[0].score);
   });
 
   it('should clamp semantic_limit values below 1 to a single semantic symbol result', () => {
@@ -479,11 +421,8 @@ describe('graph handler – semantic mode', () => {
     expect(result.mode_used).toBe('semantic');
     const semanticNodes = result.semantic_nodes ?? [];
     const symbolNodes = semanticNodes.filter((node) => node.node_type === 'symbol');
-    const moduleNodes = semanticNodes.filter((node) => node.node_type === 'module');
     expect(symbolNodes).toHaveLength(1);
     expect(symbolNodes[0].name).toBe('parseConfig');
-    expect(moduleNodes).toHaveLength(1);
-    expect(moduleNodes[0].name).toBe('core');
   });
 
   it('should filter semantic nodes by semantic_max_distance threshold', () => {
@@ -503,11 +442,8 @@ describe('graph handler – semantic mode', () => {
     expect(result.mode_used).toBe('semantic');
     const semanticNodes = result.semantic_nodes ?? [];
     const symbolNodes = semanticNodes.filter((node) => node.node_type === 'symbol');
-    const moduleNodes = semanticNodes.filter((node) => node.node_type === 'module');
     expect(symbolNodes).toHaveLength(1);
     expect(symbolNodes[0].name).toBe('parseConfig');
-    expect(moduleNodes).toHaveLength(1);
-    expect(moduleNodes[0].name).toBe('core');
   });
 });
 

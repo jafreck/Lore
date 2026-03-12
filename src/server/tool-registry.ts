@@ -232,7 +232,6 @@ export async function buildToolModules(): Promise<ToolModule[]> {
   const [
     lookup,
     graph,
-    graphAnalysis,
     search,
     docsMod,
     routes,
@@ -241,14 +240,10 @@ export async function buildToolModules(): Promise<ToolModule[]> {
     snippet,
     blame,
     metrics,
-    coverage,
-    writeback,
     history,
-    annotationsMod,
   ] = await Promise.all([
     import('./tools/lookup.js'),
     import('./tools/graph.js'),
-    import('./tools/graph-analysis.js'),
     import('./tools/search.js'),
     import('./tools/docs.js'),
     import('./tools/routes.js'),
@@ -257,10 +252,7 @@ export async function buildToolModules(): Promise<ToolModule[]> {
     import('./tools/snippet.js'),
     import('./tools/blame.js'),
     import('./tools/metrics.js'),
-    import('./tools/coverage.js'),
-    import('./tools/writeback.js'),
     import('./tools/history.js'),
-    import('./tools/annotations.js'),
   ]);
 
   return [
@@ -271,10 +263,6 @@ export async function buildToolModules(): Promise<ToolModule[]> {
     {
       def: graph.toolDef,
       handlerFactory: (deps) => (args) => graph.handler(deps.db, args),
-    },
-    {
-      def: graphAnalysis.toolDef,
-      handlerFactory: (deps) => (args) => graphAnalysis.handler(deps.db, args),
     },
     {
       def: search.toolDef,
@@ -313,20 +301,8 @@ export async function buildToolModules(): Promise<ToolModule[]> {
       handlerFactory: (deps) => (args) => metrics.handler(deps.db, args ?? {}),
     },
     {
-      def: coverage.toolDef,
-      handlerFactory: (deps) => (args) => coverage.handler(deps.db, args),
-    },
-    {
-      def: writeback.toolDef,
-      handlerFactory: (deps) => (args) => writeback.handler(deps.dbPath, args),
-    },
-    {
       def: history.toolDef,
       handlerFactory: (deps) => (args) => history.handler(deps.db, args, deps.embedder),
-    },
-    {
-      def: annotationsMod.toolDef,
-      handlerFactory: (deps) => (args) => annotationsMod.handler(deps.db, args),
     },
   ];
 }
