@@ -2,7 +2,7 @@
  * @module indexer/stages/scip-source
  *
  * Pipeline stage: for SCIP-covered languages, populate `files`, `symbols`,
- * `symbol_refs`, `type_refs`, `symbol_relationships`, and `file_imports`
+ * `symbol_refs`, `type_refs`, and `symbol_relationships`
  * **directly from the SCIP index** — bypassing tree-sitter entirely.
  *
  * This is the SCIP-primary architecture.  SCIP is the source of truth for
@@ -22,7 +22,11 @@
  * ## Data written
  *
  * Same tables as `SourceIndexStage`: `files`, `symbols`, `symbols_fts`,
- * `symbol_refs`, `type_refs`, `symbol_relationships`, `file_imports`.
+ * `symbol_refs`, `type_refs`, `symbol_relationships`.
+ *
+ * Note: `file_imports` are NOT written by this stage.  Tree-sitter is the
+ * authoritative source for import edges — `SourceIndexStage` extracts
+ * imports for SCIP-sourced files via its metrics+imports pass.
  *
  * ## Pipeline ordering
  *
@@ -387,9 +391,6 @@ export class ScipSourceStage implements PipelineStage {
       `INSERT INTO type_refs (file_id, symbol_id, type_id, type_name, type_name_bare, ref_kind, ref_line, ref_character, resolution_method)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
-    const insertImport = db.prepare(
-      'INSERT INTO file_imports (file_id, raw_import) VALUES (?, ?)',
-    );
     const insertRelationship = db.prepare(
       `INSERT INTO symbol_relationships (file_id, source_symbol_id, target_symbol_name, relationship_type, line, character, resolution_method)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -505,29 +506,10 @@ export class ScipSourceStage implements PipelineStage {
           scipToLoreId.set(symInfo.symbol, loreId);
         }
 
-        // Insert imports (from Import-role occurrences)
-        // Prefer the actual import path from source; fall back to SCIP package
-        const seenImports = new Set<string>();
-        for (const occ of doc.occurrences) {
-          if ((occ.symbolRoles & SymbolRole.Import) !== 0 && occ.symbol) {
-            const importLine = occ.range[0] ?? 0;
-            const srcImport = importLine < sourceLines.length
-              ? extractImportPathFromSource(sourceLines[importLine]!)
-              : null;
-            let rawImport: string;
-            if (srcImport) {
-              rawImport = srcImport;
-            } else {
-              // Fall back to SCIP package descriptor
-              const parts = occ.symbol.split(' ');
-              rawImport = parts.length >= 4 ? parts[3]! : occ.symbol;
-            }
-            if (rawImport && !seenImports.has(rawImport)) {
-              seenImports.add(rawImport);
-              insertImport.run(fileId, rawImport);
-            }
-          }
-        }
+        // NOTE: file_imports are NOT extracted here. Tree-sitter is the
+        // authoritative source for import edges (handles dynamic imports,
+        // re-exports, etc.).  SourceIndexStage runs tree-sitter import
+        // extraction for SCIP-sourced files.
 
         // Insert relationships (extends/implements) from SCIP SymbolInformation
         for (const symInfo of doc.symbols) {

@@ -125,10 +125,10 @@ export class SourceIndexStage implements PipelineStage {
           remaining: files.length,
         });
 
-        // Compute symbol metrics for SCIP-sourced files (SCIP doesn't provide
-        // cyclomatic complexity data, but tree-sitter can compute it).
+        // Compute symbol metrics and extract imports for SCIP-sourced files.
+        // SCIP handles symbols/refs; tree-sitter handles metrics and imports.
         if (scipFiles.length > 0) {
-          computeMetricsForScipFiles(context.db, this.pool!, scipFiles, context.branch, context.sourceCache);
+          computeMetricsAndImportsForScipFiles(context.db, this.pool!, scipFiles, context.branch, context.sourceCache);
         }
       } else {
         files = allFiles;
@@ -441,11 +441,14 @@ function processFileWithSource(
 
 /**
  * Parse SCIP-sourced files with tree-sitter to compute symbol metrics
- * (cyclomatic complexity, nesting depth, etc.) and insert them into
- * the `symbol_metrics` table. SCIP provides accurate cross-references but
- * not complexity data, so tree-sitter fills the gap.
+ * (cyclomatic complexity, nesting depth, etc.) and extract import edges.
+ *
+ * SCIP provides accurate symbol cross-references but not complexity data
+ * or reliable import specifiers — tree-sitter fills both gaps.  Making
+ * tree-sitter the single authoritative source for `file_imports` avoids
+ * the fragile regex extraction that previously lived in ScipSourceStage.
  */
-function computeMetricsForScipFiles(
+function computeMetricsAndImportsForScipFiles(
   db: Database.Database,
   pool: ParserPool,
   files: Array<{ path: string; language: string }>,
@@ -455,6 +458,9 @@ function computeMetricsForScipFiles(
   const insertMetrics = db.prepare(
     `INSERT OR REPLACE INTO symbol_metrics (symbol_id, line_count, param_count, cyclomatic, max_nesting)
      VALUES (?, ?, ?, ?, ?)`,
+  );
+  const insertImport = db.prepare(
+    'INSERT INTO file_imports (file_id, raw_import) VALUES (?, ?)',
   );
 
   db.transaction(() => {
@@ -477,12 +483,18 @@ function computeMetricsForScipFiles(
 
       const result = extractor.extract(tree, source, file.path);
 
-      // Look up existing symbol IDs (inserted by ScipSourceStage)
+      // Look up existing file ID (inserted by ScipSourceStage)
       const fileRow = db.prepare(
         'SELECT id FROM files WHERE path = ? AND branch = ?',
       ).get(file.path, branch) as { id: number } | undefined;
       if (!fileRow) continue;
 
+      // ── Imports (tree-sitter is authoritative) ──────────────────────────
+      for (const imp of result.imports) {
+        insertImport.run(fileRow.id, imp.source);
+      }
+
+      // ── Metrics ─────────────────────────────────────────────────────────
       const existingSymbols = db.prepare(
         'SELECT id, name, start_line, end_line FROM symbols WHERE file_id = ?',
       ).all(fileRow.id) as Array<{ id: number; name: string; start_line: number; end_line: number }>;
