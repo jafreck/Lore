@@ -116,6 +116,14 @@ export interface PipelineContext {
    * Set by `ScipSourceStage`; read by `SourceIndexStage` to skip files.
    */
   scipSourcedFiles?: ReadonlySet<string>;
+
+  /**
+   * In-memory cache of source file contents (path → source text).
+   * Populated by SourceIndexStage / ScipSourceStage during parsing.
+   * Later stages (SCIP enrichment, LSP enrichment) read from here to
+   * avoid redundant `readFileSync` calls.
+   */
+  sourceCache: Map<string, string>;
 }
 
 /**
@@ -143,37 +151,45 @@ export interface PipelineStage {
   dispose?(): Promise<void>;
 }
 
+// ─── Pipeline entry ───────────────────────────────────────────────────────────
+
+/**
+ * A pipeline entry is either a single stage or an array of stages to run
+ * concurrently.  Parallel stages must be independent (write to disjoint
+ * tables, read disjoint inputs).
+ */
+export type PipelineEntry = PipelineStage | PipelineStage[];
+
 // ─── IndexPipeline ────────────────────────────────────────────────────────────
 
 /**
- * Orchestrates a sequence of `PipelineStage` instances through a shared
+ * Orchestrates a sequence of `PipelineEntry` instances through a shared
  * `PipelineContext`.
  *
- * Replaces the god-method `IndexBuilder.build()` with a declarative,
- * composable pipeline whose ordering is enforced structurally.
+ * Each entry is either a single stage or an array of stages that run
+ * concurrently.  Entries are executed in order; within a parallel group
+ * all stages start simultaneously and the group completes when all finish.
  *
  * @example
  * ```ts
  * const pipeline = new IndexPipeline([
- *   new SourceIndexStage(),
- *   new DocsIndexStage(),
+ *   new ScipSourceStage(),
+ *   [new SourceIndexStage(), new DocsIndexStage()],  // run in parallel
  *   new ImportResolutionStage(),
- *   new LspEnrichmentStage(),
- *   new ResolutionStage(),
  *   new EmbeddingStage(),
  * ]);
  * await pipeline.run(context, 'build');
  * ```
  */
 export class IndexPipeline {
-  private readonly stages: PipelineStage[];
+  private readonly entries: PipelineEntry[];
 
-  constructor(stages: PipelineStage[]) {
-    this.stages = stages;
+  constructor(entries: PipelineEntry[]) {
+    this.entries = entries;
   }
 
   /**
-   * Execute all stages in order.  If any stage throws, the remaining stages
+   * Execute all entries in order.  If any stage throws, the remaining entries
    * are skipped but every stage's `dispose()` hook is still called.
    */
   async run(context: PipelineContext, mode: 'build' | 'update'): Promise<void> {
@@ -181,16 +197,41 @@ export class IndexPipeline {
     const startMs = performance.now();
 
     try {
-      for (const stage of this.stages) {
-        const stageStart = performance.now();
-        log.indexing(`stage:${stage.name} started`);
-        await stage.execute(context, mode);
-        const durationMs = Math.round(performance.now() - stageStart);
-        log.indexing(`stage:${stage.name} complete`, { durationMs });
+      for (const entry of this.entries) {
+        const stages = Array.isArray(entry) ? entry : [entry];
+
+        if (stages.length === 1) {
+          // Single stage — run directly.
+          const stage = stages[0]!;
+          const stageStart = performance.now();
+          log.indexing(`stage:${stage.name} started`);
+          await stage.execute(context, mode);
+          const durationMs = Math.round(performance.now() - stageStart);
+          log.indexing(`stage:${stage.name} complete`, { durationMs });
+        } else {
+          // Parallel group — run all concurrently.
+          const groupNames = stages.map(s => s.name).join(', ');
+          log.indexing(`stage-group started: [${groupNames}]`);
+          const groupStart = performance.now();
+
+          await Promise.all(
+            stages.map(async (stage) => {
+              const stageStart = performance.now();
+              log.indexing(`stage:${stage.name} started`);
+              await stage.execute(context, mode);
+              const durationMs = Math.round(performance.now() - stageStart);
+              log.indexing(`stage:${stage.name} complete`, { durationMs });
+            }),
+          );
+
+          const groupMs = Math.round(performance.now() - groupStart);
+          log.indexing(`stage-group complete: [${groupNames}]`, { durationMs: groupMs });
+        }
       }
     } finally {
       // Always clean up, even on failure.
-      for (const stage of this.stages) {
+      const allStages = this.entries.flatMap(e => Array.isArray(e) ? e : [e]);
+      for (const stage of allStages) {
         if (stage.dispose) {
           try {
             await stage.dispose();
@@ -201,12 +242,13 @@ export class IndexPipeline {
       }
 
       const totalMs = Math.round(performance.now() - startMs);
-      log.indexing('pipeline complete', { mode, totalStages: this.stages.length, durationMs: totalMs });
+      const stageCount = this.entries.flatMap(e => Array.isArray(e) ? e : [e]).length;
+      log.indexing('pipeline complete', { mode, totalStages: stageCount, durationMs: totalMs });
     }
   }
 
   /** Returns the ordered list of stage names (useful for introspection / tests). */
   get stageNames(): string[] {
-    return this.stages.map(s => s.name);
+    return this.entries.flatMap(e => Array.isArray(e) ? e.map(s => s.name) : [e.name]);
   }
 }

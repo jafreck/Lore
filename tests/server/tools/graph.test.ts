@@ -750,7 +750,7 @@ describe('graph handler – compact mode', () => {
     expect(edge.resolution_method).toBeDefined();
   });
 
-  it('should omit provenance fields but keep IDs when compact=true', () => {
+  it('should omit provenance fields but keep IDs and file paths when compact=true', () => {
     const result = handler(db, { kind: 'call', compact: true });
     const edge = result.edges[0] as CompactGraphEdge;
     expect(edge.source_name).toBe('caller');
@@ -759,6 +759,8 @@ describe('graph handler – compact mode', () => {
     // IDs should be preserved for follow-up queries
     expect(edge.source_id).toBeDefined();
     expect(edge.target_id).toBeDefined();
+    // File paths should be preserved in compact mode
+    expect(edge.source_file_path).toBe('src/main.ts');
     // Provenance fields should be stripped
     expect((edge as any).resolution_method).toBeUndefined();
     expect((edge as any).line).toBeUndefined();

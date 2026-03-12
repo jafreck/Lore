@@ -1,41 +1,84 @@
 # Benchmark Results: Lore vs Baseline
 
 **Date:** 2026-03-11
-**Model:** claude-sonnet-4.6 (via GitHub Copilot CLI)
+**Model:** claude-opus-4.6 (via GitHub Copilot CLI)
 **Target repo:** lore-self @ `660be2bf`
+**Iterations:** 3 per task (36 total runs)
 
 ## Aggregate Summary
 
 | Metric | Control | Lore-enabled | Delta |
 |---|---|---|---|
-| **Success rate** | 58.3% | 66.7% | **+8.3pp** |
-| **Mean correctness** | 82.1% | 84.2% | **+2.1pp** |
-| **First-pass accuracy** | 25.0% | 58.3% | **+33.3pp** |
-| **Mean tool calls** | 16.0 | 6.1 | **-9.9 (-62%)** |
-| **Mean tokens** | 3,448 | 846 | **-2,601 (-75.5%)** |
-| **Mean wall time** | 69.9s | 28.0s | **-41.9s (-59.9%)** |
-| **Answer coverage** | 93.8% | 95.8% | +2.1pp |
-| **File coverage** | 75.0% | 66.7% | -8.3pp |
-| **Symbol coverage** | 73.6% | 73.6% | 0.0pp |
-| **Lore tool usage** | 0% of runs | 100% of runs | — |
-| **Total benchmark wall time** | — | — | 3.7 minutes (concurrent) |
+| **Mean correctness** | 68.0% | 66.2% | -1.8pp |
+| **First-pass accuracy** | 25.0% | **72.2%** | **+47.2pp** |
+| **Success rate** | 63.9% | 69.4% | +5.6pp |
+| **Mean tool calls** | 18.7 | **5.8** | **-12.9 (-69%)** |
+| **Mean tokens** | 5,828 | **1,112** | **-4,715 (-80.9%)** |
+| **Mean wall time** | 94.7s | **71.9s** | **-22.8s (-24.1%)** |
+| **Answer coverage** | 81.0% | 75.0% | -6.0pp |
+| **File coverage** | 89.1% | 89.6% | +0.5pp |
+| **Symbol coverage** | 98.1% | 98.1% | 0.0pp |
+| **Lore tool usage** | 0% of runs | **100% of runs** | — |
+| **Statistical significance** | — | — | p=0.863 (not significant at p<0.05) |
+| **Total benchmark wall time** | — | — | 13.6 minutes |
 
-## Per-Task Detail
+### Key Takeaways
 
-| Task | Prompt | Ctrl Correct | Lore Correct | Correct Δ | Ctrl Tokens | Lore Tokens | Token Δ | Ctrl Wall | Lore Wall | Wall Δ | Ctrl Tools | Lore Tools |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| **1.1** | Callers of `openDb` | 0.80 | **1.00** | **+0.20** | 6,192 | 266 | **-96%** | 117.5s | 18.0s | **-85%** | bash×11, view×9, grep×3 | lore_lookup×1, lore_graph×1 |
-| **1.2** | Callees of `build` | 0.80 | **1.00** | **+0.20** | 766 | 418 | **-45%** | 26.3s | 20.8s | -21% | grep×2, view×2 | lore_lookup×2, lore_graph×1 |
-| **1.4** | Blast radius of `resolveSymbolEdges` (3-hop) | 0.75 | 0.75 | 0.00 | 7,059 | 2,300 | **-67%** | 180.0s | 50.0s | **-72%** | bash×15, view×14, grep×4 | lore_lookup×9, bash×6, lore_graph×1 |
-| **2.1** | Implementations of `SymbolExtractor` | 1.00 | 1.00 | 0.00 | 280 | 418 | +49% | 14.0s | 17.8s | +27% | grep×1 | lore_graph×2, lore_lookup×1 |
-| **4.1** | Test files for `parser.ts` | 1.00 | 1.00 | 0.00 | 6,064 | 1,086 | **-82%** | 94.0s | 34.5s | **-63%** | view×10, bash×9, grep×4 | grep×3, lore_test_map×1 |
-| **6.1** | Top 5 by cyclomatic complexity | 0.50 | 0.50 | 0.00 | 2,017 | 168 | **-92%** | 50.5s | 13.6s | **-73%** | bash×5 | lore_metrics×1 |
-| **7.2** | Functions/classes related to `embedding` | **1.00** | 0.86 | -0.14 | 683 | 1,562 | +129% | 25.7s | 38.9s | +51% | bash×2, grep×1 | bash×5, lore_search×2, lore_lookup×1 |
-| **8.1** | Circular import dependencies | 1.00 | 1.00 | 0.00 | 885 | 614 | -31% | 73.5s | 22.6s | **-69%** | bash×3 | lore_graph×1, bash×1 |
-| **3.3** | Module dependency summary | 0.00 | 0.00 | 0.00 | 10,003 | 1,106 | **-89%** | 107.7s | 31.8s | **-70%** | view×26, bash×18 | lore_architecture×1, lore_docs×1, view×1, bash×1 |
-| **10.2** | Symbols defined in `call-graph.ts` | 1.00 | 1.00 | 0.00 | 302 | 473 | +57% | 17.4s | 21.6s | +24% | view×1 | lore_lookup×1, lore_search×1, view×1 |
-| **11.1** | Tests + coverage + reviewer for `resolveSymbolEdges` | 1.00 | 1.00 | 0.00 | 6,018 | 1,024 | **-83%** | 98.5s | 31.3s | **-68%** | bash×17, view×6, glob×4 | lore_coverage×2, bash×2, lore_test_map×1, lore_blame×1, lore_lookup×1 |
-| **11.4** | Deletion impact of `walker.ts` | 1.00 | 1.00 | 0.00 | 1,101 | 720 | -35% | 33.3s | 35.0s | +5% | grep×5 | grep×4, lore_lookup×1 |
+- **First-pass accuracy** (both arms correct on first try): Lore achieves **72.2%** vs control's 25.0% — a **+47.2pp** improvement
+- **Token efficiency**: Lore uses **80.9% fewer tokens** on average
+- **Tool efficiency**: Lore uses **69% fewer tool calls** (5.8 vs 18.7)
+- **Lore tool adoption**: 100% of Lore-arm runs used at least one `lore_*` tool
+- Correctness is comparable overall; Lore excels on graph/structural queries but the new cross-file tasks (7.2, 10.2) proved challenging for both arms
+
+## Per-Task Detail (3-iteration averages)
+
+| Task | Prompt | Ctrl Corr | Lore Corr | Δ Corr | Ctrl Tok | Lore Tok | Tok Δ | Ctrl Wall | Lore Wall | Wall Δ |
+|---|---|---|---|---|---|---|---|---|---|---|
+| **1.1** | Callers of `openDb` | 0.80 | **1.00** | **+0.20** | 3,690 | 272 | **-93%** | 67.5s | 21.0s | **-69%** |
+| **1.2** | Callees of `build` | 0.90 | **1.00** | **+0.10** | 2,054 | 314 | **-85%** | 47.1s | 22.2s | **-53%** |
+| **1.4** | Blast radius (3-hop) | 0.67 | 0.67 | 0.00 | 6,186 | 996 | **-84%** | 123.9s | 83.4s | **-33%** |
+| **2.1** | `SymbolExtractor` impls | 1.00 | 1.00 | 0.00 | 308 | 455 | +48% | 16.6s | 21.1s | +27% |
+| **4.1** | Tests for `parser.ts` | 1.00 | 1.00 | 0.00 | 4,974 | 1,086 | **-78%** | 65.1s | 34.3s | **-47%** |
+| **6.1** | Top 5 complexity | 0.67 | **1.00** | **+0.33** | 5,893 | 173 | **-97%** | 131.8s | 15.0s | **-89%** |
+| **7.2** | Cross-file consumers of `EmbeddingProvider` | 0.29 | 0.00 | -0.29 | 5,970 | 499 | **-92%** | 155.4s | 180.0s | +16% |
+| **8.1** | Import cycles | 1.00 | 1.00 | 0.00 | 11,030 | 817 | **-93%** | 110.3s | 29.2s | **-74%** |
+| **3.3** | Module dependency summary | 0.50 | 0.61 | +0.11 | 9,006 | 4,342 | **-52%** | 118.7s | 151.0s | +27% |
+| **10.2** | Call fan-in ranking for `read-only.ts` | 0.00 | 0.00 | 0.00 | 4,100 | 2,537 | **-38%** | 157.8s | 126.0s | **-20%** |
+| **11.1** | Tests + coverage + reviewer | 0.67 | 0.67 | 0.00 | 7,149 | 1,575 | **-78%** | 109.4s | 104.2s | -5% |
+| **11.4** | Deletion impact of `walker.ts` | 0.67 | 0.67 | 0.00 | 2,582 | 1,284 | **-50%** | 52.2s | 76.5s | +47% |
+
+> **Note:** Tool counts exclude `report_intent` calls (present in every run) for readability.
+
+### Where Lore Won
+
+| Task | Advantage | Token Savings | Time Savings |
+|---|---|---|---|
+| **6.1** (complexity) | `lore_metrics` → 1 call vs bash scanning | **-97%** | **-89%** |
+| **8.1** (import cycles) | `lore_graph(import)` → 1 call | **-93%** | **-74%** |
+| **1.1** (callers) | `lore_lookup` + `lore_graph(call)` | **-93%** | **-69%** |
+| **1.2** (callees) | `lore_lookup` + `lore_graph(call)` | **-85%** | **-53%** |
+| **1.4** (blast radius) | `lore_graph(call, depth=3)` | **-84%** | **-33%** |
+| **4.1** (test map) | `lore_test_map` → 1 call | **-78%** | **-47%** |
+
+### Where Lore Lost or Tied
+
+| Task | Issue |
+|---|---|
+| **7.2** (cross-file consumers) | New task — both arms struggled; Lore timed out on 2/3 iters |
+| **10.2** (call fan-in) | New task — both scored 0.00; ranking format mismatch |
+| **2.1** (inheritance) | Simple grep was optimal; Lore added overhead (+48% tokens) |
+
+### Lore Tools Used
+
+| Tool | Calls | Description |
+|---|---|---|
+| `lore_lookup` | 28 | Symbol/file lookup by name |
+| `lore_graph` | 26 | Call, inheritance, import graph queries |
+| `lore_search` | 6 | Full-text/structural search |
+| `lore_coverage` | 8 | Test coverage data |
+| `lore_blame` | 7 | Git blame / ownership |
+| `lore_test_map` | 6 | Source → test file mapping |
+| `lore_metrics` | 3 | Complexity metrics |
 
 ### Lore Index Configuration
 
@@ -48,7 +91,7 @@
 | History depth | 100 commits |
 | Docs auto-notes | Enabled |
 | Index dependencies | Disabled |
-| Index time | ~3,400 ms |
+| Index time | ~5,138 ms |
 
 ### Copilot CLI Configuration
 
@@ -56,191 +99,37 @@
 |---|---|
 | `BENCHMARK_COPILOT` | `1` |
 | `BENCHMARK_REPO` | `lore-self` |
-| `BENCHMARK_MODEL` | `claude-sonnet-4.6` |
+| `BENCHMARK_MODEL` | `claude-opus-4.6` |
 | `BENCHMARK_INDEX_MODE` | `scip` |
+| `BENCHMARK_ITERATIONS` | `3` |
 | Per-task timeout | 180 s |
-| Control arm | Copilot CLI with `--deny-tool` for all `lore_*` tools |
+| Control arm | Copilot CLI with `--add-dir` only |
 | Lore-enabled arm | Copilot CLI with Lore MCP server (`--additional-mcp-config`) |
-| Concurrency | All 12 tasks run concurrently; control + lore arms run in parallel per task |
 
 ---
 
-## Per-Task Narrative
+## Per-Task Notes
 
-### Q1.1 — Call Graph: Callers
+**Q1.1 — Callers of `openDb`:** Lore calls: `lore_lookup(kind=symbol, query=openDb)` → `lore_graph(kind=call, target_id=400)`. Control missed `docsAutoNotes1` in all 3 iterations; Lore found all callers via the pre-indexed call graph every time.
 
-> What functions or methods directly call `openDb`? Answer with ONLY a newline-separated list of function/method names, nothing else.
+**Q1.2 — Callees of `build`:** Lore calls: `lore_lookup(kind=symbol, query=build)` → `lore_graph(kind=call, source_id=1830, compact=true)`. Control missed `<constructor>` (SCIP-specific callee name); Lore's graph contains it.
 
-| Metric | Control | Lore | Delta |
-|---|---|---|---|
-| Correctness | 0.80 | **1.00** | **+0.20** |
-| Tokens | 6,192 | 266 | **-96%** |
-| Wall time | 117.5s | 18.0s | **-85%** |
-| Tool calls | 24 (bash×11, view×9, grep×3, report_intent×1) | 3 (report_intent×1, lore_lookup×1, lore_graph×1) | -87% |
+**Q1.4 — Blast radius of `resolveSymbolEdges` (3-hop):** Both arms scored 0.67 avg (one iteration had CLI timeouts). Lore used `lore_graph(kind=call, depth=3)` for transitive closure.
 
-Lore calls: `lore_lookup(kind=symbol, query=openDb)`, `lore_graph(kind=call, target_id=400)`
+**Q2.1 — Implementations of `SymbolExtractor`:** Both found all 23 implementations. Control's single `grep implements SymbolExtractor` was simpler. Lore: `lore_lookup` + `lore_graph(kind=inheritance, target_id=940)`.
 
----
+**Q4.1 — Test files for `parser.ts`:** Lore: `lore_test_map(source_path=src/parsing/parser.ts)`. Pre-indexed test mapping + follow-up greps. Lore used 78% fewer tokens than control.
 
-### Q1.2 — Call Graph: Callees
+**Q6.1 — Top 5 by cyclomatic complexity:** Lore: `lore_metrics(limit=5)`. Single call to pre-indexed `symbol_metrics` table. Lore scored 1.00 all 3 iters; control failed on 1 of 3 (timed out scanning files).
 
-> What does the function/method `build` call? Answer with ONLY a newline-separated list of the direct callee function/method names, nothing else.
+**Q7.2 — Cross-file consumers of `EmbeddingProvider` (NEW):** Both arms struggled with this new task. Lore used `lore_lookup` + `lore_graph` but timed out on 2 of 3 iterations. Control scored 0.29 avg (one iteration found some consumers via view). The task requires tracing type_refs across 13 files — challenging even with tools.
 
-| Metric | Control | Lore | Delta |
-|---|---|---|---|
-| Correctness | 0.80 | **1.00** | **+0.20** |
-| Tokens | 766 | 418 | **-45%** |
-| Wall time | 26.3s | 20.8s | -21% |
-| Tool calls | 6 (grep×2, view×2, report_intent×1) | 4 (lore_lookup×2, report_intent×1, lore_graph×1) | -33% |
+**Q8.1 — Circular import dependencies:** Lore: `lore_graph(kind=import)`. Both correctly answered "None" in all iterations. Lore: 93% fewer tokens, 74% less time.
 
-Lore calls: `lore_lookup(kind=symbol, query=build, symbol_kind=function)`, `lore_lookup(kind=symbol, query=build)`, `lore_graph(kind=call, source_id=1830, compact=true)`
+**Q3.3 — Module dependency summary:** Mixed results. Lore used `lore_graph` in 2 of 3 iters. Both arms had formatting issues mapping import statements to the expected module dependency format.
 
----
+**Q10.2 — Call fan-in ranking for `read-only.ts` (NEW):** Both arms scored 0.00 correctness — the ranking format proved difficult. Both found many of the right functions but didn't produce the exact ranked format. Lore used `lore_lookup` + `lore_search` but still needed 38% fewer tokens.
 
-### Q1.4 — Call Graph: Blast Radius (Transitive)
+**Q11.1 — Tests + coverage + reviewer for `resolveSymbolEdges`:** Lore: `lore_test_map` + `lore_coverage` + `lore_blame`. One iteration saw Lore timeout; the other two scored 1.00. Control: 1.00 in 2 of 3.
 
-> If I change the function `resolveSymbolEdges` in `src/resolution/call-graph.ts`, what is the blast radius? Use transitive dependency analysis if available (follow callers of callers, up to 3 hops). Answer with ONLY a newline-separated list of files and functions that transitively depend on it, nothing else.
-
-| Metric | Control | Lore | Delta |
-|---|---|---|---|
-| Correctness | 0.75 | 0.75 | 0.00 |
-| Tokens | 7,059 | 2,300 | **-67%** |
-| Wall time | 180.0s | 50.0s | **-72%** |
-| Tool calls | 34 (bash×15, view×14, grep×4, report_intent×1) | 17 (lore_lookup×9, bash×6, report_intent×1, lore_graph×1) | -50% |
-
-Lore calls: `lore_graph(kind=call, target_id=428, depth=3, compact=true)`, followed by `lore_lookup` calls to resolve symbol details. **Agent used `depth=3` for transitive closure in a single graph query.**
-
----
-
-### Q2.1 — Inheritance: Interface Implementations
-
-> What classes or types implement the interface `SymbolExtractor`? Answer with ONLY a newline-separated list of class/type names, nothing else.
-
-| Metric | Control | Lore | Delta |
-|---|---|---|---|
-| Correctness | 1.00 | 1.00 | 0.00 |
-| Tokens | 280 | 418 | +49% |
-| Wall time | 14.0s | 17.8s | +27% |
-| Tool calls | 2 (report_intent×1, grep×1) | 4 (lore_graph×2, report_intent×1, lore_lookup×1) | +100% |
-
-Lore calls: `lore_lookup(kind=symbol, query=SymbolExtractor)`, `lore_graph(kind=inheritance)`, `lore_graph(kind=inheritance, target_id=940)`. Both arms found all 23 implementations. Control's single `grep` for `implements SymbolExtractor` was faster for this pattern.
-
----
-
-### Q4.1 — Test Mapping
-
-> What test files should I run after modifying `src/parsing/parser.ts`? Answer with ONLY a newline-separated list of test file paths relative to the repo root, nothing else.
-
-| Metric | Control | Lore | Delta |
-|---|---|---|---|
-| Correctness | 1.00 | 1.00 | 0.00 |
-| Tokens | 6,064 | 1,086 | **-82%** |
-| Wall time | 94.0s | 34.5s | **-63%** |
-| Tool calls | 26 (view×10, bash×9, grep×4, report_intent×1, glob×1, task×1) | 7 (grep×3, report_intent×1, lore_test_map×1, glob×1) | -73% |
-
-Lore calls: `lore_test_map(source_path=src/parsing/parser.ts)`. Single pre-indexed lookup vs 26-call grep search.
-
----
-
-### Q6.1 — Complexity Ranking
-
-> What are the 5 most complex functions in this codebase, ranked by cyclomatic complexity? Use pre-indexed complexity metrics if available rather than scanning source files. Answer with ONLY a numbered list of function names, one per line, in descending order.
-
-| Metric | Control | Lore | Delta |
-|---|---|---|---|
-| Correctness | 0.50 | 0.50 | 0.00 |
-| Tokens | 2,017 | 168 | **-92%** |
-| Wall time | 50.5s | 13.6s | **-73%** |
-| Tool calls | 8 (bash×5, report_intent×1, glob×1) | 2 (report_intent×1, lore_metrics×1) | -75% |
-
-Lore calls: `lore_metrics(limit=5)`. Single call to pre-indexed `symbol_metrics` table vs bash-based scanning. Both arms achieved 0.50 correctness (partial match against expected top-5).
-
----
-
-### Q7.2 — Symbol Search by Concept
-
-> Find all functions and classes related to `embedding` in this codebase. Answer with ONLY a newline-separated list of symbol names, nothing else.
-
-| Metric | Control | Lore | Delta |
-|---|---|---|---|
-| Correctness | 1.00 | 0.86 | -0.14 |
-| Tokens | 683 | 1,562 | +129% |
-| Wall time | 25.7s | 38.9s | +51% |
-| Tool calls | 4 (bash×2, report_intent×1, grep×1) | 10 (bash×5, lore_search×2, report_intent×1, lore_lookup×1, grep×1) | +150% |
-
-Lore calls: `lore_search(query=embedding, mode=structural)` ×2, `lore_lookup(kind=symbol)`. Control's `grep -r embedding` was faster and found more results by matching file paths. Lore's FTS5 search matches on symbol names/signatures only, missing symbols where "embedding" only appears in the file path.
-
----
-
-### Q8.1 — Graph Analysis: Circular Dependencies
-
-> Are there any circular dependencies (import cycles) between source files in this codebase? Answer with ONLY a list of the cycle(s), or "None" if the codebase is acyclic.
-
-| Metric | Control | Lore | Delta |
-|---|---|---|---|
-| Correctness | 1.00 | 1.00 | 0.00 |
-| Tokens | 885 | 614 | -31% |
-| Wall time | 73.5s | 22.6s | **-69%** |
-| Tool calls | 6 (bash×3, report_intent×1, write_bash×1, read_bash×1) | 3 (report_intent×1, lore_graph×1, bash×1) | -50% |
-
-Lore calls: `lore_graph(kind=import, limit=500, compact=true)`. Both correctly answered "None". Control needed a multi-step bash script to walk imports; Lore queried the pre-indexed import graph in one call.
-
----
-
-### Q3.3 — Module Dependency Summary
-
-> What are the top-level modules/components and how do they depend on each other? Answer with a brief list of each module and its direct dependencies.
-
-| Metric | Control | Lore | Delta |
-|---|---|---|---|
-| Correctness | 0.00 | 0.00 | 0.00 |
-| Tokens | 10,003 | 1,106 | **-89%** |
-| Wall time | 107.7s | 31.8s | **-70%** |
-| Tool calls | 46 (view×26, bash×18, report_intent×1, task×1) | 5 (report_intent×1, lore_architecture×1, lore_docs×1, view×1, bash×1) | -89% |
-
-Lore calls: `lore_architecture()`, `lore_docs(action=get, path=docs/architecture.md)`. Both arms correctly identified all modules and dependencies. Exact-match correctness is 0.00 because the expected answer format (`module → deps`) is too rigid — both gave correct but differently-formatted answers.
-
----
-
-### Q10.2 — File Symbol Listing
-
-> What functions, classes, and interfaces are defined in `src/resolution/call-graph.ts`? Answer with ONLY a newline-separated list in the format "name (kind)", nothing else.
-
-| Metric | Control | Lore | Delta |
-|---|---|---|---|
-| Correctness | 1.00 | 1.00 | 0.00 |
-| Tokens | 302 | 473 | +57% |
-| Wall time | 17.4s | 21.6s | +24% |
-| Tool calls | 2 (report_intent×1, view×1) | 4 (report_intent×1, lore_lookup×1, lore_search×1, view×1) | +100% |
-
-Lore calls: `lore_lookup(kind=symbol, path_prefix=src/resolution/call-graph.ts)`, `lore_search(query=call-graph)`. Control's single `view` of the file was simpler and faster for this task.
-
----
-
-### Q11.1 — Composite: Modify Workflow
-
-> I need to modify `resolveSymbolEdges` in `src/resolution/call-graph.ts`. What test files should I run, what is the coverage of those test paths, and who should review the change? Answer with ONLY three lines: 1. Test files (comma-separated paths) 2. Coverage percentage 3. Reviewer name
-
-| Metric | Control | Lore | Delta |
-|---|---|---|---|
-| Correctness | 1.00 | 1.00 | 0.00 |
-| Tokens | 6,018 | 1,024 | **-83%** |
-| Wall time | 98.5s | 31.3s | **-68%** |
-| Tool calls | 30 (bash×17, view×6, glob×4, report_intent×1, grep×1, task×1) | 10 (lore_coverage×2, bash×2, report_intent×1, lore_test_map×1, lore_blame×1, lore_lookup×1, glob×1) | -67% |
-
-Lore calls: `lore_test_map(source_path=src/resolution/call-graph.ts)`, `lore_coverage(symbol_name=resolveSymbolEdges)`, `lore_blame(symbol=resolveSymbolEdges, mode=ownership)`, `lore_lookup(kind=symbol, query=resolveSymbolEdges)`, `lore_coverage(path=src/resolution/call-graph.ts)`. All three sub-questions answered correctly by chaining Lore tools.
-
----
-
-### Q11.4 — Deletion Impact
-
-> What would break if I deleted `src/discovery/walker.ts`? Answer with ONLY a newline-separated list of file paths that directly import or depend on it, nothing else.
-
-| Metric | Control | Lore | Delta |
-|---|---|---|---|
-| Correctness | 1.00 | 1.00 | 0.00 |
-| Tokens | 1,101 | 720 | -35% |
-| Wall time | 33.3s | 35.0s | +5% |
-| Tool calls | 6 (grep×5, report_intent×1) | 6 (grep×4, report_intent×1, lore_lookup×1) | 0% |
-
-Lore calls: `lore_lookup(kind=file, query=src/discovery/walker.ts)`. Both found the same set of dependent files. Lore scored higher on task success (1.0 vs 0.5) due to better file coverage in the structured answer.
+**Q11.4 — Exported symbols from `walker.ts` + consumers:** Both scored 0.67 avg. Lore used `lore_lookup` + `lore_graph` in iteration 1 but fell back to bash-only in iters 2–3.

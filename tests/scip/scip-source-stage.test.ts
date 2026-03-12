@@ -90,6 +90,10 @@ function makeContext(rootDir: string, dbPath: string): PipelineContext {
     indexDependencies: false,
     history: false,
     docsAutoNotes: false,
+    staleSymbolIds: [],
+    changedSourcePaths: [],
+    changedDocPaths: [],
+    sourceCache: new Map(),
   };
 }
 

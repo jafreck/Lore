@@ -307,7 +307,6 @@ describe('tool-registry', () => {
       expect(names).toContain('lore_routes');
       expect(names).toContain('lore_notes_write');
       expect(names).toContain('lore_notes_read');
-      expect(names).toContain('lore_architecture');
       expect(names).toContain('lore_snippet');
       expect(names).toContain('lore_blame');
       expect(names).toContain('lore_metrics');

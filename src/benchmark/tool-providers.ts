@@ -13,8 +13,8 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { openReadOnly } from '../../../src/db/read-only.js';
-import type { EmbeddingProvider } from '../../../src/embeddings/embedder.js';
+import { openReadOnly } from '../db/read-only.js';
+import type { EmbeddingProvider } from '../embeddings/embedder.js';
 import type { AgentTool } from './types.js';
 import type { BenchmarkArm } from './types.js';
 
@@ -45,7 +45,7 @@ function buildBaseTools(repoPath: string): AgentTool[] {
     {
       name: 'read_file',
       description: 'Read the contents of a file at the given path (relative to repo root).',
-      execute: async (args) => {
+      execute: async (args: Record<string, unknown>) => {
         const filePath = String(args['path'] ?? '');
         const absPath = join(repoPath, filePath);
         // Prevent path traversal
@@ -63,7 +63,7 @@ function buildBaseTools(repoPath: string): AgentTool[] {
       name: 'grep_search',
       description:
         'Search for a regex pattern across files in the repo. Returns matching lines with file paths and line numbers.',
-      execute: async (args) => {
+      execute: async (args: Record<string, unknown>) => {
         const pattern = String(args['pattern'] ?? '');
         const includeGlob = args['include'] ? String(args['include']) : undefined;
         try {
@@ -89,7 +89,7 @@ function buildBaseTools(repoPath: string): AgentTool[] {
     {
       name: 'list_directory',
       description: 'List the contents of a directory (relative to repo root). Returns file and directory names.',
-      execute: async (args) => {
+      execute: async (args: Record<string, unknown>) => {
         const dirPath = String(args['path'] ?? '.');
         const absPath = join(repoPath, dirPath);
         if (!absPath.startsWith(repoPath)) {
@@ -108,7 +108,7 @@ function buildBaseTools(repoPath: string): AgentTool[] {
     {
       name: 'file_info',
       description: 'Get metadata about a file (size, type).',
-      execute: async (args) => {
+      execute: async (args: Record<string, unknown>) => {
         const filePath = String(args['path'] ?? '');
         const absPath = join(repoPath, filePath);
         if (!absPath.startsWith(repoPath)) {
@@ -154,7 +154,7 @@ function wrapTool(
   return {
     name,
     description,
-    execute: async (args) => {
+    execute: async (args: Record<string, unknown>) => {
       try {
         const result = await handlerFn(args);
         return typeof result === 'string' ? result : JSON.stringify(result);
@@ -178,19 +178,19 @@ async function buildLoreTools(dbPath: string, embedder?: EmbeddingProvider): Pro
     testMap, snippet, blame, metrics, coverage,
     history, annotations,
   ] = await Promise.all([
-    import('../../../src/server/tools/lookup.js'),
-    import('../../../src/server/tools/search.js'),
-    import('../../../src/server/tools/graph.js'),
-    import('../../../src/server/tools/graph-analysis.js'),
-    import('../../../src/server/tools/docs.js'),
-    import('../../../src/server/tools/routes.js'),
-    import('../../../src/server/tools/test-map.js'),
-    import('../../../src/server/tools/snippet.js'),
-    import('../../../src/server/tools/blame.js'),
-    import('../../../src/server/tools/metrics.js'),
-    import('../../../src/server/tools/coverage.js'),
-    import('../../../src/server/tools/history.js'),
-    import('../../../src/server/tools/annotations.js'),
+    import('../server/tools/lookup.js'),
+    import('../server/tools/search.js'),
+    import('../server/tools/graph.js'),
+    import('../server/tools/graph-analysis.js'),
+    import('../server/tools/docs.js'),
+    import('../server/tools/routes.js'),
+    import('../server/tools/test-map.js'),
+    import('../server/tools/snippet.js'),
+    import('../server/tools/blame.js'),
+    import('../server/tools/metrics.js'),
+    import('../server/tools/coverage.js'),
+    import('../server/tools/history.js'),
+    import('../server/tools/annotations.js'),
   ]);
 
   return [
@@ -218,13 +218,13 @@ async function buildLoreTools(dbPath: string, embedder?: EmbeddingProvider): Pro
  */
 async function buildSemanticSearchTool(dbPath: string, embedder?: EmbeddingProvider): Promise<AgentTool> {
   const db = openReadOnly(dbPath);
-  const searchMod = await import('../../../src/server/tools/search.js');
+  const searchMod = await import('../server/tools/search.js');
 
   return {
     name: 'semantic_search',
     description:
       'Search the codebase using semantic similarity. Returns the most relevant code snippets for a natural language query.',
-    execute: async (args) => {
+    execute: async (args: Record<string, unknown>) => {
       try {
         const result = await searchMod.handler(db, {
           query: String(args['query'] ?? ''),

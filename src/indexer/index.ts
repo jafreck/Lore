@@ -137,16 +137,20 @@ export class IndexBuilder {
     // ScipSourceStage runs first for SCIP-covered languages (symbols + refs
     // from SCIP directly).  SourceIndexStage then handles remaining languages
     // via tree-sitter.  LSP enrichment is optional for both paths.
+    //
+    // Stages in arrays run concurrently:
+    //   - SourceIndexStage + DocsIndexStage: write to disjoint tables.
+    //   - HistoryStage + ScipEnrichment + LspEnrichment: history writes to
+    //     commits/commit_files (disjoint from enrichment targets).
     const pipeline = new IndexPipeline([
       new ScipSourceStage(),
-      new SourceIndexStage(),
-      new DocsIndexStage(),
+      [new SourceIndexStage(), new DocsIndexStage()],
       new ImportResolutionStage(),
       new DependencyApiStage(),
-      new LspEnrichmentStage(),
+      [new ScipEnrichmentStage(), new LspEnrichmentStage(), historyStage()],
+      ftsRefreshStage(),
       resolutionStage(),
       testMapStage(),
-      historyStage(),
       new EmbeddingStage(),
     ]);
 
@@ -166,6 +170,7 @@ export class IndexBuilder {
       staleSymbolIds: [],
       changedSourcePaths: [],
       changedDocPaths: [],
+      sourceCache: new Map(),
     };
 
     try {
@@ -204,14 +209,13 @@ export class IndexBuilder {
 
     const pipeline = new IndexPipeline([
       new ScipSourceStage(),
-      new SourceIndexStage(),
-      new DocsIndexStage(),
+      [new SourceIndexStage(), new DocsIndexStage()],
       new ImportResolutionStage(),
       new DependencyApiStage(),
-      new LspEnrichmentStage(),
+      [new ScipEnrichmentStage(), new LspEnrichmentStage(), historyStage()],
+      ftsRefreshStage(),
       resolutionStage(),
       testMapStage(),
-      historyStage(),
       new EmbeddingStage(),
     ]);
 
@@ -232,6 +236,7 @@ export class IndexBuilder {
       staleSymbolIds: [],
       changedSourcePaths: [],
       changedDocPaths: [],
+      sourceCache: new Map(),
     };
 
     try {
@@ -337,6 +342,34 @@ function testMapStage(): PipelineStage {
   return {
     name: 'test-map',
     execute: async (ctx) => { refreshTestMappings(ctx.db, ctx.branch); },
+  };
+}
+
+/**
+ * Bulk-refresh the FTS5 index from the enriched `symbols` table.
+ *
+ * Replaces per-row FTS5 updates during enrichment with a single pass,
+ * which is substantially faster for FTS5 virtual tables.
+ */
+function ftsRefreshStage(): PipelineStage {
+  return {
+    name: 'fts-refresh',
+    execute: async (ctx) => {
+      ctx.db.transaction(() => {
+        ctx.db.exec('DELETE FROM symbols_fts');
+        ctx.db.exec(`
+          INSERT INTO symbols_fts(rowid, name, signature, kind)
+          SELECT s.id,
+                 s.name,
+                 COALESCE(s.resolved_type_signature, '') || char(10) ||
+                 COALESCE(s.resolved_return_type, '')    || char(10) ||
+                 COALESCE(s.signature, '')                || char(10) ||
+                 s.name,
+                 s.kind
+          FROM symbols s
+        `);
+      })();
+    },
   };
 }
 

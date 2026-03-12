@@ -120,11 +120,11 @@ export type OnnxDtype = 'fp32' | 'fp16' | 'q8' | 'q4';
  * Runs ONNX models natively in Node — zero Python dependency.
  *
  * Auto-detects the best available ONNX execution provider:
- *   - `webgpu` when available (Linux/Windows with GPU)
- *   - `coreml` on Apple Silicon (macOS arm64)
- *   - `cpu` everywhere else (always available)
+ *   - `cpu` (always available; only option on macOS with transformers.js v3)
+ *   - `cuda` on Linux x64 with NVIDIA GPU (requires transformers.js v4+)
+ *   - `dml` (DirectML) on Windows (requires transformers.js v4+)
  *
- * Override via `LORE_EMBED_DEVICE` env var (e.g. `cpu`, `coreml`, `webgpu`).
+ * Override via `LORE_EMBED_DEVICE` env var (e.g. `cpu`, `cuda`, `dml`).
  * Override quantization via `LORE_EMBED_DTYPE` env var (e.g. `q8`, `q4`, `fp16`).
  *
  * Call `init()` first to download/load the model and detect its embedding
@@ -140,7 +140,7 @@ export class TransformersJsProvider implements EmbeddingProvider {
 
   constructor(modelName: string, dtype?: OnnxDtype) {
     this.modelName = modelName;
-    this.dtype = dtype ?? (process.env['LORE_EMBED_DTYPE'] as OnnxDtype | undefined) ?? 'fp32';
+    this.dtype = dtype ?? (process.env['LORE_EMBED_DTYPE'] as OnnxDtype | undefined) ?? 'q8';
   }
 
   /** Embedding dimensionality — available only after `init()`. */
@@ -151,7 +151,7 @@ export class TransformersJsProvider implements EmbeddingProvider {
     return this._dims;
   }
 
-  /** ONNX execution provider selected during init (cpu/coreml/webgpu). */
+  /** ONNX execution provider selected during init. */
   get device(): string {
     return this._device ?? 'unknown';
   }
@@ -163,18 +163,36 @@ export class TransformersJsProvider implements EmbeddingProvider {
   async init(): Promise<void> {
     if (this.initialized) return;
 
-    const device = this.detectDevice();
-    this._device = device;
-
+    const preferredDevice = this.detectDevice();
     const { pipeline } = await import('@huggingface/transformers');
-    this._pipeline = await (pipeline as PipelineFn)(
-      'feature-extraction',
-      this.modelName,
-      {
-        device: device as 'cpu',
-        ...(this.dtype !== 'fp32' && { dtype: this.dtype }),
-      },
-    );
+
+    // Try the preferred device, fall back to CPU if unsupported
+    let device = preferredDevice;
+    try {
+      this._pipeline = await (pipeline as PipelineFn)(
+        'feature-extraction',
+        this.modelName,
+        {
+          device: device as 'cpu',
+          ...(this.dtype !== 'fp32' && { dtype: this.dtype }),
+        },
+      );
+    } catch (err: unknown) {
+      if (device !== 'cpu' && err instanceof Error && err.message.includes('Unsupported device')) {
+        device = 'cpu';
+        this._pipeline = await (pipeline as PipelineFn)(
+          'feature-extraction',
+          this.modelName,
+          {
+            device: 'cpu',
+            ...(this.dtype !== 'fp32' && { dtype: this.dtype }),
+          },
+        );
+      } else {
+        throw err;
+      }
+    }
+    this._device = device;
 
     // Probe the model to detect dimensionality.
     const probe = await this._pipeline('dimensionality probe', { pooling: 'mean', normalize: true });
@@ -204,15 +222,13 @@ export class TransformersJsProvider implements EmbeddingProvider {
   /**
    * Detect the best available ONNX execution provider.
    * Respects `LORE_EMBED_DEVICE` env var for explicit override.
+   *
+   * Transformers.js v3 / onnxruntime-node 1.21 only supports CPU on all
+   * platforms. GPU providers (CoreML, CUDA, DirectML) require v4+.
    */
   private detectDevice(): string {
     const envDevice = process.env['LORE_EMBED_DEVICE'];
     if (envDevice) return envDevice;
-
-    // CoreML is available on Apple Silicon via onnxruntime-node
-    if (process.platform === 'darwin' && process.arch === 'arm64') {
-      return 'coreml';
-    }
     return 'cpu';
   }
 }
@@ -265,7 +281,8 @@ export class LazyEmbeddingProvider implements EmbeddingProvider {
 // ─── Default model ────────────────────────────────────────────────────────────
 
 /**
- * Default embedding model — `Qwen/Qwen3-Embedding-0.6B` is a compact,
- * 1024-dim model with strong multilingual and code understanding.
+ * Default embedding model — the ONNX-community variant of Qwen3-Embedding-0.6B
+ * ships pre-converted ONNX weights compatible with all execution providers
+ * (cpu, cuda, dml). 1024-dim, strong multilingual and code understanding.
  */
-export const DEFAULT_EMBEDDING_MODEL = 'Qwen/Qwen3-Embedding-0.6B';
+export const DEFAULT_EMBEDDING_MODEL = 'onnx-community/Qwen3-Embedding-0.6B-ONNX';

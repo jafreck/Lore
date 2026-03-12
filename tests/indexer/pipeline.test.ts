@@ -17,7 +17,11 @@ function createStubContext(): PipelineContext {
     indexDependencies: false,
     history: false,
     docsAutoNotes: true,
-  };
+    staleSymbolIds: [],
+    changedSourcePaths: [],
+    changedDocPaths: [],
+    sourceCache: new Map(),
+  } as PipelineContext;
 }
 
 describe('IndexPipeline', () => {

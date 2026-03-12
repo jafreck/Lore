@@ -15,7 +15,8 @@
 
 import { existsSync, readFileSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
-import { execFileSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { pathToFileURL } from 'node:url';
 import type { ResolvedTypeMetadata } from '../lsp/enrichment.js';
 import type { EffectiveScipSettings } from './config.js';
@@ -240,12 +241,11 @@ export class ScipEnrichmentCoordinator {
 
     log.indexing(`scip: running ${resolved.command} for ${language}`);
 
+    const execFileAsync = promisify(execFile);
     try {
-      execFileSync(resolved.command, args, {
+      await execFileAsync(resolved.command, args, {
         cwd,
         timeout: this.settings.timeoutMs,
-        stdio: ['ignore', 'pipe', 'pipe'],
-        encoding: 'utf8',
       });
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);

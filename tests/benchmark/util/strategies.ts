@@ -339,12 +339,6 @@ function symbolListingLoreSteps(task: BenchmarkTask): ScriptedStep[] {
   }));
 }
 
-function architectureLoreSteps(_task: BenchmarkTask): ScriptedStep[] {
-  return [
-    { toolName: 'lore_architecture', args: {} },
-  ];
-}
-
 function inheritanceLoreSteps(task: BenchmarkTask): ScriptedStep[] {
   const symbols = extractSymbolsFromPrompt(task.prompt);
   const steps: ScriptedStep[] = [];

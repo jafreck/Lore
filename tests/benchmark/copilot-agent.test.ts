@@ -41,14 +41,19 @@ const WORK_DIR = mkdtempSync(join(tmpdir(), 'lore-copilot-bench-'));
 
 const COPILOT_OPTIONS: CopilotAgentOptions = {
   model: process.env['BENCHMARK_MODEL'] ?? 'claude-opus-4.6',
-  timeoutMs: 180_000,
+  timeoutMs: 360_000,
 };
+
+// Number of times to run each task (for statistical significance)
+const ITERATIONS = Math.max(1, parseInt(process.env['BENCHMARK_ITERATIONS'] ?? '1', 10));
 
 // Target repo: override with BENCHMARK_REPO=esbuild (etc.), default lore-self
 const TARGET_REPO = process.env['BENCHMARK_REPO'] ?? 'lore-self';
 const repoSpec = PILOT_REPOS.find((r) => r.name === TARGET_REPO)!;
 const COPILOT_TASKS = getTasksForRepo(TARGET_REPO);
 const INDEX_MODE = (process.env['BENCHMARK_INDEX_MODE'] ?? 'scip') as 'tree-sitter' | 'scip' | 'full';
+const EMBEDDING_MODEL = process.env['BENCHMARK_EMBEDDING_MODEL'] ?? '';
+const ENABLE_LSP = process.env['BENCHMARK_LSP'] === '1';
 
 // ─── Per-task result storage (Map-based for concurrent safety) ────────────────
 
@@ -56,7 +61,7 @@ interface TaskResult {
   score: RunScore;
   trace: AgentTrace;
 }
-
+// Each key is `${taskId}:${iteration}` for multi-iteration support
 const controlResults = new Map<string, TaskResult>();
 const loreResults = new Map<string, TaskResult>();
 
@@ -95,13 +100,17 @@ describe.skipIf(SKIP)(`Copilot agent benchmark: ${TARGET_REPO}`, () => {
     repoPath = instance.localPath;
 
     // Index the cloned repo
-    const indexed = await indexRepo(instance, { mode: INDEX_MODE });
+    const indexed = await indexRepo(instance, {
+      mode: INDEX_MODE,
+      embeddingModel: EMBEDDING_MODEL || undefined,
+      lsp: ENABLE_LSP,
+    });
     dbPath = indexed.dbPath!;
 
     expect(indexed.indexed).toBe(true);
     console.log(`\n${TARGET_REPO} cloned at ${repoSpec.sha.slice(0, 8)}, indexed in ${indexed.indexTimeMs}ms`);
-    console.log(`DB: ${dbPath}\nModel: ${COPILOT_OPTIONS.model}\nTasks: ${COPILOT_TASKS.length}\n`);
-  }, 300_000);
+    console.log(`DB: ${dbPath}\nModel: ${COPILOT_OPTIONS.model}\nIndex: ${INDEX_MODE} | Embeddings: ${EMBEDDING_MODEL || 'none'} | LSP: ${ENABLE_LSP}\nTasks: ${COPILOT_TASKS.length} | Iterations: ${ITERATIONS}\n`);
+  }, 600_000);
 
   afterAll(async () => {
     await repoManager.removeAll();
@@ -110,121 +119,135 @@ describe.skipIf(SKIP)(`Copilot agent benchmark: ${TARGET_REPO}`, () => {
   // ─── Per-task tests (control + lore run concurrently) ───────────────────
 
   for (const task of COPILOT_TASKS) {
-    it.concurrent(`${task.id}: control + lore-enabled arms`, async () => {
-      // Run both arms concurrently — they are independent copilot CLI processes
-      const [controlTrace, loreTrace] = await Promise.all([
-        (async () => {
-          const startPerf = performance.now();
-          const trace = await runCopilotAgent(task, 'control', repoPath, undefined, COPILOT_OPTIONS);
-          const wallTimeMs = Math.round(performance.now() - startPerf);
-          return { trace, wallTimeMs };
-        })(),
-        (async () => {
-          const startPerf = performance.now();
-          const trace = await runCopilotAgent(task, 'lore-enabled', repoPath, dbPath, COPILOT_OPTIONS);
-          const wallTimeMs = Math.round(performance.now() - startPerf);
-          return { trace, wallTimeMs };
-        })(),
-      ]);
+    for (let iter = 0; iter < ITERATIONS; iter++) {
+      const iterLabel = ITERATIONS > 1 ? ` [iter ${iter + 1}]` : '';
+      const resultKey = `${task.id}:${iter}`;
 
-      // ── Score and validate control arm ──────────────────────────────────
-      expect(controlTrace.trace.finalAnswer.length).toBeGreaterThan(0);
-      expect(controlTrace.trace.loreToolsCalled).toHaveLength(0);
+      it.concurrent(`${task.id}${iterLabel}: control + lore-enabled arms`, async () => {
+        // Run both arms concurrently — they are independent copilot CLI processes
+        const [controlTrace, loreTrace] = await Promise.all([
+          (async () => {
+            const startPerf = performance.now();
+            const trace = await runCopilotAgent(task, 'control', repoPath, undefined, COPILOT_OPTIONS);
+            const wallTimeMs = Math.round(performance.now() - startPerf);
+            return { trace, wallTimeMs };
+          })(),
+          (async () => {
+            const startPerf = performance.now();
+            const trace = await runCopilotAgent(task, 'lore-enabled', repoPath, dbPath, COPILOT_OPTIONS);
+            const wallTimeMs = Math.round(performance.now() - startPerf);
+            return { trace, wallTimeMs };
+          })(),
+        ]);
 
-      const controlScore = scoreRun(task, controlTrace.trace, controlTrace.wallTimeMs);
+        // ── Score both arms and store results BEFORE assertions ────────────
+        // This ensures data is always captured in the aggregate report even
+        // when a soft expectation fails (e.g. loreToolsCalled empty).
+        const controlScore = scoreRun(task, controlTrace.trace, controlTrace.wallTimeMs);
+        const loreScore = scoreRun(task, loreTrace.trace, loreTrace.wallTimeMs);
 
-      expect(controlScore.wallTimeMs).toBeGreaterThan(0);
-      expect(controlScore.tokensUsed).toBeGreaterThan(0);
-      expect(controlScore.correctness).toBeGreaterThanOrEqual(0);
-      expect(controlScore.correctness).toBeLessThanOrEqual(1);
+        controlResults.set(resultKey, { score: controlScore, trace: controlTrace.trace });
+        loreResults.set(resultKey, { score: loreScore, trace: loreTrace.trace });
 
-      controlResults.set(task.id, { score: controlScore, trace: controlTrace.trace });
-      logArmResult('control', task, controlScore, controlTrace.trace);
+        logArmResult('control', task, controlScore, controlTrace.trace);
+        logArmResult('lore-enabled', task, loreScore, loreTrace.trace);
 
-      // ── Score and validate lore-enabled arm ─────────────────────────────
-      expect(loreTrace.trace.finalAnswer.length).toBeGreaterThan(0);
-      expect(loreTrace.trace.loreToolsCalled.length).toBeGreaterThan(0);
+        // ── Validate control arm ────────────────────────────────────────────
+        expect(controlTrace.trace.finalAnswer.length).toBeGreaterThan(0);
+        expect(controlTrace.trace.loreToolsCalled).toHaveLength(0);
+        expect(controlScore.wallTimeMs).toBeGreaterThan(0);
+        expect(controlScore.tokensUsed).toBeGreaterThan(0);
+        expect(controlScore.correctness).toBeGreaterThanOrEqual(0);
+        expect(controlScore.correctness).toBeLessThanOrEqual(1);
 
-      const loreScore = scoreRun(task, loreTrace.trace, loreTrace.wallTimeMs);
-
-      expect(loreScore.wallTimeMs).toBeGreaterThan(0);
-      expect(loreScore.tokensUsed).toBeGreaterThan(0);
-      expect(loreScore.correctness).toBeGreaterThanOrEqual(0);
-      expect(loreScore.correctness).toBeLessThanOrEqual(1);
-      expect(loreScore.loreToolCallCount).toBeGreaterThan(0);
-
-      loreResults.set(task.id, { score: loreScore, trace: loreTrace.trace });
-      logArmResult('lore-enabled', task, loreScore, loreTrace.trace);
-    }, 600_000); // 10 min timeout: two 3-min arms run concurrently
+        // ── Validate lore-enabled arm ───────────────────────────────────────
+        expect(loreTrace.trace.finalAnswer.length).toBeGreaterThan(0);
+        expect(loreTrace.trace.loreToolsCalled.length).toBeGreaterThan(0);
+        expect(loreScore.wallTimeMs).toBeGreaterThan(0);
+        expect(loreScore.tokensUsed).toBeGreaterThan(0);
+        expect(loreScore.correctness).toBeGreaterThanOrEqual(0);
+        expect(loreScore.correctness).toBeLessThanOrEqual(1);
+        expect(loreScore.loreToolCallCount).toBeGreaterThan(0);
+      }, 600_000); // 10 min timeout: two 3-min arms run concurrently
+    }
   }
 
   // ─── Aggregate comparison ───────────────────────────────────────────────
 
   it('aggregate: full report — control vs lore-enabled', () => {
-    // Guard: all per-task tests must have completed
-    expect(controlResults.size).toBe(COPILOT_TASKS.length);
-    expect(loreResults.size).toBe(COPILOT_TASKS.length);
+    const totalExpectedRuns = COPILOT_TASKS.length * ITERATIONS;
 
-    // Collect scores in task order for deterministic reporting
+    // Collect scores for whichever tasks completed (report is always printed)
     const controlScores: RunScore[] = [];
     const loreScores: RunScore[] = [];
 
     for (const task of COPILOT_TASKS) {
-      const cr = controlResults.get(task.id)!;
-      const lr = loreResults.get(task.id)!;
-      controlScores.push(cr.score);
-      loreScores.push(lr.score);
+      for (let iter = 0; iter < ITERATIONS; iter++) {
+        const key = `${task.id}:${iter}`;
+        const cr = controlResults.get(key);
+        const lr = loreResults.get(key);
+        if (!cr || !lr) {
+          const iterLabel = ITERATIONS > 1 ? ` [iter ${iter + 1}]` : '';
+          console.log(`\n── ${task.id}${iterLabel} (${task.family}) ── SKIPPED (no result captured)`);
+          continue;
+        }
+        controlScores.push(cr.score);
+        loreScores.push(lr.score);
 
-      const tokenDelta = lr.score.tokensUsed - cr.score.tokensUsed;
-      const tokenPct = cr.score.tokensUsed ? ((tokenDelta / cr.score.tokensUsed) * 100).toFixed(0) : 'N/A';
-      const wallDelta = lr.score.wallTimeMs - cr.score.wallTimeMs;
-      const wallPct = cr.score.wallTimeMs ? ((wallDelta / cr.score.wallTimeMs) * 100).toFixed(0) : 'N/A';
-      const correctDelta = lr.score.correctness - cr.score.correctness;
-      console.log(`\n── ${task.id} (${task.family}) ──`);
-      console.log(`  CONTROL: success=${cr.score.taskSuccess} correctness=${cr.score.correctness.toFixed(2)} ans=${cr.score.answerCoverage.toFixed(2)} file=${cr.score.fileCoverage.toFixed(2)} sym=${cr.score.symbolCoverage.toFixed(2)} tokens=${cr.score.tokensUsed} wall=${(cr.score.wallTimeMs / 1000).toFixed(1)}s`);
-      console.log(`    tools: ${formatToolFrequency(cr.trace.toolCalls)}`);
-      console.log(`  LORE:    success=${lr.score.taskSuccess} correctness=${lr.score.correctness.toFixed(2)} ans=${lr.score.answerCoverage.toFixed(2)} file=${lr.score.fileCoverage.toFixed(2)} sym=${lr.score.symbolCoverage.toFixed(2)} tokens=${lr.score.tokensUsed} wall=${(lr.score.wallTimeMs / 1000).toFixed(1)}s`);
-      console.log(`    tools: ${formatToolFrequency(lr.trace.toolCalls)}`);
-      console.log(`  DELTA:   correctness=${correctDelta >= 0 ? '+' : ''}${correctDelta.toFixed(2)}  tokens=${tokenDelta > 0 ? '+' : ''}${tokenDelta} (${tokenDelta > 0 ? '+' : ''}${tokenPct}%)  wall=${wallDelta > 0 ? '+' : ''}${(wallDelta / 1000).toFixed(1)}s (${wallDelta > 0 ? '+' : ''}${wallPct}%)`);
-      if (lr.score.correctness < cr.score.correctness) {
-        const loreDiag = diagnoseExpectations(task, lr.trace);
-        console.log(`  ⚠ LORE WORSE on correctness — missed: [${loreDiag.correctnessDetail.missed.join(', ')}]`);
-      }
-      if (lr.score.tokensUsed > cr.score.tokensUsed * 1.5) {
-        console.log(`  ⚠ LORE 50%+ MORE TOKENS — review tool strategy`);
-      }
-      if (lr.score.wallTimeMs > cr.score.wallTimeMs * 1.5) {
-        console.log(`  ⚠ LORE 50%+ SLOWER — review tool strategy`);
+        const iterLabel = ITERATIONS > 1 ? ` [iter ${iter + 1}]` : '';
+        const tokenDelta = lr.score.tokensUsed - cr.score.tokensUsed;
+        const tokenPct = cr.score.tokensUsed ? ((tokenDelta / cr.score.tokensUsed) * 100).toFixed(0) : 'N/A';
+        const wallDelta = lr.score.wallTimeMs - cr.score.wallTimeMs;
+        const wallPct = cr.score.wallTimeMs ? ((wallDelta / cr.score.wallTimeMs) * 100).toFixed(0) : 'N/A';
+        const correctDelta = lr.score.correctness - cr.score.correctness;
+        console.log(`\n── ${task.id}${iterLabel} (${task.family}) ──`);
+        console.log(`  CONTROL: success=${cr.score.taskSuccess} correctness=${cr.score.correctness.toFixed(2)} ans=${cr.score.answerCoverage.toFixed(2)} file=${cr.score.fileCoverage.toFixed(2)} sym=${cr.score.symbolCoverage.toFixed(2)} tokens=${cr.score.tokensUsed} wall=${(cr.score.wallTimeMs / 1000).toFixed(1)}s`);
+        console.log(`    tools: ${formatToolFrequency(cr.trace.toolCalls)}`);
+        console.log(`  LORE:    success=${lr.score.taskSuccess} correctness=${lr.score.correctness.toFixed(2)} ans=${lr.score.answerCoverage.toFixed(2)} file=${lr.score.fileCoverage.toFixed(2)} sym=${lr.score.symbolCoverage.toFixed(2)} tokens=${lr.score.tokensUsed} wall=${(lr.score.wallTimeMs / 1000).toFixed(1)}s`);
+        console.log(`    tools: ${formatToolFrequency(lr.trace.toolCalls)}`);
+        console.log(`  DELTA:   correctness=${correctDelta >= 0 ? '+' : ''}${correctDelta.toFixed(2)}  tokens=${tokenDelta > 0 ? '+' : ''}${tokenDelta} (${tokenDelta > 0 ? '+' : ''}${tokenPct}%)  wall=${wallDelta > 0 ? '+' : ''}${(wallDelta / 1000).toFixed(1)}s (${wallDelta > 0 ? '+' : ''}${wallPct}%)`);
+        if (lr.score.correctness < cr.score.correctness) {
+          const loreDiag = diagnoseExpectations(task, lr.trace);
+          console.log(`  ⚠ LORE WORSE on correctness — missed: [${loreDiag.correctnessDetail.missed.join(', ')}]`);
+        }
+        if (lr.score.tokensUsed > cr.score.tokensUsed * 1.5) {
+          console.log(`  ⚠ LORE 50%+ MORE TOKENS — review tool strategy`);
+        }
+        if (lr.score.wallTimeMs > cr.score.wallTimeMs * 1.5) {
+          console.log(`  ⚠ LORE 50%+ SLOWER — review tool strategy`);
+        }
       }
     }
 
-    const controlReport = aggregateScores('control', controlScores);
-    const loreReport = aggregateScores('lore-enabled', loreScores);
+    // Always print the report, even with partial results
+    if (controlScores.length > 0 && loreScores.length > 0) {
+      const controlReport = aggregateScores('control', controlScores);
+      const loreReport = aggregateScores('lore-enabled', loreScores);
 
-    console.log('\n\n═══════════════════════════════════════');
-    console.log('         BENCHMARK RESULTS');
-    console.log('═══════════════════════════════════════\n');
-    console.log(`Model: ${COPILOT_OPTIONS.model}`);
-    console.log(`Tasks: ${COPILOT_TASKS.length}\n`);
-    console.log(formatReport(controlReport));
-    console.log('\n' + formatReport(loreReport));
-    console.log('\n' + compareReports(controlReport, loreReport));
+      console.log('\n\n═══════════════════════════════════════');
+      console.log('         BENCHMARK RESULTS');
+      console.log('═══════════════════════════════════════\n');
+      console.log(`Model: ${COPILOT_OPTIONS.model}`);
+      console.log(`Tasks: ${COPILOT_TASKS.length}`);
+      console.log(`Iterations: ${ITERATIONS}`);
+      console.log(`Completed runs: ${controlScores.length}/${totalExpectedRuns}\n`);
+      console.log(formatReport(controlReport));
+      console.log('\n' + formatReport(loreReport));
+      console.log('\n' + compareReports(controlReport, loreReport));
 
-    // Both arms should complete all tasks
-    expect(controlReport.totalRuns).toBe(COPILOT_TASKS.length);
-    expect(loreReport.totalRuns).toBe(COPILOT_TASKS.length);
-
-    // Lore arm should use Lore tools
-    expect(loreReport.loreToolUsageRate).toBeGreaterThan(0);
-
-    // Wallclock time and tokens should be non-zero across all runs
-    expect(controlReport.meanWallTimeMs).toBeGreaterThan(0);
-    expect(loreReport.meanWallTimeMs).toBeGreaterThan(0);
-    expect(controlReport.meanTokens).toBeGreaterThan(0);
-    expect(loreReport.meanTokens).toBeGreaterThan(0);
-
-    // Correctness should be computed for both arms
-    expect(controlReport.meanCorrectness).toBeGreaterThanOrEqual(0);
-    expect(loreReport.meanCorrectness).toBeGreaterThanOrEqual(0);
+      // Assertions come AFTER the report is printed
+      expect(controlReport.totalRuns).toBe(totalExpectedRuns);
+      expect(loreReport.totalRuns).toBe(totalExpectedRuns);
+      expect(loreReport.loreToolUsageRate).toBeGreaterThan(0);
+      expect(controlReport.meanWallTimeMs).toBeGreaterThan(0);
+      expect(loreReport.meanWallTimeMs).toBeGreaterThan(0);
+      expect(controlReport.meanTokens).toBeGreaterThan(0);
+      expect(loreReport.meanTokens).toBeGreaterThan(0);
+      expect(controlReport.meanCorrectness).toBeGreaterThanOrEqual(0);
+      expect(loreReport.meanCorrectness).toBeGreaterThanOrEqual(0);
+    } else {
+      console.log('\n⚠ No completed task pairs to report on.\n');
+      expect(controlScores.length).toBeGreaterThan(0);
+    }
   });
 });
