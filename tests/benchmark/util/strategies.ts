@@ -359,13 +359,13 @@ function inheritanceLoreSteps(task: BenchmarkTask): ScriptedStep[] {
 
 function cyclesLoreSteps(_task: BenchmarkTask): ScriptedStep[] {
   return [
-    { toolName: 'lore_analyze', args: { mode: 'cycles' } },
+    { toolName: 'lore_graph', args: { kind: 'import' } },
   ];
 }
 
 function moduleSummaryLoreSteps(_task: BenchmarkTask): ScriptedStep[] {
   return [
-    { toolName: 'lore_analyze', args: { mode: 'summary' } },
+    { toolName: 'lore_graph', args: { kind: 'import' } },
   ];
 }
 
@@ -384,12 +384,7 @@ function compositeModifyLoreSteps(task: BenchmarkTask): ScriptedStep[] {
       toolName: 'lore_test_map',
       args: { file_path: '' }, // Would be filled from step 1
     });
-    // Step 3: Check coverage
-    steps.push({
-      toolName: 'lore_coverage',
-      args: { file_path: '' },
-    });
-    // Step 4: Check ownership
+    // Step 3: Check ownership
     steps.push({
       toolName: 'lore_blame',
       args: { file_path: '', mode: 'ownership' },
@@ -561,9 +556,9 @@ export function buildDynamicLoreStrategy(task: BenchmarkTask): ProgrammaticAgent
           case '7.2':
             return { toolName: 'lore_search', args: { query: symbols[0] ?? task.prompt, mode: 'structural' } };
           case '8.1':
-            return { toolName: 'lore_analyze', args: { mode: 'cycles' } };
+            return { toolName: 'lore_graph', args: { kind: 'import' } };
           case '3.3':
-            return { toolName: 'lore_analyze', args: { mode: 'summary' } };
+            return { toolName: 'lore_graph', args: { kind: 'import' } };
           case '10.2':
             if (filePath) return { toolName: 'lore_lookup', args: { kind: 'symbol', path_prefix: filePath } };
             break;
@@ -582,7 +577,6 @@ export function buildDynamicLoreStrategy(task: BenchmarkTask): ProgrammaticAgent
       // Phase 3: Additional chain steps for composite questions
       if (task.questionId === '11.1') {
         const testMapDone = history.some((h) => h.toolName === 'lore_test_map');
-        const coverageDone = history.some((h) => h.toolName === 'lore_coverage');
         const blameDone = history.some((h) => h.toolName === 'lore_blame');
 
         // Get file path from any previous result
@@ -594,9 +588,6 @@ export function buildDynamicLoreStrategy(task: BenchmarkTask): ProgrammaticAgent
 
         if (!testMapDone && filePath) {
           return { toolName: 'lore_test_map', args: { file_path: filePath } };
-        }
-        if (!coverageDone && filePath) {
-          return { toolName: 'lore_coverage', args: { file_path: filePath } };
         }
         if (!blameDone && filePath) {
           return { toolName: 'lore_blame', args: { file_path: filePath, mode: 'ownership' } };

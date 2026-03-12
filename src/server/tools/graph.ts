@@ -16,8 +16,8 @@ import type { ResolutionMethod } from '../../resolution/resolution-method.js';
 export const toolDef = {
   name: 'lore_graph',
   description:
-    'Query call, import, module, inheritance, or type dependency graph edges stored in the knowledge-base index. ' +
-    'Set `kind` to "call", "import", "module", "inheritance", or "type_dependency". ' +
+    'Query call, import, inheritance, or type dependency graph edges stored in the knowledge-base index. ' +
+    'Set `kind` to "call", "import", "inheritance", or "type_dependency". ' +
     'Use source_id for outbound edges (what does X call?) and target_id for inbound edges (who calls X?). ' +
     'Set depth > 1 to follow transitive edges (e.g., depth=3 returns the full 3-hop blast radius in one call). ' +
     'Set compact=true to omit provenance fields (line numbers, resolution details) and reduce token count. ' +
@@ -27,10 +27,10 @@ export const toolDef = {
     properties: {
       kind: {
         type: 'string',
-        enum: ['call', 'import', 'module', 'inheritance', 'type_dependency'],
+        enum: ['call', 'import', 'inheritance', 'type_dependency'],
         description:
           '"call" returns symbol → callee edges; "import" returns file → imported-file edges; ' +
-          '"module" returns module → imported-module edges; "inheritance" returns symbol → base-symbol edges; ' +
+          '"inheritance" returns symbol → base-symbol edges; ' +
           '"type_dependency" returns symbol → referenced-type edges.',
       },
       source_id: {
@@ -93,7 +93,7 @@ export const toolDef = {
 
 // ─── Handler ──────────────────────────────────────────────────────────────────
 
-type GraphKind = 'call' | 'import' | 'module' | 'inheritance' | 'type_dependency';
+type GraphKind = 'call' | 'import' | 'inheritance' | 'type_dependency';
 
 export interface GraphArgs {
   kind: GraphKind;
@@ -147,21 +147,13 @@ export interface GraphResult {
 }
 
 export interface GraphSemanticNode {
-  node_type: 'symbol' | 'module';
+  node_type: 'symbol';
   id: number;
   name: string;
   branch: string;
   score: number;
   kind: string;
   file_path?: string;
-}
-
-interface ModuleMappingRow {
-  symbol_id: number;
-  module_id: number;
-  module_name: string;
-  module_kind: string;
-  source_branch: string;
 }
 
 function hasVirtualTable(db: Database.Database, name: string): boolean {
@@ -271,50 +263,6 @@ function getStructuralEdges(
     const edges = db.prepare(sql).all(...params) as GraphEdge[];
 
     return edges;
-  } else if (args.kind === 'module') {
-    // Module-level: inferred from file_imports + file_modules.
-    // NOTE: No writer populates `modules`/`file_modules` — this query returns
-    // empty results until a module-detection writer is implemented.
-    // The INNER JOIN on file_modules ensures graceful empty results.
-    const conditions: string[] = [];
-    const params: Array<string | number> = [];
-
-    if (args.source_id !== undefined) {
-      conditions.push('m_src.id = ?');
-      params.push(args.source_id);
-    }
-    if (args.target_id !== undefined) {
-      conditions.push('m_dst.id = ?');
-      params.push(args.target_id);
-    }
-    if (args.branch !== undefined) {
-      conditions.push('f_src.branch = ?');
-      params.push(args.branch);
-    }
-
-    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-    params.push(limit);
-
-    const sql =
-      `SELECT DISTINCT
-               m_src.id AS source_id,
-               m_src.name AS source_name,
-               f_src.branch AS source_branch,
-               m_dst.id AS target_id,
-               COALESCE(m_dst.name, fi.raw_import) AS target_name
-          FROM file_imports fi
-          JOIN files f_src ON f_src.id = fi.file_id
-          JOIN file_modules fm_src ON fm_src.file_id = f_src.id
-          JOIN modules m_src ON m_src.id = fm_src.module_id
-          LEFT JOIN files f_dst ON f_dst.id = fi.resolved_id
-          LEFT JOIN file_modules fm_dst ON fm_dst.file_id = f_dst.id
-          LEFT JOIN modules m_dst ON m_dst.id = fm_dst.module_id
-         ${whereClause}
-         LIMIT ?`;
-
-    const edges = db.prepare(sql).all(...params) as GraphEdge[];
-
-    return edges;
   } else if (args.kind === 'inheritance') {
     // Symbol-level inheritance edges (e.g., class extends, implements)
     const conditions: string[] = ["rel.relationship_type IN ('extends', 'implements')"];
@@ -413,29 +361,6 @@ function getStructuralEdges(
 
     return edges;
   }
-}
-
-function getSemanticModuleMappings(
-  db: Database.Database,
-  symbolIds: number[],
-): ModuleMappingRow[] {
-  if (symbolIds.length === 0) {
-    return [];
-  }
-
-  const placeholders = symbolIds.map(() => '?').join(', ');
-  return db.prepare(
-    `SELECT s.id AS symbol_id,
-            m.id AS module_id,
-            m.name AS module_name,
-            m.kind AS module_kind,
-            f.branch AS source_branch
-       FROM symbols s
-       JOIN files f ON f.id = s.file_id
-       JOIN file_modules fm ON fm.file_id = f.id
-       JOIN modules m ON m.id = fm.module_id
-      WHERE s.id IN (${placeholders})`,
-  ).all(...symbolIds) as ModuleMappingRow[];
 }
 
 function compactEdge(edge: GraphEdge): CompactGraphEdge {
@@ -576,37 +501,9 @@ function finishResult(
     file_path: row.file_path,
   }));
 
-  const scoreBySymbolId = new Map(filteredSymbols.map((row) => [row.id, row.score]));
-  const moduleNodesByKey = new Map<string, GraphSemanticNode>();
-  const moduleMappings = getSemanticModuleMappings(db, Array.from(scoreBySymbolId.keys()));
-  for (const mapping of moduleMappings) {
-    const symbolScore = scoreBySymbolId.get(mapping.symbol_id);
-    if (symbolScore === undefined) {
-      continue;
-    }
-    const moduleKey = `${mapping.module_id}:${mapping.source_branch}`;
-    const existing = moduleNodesByKey.get(moduleKey);
-    if (!existing || symbolScore < existing.score) {
-      moduleNodesByKey.set(moduleKey, {
-        node_type: 'module',
-        id: mapping.module_id,
-        name: mapping.module_name,
-        branch: mapping.source_branch,
-        score: symbolScore,
-        kind: mapping.module_kind,
-      });
-    }
-  }
-
-  const moduleNodes = Array.from(moduleNodesByKey.values()).sort((a, b) =>
-    a.score - b.score
-    || a.branch.localeCompare(b.branch)
-    || a.name.localeCompare(b.name)
-    || a.id - b.id);
-
   return {
     edges: finalEdges,
-    semantic_nodes: [...symbolNodes, ...moduleNodes],
+    semantic_nodes: symbolNodes,
     mode_used: 'semantic',
     depth_used: depth,
   };

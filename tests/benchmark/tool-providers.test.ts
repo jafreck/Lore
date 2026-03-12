@@ -40,9 +40,7 @@ describe('buildToolsForArm – control', () => {
     expect(toolNames).toContain('lore_test_map');
     expect(toolNames).toContain('lore_metrics');
     expect(toolNames).toContain('lore_blame');
-    expect(toolNames).toContain('lore_coverage');
     expect(toolNames).toContain('lore_history');
-    expect(toolNames).toContain('lore_annotations');
   });
 
   it('stub Lore tools should return "not available"', async () => {

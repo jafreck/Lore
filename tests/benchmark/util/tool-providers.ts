@@ -24,7 +24,6 @@ const LORE_TOOL_NAMES = [
   'lore_lookup',
   'lore_search',
   'lore_graph',
-  'lore_graph_analysis',
   'lore_docs',
   'lore_routes',
   'lore_notes',
@@ -32,10 +31,7 @@ const LORE_TOOL_NAMES = [
   'lore_snippet',
   'lore_blame',
   'lore_metrics',
-  'lore_coverage',
-  'lore_writeback',
   'lore_history',
-  'lore_annotations',
 ] as const;
 
 // ─── Base tools (available in all arms) ───────────────────────────────────────
@@ -174,39 +170,33 @@ async function buildLoreTools(dbPath: string, embedder?: EmbeddingProvider): Pro
 
   // Import each tool module individually to preserve type information
   const [
-    lookup, search, graph, graphAnalysis, docs, routes,
-    testMap, snippet, blame, metrics, coverage,
-    history, annotations,
+    lookup, search, graph, docs, routes,
+    testMap, snippet, blame, metrics,
+    history,
   ] = await Promise.all([
     import('../../../src/server/tools/lookup.js'),
     import('../../../src/server/tools/search.js'),
     import('../../../src/server/tools/graph.js'),
-    import('../../../src/server/tools/graph-analysis.js'),
     import('../../../src/server/tools/docs.js'),
     import('../../../src/server/tools/routes.js'),
     import('../../../src/server/tools/test-map.js'),
     import('../../../src/server/tools/snippet.js'),
     import('../../../src/server/tools/blame.js'),
     import('../../../src/server/tools/metrics.js'),
-    import('../../../src/server/tools/coverage.js'),
     import('../../../src/server/tools/history.js'),
-    import('../../../src/server/tools/annotations.js'),
   ]);
 
   return [
     wrapTool(lookup.toolDef.name, lookup.toolDef.description, (args) => lookup.handler(db, args as any, embedder)),
     wrapTool(search.toolDef.name, search.toolDef.description, (args) => search.handler(db, args as any, embedder)),
     wrapTool(graph.toolDef.name, graph.toolDef.description, (args) => graph.handler(db, args as any)),
-    wrapTool(graphAnalysis.toolDef.name, graphAnalysis.toolDef.description, (args) => graphAnalysis.handler(db, args as any)),
     wrapTool(docs.toolDef.name, docs.toolDef.description, (args) => docs.handler(db, args as any)),
     wrapTool(routes.toolDef.name, routes.toolDef.description, (args) => routes.handler(db, args as any)),
     wrapTool(testMap.toolDef.name, testMap.toolDef.description, (args) => testMap.handler(db, args as any)),
     wrapTool(snippet.toolDef.name, snippet.toolDef.description, (args) => snippet.handler(db, args as any)),
     wrapTool(blame.toolDef.name, blame.toolDef.description, (args) => blame.handler(db, args as any)),
     wrapTool(metrics.toolDef.name, metrics.toolDef.description, (args) => metrics.handler(db, args as any)),
-    wrapTool(coverage.toolDef.name, coverage.toolDef.description, (args) => coverage.handler(db, args as any)),
     wrapTool(history.toolDef.name, history.toolDef.description, (args) => history.handler(db, args as any)),
-    wrapTool(annotations.toolDef.name, annotations.toolDef.description, (args) => annotations.handler(db, args as any)),
   ];
 }
 

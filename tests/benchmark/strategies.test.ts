@@ -140,7 +140,7 @@ describe('buildLoreStrategy', () => {
     expect(toolNames).toContain('lore_metrics');
   });
 
-  it('should use lore_analyze for module summary questions (3.3)', () => {
+  it('should use lore_graph for module summary questions (3.3)', () => {
     const task = makeTask({
       questionId: '3.3',
       prompt: 'What are the top-level modules and how do they depend on each other?',
@@ -148,7 +148,7 @@ describe('buildLoreStrategy', () => {
     });
     const strategy = buildLoreStrategy(task);
     const toolNames = strategy.steps.map((s) => s.toolName);
-    expect(toolNames).toContain('lore_analyze');
+    expect(toolNames).toContain('lore_graph');
   });
 
   it('should use lore_graph inheritance for interface implementation questions (2.1)', () => {
@@ -162,7 +162,7 @@ describe('buildLoreStrategy', () => {
     expect(toolNames).toContain('lore_graph');
   });
 
-  it('should use lore_analyze for cycle detection questions (8.1)', () => {
+  it('should use lore_graph for cycle detection questions (8.1)', () => {
     const task = makeTask({
       questionId: '8.1',
       prompt: 'Are there any circular dependencies between source files?',
@@ -170,7 +170,7 @@ describe('buildLoreStrategy', () => {
     });
     const strategy = buildLoreStrategy(task);
     const toolNames = strategy.steps.map((s) => s.toolName);
-    expect(toolNames).toContain('lore_analyze');
+    expect(toolNames).toContain('lore_graph');
   });
 
   it('should use lore_search for symbol search questions (7.2)', () => {
@@ -203,7 +203,6 @@ describe('buildLoreStrategy', () => {
     const toolNames = strategy.steps.map((s) => s.toolName);
     expect(toolNames).toContain('lore_lookup');
     expect(toolNames).toContain('lore_test_map');
-    expect(toolNames).toContain('lore_coverage');
     expect(toolNames).toContain('lore_blame');
   });
 

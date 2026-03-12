@@ -15,7 +15,6 @@
  *   lore_snippet   — source-code snippet extraction
  *   lore_blame     — git blame metadata for file lines
  *   lore_metrics   — aggregate code metrics
- *   lore_writeback — LLM summary write-back
  *   lore_history   — git commit history queries
  *
  * Standalone usage:
@@ -45,10 +44,7 @@ import * as testMap from './tools/test-map.js';
 import * as snippet from './tools/snippet.js';
 import * as blame from './tools/blame.js';
 import * as metrics from './tools/metrics.js';
-import * as coverage from './tools/coverage.js';
-import * as writeback from './tools/writeback.js';
 import * as history from './tools/history.js';
-import * as annotationsMod from './tools/annotations.js';
 
 // ─── Server options ───────────────────────────────────────────────────────────
 
@@ -66,7 +62,7 @@ export interface LoreServerOptions {
  * Create and return a fully-configured `McpServer` with all Lore tools registered.
  *
  * @param db       Read-only SQLite connection to the knowledge-base.
- * @param dbPath   Path to the DB file, needed by `lore_writeback` for write access.
+ * @param dbPath   Path to the DB file, needed by write tools for write access.
  * @param embedder Optional live embedding provider for semantic/fused search.
  * @param options  Optional server configuration (e.g. search observer).
  */
@@ -141,10 +137,7 @@ function buildToolModulesSync(): ToolModule[] {
     { def: snippet.toolDef, handlerFactory: (deps) => (args) => snippet.handler(deps.db, args) },
     { def: blame.toolDef, handlerFactory: (deps) => (args) => blame.handler(deps.db, args) },
     { def: metrics.toolDef, handlerFactory: (deps) => (args) => metrics.handler(deps.db, args ?? {}) },
-    { def: coverage.toolDef, handlerFactory: (deps) => (args) => coverage.handler(deps.db, args) },
-    { def: writeback.toolDef, handlerFactory: (deps) => (args) => writeback.handler(deps.dbPath, args) },
     { def: history.toolDef, handlerFactory: (deps) => (args) => history.handler(deps.db, args, deps.embedder) },
-    { def: annotationsMod.toolDef, handlerFactory: (deps) => (args) => annotationsMod.handler(deps.db, args) },
   ];
 }
 
