@@ -4,13 +4,11 @@ import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
 import {
-  buildDocNoteScope,
   DEFAULT_DOC_EXTENSIONS,
   DEFAULT_DOC_INCLUDE_GLOBS,
   discoverDocumentationFiles,
   inferDocumentChunks,
   inferDocumentKind,
-  inferSeededDocNoteKey,
   inferDocumentSections,
   inferDocumentTitle,
 } from '../../src/docs/docs.js';
@@ -123,38 +121,6 @@ describe('discoverDocumentationFiles', () => {
 describe('inferDocumentKind', () => {
   it('should return reference for unmatched document names', () => {
     expect(inferDocumentKind('/repo/specification.md')).toBe('reference');
-  });
-});
-
-describe('inferSeededDocNoteKey', () => {
-  it('should return deterministic keys for readme, architecture, and adr docs', () => {
-    expect(inferSeededDocNoteKey({ path: '/repo/README.md', kind: 'readme' })).toBe('docs/readme');
-    expect(inferSeededDocNoteKey({ path: '/repo/ARCHITECTURE.md', kind: 'architecture' })).toBe('docs/architecture');
-    expect(inferSeededDocNoteKey({ path: '/repo/docs/adrs/0007-api-boundaries.md', kind: 'adr' })).toBe(
-      'docs/adr/0007-api-boundaries',
-    );
-    expect(inferSeededDocNoteKey({ path: '/repo/docs/adrs/---.md', kind: 'adr' })).toBe('docs/adr/doc');
-  });
-
-  it('should return scoped architecture keys for non-canonical architecture filenames', () => {
-    expect(inferSeededDocNoteKey({ path: '/repo/docs/architecture-overview.md', kind: 'architecture' })).toBe(
-      'docs/architecture/architecture-overview',
-    );
-    expect(inferSeededDocNoteKey({ path: '/repo/docs/arch.md', kind: 'architecture' })).toBe('docs/architecture');
-  });
-
-  it('should return null for non-seedable document kinds', () => {
-    expect(inferSeededDocNoteKey({ path: '/repo/docs/guide.md', kind: 'guide' })).toBe(null);
-    expect(inferSeededDocNoteKey({ path: '/repo/CHANGELOG.md', kind: 'changelog' })).toBe(null);
-  });
-});
-
-describe('buildDocNoteScope', () => {
-  it('should build a stable doc scope from path and branch', () => {
-    expect(buildDocNoteScope('/repo/docs/README.md', 'main')).toBe('doc:/repo/docs/README.md@main');
-    expect(buildDocNoteScope('/repo/docs/README.md', 'feature/docs-seed')).toBe(
-      'doc:/repo/docs/README.md@feature/docs-seed',
-    );
   });
 });
 

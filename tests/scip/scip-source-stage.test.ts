@@ -89,7 +89,6 @@ function makeContext(rootDir: string, dbPath: string): PipelineContext {
     files: [],
     indexDependencies: false,
     history: false,
-    docsAutoNotes: false,
     staleSymbolIds: [],
     changedSourcePaths: [],
     changedDocPaths: [],
