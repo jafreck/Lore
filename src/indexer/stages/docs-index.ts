@@ -2,7 +2,7 @@
  * @module indexer/stages/docs-index
  *
  * Pipeline stage: walk documentation files, chunk by headings, insert into
- * the database, and optionally seed notes from documentation content.
+ * the database.
  */
 
 import * as fs from 'node:fs';
@@ -10,7 +10,6 @@ import type { PipelineContext, PipelineStage } from '../pipeline.js';
 import type { Database } from '../../db/schema.js';
 import { walkDocumentationFiles } from '../../discovery/walker.js';
 import type { DocumentationFile } from '../../docs/docs.js';
-import { inferSeededDocNoteKey, buildDocNoteScope } from '../../docs/docs.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -19,16 +18,10 @@ interface DocumentationRow {
   content_hash: string;
 }
 
-interface SeededNoteRow {
-  content: string;
-  source_hash: string | null;
-}
-
 // ─── Stage ────────────────────────────────────────────────────────────────────
 
 /**
  * Walk documentation files, chunk by headings, and persist to the database.
- * Optionally seeds notes from documentation content.
  */
 export class DocsIndexStage implements PipelineStage {
   readonly name = 'docs-index';
@@ -45,9 +38,6 @@ export class DocsIndexStage implements PipelineStage {
         for (const doc of docs) {
           seenDocPaths.add(doc.path);
           processDocumentationFile(db, doc, branch);
-          if (context.docsAutoNotes) {
-            upsertSeededDocumentationNote(db, doc, branch);
-          }
         }
         removeStaleDocumentation(db, branch, seenDocPaths);
       })();
@@ -62,7 +52,6 @@ export class DocsIndexStage implements PipelineStage {
           const changedDoc = docsByPath.get(filePath);
           if (changedDoc) {
             processDocumentationFile(db, changedDoc, branch);
-            if (context.docsAutoNotes) upsertSeededDocumentationNote(db, changedDoc, branch);
             context.changedDocPaths.push(filePath);
           } else {
             deleteDocumentationByPath(db, filePath, branch);
@@ -149,34 +138,6 @@ export function processDocumentationFile(
        WHERE id IN (${staleSectionIds.map(() => '?').join(', ')})`,
     ).run(...staleSectionIds);
   }
-}
-
-export function upsertSeededDocumentationNote(
-  db: Database.Database,
-  doc: DocumentationFile,
-  branch: string,
-): void {
-  const key = inferSeededDocNoteKey(doc);
-  if (!key) return;
-
-  const scope = buildDocNoteScope(doc.path, branch);
-  const existing = db.prepare(
-    'SELECT content, source_hash FROM notes WHERE key = ? AND scope = ?',
-  ).get(key, scope) as SeededNoteRow | undefined;
-
-  if (existing?.content === doc.content && existing.source_hash === doc.hash) {
-    return;
-  }
-
-  db.prepare(
-    `INSERT INTO notes (key, scope, content, model, source_hash, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, unixepoch(), unixepoch())
-     ON CONFLICT(key, scope) DO UPDATE SET
-       content = excluded.content,
-       model = excluded.model,
-       source_hash = excluded.source_hash,
-       updated_at = unixepoch()`,
-  ).run(key, scope, doc.content, 'system:auto-doc-seed', doc.hash);
 }
 
 function deleteDocumentationByPath(db: Database.Database, docPath: string, branch: string): void {

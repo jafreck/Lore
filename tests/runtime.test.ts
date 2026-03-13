@@ -19,7 +19,6 @@ function stubConfig(overrides: Partial<RuntimeConfig> = {}): RuntimeConfig {
     scip: null,
     history: false,
     indexDependencies: false,
-    docsAutoNotes: true,
     refreshMode: 'none',
     ...overrides,
   };
