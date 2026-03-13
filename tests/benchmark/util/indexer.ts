@@ -73,7 +73,6 @@ export async function indexRepo(
   try {
     const builder = new IndexBuilder(dbPath, walkerConfig, embedder, {
       history: { depth: historyDepth },
-      docsAutoNotes: true,
       indexDependencies: false,
       scip: scip ?? undefined,
       lsp: lsp ?? undefined,

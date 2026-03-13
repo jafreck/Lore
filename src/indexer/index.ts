@@ -57,7 +57,6 @@ import {
 interface IndexBuilderOptions {
   history?: boolean | { depth?: number; all?: boolean };
   embeddingModel?: string;
-  docsAutoNotes?: boolean;
   indexDependencies?: boolean;
   lsp?: EffectiveLspSettings;
   scip?: EffectiveScipSettings;
@@ -84,7 +83,6 @@ export class IndexBuilder {
   private readonly history: boolean | { depth?: number; all?: boolean };
   private readonly indexDependencies: boolean;
   private readonly embeddingModel: string;
-  private readonly docsAutoNotes: boolean;
   private readonly lspSettings: EffectiveLspSettings | null;
   private readonly scipSettings: EffectiveScipSettings | null;
 
@@ -111,7 +109,6 @@ export class IndexBuilder {
     }
 
     this.history = opts.history ?? false;
-    this.docsAutoNotes = opts.docsAutoNotes ?? true;
     this.indexDependencies = opts.indexDependencies ?? false;
     this.lspSettings = opts.lsp ?? null;
     this.scipSettings = opts.scip ?? null;
@@ -166,7 +163,6 @@ export class IndexBuilder {
       files: [],
       indexDependencies: this.indexDependencies,
       history: this.history,
-      docsAutoNotes: this.docsAutoNotes,
       staleSymbolIds: [],
       changedSourcePaths: [],
       changedDocPaths: [],
@@ -231,7 +227,6 @@ export class IndexBuilder {
       files: [],
       indexDependencies: this.indexDependencies,
       history: this.history,
-      docsAutoNotes: this.docsAutoNotes,
       changedFiles,
       staleSymbolIds: [],
       changedSourcePaths: [],
