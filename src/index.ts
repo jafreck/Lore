@@ -62,7 +62,6 @@ export {
   DocsIndexStage,
   ImportResolutionStage,
   DependencyApiStage,
-  ScipEnrichmentStage,
   LspEnrichmentStage,
   EmbeddingStage,
 } from './indexer/stages/index.js';

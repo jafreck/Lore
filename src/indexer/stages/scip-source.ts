@@ -5,15 +5,22 @@
  * `symbol_refs`, `type_refs`, `symbol_relationships`, and `file_imports`
  * **directly from the SCIP index** — bypassing tree-sitter entirely.
  *
- * This is the SCIP-primary architecture.  SCIP is the source of truth for
- * both the symbol table and the call graph.  For each SCIP document:
+ * This is the single-pass SCIP architecture.  SCIP is the source of truth
+ * for the symbol table, the call graph, **and** enrichment metadata (type
+ * signatures, definition locations).  All data is written in one pass —
+ * there is no separate SCIP enrichment stage.
+ *
+ * For each SCIP document:
  *
  * 1. **Symbols**: Definition occurrences → `symbols` rows; kinds inferred
  *    from SCIP descriptor suffixes; spans from `enclosing_range`.
+ *    Enrichment columns (`resolved_type_signature`, `resolved_return_type`,
+ *    `definition_uri`, `definition_path`) are populated inline.
  * 2. **Refs**: Non-definition, non-local reference occurrences →
  *    `symbol_refs` rows with both `caller_id` and `callee_id` resolved
  *    using containment (which symbol's span encloses this ref?) and
  *    definition lookup (where is the referenced SCIP symbol defined?).
+ *    Enrichment columns are populated inline from the same SCIP data.
  *
  * SCIP refs are inserted **pre-resolved** with `resolution_method =
  * 'scip_definition'`.  The downstream resolution stage only processes
@@ -23,17 +30,22 @@
  *
  * Same tables as `SourceIndexStage`: `files`, `symbols`, `symbols_fts`,
  * `symbol_refs`, `type_refs`, `symbol_relationships`, `file_imports`.
+ * Additionally populates enrichment columns that were previously filled
+ * by the now-removed `ScipEnrichmentStage`.
  *
  * ## Pipeline ordering
  *
  * This stage runs **before** `SourceIndexStage`.  It stores which
- * languages and files it handled in `context.scipSourcedLanguages` and
- * `context.scipSourcedFiles` so the tree-sitter path can skip them.
+ * languages and files it handled in `context.scipSourcedLanguages`,
+ * `context.scipSourcedFiles`, and `context.scipCoveredLanguages` so the
+ * tree-sitter path can skip them and the LSP enrichment stage knows not
+ * to re-enrich these languages.
  */
 
 import * as fs from 'node:fs';
 import * as crypto from 'node:crypto';
 import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { fromBinary } from '@bufbuild/protobuf';
 import {
   IndexSchema,
@@ -48,6 +60,7 @@ import { normalizeTypeName } from '../../resolution/call-graph.js';
 import { SCIP_SUPPORTED_LANGUAGES, resolveScipIndexerRegistry } from '../../scip/registry.js';
 import type { EffectiveScipSettings } from '../../scip/config.js';
 import { getLogger } from '../../logger.js';
+import { extractReturnType } from '../../scip/index-reader.js';
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { execFile } from 'node:child_process';
@@ -376,23 +389,23 @@ export class ScipSourceStage implements PipelineStage {
        VALUES (?, ?, ?, ?, ?, ?)`,
     );
     const insertSymbol = db.prepare(
-      `INSERT INTO symbols (file_id, name, kind, start_line, end_line, signature, doc_comment)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO symbols (file_id, name, kind, start_line, end_line, signature, doc_comment, resolved_type_signature, resolved_return_type, definition_uri, definition_path)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     const insertCallRef = db.prepare(
-      `INSERT INTO symbol_refs (caller_id, file_id, callee_id, callee_name, call_line, call_character, call_kind, resolution_method)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO symbol_refs (caller_id, file_id, callee_id, callee_name, call_line, call_character, call_kind, resolution_method, resolved_type_signature, resolved_return_type, definition_uri, definition_path, definition_line, definition_character)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     const insertTypeRef = db.prepare(
-      `INSERT INTO type_refs (file_id, symbol_id, type_id, type_name, type_name_bare, ref_kind, ref_line, ref_character, resolution_method)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO type_refs (file_id, symbol_id, type_id, type_name, type_name_bare, ref_kind, ref_line, ref_character, resolution_method, resolved_type_signature, definition_uri, definition_path, definition_line, definition_character)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     const insertImport = db.prepare(
       'INSERT INTO file_imports (file_id, raw_import) VALUES (?, ?)',
     );
     const insertRelationship = db.prepare(
-      `INSERT INTO symbol_relationships (file_id, source_symbol_id, target_symbol_name, relationship_type, line, character, resolution_method)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO symbol_relationships (file_id, source_symbol_id, target_symbol_name, relationship_type, line, character, resolution_method, definition_uri, definition_path, definition_line, definition_character)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
 
     // Global map: SCIP symbol string → Lore numeric symbol ID (across all files)
@@ -496,10 +509,16 @@ export class ScipSourceStage implements PipelineStage {
           const signature = extractSignatureFromDoc(firstDoc);
           const docComment = symInfo.documentation.slice(1).join('\n').trim() || null;
 
+          // Compute enrichment data inline (definition + type signature)
+          const resolvedTypeSig = signature || null;
+          const resolvedReturnType = extractReturnType(resolvedTypeSig);
+          const definitionUri = pathToFileURL(absPath).toString();
+
           const info = insertSymbol.run(
             fileId, name, kind,
             defLoc.startLine, defLoc.endLine,
             signature || null, docComment,
+            resolvedTypeSig, resolvedReturnType, definitionUri, absPath,
           ) as { lastInsertRowid: number | bigint };
           const loreId = Number(info.lastInsertRowid);
           scipToLoreId.set(symInfo.symbol, loreId);
@@ -564,6 +583,10 @@ export class ScipSourceStage implements PipelineStage {
             // external package, so defLoc may be undefined.
             const defLoc = symbolDefinitions.get(symInfo.symbol);
 
+            // Resolve the target's definition location for enrichment
+            const targetDef = symbolDefinitions.get(rel.symbol);
+            const relDefUri = targetDef ? pathToFileURL(targetDef.filePath).toString() : null;
+
             insertRelationship.run(
               fileId,
               sourceId,
@@ -572,6 +595,10 @@ export class ScipSourceStage implements PipelineStage {
               defLoc?.line ?? null,
               defLoc?.character ?? null,
               targetId ? 'scip_definition' : 'unresolved',
+              relDefUri,
+              targetDef?.filePath ?? null,
+              targetDef?.line ?? null,
+              targetDef?.character ?? null,
             );
 
             // If we have both source and target IDs, update the resolved target
@@ -724,6 +751,13 @@ export class ScipSourceStage implements PipelineStage {
 
           if (refKind === 'type') {
             const typeRefKind = inferTypeRefKind(sourceLines, line, character);
+
+            // Resolve enrichment metadata for the referenced type
+            const refDef = symbolDefinitions.get(occ.symbol);
+            const refInfo = symbolInfoMap.get(occ.symbol);
+            const refSig = refInfo ? extractSignatureFromDoc(refInfo.documentation[0] ?? '') || null : null;
+            const refDefUri = refDef ? pathToFileURL(refDef.filePath).toString() : null;
+
             insertTypeRef.run(
               fileId,
               callerId,
@@ -734,10 +768,23 @@ export class ScipSourceStage implements PipelineStage {
               line,
               character,
               method,
+              refSig,
+              refDefUri,
+              refDef?.filePath ?? null,
+              refDef?.line ?? null,
+              refDef?.character ?? null,
             );
             typeRefsInserted++;
           } else {
             // refKind === 'call'
+
+            // Resolve enrichment metadata for the callee
+            const refDef = symbolDefinitions.get(occ.symbol);
+            const refInfo = symbolInfoMap.get(occ.symbol);
+            const refSig = refInfo ? extractSignatureFromDoc(refInfo.documentation[0] ?? '') || null : null;
+            const refReturnType = extractReturnType(refSig);
+            const refDefUri = refDef ? pathToFileURL(refDef.filePath).toString() : null;
+
             insertCallRef.run(
               callerId,
               fileId,
@@ -747,6 +794,12 @@ export class ScipSourceStage implements PipelineStage {
               character,
               'direct',
               method,
+              refSig,
+              refReturnType,
+              refDefUri,
+              refDef?.filePath ?? null,
+              refDef?.line ?? null,
+              refDef?.character ?? null,
             );
             refsInserted++;
             if (isExternal) refsExternal++;
@@ -768,6 +821,9 @@ export class ScipSourceStage implements PipelineStage {
     // Communicate coverage to downstream stages
     context.scipSourcedLanguages = coveredLanguages;
     context.scipSourcedFiles = coveredFiles;
+    // Also set scipCoveredLanguages so that LspEnrichmentStage skips
+    // languages already fully enriched by this single SCIP pass.
+    context.scipCoveredLanguages = coveredLanguages;
 
     // Add SCIP-sourced files to context.files so later stages process them
     for (const doc of scipIndex.documents) {

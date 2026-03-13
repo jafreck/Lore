@@ -60,7 +60,6 @@ describe('src/index.ts — public exports', () => {
     expect(typeof mod.DocsIndexStage).toBe('function');
     expect(typeof mod.ImportResolutionStage).toBe('function');
     expect(typeof mod.DependencyApiStage).toBe('function');
-    expect(typeof mod.ScipEnrichmentStage).toBe('function');
     expect(typeof mod.LspEnrichmentStage).toBe('function');
     expect(typeof mod.EmbeddingStage).toBe('function');
   });
@@ -108,7 +107,6 @@ describe('src/indexer/stages/index.ts — re-exports', () => {
     expect(typeof mod.DependencyApiStage).toBe('function');
     expect(typeof mod.LspEnrichmentStage).toBe('function');
     expect(typeof mod.EmbeddingStage).toBe('function');
-    expect(typeof mod.ScipEnrichmentStage).toBe('function');
     expect(typeof mod.ScipSourceStage).toBe('function');
   });
 });

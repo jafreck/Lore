@@ -14,11 +14,11 @@
  * ```
  *
  * `ScipSourceStage` runs first for SCIP-covered languages, populating
- * symbols AND refs directly with pre-resolved edges.  `SourceIndexStage`
- * then handles remaining languages via tree-sitter.
+ * symbols AND refs directly with pre-resolved edges and enrichment
+ * metadata (type signatures, definition locations) in a single pass.
+ * `SourceIndexStage` then handles remaining languages via tree-sitter.
  *
- * LSP enrichment is optional for both paths (adds type signatures to
- * SCIP-sourced symbols, enriches non-SCIP refs with definition data).
+ * LSP enrichment is optional (enriches non-SCIP refs with definition data).
  *
  * The resolution stage only processes refs that are still `unresolved`
  * (i.e. non-SCIP languages without LSP enrichment).
@@ -99,7 +99,7 @@ export interface PipelineContext {
 
   /**
    * Languages for which SCIP enrichment already provided data.
-   * Set by `ScipEnrichmentStage`; read by `LspEnrichmentStage` to skip
+   * Set by `ScipSourceStage`; read by `LspEnrichmentStage` to skip
    * languages that don't need LSP fallback.
    */
   scipCoveredLanguages?: ReadonlySet<string>;
