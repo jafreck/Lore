@@ -7,15 +7,17 @@
  * For full builds, `build()` delegates entirely to the pipeline which
  * enforces the data-dependency chain:
  * ```
- * ScipSourceStage → SourceIndexStage → DocsIndexStage
+ * ScipIndexerStage → SourceIndexStage → DocsIndexStage
  *   → ImportResolutionStage → DependencyApiStage
  *   → LspEnrichmentStage → ResolutionStage → TestMapStage
  *   → HistoryStage → EmbeddingStage
  * ```
  *
- * `ScipSourceStage` now populates both structural data (symbols, refs)
+ * `ScipIndexerStage` now populates both structural data (symbols, refs)
  * and enrichment metadata (type signatures, definition locations) in a
- * single pass — there is no separate SCIP enrichment stage.
+ * single pass.  `SourceIndexStage` then adds tree-sitter metrics
+ * (complexity, nesting depth) to SCIP-sourced files and handles
+ * remaining languages.
  *
  * The enrichment → resolution ordering is **load-bearing** and enforced
  * structurally by the pipeline rather than by call-site discipline.
@@ -44,7 +46,7 @@ import { getLogger } from '../logger.js';
 import { IndexPipeline } from './pipeline.js';
 import type { PipelineContext, PipelineStage } from './pipeline.js';
 import {
-  ScipSourceStage,
+  ScipIndexerStage,
   SourceIndexStage,
   DocsIndexStage,
   ImportResolutionStage,
@@ -135,17 +137,17 @@ export class IndexBuilder {
     log.indexing('build started', { dbPath: this.dbPath, branch, rootDir: this.walkerConfig.rootDir });
 
     // Build the pipeline with all stages in dependency order.
-    // ScipSourceStage runs first for SCIP-covered languages (symbols + refs
+    // ScipIndexerStage runs first for SCIP-covered languages (symbols + refs
     // from SCIP directly, with enrichment metadata populated inline).
-    // SourceIndexStage then handles remaining languages via tree-sitter.
-    // LSP enrichment is optional for both paths.
+    // SourceIndexStage then adds tree-sitter metrics to SCIP files and
+    // handles remaining languages.  LSP enrichment is optional.
     //
     // Stages in arrays run concurrently:
     //   - SourceIndexStage + DocsIndexStage: write to disjoint tables.
     //   - HistoryStage + LspEnrichment: history writes to
     //     commits/commit_files (disjoint from enrichment targets).
     const pipeline = new IndexPipeline([
-      new ScipSourceStage(),
+      new ScipIndexerStage(),
       [new SourceIndexStage(), new DocsIndexStage()],
       new ImportResolutionStage(),
       new DependencyApiStage(),
@@ -210,7 +212,7 @@ export class IndexBuilder {
     const log = getLogger();
 
     const pipeline = new IndexPipeline([
-      new ScipSourceStage(),
+      new ScipIndexerStage(),
       [new SourceIndexStage(), new DocsIndexStage()],
       new ImportResolutionStage(),
       new DependencyApiStage(),

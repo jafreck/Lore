@@ -1,5 +1,5 @@
 /**
- * @module indexer/stages/scip-source
+ * @module indexer/stages/scip-indexer
  *
  * Pipeline stage: for SCIP-covered languages, populate `files`, `symbols`,
  * `symbol_refs`, `type_refs`, `symbol_relationships`, and `file_imports`
@@ -7,8 +7,7 @@
  *
  * This is the single-pass SCIP architecture.  SCIP is the source of truth
  * for the symbol table, the call graph, **and** enrichment metadata (type
- * signatures, definition locations).  All data is written in one pass —
- * there is no separate SCIP enrichment stage.
+ * signatures, definition locations).  All data is written in one pass.
  *
  * For each SCIP document:
  *
@@ -30,16 +29,17 @@
  *
  * Same tables as `SourceIndexStage`: `files`, `symbols`, `symbols_fts`,
  * `symbol_refs`, `type_refs`, `symbol_relationships`, `file_imports`.
- * Additionally populates enrichment columns that were previously filled
- * by the now-removed `ScipEnrichmentStage`.
+ * Additionally populates enrichment columns (type signatures, definition
+ * locations) inline during the same pass.
  *
  * ## Pipeline ordering
  *
  * This stage runs **before** `SourceIndexStage`.  It stores which
  * languages and files it handled in `context.scipSourcedLanguages`,
- * `context.scipSourcedFiles`, and `context.scipCoveredLanguages` so the
- * tree-sitter path can skip them and the LSP enrichment stage knows not
- * to re-enrich these languages.
+ * `context.scipSourcedFiles`, and `context.scipCoveredLanguages` so
+ * `SourceIndexStage` can skip full extraction (but still compute
+ * tree-sitter metrics) and `LspEnrichmentStage` knows not to re-enrich
+ * these languages.
  */
 
 import * as fs from 'node:fs';
@@ -269,8 +269,8 @@ function inferTypeRefKind(sourceLines: string[], refLine: number, refChar: numbe
 
 // ─── Stage implementation ────────────────────────────────────────────────────
 
-export class ScipSourceStage implements PipelineStage {
-  readonly name = 'scip-source';
+export class ScipIndexerStage implements PipelineStage {
+  readonly name = 'scip-indexer';
 
   async execute(context: PipelineContext, mode: 'build' | 'update'): Promise<void> {
     if (!context.scip?.enabled) return;
@@ -294,21 +294,21 @@ export class ScipSourceStage implements PipelineStage {
         }
       }
       if (staleLanguages.size === 0) {
-        log.indexing('scip-source: no SCIP-supported languages in changed files, skipping');
+        log.indexing('scip-indexer: no SCIP-supported languages in changed files, skipping');
         return;
       }
-      log.indexing('scip-source: stale languages', { languages: [...staleLanguages] });
+      log.indexing('scip-indexer: stale languages', { languages: [...staleLanguages] });
     }
 
     // Load SCIP index
     const indexBuffer = await this.loadScipIndex(context.scip, rootDir, staleLanguages);
     if (!indexBuffer) {
-      log.indexing('scip-source: no SCIP index available');
+      log.indexing('scip-indexer: no SCIP index available');
       return;
     }
 
     const scipIndex = fromBinary(IndexSchema, indexBuffer);
-    log.indexing('scip-source: loaded index', {
+    log.indexing('scip-indexer: loaded index', {
       documents: scipIndex.documents.length,
       externalSymbols: scipIndex.externalSymbols.length,
     });
@@ -325,7 +325,7 @@ export class ScipSourceStage implements PipelineStage {
       if (loreLang) coveredLanguages.add(loreLang);
     }
 
-    log.indexing('scip-source: languages covered', { languages: [...coveredLanguages] });
+    log.indexing('scip-indexer: languages covered', { languages: [...coveredLanguages] });
 
     // Determine the project's SCIP symbol prefix so we can distinguish
     // internal symbols from external ones (stdlib, node_modules, etc.).
@@ -613,7 +613,7 @@ export class ScipSourceStage implements PipelineStage {
     });
     processDocuments();
 
-    log.indexing('scip-source: symbols inserted', {
+    log.indexing('scip-indexer: symbols inserted', {
       files: fileIdMap.size,
       symbols: scipToLoreId.size,
     });
@@ -809,7 +809,7 @@ export class ScipSourceStage implements PipelineStage {
     });
     processRefs();
 
-    log.indexing('scip-source: refs inserted', {
+    log.indexing('scip-indexer: refs inserted', {
       callRefs: refsInserted,
       typeRefs: typeRefsInserted,
       external: refsExternal,

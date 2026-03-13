@@ -57,7 +57,7 @@ export type { ResolutionMethod } from './resolution/resolution-method.js';
 export { IndexPipeline } from './indexer/pipeline.js';
 export type { PipelineContext, PipelineStage } from './indexer/pipeline.js';
 export {
-  ScipSourceStage,
+  ScipIndexerStage,
   SourceIndexStage,
   DocsIndexStage,
   ImportResolutionStage,

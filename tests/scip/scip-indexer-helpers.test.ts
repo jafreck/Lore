@@ -1,5 +1,5 @@
 /**
- * Tests for the SCIP-source stage helper functions.
+ * Tests for the SCIP indexer stage helper functions.
  *
  * Covers the four data-fidelity fixes:
  *   1. estimateSymbolEndLine — span fallback when enclosing_range absent
@@ -19,7 +19,7 @@ import {
   _inferLoreLanguage as inferLoreLanguage,
   _classifyScipReference as classifyScipReference,
   _extractNameFromScipSymbol as extractNameFromScipSymbol,
-} from '../../src/indexer/stages/scip-source.js';
+} from '../../src/indexer/stages/scip-indexer.js';
 
 // ─── estimateSymbolEndLine ──────────────────────────────────────────────────
 

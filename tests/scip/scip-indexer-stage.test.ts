@@ -1,7 +1,7 @@
 /**
- * Integration tests for the SCIP source stage.
+ * Integration tests for the SCIP indexer stage.
  *
- * Covers the full ScipSourceStage.execute path with a real SQLite DB
+ * Covers the full ScipIndexerStage.execute path with a real SQLite DB
  * to catch schema-level bugs like NOT NULL violations.
  */
 
@@ -19,7 +19,7 @@ import {
   SymbolRole,
 } from '../../src/scip/scip_pb.js';
 import { openDb } from '../../src/db/schema.js';
-import { ScipSourceStage } from '../../src/indexer/stages/scip-source.js';
+import { ScipIndexerStage } from '../../src/indexer/stages/scip-indexer.js';
 import type { PipelineContext } from '../../src/indexer/pipeline.js';
 import { initLogger, LogLevel } from '../../src/logger.js';
 import { resolveEffectiveScipSettings } from '../../src/scip/config.js';
@@ -99,7 +99,7 @@ function makeContext(rootDir: string, dbPath: string): PipelineContext {
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
-describe('ScipSourceStage', () => {
+describe('ScipIndexerStage', () => {
   it('populates enrichment columns for symbols inline', async () => {
     const rootDir = makeTmpDir('lore-scip-enrich-sym-');
     const indexDir = join(rootDir, '.scip-indexes');
@@ -129,7 +129,7 @@ describe('ScipSourceStage', () => {
     const dbPath = join(rootDir, 'test.db');
     const ctx = makeContext(rootDir, dbPath);
 
-    const stage = new ScipSourceStage();
+    const stage = new ScipIndexerStage();
     await stage.execute(ctx, 'build');
 
     // Symbol should have enrichment columns populated
@@ -183,7 +183,7 @@ describe('ScipSourceStage', () => {
     const dbPath = join(rootDir, 'test.db');
     const ctx = makeContext(rootDir, dbPath);
 
-    const stage = new ScipSourceStage();
+    const stage = new ScipIndexerStage();
     await stage.execute(ctx, 'build');
 
     // Type ref should have enrichment columns populated
@@ -227,7 +227,7 @@ describe('ScipSourceStage', () => {
     const dbPath = join(rootDir, 'test.db');
     const ctx = makeContext(rootDir, dbPath);
 
-    const stage = new ScipSourceStage();
+    const stage = new ScipIndexerStage();
     await stage.execute(ctx, 'build');
 
     const rel = ctx.db.prepare('SELECT definition_path, definition_line, definition_uri FROM symbol_relationships LIMIT 1').get() as any;
@@ -274,7 +274,7 @@ describe('ScipSourceStage', () => {
     const dbPath = join(rootDir, 'test.db');
     const ctx = makeContext(rootDir, dbPath);
 
-    const stage = new ScipSourceStage();
+    const stage = new ScipIndexerStage();
     await stage.execute(ctx, 'build');
 
     const rels = ctx.db.prepare('SELECT * FROM symbol_relationships').all() as any[];
@@ -324,7 +324,7 @@ describe('ScipSourceStage', () => {
     const dbPath = join(rootDir, 'test.db');
     const ctx = makeContext(rootDir, dbPath);
 
-    const stage = new ScipSourceStage();
+    const stage = new ScipIndexerStage();
 
     // Before the fix this threw: SqliteError: NOT NULL constraint failed:
     // symbol_relationships.line
