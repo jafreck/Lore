@@ -388,7 +388,7 @@ export class ScipSourceStage implements PipelineStage {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     const insertImport = db.prepare(
-      'INSERT INTO file_imports (file_id, raw_import) VALUES (?, ?)',
+      'INSERT INTO file_imports (file_id, raw_import, resolved_id) VALUES (?, ?, ?)',
     );
     const insertRelationship = db.prepare(
       `INSERT INTO symbol_relationships (file_id, source_symbol_id, target_symbol_name, relationship_type, line, character, resolution_method)
@@ -506,8 +506,9 @@ export class ScipSourceStage implements PipelineStage {
         }
 
         // Insert imports (from Import-role occurrences)
-        // Prefer the actual import path from source; fall back to SCIP package
-        const seenImports = new Set<string>();
+        // Prefer the actual import path from source; fall back to SCIP package.
+        // Use symbolDefinitions to pre-resolve imports to target file IDs.
+        const seenImports = new Map<string, number | null>(); // rawImport → resolved file ID
         for (const occ of doc.occurrences) {
           if ((occ.symbolRoles & SymbolRole.Import) !== 0 && occ.symbol) {
             const importLine = occ.range[0] ?? 0;
@@ -522,9 +523,23 @@ export class ScipSourceStage implements PipelineStage {
               const parts = occ.symbol.split(' ');
               rawImport = parts.length >= 4 ? parts[3]! : occ.symbol;
             }
-            if (rawImport && !seenImports.has(rawImport)) {
-              seenImports.add(rawImport);
-              insertImport.run(fileId, rawImport);
+            if (!rawImport) continue;
+
+            // Resolve the import's target file via SCIP symbol → definition location
+            const defLoc = symbolDefinitions.get(occ.symbol);
+            const resolvedFileId = defLoc ? (fileIdMap.get(defLoc.filePath) ?? null) : null;
+
+            if (seenImports.has(rawImport)) {
+              // If we already inserted this import without a resolved_id,
+              // upgrade it now that we have one.
+              if (resolvedFileId && !seenImports.get(rawImport)) {
+                seenImports.set(rawImport, resolvedFileId);
+                db.prepare('UPDATE file_imports SET resolved_id = ? WHERE file_id = ? AND raw_import = ?')
+                  .run(resolvedFileId, fileId, rawImport);
+              }
+            } else {
+              seenImports.set(rawImport, resolvedFileId);
+              insertImport.run(fileId, rawImport, resolvedFileId);
             }
           }
         }
