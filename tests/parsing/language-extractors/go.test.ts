@@ -103,28 +103,3 @@ describe('Go type assertion', () => {
     expect(casts).toHaveLength(1);
   });
 });
-
-describe('Go gin route extraction', () => {
-  const r = fixture('routes-gin.go');
-  test('extracts routes with method, path, and framework', () => {
-    expect(r.routes).toHaveLength(2);
-    expect(r.routes).toContainEqual(expect.objectContaining({ method: 'GET', path: '/health', framework: 'gin' }));
-    expect(r.routes).toContainEqual(expect.objectContaining({ method: 'POST', path: '/users', framework: 'gin' }));
-  });
-});
-
-describe('Go gin raw string literal path', () => {
-  const r = fixture('routes-gin-raw.go');
-  test('handles backtick-quoted paths', () => {
-    expect(r.routes).toHaveLength(1);
-    expect(r.routes[0]).toMatchObject({ method: 'PUT', path: '/items/:id' });
-  });
-});
-
-describe('Go gin Any method', () => {
-  const r = fixture('routes-gin-any.go');
-  test('maps Any to ALL', () => {
-    expect(r.routes).toHaveLength(1);
-    expect(r.routes[0]).toMatchObject({ method: 'ALL', path: '/all' });
-  });
-});

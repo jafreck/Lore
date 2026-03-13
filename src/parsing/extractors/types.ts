@@ -127,22 +127,6 @@ export interface RawTypeRef {
   character?: number;
 }
 
-/** A framework route/endpoint extracted from source. */
-export interface RawRoute {
-  /** HTTP method for the route (e.g. `GET`, `POST`). */
-  method: string;
-  /** Route path template (e.g. `/users/:id`). */
-  path: string;
-  /** Raw handler reference as seen in source. */
-  handler: string;
-  /** Framework inferred by the extractor (e.g. `express`, `fastapi`, `gin`). */
-  framework: string;
-  /** 0-indexed line where the route is declared. */
-  line: number;
-  /** Optional middleware references in declaration order. */
-  middleware?: string[];
-}
-
 /** The full extraction result returned by a `SymbolExtractor`. */
 export interface ExtractionResult {
   symbols: RawSymbol[];
@@ -151,7 +135,6 @@ export interface ExtractionResult {
   envRefs: RawEnvRef[];
   relationships: RawRelationship[];
   typeRefs: RawTypeRef[];
-  routes: RawRoute[];
 }
 
 // ─── SymbolExtractor interface ────────────────────────────────────────────────
@@ -231,7 +214,7 @@ export function nodeSignature(node: Parser.SyntaxNode): string {
 
 /** Returns an empty `ExtractionResult`. */
 export function emptyResult(): ExtractionResult {
-  return { symbols: [], imports: [], callRefs: [], envRefs: [], relationships: [], typeRefs: [], routes: [] };
+  return { symbols: [], imports: [], callRefs: [], envRefs: [], relationships: [], typeRefs: [] };
 }
 
 /**

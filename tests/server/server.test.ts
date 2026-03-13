@@ -6,7 +6,6 @@ import * as history from '../../src/server/tools/history.js';
 import * as lookup from '../../src/server/tools/lookup.js';
 import * as graph from '../../src/server/tools/graph.js';
 import type { EmbeddingProvider } from '../../src/embeddings/embedder.js';
-import * as routes from '../../src/server/tools/routes.js';
 import * as notes from '../../src/server/tools/notes.js';
 import * as search from '../../src/server/tools/search.js';
 import * as metrics from '../../src/server/tools/metrics.js';
@@ -69,7 +68,6 @@ describe('createLoreMcpServer', () => {
     createLoreMcpServer(db, '/tmp/test.db');
 
     const toolNames = mockTool.mock.calls.map((call) => call[0]);
-    expect(toolNames).toContain('lore_routes');
     expect(toolNames).toContain('lore_notes_write');
     expect(toolNames).toContain('lore_notes_read');
 
@@ -78,16 +76,6 @@ describe('createLoreMcpServer', () => {
   it('should register newly exposed tools with expected schema fields', () => {
     const db = new Database(':memory:');
     createLoreMcpServer(db, '/tmp/test.db');
-
-    const routesSchema = getToolCall('lore_routes')[2] as {
-      method: { safeParse: (v: unknown) => { success: boolean } };
-      path_prefix: { safeParse: (v: unknown) => { success: boolean } };
-      framework: { safeParse: (v: unknown) => { success: boolean } };
-    };
-    expect(routesSchema.method.safeParse('GET').success).toBe(true);
-    expect(routesSchema.path_prefix.safeParse('/api').success).toBe(true);
-    expect(routesSchema.framework.safeParse('express').success).toBe(true);
-    expect(routesSchema.method.safeParse(123).success).toBe(false);
 
     const notesWriteSchema = getToolCall('lore_notes_write')[2] as {
       key: { safeParse: (v: unknown) => { success: boolean } };
@@ -232,25 +220,6 @@ describe('createLoreMcpServer', () => {
     expect(docsHandlerSpy).toHaveBeenCalledWith(db, { action: 'search', query: 'architecture' }, undefined);
   });
 
-  it('should route lore_routes tool calls through routes.handler', async () => {
-    const db = new Database(':memory:');
-    const routesResult = { results: [{ method: 'GET', path: '/api/health', framework: 'express' }] };
-    const routesHandlerSpy = vi.spyOn(routes, 'handler').mockReturnValue(routesResult);
-
-    createLoreMcpServer(db, '/tmp/test.db');
-
-    const callback = getToolCall('lore_routes')[3] as (args: unknown) => Promise<{
-      content: Array<{ type: string; text: string }>;
-    }>;
-    const args = { method: 'GET', path_prefix: '/api', framework: 'express' };
-    const response = await callback(args);
-
-    expect(routesHandlerSpy).toHaveBeenCalledWith(db, args);
-    expect(response).toEqual({
-      content: [{ type: 'text', text: JSON.stringify(routesResult) }],
-    });
-  });
-
   it('should route lore_notes_write tool calls through notes.writeHandler', async () => {
     const db = new Database(':memory:');
     const notesWriteResult = { ok: true, key: 'architecture/overview', scope: 'global', updated_at: 123 };
@@ -335,17 +304,12 @@ describe('createLoreMcpServer', () => {
   it('should propagate errors from newly exposed tool handlers', async () => {
     const db = new Database(':memory:');
     const callbackArgs = {
-      routes: { method: 'GET' },
       notesWrite: { key: 'architecture/overview', content: 'note body' },
       notesRead: { key_prefix: 'architecture/' },
     };
-    const routeError = new Error('routes failed');
     const notesWriteError = new Error('notes write failed');
     const notesReadError = new Error('notes read failed');
 
-    vi.spyOn(routes, 'handler').mockImplementation(() => {
-      throw routeError;
-    });
     vi.spyOn(notes, 'writeHandler').mockImplementation(() => {
       throw notesWriteError;
     });
@@ -355,11 +319,9 @@ describe('createLoreMcpServer', () => {
 
     createLoreMcpServer(db, '/tmp/test.db');
 
-    const routesCallback = getToolCall('lore_routes')[3] as (args: unknown) => Promise<unknown>;
     const notesWriteCallback = getToolCall('lore_notes_write')[3] as (args: unknown) => Promise<unknown>;
     const notesReadCallback = getToolCall('lore_notes_read')[3] as (args: unknown) => Promise<unknown>;
 
-    await expect(routesCallback(callbackArgs.routes)).rejects.toThrow(routeError);
     await expect(notesWriteCallback(callbackArgs.notesWrite)).rejects.toThrow(notesWriteError);
     await expect(notesReadCallback(callbackArgs.notesRead)).rejects.toThrow(notesReadError);
   });

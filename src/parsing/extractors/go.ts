@@ -11,7 +11,6 @@ import {
   type RawCallRef,
   type RawImport,
   type RawRelationship,
-  type RawRoute,
   type RawSymbol,
   type RawTypeRef,
   type TypeRefKind,
@@ -54,8 +53,6 @@ export class GoExtractor implements SymbolExtractor {
           result.imports.push(...extractImportDecl(node));
           break;
         case 'call_expression': {
-          const route = maybeExtractGinRoute(node);
-          if (route) result.routes.push(route);
           const ref = extractCallRef(node);
           if (ref) result.callRefs.push(ref);
           break;
@@ -173,44 +170,6 @@ function extractCallRef(node: Parser.SyntaxNode): RawCallRef | null {
     calleeRaw: fnNode.text,
     line: node.startPosition.row,
     character: node.startPosition.column,
-  };
-}
-
-const GO_GIN_METHODS: Record<string, string> = {
-  GET: 'GET',
-  POST: 'POST',
-  PUT: 'PUT',
-  DELETE: 'DELETE',
-  PATCH: 'PATCH',
-  OPTIONS: 'OPTIONS',
-  HEAD: 'HEAD',
-  Any: 'ALL',
-};
-
-function maybeExtractGinRoute(node: Parser.SyntaxNode): RawRoute | null {
-  const fnNode = node.childForFieldName('function');
-  if (!fnNode || fnNode.type !== 'selector_expression') return null;
-  const methodNode = fnNode.childForFieldName('field');
-  const method = methodNode ? GO_GIN_METHODS[methodNode.text] : undefined;
-  if (!method) return null;
-
-  const argsNode = node.childForFieldName('arguments');
-  const pathNode = argsNode?.namedChildren[0];
-  const handlerNode = argsNode?.namedChildren[1];
-  if (!pathNode || !handlerNode) return null;
-  if (
-    pathNode.type !== 'interpreted_string_literal' &&
-    pathNode.type !== 'raw_string_literal'
-  ) {
-    return null;
-  }
-
-  return {
-    method,
-    path: pathNode.text.replace(/^`|`$|^"|"$/g, ''),
-    handler: handlerNode.text,
-    framework: 'gin',
-    line: node.startPosition.row,
   };
 }
 

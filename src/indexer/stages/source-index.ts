@@ -2,7 +2,7 @@
  * @module indexer/stages/source-index
  *
  * Pipeline stage: walk, parse, extract, and insert symbols/imports/callRefs/
- * typeRefs/relationships/routes/annotations for all source files.
+ * typeRefs/relationships/annotations for all source files.
  *
  * This is the first stage in the pipeline and populates `context.files`.
  */
@@ -97,7 +97,7 @@ interface BuildCheckpoint {
 
 /**
  * Walk source files, parse with tree-sitter, extract symbols/imports/callRefs/
- * typeRefs/relationships/routes/annotations, and persist to the database.
+ * typeRefs/relationships/annotations, and persist to the database.
  *
  * Populates `context.files` for use by later stages.
  */
@@ -318,7 +318,6 @@ function processFileWithSource(
     db.prepare('DELETE FROM symbols WHERE file_id = ?').run(fileId);
     db.prepare('DELETE FROM file_imports WHERE file_id = ?').run(fileId);
     db.prepare('DELETE FROM external_deps WHERE file_id = ?').run(fileId);
-    db.prepare('DELETE FROM api_routes WHERE file_id = ?').run(fileId);
     db.prepare('DELETE FROM annotations WHERE file_id = ?').run(fileId);
   } else {
     const info = db
@@ -376,24 +375,6 @@ function processFileWithSource(
     if (symId === undefined) continue;
     const metrics = computeSymbolMetrics(sym, language);
     insertMetrics.run(symId, metrics.line_count, metrics.param_count, metrics.cyclomatic, metrics.max_nesting);
-  }
-
-  // Insert API routes
-  const insertRoute = db.prepare(
-    `INSERT INTO api_routes (file_id, method, path, handler_id, handler_name, framework, line, middleware)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-  );
-  for (const route of result.routes) {
-    insertRoute.run(
-      fileId,
-      route.method,
-      route.path,
-      symbolIdMap.get(route.handler) ?? null,
-      route.handler,
-      route.framework,
-      route.line,
-      route.middleware ? JSON.stringify(route.middleware) : null,
-    );
   }
 
   // Insert raw imports

@@ -10,7 +10,6 @@ import {
   type ExtractionResult,
   type RawCallRef,
   type RawImport,
-  type RawRoute,
   type RawSymbol,
   type SymbolExtractor,
   emptyResult,
@@ -43,8 +42,6 @@ export class PythonExtractor implements SymbolExtractor {
           const inner = node.childForFieldName('definition');
           if (inner?.type === 'function_definition') {
             result.symbols.push(extractFunction(inner, isAsync(node)));
-            const route = extractFastApiRoute(node, inner);
-            if (route) result.routes.push(route);
           } else if (inner?.type === 'class_definition') {
             result.symbols.push(extractClass(inner));
           }
@@ -148,25 +145,3 @@ function extractCallRef(node: Parser.SyntaxNode): RawCallRef | null {
   };
 }
 
-const PY_HTTP_METHODS = ['get', 'post', 'put', 'delete', 'patch', 'options', 'head'];
-
-function extractFastApiRoute(
-  decorated: Parser.SyntaxNode,
-  fn: Parser.SyntaxNode,
-): RawRoute | null {
-  const text = decorated.text;
-  for (const method of PY_HTTP_METHODS) {
-    const pattern = new RegExp(`@[^\\n]*\\.${method}\\(\\s*["']([^"']+)["']`);
-    const match = text.match(pattern);
-    if (!match) continue;
-    const nameNode = fn.childForFieldName('name');
-    return {
-      method: method.toUpperCase(),
-      path: match[1] ?? '',
-      handler: nameNode?.text ?? '',
-      framework: 'fastapi',
-      line: decorated.startPosition.row,
-    };
-  }
-  return null;
-}
