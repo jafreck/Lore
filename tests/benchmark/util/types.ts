@@ -7,6 +7,32 @@
 // ─── Repo panel ───────────────────────────────────────────────────────────────
 
 /** Specification for a repository used in benchmark runs. */
+export interface BenchmarkPrepCommand {
+  /** Executable to run inside the prepared repo. */
+  command: string;
+  /** Arguments passed to the executable. */
+  args?: string[];
+  /** Optional environment overrides. */
+  env?: Record<string, string>;
+  /** Optional timeout in milliseconds. */
+  timeoutMs?: number;
+}
+
+export interface RepoCoverageConfig {
+  /** Commands to run before ingesting coverage artifacts. */
+  commands?: BenchmarkPrepCommand[];
+  /** Repo-relative path to the aggregate coverage report. */
+  reportPath: string;
+  /** Report format understood by Lore. */
+  format: 'lcov' | 'cobertura';
+  /** Optional repo-relative directory containing per-test coverage reports. */
+  perTestReportsDir?: string;
+  /** Optional per-test report format. Defaults to `format`. */
+  perTestFormat?: 'lcov' | 'cobertura';
+  /** Filename separator used when deriving test paths from per-test reports. */
+  perTestSeparator?: string;
+}
+
 export interface RepoSpec {
   /** Human-readable identifier, e.g. "express" or "fastapi". */
   name: string;
@@ -20,6 +46,8 @@ export interface RepoSpec {
   size: 'small' | 'medium' | 'large' | 'very-large';
   /** Structural archetype. */
   structure: 'service' | 'web-app' | 'cli' | 'sdk' | 'monorepo';
+  /** Optional benchmark-time coverage generation + ingestion settings. */
+  coverage?: RepoCoverageConfig;
 }
 
 /** Runtime information about a downloaded repo. */
