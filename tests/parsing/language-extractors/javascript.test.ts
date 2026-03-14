@@ -68,28 +68,3 @@ describe('JS call-ref extraction', () => {
     expect(r.callRefs[0]).toMatchObject({ calleeRaw: 'path.normalize', callerSymbol: 'fmt' });
   });
 });
-
-describe('JS express route extraction', () => {
-  const r = fixture('routes-express.js');
-  test('extracts routes with method, path, handler', () => {
-    expect(r.routes).toHaveLength(2);
-    expect(r.routes).toContainEqual(expect.objectContaining({ method: 'GET', path: '/health', framework: 'express' }));
-    expect(r.routes).toContainEqual(expect.objectContaining({ method: 'POST', path: '/users', framework: 'express' }));
-  });
-});
-
-describe('JS koa route extraction', () => {
-  const r = fixture('routes-koa.js');
-  test('infers koa framework', () => {
-    expect(r.routes).toHaveLength(1);
-    expect(r.routes[0]).toMatchObject({ framework: 'koa', method: 'GET', path: '/koa' });
-  });
-});
-
-describe('JS route with middleware', () => {
-  const r = fixture('routes-middleware.js');
-  test('captures middleware', () => {
-    expect(r.routes).toHaveLength(1);
-    expect(r.routes[0]!.middleware).toHaveLength(1);
-  });
-});

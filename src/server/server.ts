@@ -38,7 +38,6 @@ import * as lookup from './tools/lookup.js';
 import * as graph from './tools/graph.js';
 import * as search from './tools/search.js';
 import * as docsMod from './tools/docs.js';
-import * as routes from './tools/routes.js';
 import * as testMap from './tools/test-map.js';
 import * as snippet from './tools/snippet.js';
 import * as blame from './tools/blame.js';
@@ -129,7 +128,6 @@ function buildToolModulesSync(): ToolModule[] {
     { def: graph.toolDef, handlerFactory: (deps) => (args) => graph.handler(deps.db, args) },
     { def: search.toolDef, handlerFactory: (deps) => (args) => search.handler(deps.db, args, deps.embedder, deps.searchObserver) },
     { def: docsMod.toolDef, handlerFactory: (deps) => (args) => docsMod.handler(deps.db, args, deps.embedder) },
-    { def: routes.toolDef, handlerFactory: (deps) => (args) => routes.handler(deps.db, args) },
     { def: testMap.toolDef, handlerFactory: (deps) => (args) => testMap.handler(deps.db, args) },
     { def: snippet.toolDef, handlerFactory: (deps) => (args) => snippet.handler(deps.db, args) },
     { def: blame.toolDef, handlerFactory: (deps) => (args) => blame.handler(deps.db, args) },

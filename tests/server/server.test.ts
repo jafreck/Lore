@@ -6,7 +6,6 @@ import * as history from '../../src/server/tools/history.js';
 import * as lookup from '../../src/server/tools/lookup.js';
 import * as graph from '../../src/server/tools/graph.js';
 import type { EmbeddingProvider } from '../../src/embeddings/embedder.js';
-import * as routes from '../../src/server/tools/routes.js';
 import * as search from '../../src/server/tools/search.js';
 import * as metrics from '../../src/server/tools/metrics.js';
 
@@ -68,23 +67,12 @@ describe('createLoreMcpServer', () => {
     createLoreMcpServer(db, '/tmp/test.db');
 
     const toolNames = mockTool.mock.calls.map((call) => call[0]);
-    expect(toolNames).toContain('lore_routes');
 
   });
 
   it('should register newly exposed tools with expected schema fields', () => {
     const db = new Database(':memory:');
     createLoreMcpServer(db, '/tmp/test.db');
-
-    const routesSchema = getToolCall('lore_routes')[2] as {
-      method: { safeParse: (v: unknown) => { success: boolean } };
-      path_prefix: { safeParse: (v: unknown) => { success: boolean } };
-      framework: { safeParse: (v: unknown) => { success: boolean } };
-    };
-    expect(routesSchema.method.safeParse('GET').success).toBe(true);
-    expect(routesSchema.path_prefix.safeParse('/api').success).toBe(true);
-    expect(routesSchema.framework.safeParse('express').success).toBe(true);
-    expect(routesSchema.method.safeParse(123).success).toBe(false);
 
 
   });
@@ -203,25 +191,6 @@ describe('createLoreMcpServer', () => {
     expect(docsHandlerSpy).toHaveBeenCalledWith(db, { action: 'search', query: 'architecture' }, undefined);
   });
 
-  it('should route lore_routes tool calls through routes.handler', async () => {
-    const db = new Database(':memory:');
-    const routesResult = { results: [{ method: 'GET', path: '/api/health', framework: 'express' }] };
-    const routesHandlerSpy = vi.spyOn(routes, 'handler').mockReturnValue(routesResult);
-
-    createLoreMcpServer(db, '/tmp/test.db');
-
-    const callback = getToolCall('lore_routes')[3] as (args: unknown) => Promise<{
-      content: Array<{ type: string; text: string }>;
-    }>;
-    const args = { method: 'GET', path_prefix: '/api', framework: 'express' };
-    const response = await callback(args);
-
-    expect(routesHandlerSpy).toHaveBeenCalledWith(db, args);
-    expect(response).toEqual({
-      content: [{ type: 'text', text: JSON.stringify(routesResult) }],
-    });
-  });
-
   it('should route lore_search tool calls through search.handler with filter args and observer', async () => {
     const db = new Database(':memory:');
     const observer = vi.fn();
@@ -263,24 +232,6 @@ describe('createLoreMcpServer', () => {
     } finally {
       searchHandlerSpy.mockRestore();
     }
-  });
-
-  it('should propagate errors from newly exposed tool handlers', async () => {
-    const db = new Database(':memory:');
-    const callbackArgs = {
-      routes: { method: 'GET' },
-    };
-    const routeError = new Error('routes failed');
-
-    vi.spyOn(routes, 'handler').mockImplementation(() => {
-      throw routeError;
-    });
-
-    createLoreMcpServer(db, '/tmp/test.db');
-
-    const routesCallback = getToolCall('lore_routes')[3] as (args: unknown) => Promise<unknown>;
-
-    await expect(routesCallback(callbackArgs.routes)).rejects.toThrow(routeError);
   });
 
   it('should register lore_metrics with expected complexity schema fields', () => {
@@ -680,7 +631,7 @@ describe('createLoreMcpServerAsync', () => {
     await createLoreMcpServerAsync(db, '/tmp/test.db', embedder, { searchObserver: observer });
 
     const toolNames = mockTool.mock.calls.map((call: unknown[]) => call[0]);
-    expect(toolNames.length).toBeGreaterThanOrEqual(10);
+    expect(toolNames.length).toBeGreaterThanOrEqual(9);
   });
 
   it('should accept custom logger', async () => {

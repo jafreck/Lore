@@ -296,21 +296,6 @@ CREATE TABLE IF NOT EXISTS coverage_lines (
   FOREIGN KEY (run_id, file_path) REFERENCES coverage_files(run_id, file_path) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS api_routes (
-  id           INTEGER PRIMARY KEY AUTOINCREMENT,
-  file_id      INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
-  method       TEXT    NOT NULL,
-  path         TEXT    NOT NULL,
-  handler_id   INTEGER REFERENCES symbols(id) ON DELETE SET NULL,
-  handler_name TEXT    NOT NULL,
-  framework    TEXT    NOT NULL,
-  line         INTEGER NOT NULL,
-  middleware   TEXT,
-  UNIQUE(file_id, method, path, line)
-);
-
-CREATE INDEX IF NOT EXISTS idx_api_routes_method ON api_routes(method);
-CREATE INDEX IF NOT EXISTS idx_api_routes_path ON api_routes(path);
 CREATE INDEX IF NOT EXISTS idx_annotations_kind ON annotations(kind);
 CREATE INDEX IF NOT EXISTS idx_annotations_file_id ON annotations(file_id);
 CREATE INDEX IF NOT EXISTS idx_coverage_runs_ingested_at ON coverage_runs(ingested_at);
