@@ -83,6 +83,7 @@ export type { LoreServerOptions } from './server/server.js';
 export type { SearchObservation, SearchObserver } from './server/tools/search.js';
 export { registerTools } from './server/tool-registry.js';
 export type { ToolModule, ToolDefinition } from './server/tool-registry.js';
+export type { CohesionArgs, CohesionResult } from './server/tools/cohesion.js';
 export {
   openReadOnly,
   getSymbolById,
