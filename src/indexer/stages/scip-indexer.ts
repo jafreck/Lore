@@ -44,6 +44,7 @@
 
 import * as fs from 'node:fs';
 import * as crypto from 'node:crypto';
+import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { fromBinary } from '@bufbuild/protobuf';
@@ -946,12 +947,15 @@ const TSCONFIG_BUILD_ONLY_FIELDS = [
   'tsBuildInfoFile', 'emitDeclarationOnly',
 ] as const;
 
-const LORE_SCIP_TSCONFIG = '.tsconfig.lore-scip.json';
-
 /**
  * Generate a temporary tsconfig that includes **all** `.ts`/`.tsx` files
  * in the project, so `scip-typescript` indexes tests and other files
  * excluded by the project's production tsconfig.
+ *
+ * The file is written to `os.tmpdir()` so the indexed repo is never mutated.
+ * Include/exclude globs use absolute paths rooted at `rootDir` so
+ * `scip-typescript` resolves source files correctly even though the
+ * tsconfig lives elsewhere.
  *
  * Strips build-only compiler options (`outDir`, `rootDir`, `declaration`,
  * etc.) that would conflict with the broad `include` and are irrelevant
@@ -974,15 +978,15 @@ function createLoreScipTsconfig(rootDir: string): string | null {
       delete compilerOptions[field];
     }
 
+    // Use absolute paths so the tsconfig works from tmpdir
+    const absRoot = resolve(rootDir);
     const loreTsconfig = {
       compilerOptions,
-      // Include all TypeScript files in the project
-      include: ['**/*.ts', '**/*.tsx'],
-      // Preserve the project's exclude but drop the original include restriction
-      exclude: raw.exclude ?? ['node_modules'],
+      include: [join(absRoot, '**/*.ts'), join(absRoot, '**/*.tsx')],
+      exclude: (raw.exclude ?? ['node_modules']).map((e: string) => join(absRoot, e)),
     };
 
-    const outPath = join(rootDir, LORE_SCIP_TSCONFIG);
+    const outPath = join(tmpdir(), `lore-scip-${crypto.randomUUID()}.json`);
     fs.writeFileSync(outPath, JSON.stringify(loreTsconfig, null, 2));
     log.debug('scip', `generated broad tsconfig for SCIP: ${outPath}`);
     return outPath;
