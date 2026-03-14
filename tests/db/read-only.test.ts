@@ -1654,6 +1654,46 @@ describe('getSymbolById', () => {
   it('should return undefined when id does not exist', () => {
     expect(getSymbolById(db, 9999)).toBeUndefined();
   });
+
+  it('should include is_exported in the returned SymbolRow when column exists', () => {
+    const dbWithExported = new Database(':memory:');
+    dbWithExported.pragma('foreign_keys = ON');
+    dbWithExported.exec(`
+      CREATE TABLE files (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        path TEXT NOT NULL,
+        branch TEXT NOT NULL DEFAULT '',
+        language TEXT NOT NULL,
+        size_bytes INTEGER NOT NULL DEFAULT 0,
+        last_hash TEXT,
+        indexed_at INTEGER NOT NULL DEFAULT 0,
+        UNIQUE(path, branch)
+      );
+      CREATE TABLE symbols (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        start_line INTEGER NOT NULL,
+        end_line INTEGER NOT NULL,
+        signature TEXT,
+        doc_comment TEXT,
+        is_exported INTEGER NOT NULL DEFAULT 0
+      );
+    `);
+    const fileResult = dbWithExported
+      .prepare("INSERT INTO files (path, branch, language) VALUES ('src/a.ts', 'main', 'typescript')")
+      .run();
+    const symResult = dbWithExported
+      .prepare(
+        'INSERT INTO symbols (file_id, name, kind, start_line, end_line, is_exported) VALUES (?, ?, ?, ?, ?, ?)',
+      )
+      .run(fileResult.lastInsertRowid, 'exportedFn', 'function', 1, 10, 1);
+    const row = getSymbolById(dbWithExported, symResult.lastInsertRowid as number);
+    expect(row).toBeDefined();
+    expect(row!.is_exported).toBe(1);
+    dbWithExported.close();
+  });
 });
 
 describe('openReadOnly', () => {
