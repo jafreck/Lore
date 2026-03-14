@@ -240,6 +240,7 @@ export async function buildToolModules(): Promise<ToolModule[]> {
     metrics,
     history,
     trace,
+    diff,
     cohesion,
     structure,
   ] = await Promise.all([
@@ -253,6 +254,7 @@ export async function buildToolModules(): Promise<ToolModule[]> {
     import('./tools/metrics.js'),
     import('./tools/history.js'),
     import('./tools/trace.js'),
+    import('./tools/diff.js'),
     import('./tools/cohesion.js'),
     import('./tools/structure.js'),
   ]);
@@ -297,6 +299,10 @@ export async function buildToolModules(): Promise<ToolModule[]> {
     {
       def: trace.toolDef,
       handlerFactory: (deps) => (args) => trace.handler(deps.db, args),
+    },
+    {
+      def: diff.toolDef,
+      handlerFactory: (deps) => (args) => diff.handler(deps.db, args),
     },
     {
       def: cohesion.toolDef,

@@ -358,6 +358,7 @@ const ENRICHMENT_SCHEMA_MIGRATIONS: Array<{ table: string; column: string; sql: 
   { table: 'symbol_relationships', column: 'definition_line', sql: 'ALTER TABLE symbol_relationships ADD COLUMN definition_line INTEGER' },
   { table: 'symbol_relationships', column: 'definition_character', sql: 'ALTER TABLE symbol_relationships ADD COLUMN definition_character INTEGER' },
   { table: 'symbol_relationships', column: 'resolution_method', sql: "ALTER TABLE symbol_relationships ADD COLUMN resolution_method TEXT NOT NULL DEFAULT 'unresolved'" },
+  { table: 'symbols', column: 'is_exported', sql: 'ALTER TABLE symbols ADD COLUMN is_exported INTEGER NOT NULL DEFAULT 0' },
 ];
 
 const ENRICHMENT_INDEX_MIGRATIONS = [
@@ -368,6 +369,7 @@ const ENRICHMENT_INDEX_MIGRATIONS = [
   'CREATE INDEX IF NOT EXISTS idx_symbol_refs_resolution_method ON symbol_refs(resolution_method)',
   'CREATE INDEX IF NOT EXISTS idx_type_refs_resolution_method ON type_refs(resolution_method)',
   'CREATE INDEX IF NOT EXISTS idx_symbol_rels_resolution_method ON symbol_relationships(resolution_method)',
+  'CREATE INDEX IF NOT EXISTS idx_symbols_exported ON symbols(is_exported) WHERE is_exported = 1',
 ];
 
 // ─── Public API ───────────────────────────────────────────────────────────────
