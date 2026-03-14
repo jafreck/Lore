@@ -52,6 +52,11 @@ describe('getTasksForRepo', () => {
     expect(tasks.length).toBe(LORE_SELF_TASKS.length);
   });
 
+  it('should return tasks for postgres', () => {
+    const tasks = getTasksForRepo('postgres');
+    expect(tasks.length).toBeGreaterThan(0);
+  });
+
   it('should return empty for unknown repo', () => {
     const tasks = getTasksForRepo('nonexistent');
     expect(tasks).toEqual([]);

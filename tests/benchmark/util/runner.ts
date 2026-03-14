@@ -30,7 +30,7 @@ const DEFAULT_CONFIG: BenchmarkSuiteConfig = {
   arms: ['control', 'lore-enabled'],
   seeds: [42, 123],
   downloadConcurrency: 2,
-  workDir: join(process.cwd(), '.benchmark-repos'),
+  workDir: join(process.cwd(), '.benchmark'),
   outputDir: join(process.cwd(), '.benchmark-results'),
 };
 

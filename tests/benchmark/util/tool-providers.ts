@@ -30,6 +30,11 @@ const LORE_TOOL_NAMES = [
   'lore_blame',
   'lore_metrics',
   'lore_history',
+  'lore_dependents',
+  'lore_trace',
+  'lore_structure',
+  'lore_cohesion',
+  'lore_diff',
 ] as const;
 
 // ─── Base tools (available in all arms) ───────────────────────────────────────
@@ -170,7 +175,8 @@ async function buildLoreTools(dbPath: string, embedder?: EmbeddingProvider): Pro
   const [
     lookup, search, graph, docs,
     testMap, snippet, blame, metrics,
-    history,
+    history, dependents, trace, structure,
+    cohesion, diff,
   ] = await Promise.all([
     import('../../../src/server/tools/lookup.js'),
     import('../../../src/server/tools/search.js'),
@@ -181,6 +187,11 @@ async function buildLoreTools(dbPath: string, embedder?: EmbeddingProvider): Pro
     import('../../../src/server/tools/blame.js'),
     import('../../../src/server/tools/metrics.js'),
     import('../../../src/server/tools/history.js'),
+    import('../../../src/server/tools/dependents.js'),
+    import('../../../src/server/tools/trace.js'),
+    import('../../../src/server/tools/structure.js'),
+    import('../../../src/server/tools/cohesion.js'),
+    import('../../../src/server/tools/diff.js'),
   ]);
 
   return [
@@ -193,6 +204,11 @@ async function buildLoreTools(dbPath: string, embedder?: EmbeddingProvider): Pro
     wrapTool(blame.toolDef.name, blame.toolDef.description, (args) => blame.handler(db, args as any)),
     wrapTool(metrics.toolDef.name, metrics.toolDef.description, (args) => metrics.handler(db, args as any)),
     wrapTool(history.toolDef.name, history.toolDef.description, (args) => history.handler(db, args as any)),
+    wrapTool(dependents.toolDef.name, dependents.toolDef.description, (args) => dependents.handler(db, args as any)),
+    wrapTool(trace.toolDef.name, trace.toolDef.description, (args) => trace.handler(db, args as any)),
+    wrapTool(structure.toolDef.name, structure.toolDef.description, (args) => structure.handler(db, args as any)),
+    wrapTool(cohesion.toolDef.name, cohesion.toolDef.description, (args) => cohesion.handler(db, args as any)),
+    wrapTool(diff.toolDef.name, diff.toolDef.description, (args) => diff.handler(db, args as any)),
   ];
 }
 

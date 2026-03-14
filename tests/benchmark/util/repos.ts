@@ -13,10 +13,10 @@ import type { RepoSpec } from './types.js';
  */
 export const PILOT_REPOS: RepoSpec[] = [
   {
-    name: 'express',
-    url: 'https://github.com/expressjs/express.git',
-    sha: '6c4249feec8ab40631817c8e7001baf2ed022224',
-    languages: ['javascript'],
+    name: 'gson',
+    url: 'https://github.com/google/gson.git',
+    sha: 'b7d59549188867deb42e46073fb38735a5beda1c',
+    languages: ['java'],
     size: 'medium',
     structure: 'sdk',
   },
@@ -51,6 +51,29 @@ export const PILOT_REPOS: RepoSpec[] = [
     languages: ['typescript'],
     size: 'medium',
     structure: 'cli',
+    coverage: {
+      commands: [
+        {
+          command: 'npm',
+          args: ['install'],
+          timeoutMs: 900_000,
+        },
+        {
+          command: 'npx',
+          args: [
+            'vitest',
+            'run',
+            '--coverage.enabled=true',
+            '--coverage.reporter=lcov',
+            '--coverage.reporter=json',
+            '--coverage.reporter=json-summary',
+          ],
+          timeoutMs: 900_000,
+        },
+      ],
+      reportPath: 'coverage/lcov.info',
+      format: 'lcov',
+    },
   },
   {
     name: 'postgres',
