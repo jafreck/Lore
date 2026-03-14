@@ -7,7 +7,8 @@
  * Usage:
  *   lore index --root <dir> --db <path> [--embedding-model <id>]
  *                              Index a codebase into a knowledge-base file.
- *   lore mcp --db <path>                        Start the knowledge-base MCP server (stdio transport).
+ *   lore mcp --root <dir>                        Start the MCP server, indexing automatically if needed.
+ *   lore mcp --db <path>                          Start the MCP server with a pre-indexed DB.
  *   lore refresh --db <path> --root <dir>       Run an incremental index update and exit.
  *   lore refresh --db <path> --root <dir> --watch  Watch for changes and refresh automatically.
  *   lore refresh --db <path> --root <dir> --poll   Poll for changes and refresh automatically.
@@ -36,7 +37,8 @@ function usage(): never {
     `Usage:
   lore index --root <dir> --db <path> [--embeddings] [--embedding-model <id>] [--index-deps] [--history] [--history-depth <n>] [--history-all]
                          Index a codebase into a knowledge-base SQLite file
-  lore mcp --db <path> [--root <dir> --watch|--poll]  Start the Lore MCP server (stdio transport), optionally with live indexing
+  lore mcp --root <dir> [--watch|--poll]   Start the Lore MCP server, auto-indexing if no DB exists yet
+  lore mcp --db <path> [--root <dir> --watch|--poll]  Start the Lore MCP server with a pre-indexed DB
   lore refresh --db <path> --root <dir> [--index-deps] [--history] [--history-depth <n>] [--history-all]  Run an incremental index update and exit
   lore refresh --db <path> --root <dir> --watch [--embedding-model <id>] Watch for file changes and refresh automatically
   lore refresh --db <path> --root <dir> --poll [--embedding-model <id>]  Poll for file changes and refresh automatically
@@ -49,7 +51,7 @@ function usage(): never {
 
 Options:
   --root <dir>             Root directory to index (required for index, refresh)
-  --db <path>              Path to a Lore knowledge-base SQLite file (required for index, mcp, refresh)
+  --db <path>              Path to a Lore knowledge-base SQLite file (required for index, refresh; optional for mcp)
   --embedding-model <id>   Embedding model identifier (default: Qwen3-Embedding-0.6B-ONNX)
   --embeddings             Enable embedding generation during indexing (disabled by default)
   --no-embeddings          Disable embedding generation during indexing (default)
@@ -297,10 +299,37 @@ async function main(): Promise<void> {
     );
     await builder.build();
   } else if (subcommand === 'mcp') {
-    const dbPath = flag(args, '--db');
-    if (!dbPath) {
-      console.error('Error: --db <path> is required for the mcp subcommand.\n');
+    const rootDir = flag(args, '--root');
+    let dbPath = flag(args, '--db');
+
+    if (!dbPath && !rootDir) {
+      console.error('Error: --root <dir> or --db <path> is required for the mcp subcommand.\n');
       usage();
+      return;
+    }
+
+    // When --root is given without --db, derive a default DB path.
+    if (!dbPath) {
+      const { join } = await import('node:path');
+      dbPath = join(rootDir!, '.lore', 'lore.db');
+    }
+
+    // Auto-index if the DB does not exist and we have a root directory.
+    if (!fs.existsSync(dbPath) && rootDir) {
+      log.startup('auto-indexing before mcp start', { dbPath, rootDir });
+      process.stderr.write(
+        JSON.stringify({ level: 'info', source: 'cli', message: 'auto-indexing repository', rootDir, dbPath }) + '\n',
+      );
+      const { join } = await import('node:path');
+      const dir = join(dbPath, '..');
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      const { IndexBuilder } = await import('./indexer/index.js');
+      const builder = new IndexBuilder(dbPath, { rootDir });
+      await builder.build();
+      log.startup('auto-index complete', { dbPath });
+    } else if (!fs.existsSync(dbPath)) {
+      console.error(`Error: database file not found: ${dbPath}\nProvide --root <dir> to auto-index, or create the DB first with \`lore index\`.\n`);
+      process.exit(1);
       return;
     }
 
@@ -343,7 +372,6 @@ async function main(): Promise<void> {
     // ── Optional live-index watcher/poller (shares the same embedder) ────
     const watchMode = args.includes('--watch');
     const pollMode = args.includes('--poll');
-    const rootDir = flag(args, '--root');
 
     const runtime = new LoreRuntime({
       dbPath,
