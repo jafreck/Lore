@@ -243,6 +243,7 @@ export async function buildToolModules(): Promise<ToolModule[]> {
     diff,
     cohesion,
     structure,
+    dependents,
   ] = await Promise.all([
     import('./tools/lookup.js'),
     import('./tools/graph.js'),
@@ -257,6 +258,7 @@ export async function buildToolModules(): Promise<ToolModule[]> {
     import('./tools/diff.js'),
     import('./tools/cohesion.js'),
     import('./tools/structure.js'),
+    import('./tools/dependents.js'),
   ]);
 
   return [
@@ -311,6 +313,10 @@ export async function buildToolModules(): Promise<ToolModule[]> {
     {
       def: structure.toolDef,
       handlerFactory: (deps) => (args) => structure.handler(deps.db, args),
+    },
+    {
+      def: dependents.toolDef,
+      handlerFactory: (deps) => (args) => dependents.handler(deps.db, args),
     },
   ];
 }
