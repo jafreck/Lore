@@ -55,7 +55,7 @@ describe('TypeScriptExtractor', () => {
     expect(privateSymbol?.isExported).toBeUndefined();
   });
 
-  it('should not mark declarations as exported or attach doc comments for non-declaration files', () => {
+  it('should mark exported symbols but not attach doc comments for non-declaration files', () => {
     const result = extractFromSource(`
       /** Runtime docs should not be captured in non-declaration mode */
       export function runtimePublic(input: string): string {
@@ -64,7 +64,7 @@ describe('TypeScriptExtractor', () => {
     `, 'inline.ts');
 
     const runtimeSymbol = result.symbols.find((symbol) => symbol.name === 'runtimePublic');
-    expect(runtimeSymbol?.isExported).toBeUndefined();
+    expect(runtimeSymbol?.isExported).toBe(true);
     expect(runtimeSymbol?.docComment).toBeUndefined();
   });
 });
