@@ -241,6 +241,7 @@ export async function buildToolModules(): Promise<ToolModule[]> {
     history,
     trace,
     diff,
+    structure,
   ] = await Promise.all([
     import('./tools/lookup.js'),
     import('./tools/graph.js'),
@@ -253,6 +254,7 @@ export async function buildToolModules(): Promise<ToolModule[]> {
     import('./tools/history.js'),
     import('./tools/trace.js'),
     import('./tools/diff.js'),
+    import('./tools/structure.js'),
   ]);
 
   return [
@@ -299,6 +301,10 @@ export async function buildToolModules(): Promise<ToolModule[]> {
     {
       def: diff.toolDef,
       handlerFactory: (deps) => (args) => diff.handler(deps.db, args),
+    },
+    {
+      def: structure.toolDef,
+      handlerFactory: (deps) => (args) => structure.handler(deps.db, args),
     },
   ];
 }
