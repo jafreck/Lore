@@ -67,7 +67,7 @@ describe('createLoreMcpServer', () => {
     createLoreMcpServer(db, '/tmp/test.db');
 
     const toolNames = mockTool.mock.calls.map((call) => call[0]);
-
+    expect(toolNames).toContain('lore_structure');
   });
 
   it('should register newly exposed tools with expected schema fields', () => {
