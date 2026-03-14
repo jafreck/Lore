@@ -1,7 +1,7 @@
 /**
  * Tests for SCIP-based authoritative import resolution.
  *
- * When ScipSourceStage processes Import-role occurrences, it should
+ * When ScipIndexerStage processes Import-role occurrences, it should
  * pre-resolve `file_imports.resolved_id` using the SCIP symbol →
  * definition location mapping — giving compiler-precision import
  * resolution without heuristic path guessing.
@@ -20,7 +20,7 @@ import {
   SymbolRole,
 } from '../../src/scip/scip_pb.js';
 import { openDb } from '../../src/db/schema.js';
-import { ScipSourceStage } from '../../src/indexer/stages/scip-source.js';
+import { ScipIndexerStage } from '../../src/indexer/stages/scip-indexer.js';
 import type { PipelineContext } from '../../src/indexer/pipeline.js';
 import { initLogger, LogLevel } from '../../src/logger.js';
 import { resolveEffectiveScipSettings } from '../../src/scip/config.js';
@@ -93,7 +93,7 @@ function makeContext(rootDir: string, dbPath: string): PipelineContext {
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
-describe('ScipSourceStage import resolution', () => {
+describe('ScipIndexerStage import resolution', () => {
   it('pre-resolves internal imports via SCIP symbol definitions', async () => {
     const rootDir = makeTmpDir('lore-scip-imports-resolve-');
     const indexDir = join(rootDir, '.scip-indexes');
@@ -145,7 +145,7 @@ describe('ScipSourceStage import resolution', () => {
     const dbPath = join(rootDir, 'test.db');
     const ctx = makeContext(rootDir, dbPath);
 
-    const stage = new ScipSourceStage();
+    const stage = new ScipIndexerStage();
     await stage.execute(ctx, 'build');
 
     // Check file_imports for index.ts
@@ -200,7 +200,7 @@ describe('ScipSourceStage import resolution', () => {
     const dbPath = join(rootDir, 'test.db');
     const ctx = makeContext(rootDir, dbPath);
 
-    const stage = new ScipSourceStage();
+    const stage = new ScipIndexerStage();
     await stage.execute(ctx, 'build');
 
     const appFileId = (ctx.db.prepare('SELECT id FROM files WHERE path = ?')
@@ -271,7 +271,7 @@ describe('ScipSourceStage import resolution', () => {
     const dbPath = join(rootDir, 'test.db');
     const ctx = makeContext(rootDir, dbPath);
 
-    const stage = new ScipSourceStage();
+    const stage = new ScipIndexerStage();
     await stage.execute(ctx, 'build');
 
     const mainFileId = (ctx.db.prepare('SELECT id FROM files WHERE path = ?')
@@ -341,7 +341,7 @@ describe('ScipSourceStage import resolution', () => {
     const dbPath = join(rootDir, 'test.db');
     const ctx = makeContext(rootDir, dbPath);
 
-    const stage = new ScipSourceStage();
+    const stage = new ScipIndexerStage();
     await stage.execute(ctx, 'build');
 
     const entryFileId = (ctx.db.prepare('SELECT id FROM files WHERE path = ?')
@@ -402,7 +402,7 @@ describe('ScipSourceStage import resolution', () => {
     const dbPath = join(rootDir, 'test.db');
     const ctx = makeContext(rootDir, dbPath);
 
-    const stage = new ScipSourceStage();
+    const stage = new ScipIndexerStage();
     await stage.execute(ctx, 'build');
 
     // Verify import is already resolved
