@@ -168,7 +168,7 @@ function extractNamedDecl(
     endLine: node.endPosition.row,
     signature: nodeSignature(node),
     ...(docComment ? { docComment } : {}),
-    ...(declarationMode && isNodeExported(node) ? { isExported: true } : {}),
+    ...(isNodeExported(node) ? { isExported: true } : {}),
     astNode: node,
   };
 }
@@ -236,7 +236,7 @@ function maybeExtractArrowOrFunctionExpr(
         endLine: node.endPosition.row,
         signature: nodeSignature(node),
         ...(docComment ? { docComment } : {}),
-        ...(declarationMode && isNodeExported(node) ? { isExported: true } : {}),
+        ...(isNodeExported(node) ? { isExported: true } : {}),
         astNode: valueNode,
       };
     }
