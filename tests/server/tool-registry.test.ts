@@ -297,13 +297,12 @@ describe('tool-registry', () => {
   describe('buildToolModules', () => {
     it('should return an array of tool modules with expected tool names', async () => {
       const modules = await buildToolModules();
-      expect(modules.length).toBeGreaterThanOrEqual(10);
+      expect(modules.length).toBeGreaterThanOrEqual(9);
       const names = modules.map(m => m.def.name);
       expect(names).toContain('lore_lookup');
       expect(names).toContain('lore_graph');
       expect(names).toContain('lore_search');
       expect(names).toContain('lore_docs');
-      expect(names).toContain('lore_routes');
       expect(names).toContain('lore_snippet');
       expect(names).toContain('lore_blame');
       expect(names).toContain('lore_metrics');
