@@ -16,14 +16,22 @@
  * or omit to disable. LSP can also be enabled independently via `lsp`.
  */
 
+import { execFile } from 'node:child_process';
+import { existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { promisify } from 'node:util';
 import { IndexBuilder } from '../../../src/indexer/index.js';
+import { openDb } from '../../../src/db/schema.js';
 import { LazyEmbeddingProvider } from '../../../src/embeddings/embedder.js';
 import { resolveEffectiveScipSettings } from '../../../src/scip/config.js';
 import { resolveEffectiveLspSettings } from '../../../src/lsp/config.js';
+import { ingestCoverageReport, ingestPerTestCoverage } from '../../../src/testing/coverage.js';
 import type { WalkerConfig } from '../../../src/discovery/walker.js';
 import type { EmbeddingProvider } from '../../../src/embeddings/embedder.js';
-import type { RepoInstance, IndexOptions, IndexMode } from './types.js';
+import type { RepoCoverageConfig, RepoInstance, IndexOptions, IndexMode } from './types.js';
+
+const execFileAsync = promisify(execFile);
+const DEFAULT_COMMAND_TIMEOUT_MS = 15 * 60_000;
 
 /**
  * Run the Lore indexer on a repo checkout, producing a .lore.db file.
@@ -88,6 +96,10 @@ export async function indexRepo(
 
   const elapsed = Math.round(performance.now() - start);
 
+  if (instance.spec.coverage) {
+    await ingestBenchmarkCoverage(instance, dbPath, instance.spec.coverage);
+  }
+
   return {
     ...instance,
     dbPath,
@@ -95,4 +107,53 @@ export async function indexRepo(
     indexTimeMs: elapsed,
     indexMode: mode,
   };
+}
+
+async function ingestBenchmarkCoverage(
+  instance: RepoInstance,
+  dbPath: string,
+  config: RepoCoverageConfig,
+): Promise<void> {
+  for (const command of config.commands ?? []) {
+    await execFileAsync(command.command, command.args ?? [], {
+      cwd: instance.localPath,
+      env: { ...process.env, ...(command.env ?? {}) },
+      timeout: command.timeoutMs ?? DEFAULT_COMMAND_TIMEOUT_MS,
+    });
+  }
+
+  const reportPath = join(instance.localPath, config.reportPath);
+  if (!existsSync(reportPath)) {
+    throw new Error(`Coverage report not found after benchmark prep: ${reportPath}`);
+  }
+
+  const db = openDb(dbPath);
+  try {
+    ingestCoverageReport({
+      db,
+      rootDir: instance.localPath,
+      reportPath,
+      format: config.format,
+      commitSha: instance.spec.sha,
+      sourceMtime: Math.floor(statSync(reportPath).mtimeMs / 1000),
+    });
+
+    if (config.perTestReportsDir) {
+      const reportsDir = join(instance.localPath, config.perTestReportsDir);
+      if (!existsSync(reportsDir)) {
+        throw new Error(`Per-test coverage reports directory not found after benchmark prep: ${reportsDir}`);
+      }
+
+      ingestPerTestCoverage({
+        db,
+        reportsDir,
+        rootDir: instance.localPath,
+        commitSha: instance.spec.sha,
+        format: config.perTestFormat ?? config.format,
+        separator: config.perTestSeparator,
+      });
+    }
+  } finally {
+    db.close();
+  }
 }

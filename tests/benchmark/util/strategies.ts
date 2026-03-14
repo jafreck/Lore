@@ -117,6 +117,41 @@ export function buildLoreStrategy(task: BenchmarkTask): ScriptedAgentConfig {
       steps.push(...compositeDeletionLoreSteps(task));
       break;
 
+    // Category 1.6: Dead Code Detection
+    case '1.6':
+      steps.push(...deadCodeLoreSteps(task));
+      break;
+
+    // Category 5: Semantic Clone Detection
+    case '5.1':
+      steps.push(...semanticCloneLoreSteps(task));
+      break;
+
+    // Category 3.5: Dependency Isolation
+    case '3.5':
+      steps.push(...dependencyIsolationLoreSteps(task));
+      break;
+
+    // Category 4.2: Per-test Line Coverage
+    case '4.2':
+      steps.push(...perTestCoverageLoreSteps(task));
+      break;
+
+    // Category 9: API Surface Diff
+    case '9.1':
+      steps.push(...apiSurfaceDiffLoreSteps(task));
+      break;
+
+    // Category 12: Layer Violations
+    case '12.1':
+      steps.push(...layerViolationLoreSteps(task));
+      break;
+
+    // Category 14: Module Cohesion
+    case '14.1':
+      steps.push(...moduleCohesionLoreSteps(task));
+      break;
+
     default:
       steps.push(...genericLoreSteps(task));
       break;
@@ -413,6 +448,54 @@ function compositeDeletionLoreSteps(task: BenchmarkTask): ScriptedStep[] {
   return steps;
 }
 
+function deadCodeLoreSteps(task: BenchmarkTask): ScriptedStep[] {
+  const files = extractFilesFromPrompt(task.prompt);
+  return files.map((file) => ({
+    toolName: 'lore_dependents' as const,
+    args: { query: file, kind: 'file', depth: 1 },
+  }));
+}
+
+function semanticCloneLoreSteps(task: BenchmarkTask): ScriptedStep[] {
+  const symbols = extractSymbolsFromPrompt(task.prompt);
+  return symbols.map((sym) => ({
+    toolName: 'lore_search' as const,
+    args: { query: sym, mode: 'semantic' },
+  }));
+}
+
+function dependencyIsolationLoreSteps(_task: BenchmarkTask): ScriptedStep[] {
+  return [
+    { toolName: 'lore_lookup', args: { kind: 'symbol', query: 'external', mode: 'contains' } },
+  ];
+}
+
+function perTestCoverageLoreSteps(task: BenchmarkTask): ScriptedStep[] {
+  const files = extractFilesFromPrompt(task.prompt);
+  return files.map((file) => ({
+    toolName: 'lore_test_map' as const,
+    args: { source_path: file, line: 1 },
+  }));
+}
+
+function apiSurfaceDiffLoreSteps(_task: BenchmarkTask): ScriptedStep[] {
+  return [
+    { toolName: 'lore_diff', args: { old_branch: 'main' } },
+  ];
+}
+
+function layerViolationLoreSteps(_task: BenchmarkTask): ScriptedStep[] {
+  return [
+    { toolName: 'lore_structure', args: { analysis: 'layers', depth: 2 } },
+  ];
+}
+
+function moduleCohesionLoreSteps(_task: BenchmarkTask): ScriptedStep[] {
+  return [
+    { toolName: 'lore_cohesion', args: { depth: 2, limit: 3 } },
+  ];
+}
+
 function genericLoreSteps(task: BenchmarkTask): ScriptedStep[] {
   const symbols = extractSymbolsFromPrompt(task.prompt);
   return symbols.map((sym) => ({
@@ -569,6 +652,22 @@ export function buildDynamicLoreStrategy(task: BenchmarkTask): ProgrammaticAgent
           case '11.4':
             if (symbolId != null) return { toolName: 'lore_graph', args: { symbol_id: symbolId, direction: 'incoming', edge_kind: 'both' } };
             break;
+          case '1.6':
+            if (filePath) return { toolName: 'lore_dependents', args: { query: filePath, kind: 'file', depth: 1 } };
+            break;
+          case '5.1':
+            return { toolName: 'lore_search', args: { query: symbols[0] ?? task.prompt, mode: 'semantic' } };
+          case '3.5':
+            return { toolName: 'lore_lookup', args: { kind: 'symbol', query: 'external', mode: 'contains' } };
+          case '4.2':
+            if (filePath) return { toolName: 'lore_test_map', args: { source_path: filePath, line: 1 } };
+            break;
+          case '9.1':
+            return { toolName: 'lore_diff', args: { old_branch: 'main' } };
+          case '12.1':
+            return { toolName: 'lore_structure', args: { analysis: 'layers', depth: 2 } };
+          case '14.1':
+            return { toolName: 'lore_cohesion', args: { depth: 2, limit: 3 } };
           default:
             break;
         }

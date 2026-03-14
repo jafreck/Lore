@@ -11,6 +11,8 @@
  * 3. Provisions tools for control and lore-enabled arms
  * 4. Runs scripted agents (control + Lore) against benchmark tasks
  * 5. Scores results and verifies Lore outperforms control
+ *
+ * Set env `BENCHMARK_INTEGRATION=1` to run (skipped by default to keep CI fast).
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -29,10 +31,11 @@ import type { RunScore } from './util/types.js';
 
 // ─── Setup ────────────────────────────────────────────────────────────────────
 
+const SKIP = !process.env['BENCHMARK_INTEGRATION'];
 const WORK_DIR = mkdtempSync(join(tmpdir(), 'lore-bench-'));
 const loreSpec = PILOT_REPOS.find((r) => r.name === 'lore-self')!;
 
-describe('Benchmark integration: Lore self-evaluation', () => {
+describe.skipIf(SKIP)('Benchmark integration: Lore self-evaluation', () => {
   const repoManager = new RepoManager(WORK_DIR);
   let repoPath: string;
   let dbPath: string;

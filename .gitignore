@@ -6,3 +6,4 @@ dist/
 .github/agents/
 coverage/
 .scip-indexes/
+.benchmark/
