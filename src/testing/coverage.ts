@@ -58,7 +58,7 @@ export function ingestCoverageReport(options: IngestCoverageReportOptions): numb
   return tx();
 }
 
-function parseLcov(source: string, rootDir: string): Map<string, Map<number, number>> {
+export function parseLcov(source: string, rootDir: string): Map<string, Map<number, number>> {
   const result = new Map<string, Map<number, number>>();
   let currentFilePath: string | undefined;
 
@@ -83,7 +83,7 @@ function parseLcov(source: string, rootDir: string): Map<string, Map<number, num
   return result;
 }
 
-function parseCobertura(source: string, rootDir: string): Map<string, Map<number, number>> {
+export function parseCobertura(source: string, rootDir: string): Map<string, Map<number, number>> {
   const result = new Map<string, Map<number, number>>();
   // Use a greedy match up to matched </class> while handling nested <class> elements.
   // We match <class ...>...</class> by consuming content that does not start a new <class tag.
@@ -115,4 +115,60 @@ function parseCobertura(source: string, rootDir: string): Map<string, Map<number
 function normalizeCoveragePath(rawPath: string, rootDir: string): string {
   if (path.isAbsolute(rawPath)) return path.normalize(rawPath);
   return path.resolve(rootDir, rawPath);
+}
+
+interface IngestPerTestCoverageOptions {
+  db: Database.Database;
+  reportsDir: string;
+  rootDir?: string;
+  commitSha: string;
+  format: CoverageFormat;
+  separator?: string;
+}
+
+export function ingestPerTestCoverage(options: IngestPerTestCoverageOptions): number {
+  const { db, reportsDir, rootDir = process.cwd(), commitSha, format, separator = '__' } = options;
+
+  const files = fs.readdirSync(reportsDir).filter((name) => {
+    const fullPath = path.join(reportsDir, name);
+    return fs.statSync(fullPath).isFile();
+  });
+
+  const insertRun = db.prepare(
+    `INSERT INTO test_coverage_runs (commit_sha, test_file, test_name, source_path, format)
+     VALUES (?, ?, ?, ?, ?)`,
+  );
+  const insertLine = db.prepare(
+    `INSERT INTO test_coverage_lines (run_id, file_path, line_number, hit_count)
+     VALUES (?, ?, ?, ?)`,
+  );
+
+  const tx = db.transaction(() => {
+    let count = 0;
+    for (const fileName of files) {
+      const filePath = path.join(reportsDir, fileName);
+      const source = fs.readFileSync(filePath, 'utf8');
+      const testFile = fileName.replace(new RegExp(separator.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), '/');
+      const lineHitsByFile =
+        format === 'lcov' ? parseLcov(source, rootDir) : parseCobertura(source, rootDir);
+
+      const runInfo = insertRun.run(commitSha, testFile, null, filePath, format) as {
+        lastInsertRowid: number | bigint;
+      };
+      const runId = Number(runInfo.lastInsertRowid);
+
+      for (const [coveredFilePath, lineHits] of lineHitsByFile.entries()) {
+        for (const [lineNumber, hitCount] of lineHits.entries()) {
+          if (hitCount > 0) {
+            insertLine.run(runId, coveredFilePath, lineNumber, hitCount);
+          }
+        }
+      }
+
+      count += 1;
+    }
+    return count;
+  });
+
+  return tx();
 }

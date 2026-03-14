@@ -80,6 +80,8 @@ describe('openDb', () => {
     expect(tables).toContain('coverage_runs');
     expect(tables).toContain('coverage_files');
     expect(tables).toContain('coverage_lines');
+    expect(tables).toContain('test_coverage_runs');
+    expect(tables).toContain('test_coverage_lines');
     expect(tables).toContain('docs');
     expect(tables).toContain('doc_sections');
   });
@@ -399,6 +401,63 @@ describe('openDb', () => {
         "INSERT INTO coverage_lines (run_id, file_path, line_number, hit_count) VALUES (?, 'src/a.ts', 10, 3)",
       ).run(run.lastInsertRowid),
     ).toThrow();
+  });
+
+  it('should create test_coverage_runs with expected columns', () => {
+    db = openDb(dbPath);
+    const columns = (db.pragma('table_info(test_coverage_runs)') as Array<{ name: string }>).map(
+      (col) => col.name,
+    );
+    expect(columns).toEqual(
+      expect.arrayContaining([
+        'id', 'commit_sha', 'test_file', 'test_name', 'source_path', 'format', 'ingested_at',
+      ]),
+    );
+  });
+
+  it('should create test_coverage_lines with expected columns and composite PK', () => {
+    db = openDb(dbPath);
+    const columns = (db.pragma('table_info(test_coverage_lines)') as Array<{ name: string }>).map(
+      (col) => col.name,
+    );
+    expect(columns).toEqual(
+      expect.arrayContaining(['run_id', 'file_path', 'line_number', 'hit_count']),
+    );
+  });
+
+  it('should enforce foreign key from test_coverage_lines to test_coverage_runs', () => {
+    db = openDb(dbPath);
+    const fks = db.pragma('foreign_key_list(test_coverage_lines)') as Array<{
+      from: string;
+      table: string;
+    }>;
+    expect(fks.some((fk) => fk.from === 'run_id' && fk.table === 'test_coverage_runs')).toBe(true);
+  });
+
+  it('should reject test_coverage_lines rows when the referenced run does not exist', () => {
+    db = openDb(dbPath);
+    expect(() =>
+      db.prepare(
+        "INSERT INTO test_coverage_lines (run_id, file_path, line_number, hit_count) VALUES (999, 'src/a.ts', 1, 1)",
+      ).run(),
+    ).toThrow();
+  });
+
+  it('should create idx_test_coverage_lines_path_line index', () => {
+    db = openDb(dbPath);
+    const indexes = (
+      db.prepare("SELECT name FROM sqlite_master WHERE type = 'index'").all() as Array<{ name: string }>
+    ).map((idx) => idx.name);
+    expect(indexes).toContain('idx_test_coverage_lines_path_line');
+  });
+
+  it('should allow nullable test_name in test_coverage_runs', () => {
+    db = openDb(dbPath);
+    expect(() =>
+      db.prepare(
+        "INSERT INTO test_coverage_runs (commit_sha, test_file, test_name, source_path, format) VALUES ('sha', 'test.ts', NULL, '/r', 'lcov')",
+      ).run(),
+    ).not.toThrow();
   });
 
   it('should be idempotent — calling openDb twice on the same path is safe', () => {
