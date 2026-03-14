@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import Database from 'better-sqlite3';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
-import { ingestCoverageReport } from '../../src/testing/coverage.js';
+import { ingestCoverageReport, parseLcov, parseCobertura } from '../../src/testing/coverage.js';
 
 function createCoverageDb(): Database.Database {
   const db = new Database(':memory:');
@@ -132,5 +132,188 @@ describe('ingestCoverageReport', () => {
         commitSha: 'abc123',
       }),
     ).toThrow();
+  });
+});
+
+describe('parseLcov', () => {
+  it('should parse a simple LCOV record into file-line hit maps', () => {
+    const source = [
+      'TN:',
+      'SF:src/a.ts',
+      'DA:1,5',
+      'DA:2,0',
+      'DA:3,1',
+      'end_of_record',
+    ].join('\n');
+
+    const result = parseLcov(source, '/root');
+    expect(result.size).toBe(1);
+    const hits = result.get('/root/src/a.ts')!;
+    expect(hits.get(1)).toBe(5);
+    expect(hits.get(2)).toBe(0);
+    expect(hits.get(3)).toBe(1);
+  });
+
+  it('should handle multiple files in a single LCOV report', () => {
+    const source = [
+      'SF:src/a.ts',
+      'DA:1,1',
+      'end_of_record',
+      'SF:src/b.ts',
+      'DA:10,2',
+      'end_of_record',
+    ].join('\n');
+
+    const result = parseLcov(source, '/root');
+    expect(result.size).toBe(2);
+    expect(result.get('/root/src/a.ts')!.get(1)).toBe(1);
+    expect(result.get('/root/src/b.ts')!.get(10)).toBe(2);
+  });
+
+  it('should aggregate duplicate DA lines for the same line number', () => {
+    const source = ['SF:src/a.ts', 'DA:1,2', 'DA:1,3', 'end_of_record'].join('\n');
+
+    const result = parseLcov(source, '/root');
+    expect(result.get('/root/src/a.ts')!.get(1)).toBe(5);
+  });
+
+  it('should skip lines with invalid line numbers', () => {
+    const source = [
+      'SF:src/a.ts',
+      'DA:0,5',
+      'DA:-1,3',
+      'DA:abc,1',
+      'DA:1,1',
+      'end_of_record',
+    ].join('\n');
+
+    const result = parseLcov(source, '/root');
+    const hits = result.get('/root/src/a.ts')!;
+    expect(hits.size).toBe(1);
+    expect(hits.get(1)).toBe(1);
+  });
+
+  it('should clamp negative hit counts to zero', () => {
+    const source = ['SF:src/a.ts', 'DA:1,-5', 'end_of_record'].join('\n');
+    const result = parseLcov(source, '/root');
+    expect(result.get('/root/src/a.ts')!.get(1)).toBe(0);
+  });
+
+  it('should return an empty map for empty input', () => {
+    expect(parseLcov('', '/root').size).toBe(0);
+  });
+
+  it('should handle absolute SF paths without re-resolving', () => {
+    const source = ['SF:/abs/src/a.ts', 'DA:1,1', 'end_of_record'].join('\n');
+    const result = parseLcov(source, '/root');
+    expect(result.has('/abs/src/a.ts')).toBe(true);
+  });
+
+  it('should ignore DA lines before any SF record', () => {
+    const source = ['DA:1,1', 'SF:src/a.ts', 'DA:2,1', 'end_of_record'].join('\n');
+    const result = parseLcov(source, '/root');
+    const hits = result.get('/root/src/a.ts')!;
+    expect(hits.size).toBe(1);
+    expect(hits.get(2)).toBe(1);
+  });
+
+  it('should handle Windows-style CRLF line endings', () => {
+    const source = 'SF:src/a.ts\r\nDA:1,1\r\nend_of_record\r\n';
+    const result = parseLcov(source, '/root');
+    expect(result.size).toBe(1);
+  });
+});
+
+describe('parseCobertura', () => {
+  it('should parse a simple Cobertura XML with one class', () => {
+    const source = [
+      '<coverage>',
+      '  <class name="Foo" filename="src/foo.ts">',
+      '    <lines>',
+      '      <line number="1" hits="3"/>',
+      '      <line number="2" hits="0"/>',
+      '    </lines>',
+      '  </class>',
+      '</coverage>',
+    ].join('\n');
+
+    const result = parseCobertura(source, '/root');
+    expect(result.size).toBe(1);
+    const hits = result.get('/root/src/foo.ts')!;
+    expect(hits.get(1)).toBe(3);
+    expect(hits.get(2)).toBe(0);
+  });
+
+  it('should handle multiple classes with distinct files', () => {
+    const source = [
+      '<coverage>',
+      '  <class name="A" filename="src/a.ts">',
+      '    <lines><line number="1" hits="1"/></lines>',
+      '  </class>',
+      '  <class name="B" filename="src/b.ts">',
+      '    <lines><line number="5" hits="2"/></lines>',
+      '  </class>',
+      '</coverage>',
+    ].join('\n');
+
+    const result = parseCobertura(source, '/root');
+    expect(result.size).toBe(2);
+    expect(result.get('/root/src/a.ts')!.get(1)).toBe(1);
+    expect(result.get('/root/src/b.ts')!.get(5)).toBe(2);
+  });
+
+  it('should aggregate hits across multiple classes for the same file', () => {
+    const source = [
+      '<coverage>',
+      '  <class name="A" filename="src/a.ts">',
+      '    <lines><line number="1" hits="2"/></lines>',
+      '  </class>',
+      '  <class name="B" filename="src/a.ts">',
+      '    <lines><line number="1" hits="3"/></lines>',
+      '  </class>',
+      '</coverage>',
+    ].join('\n');
+
+    const result = parseCobertura(source, '/root');
+    expect(result.get('/root/src/a.ts')!.get(1)).toBe(5);
+  });
+
+  it('should handle absolute file paths in filename attribute', () => {
+    const source = [
+      '<coverage>',
+      '  <class name="X" filename="/abs/src/x.ts">',
+      '    <lines><line number="1" hits="1"/></lines>',
+      '  </class>',
+      '</coverage>',
+    ].join('\n');
+
+    const result = parseCobertura(source, '/root');
+    expect(result.has('/abs/src/x.ts')).toBe(true);
+  });
+
+  it('should skip lines with invalid line numbers', () => {
+    const source = [
+      '<coverage>',
+      '  <class name="X" filename="src/x.ts">',
+      '    <lines>',
+      '      <line number="0" hits="5"/>',
+      '      <line number="1" hits="1"/>',
+      '    </lines>',
+      '  </class>',
+      '</coverage>',
+    ].join('\n');
+
+    const result = parseCobertura(source, '/root');
+    const hits = result.get('/root/src/x.ts')!;
+    expect(hits.size).toBe(1);
+    expect(hits.get(1)).toBe(1);
+  });
+
+  it('should return an empty map for XML with no class elements', () => {
+    expect(parseCobertura('<coverage></coverage>', '/root').size).toBe(0);
+  });
+
+  it('should return an empty map for empty input', () => {
+    expect(parseCobertura('', '/root').size).toBe(0);
   });
 });

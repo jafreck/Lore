@@ -1,11 +1,12 @@
 import type { Database } from '../db/schema.js';
 
-export type TestMappingConfidence = 'import' | 'coverage' | 'heuristic';
+export type TestMappingConfidence = 'import' | 'coverage' | 'heuristic' | 'per_test_coverage';
 
 export const TEST_MAPPING_CONFIDENCES: readonly TestMappingConfidence[] = [
   'import',
   'coverage',
   'heuristic',
+  'per_test_coverage',
 ];
 
 const TEST_DIRECTORY_SEGMENTS = new Set(['tests', '__tests__', 'spec']);

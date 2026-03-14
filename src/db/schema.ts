@@ -296,11 +296,32 @@ CREATE TABLE IF NOT EXISTS coverage_lines (
   FOREIGN KEY (run_id, file_path) REFERENCES coverage_files(run_id, file_path) ON DELETE CASCADE
 );
 
+-- Per-test coverage run metadata.
+CREATE TABLE IF NOT EXISTS test_coverage_runs (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  commit_sha    TEXT    NOT NULL,
+  test_file     TEXT    NOT NULL,
+  test_name     TEXT,
+  source_path   TEXT    NOT NULL,
+  format        TEXT    NOT NULL,
+  ingested_at   INTEGER NOT NULL DEFAULT (unixepoch())
+);
+
+-- Per-line hit counts attributed to a specific test coverage run.
+CREATE TABLE IF NOT EXISTS test_coverage_lines (
+  run_id        INTEGER NOT NULL REFERENCES test_coverage_runs(id) ON DELETE CASCADE,
+  file_path     TEXT    NOT NULL,
+  line_number   INTEGER NOT NULL,
+  hit_count     INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (run_id, file_path, line_number)
+);
+
 CREATE INDEX IF NOT EXISTS idx_annotations_kind ON annotations(kind);
 CREATE INDEX IF NOT EXISTS idx_annotations_file_id ON annotations(file_id);
 CREATE INDEX IF NOT EXISTS idx_coverage_runs_ingested_at ON coverage_runs(ingested_at);
 CREATE INDEX IF NOT EXISTS idx_coverage_files_path ON coverage_files(file_path);
 CREATE INDEX IF NOT EXISTS idx_coverage_lines_path_line ON coverage_lines(file_path, line_number);
+CREATE INDEX IF NOT EXISTS idx_test_coverage_lines_path_line ON test_coverage_lines(file_path, line_number);
 CREATE INDEX IF NOT EXISTS idx_docs_branch_kind ON docs(branch, kind);
 CREATE INDEX IF NOT EXISTS idx_doc_sections_doc_id ON doc_sections(doc_id);
 CREATE INDEX IF NOT EXISTS idx_external_symbols_dependency_ecosystem ON external_symbols(dependency_ecosystem);
