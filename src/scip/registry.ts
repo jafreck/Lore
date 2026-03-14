@@ -42,7 +42,7 @@ export type ScipIndexerRegistryOverrides = Partial<Record<string, Partial<ScipIn
  *
  * | Language group          | Indexer             |
  * |-------------------------|---------------------|
- * | TypeScript, JavaScript  | scip-typescript     |
+ * | TypeScript              | scip-typescript     |
  * | Python                  | scip-python         |
  * | Java, Scala, Kotlin     | scip-java           |
  * | Rust                    | rust-analyzer scip  |
@@ -55,7 +55,6 @@ export type ScipIndexerRegistryOverrides = Partial<Record<string, Partial<ScipIn
  */
 export const DEFAULT_SCIP_INDEXER_REGISTRY: ScipIndexerRegistry = {
   typescript: { command: 'scip-typescript', args: ['index', '--output', '{output}'] },
-  javascript: { command: 'scip-typescript', args: ['index', '--infer-tsconfig', '--output', '{output}'] },
   python:     { command: 'scip-python',     args: ['index', '.', '--project-name', 'project', '--output', '{output}'] },
   java:       { command: 'scip-java',       args: ['index', '--output', '{output}'] },
   scala:      { command: 'scip-java',       args: ['index', '--output', '{output}'] },

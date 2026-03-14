@@ -896,11 +896,30 @@ export class ScipIndexerStage implements PipelineStage {
       try {
         const outputPath = join(rootDir, `.lore-scip-${lang}.scip`);
         const args = indexer.args.map(a => a.replace(/\{output\}/g, outputPath));
+
+        // For TypeScript: generate a broad tsconfig so scip-typescript
+        // indexes ALL .ts files (including tests), not just those in the
+        // project's tsconfig "include" (which typically excludes tests).
+        let tempTsconfigPath: string | null = null;
+        if (lang === 'typescript') {
+          tempTsconfigPath = createLoreScipTsconfig(rootDir);
+          if (tempTsconfigPath) {
+            args.push(tempTsconfigPath);
+          }
+        }
+
         const execFileAsync = promisify(execFile);
-        await execFileAsync(indexer.command, args, {
-          cwd: rootDir,
-          timeout: settings.timeoutMs,
-        });
+        try {
+          await execFileAsync(indexer.command, args, {
+            cwd: rootDir,
+            timeout: settings.timeoutMs,
+          });
+        } finally {
+          if (tempTsconfigPath) {
+            try { fs.unlinkSync(tempTsconfigPath); } catch { /* best effort */ }
+          }
+        }
+
         // Check for output
         for (const candidate of [outputPath, join(rootDir, 'index.scip')]) {
           if (existsSync(candidate)) {
@@ -914,6 +933,60 @@ export class ScipIndexerStage implements PipelineStage {
       }
     }
 
+    return null;
+  }
+}
+
+// ─── Temporary tsconfig for broad SCIP indexing ─────────────────────────────
+
+/** Fields that only affect build output, not type-checking or SCIP indexing. */
+const TSCONFIG_BUILD_ONLY_FIELDS = [
+  'outDir', 'rootDir', 'declaration', 'declarationMap', 'declarationDir',
+  'sourceMap', 'inlineSourceMap', 'inlineSources', 'composite',
+  'tsBuildInfoFile', 'emitDeclarationOnly',
+] as const;
+
+const LORE_SCIP_TSCONFIG = '.tsconfig.lore-scip.json';
+
+/**
+ * Generate a temporary tsconfig that includes **all** `.ts`/`.tsx` files
+ * in the project, so `scip-typescript` indexes tests and other files
+ * excluded by the project's production tsconfig.
+ *
+ * Strips build-only compiler options (`outDir`, `rootDir`, `declaration`,
+ * etc.) that would conflict with the broad `include` and are irrelevant
+ * for SCIP analysis.  Preserves all type-checking options (`strict`,
+ * `paths`, `baseUrl`, etc.) so SCIP still resolves types correctly.
+ *
+ * Returns the path to the temp file, or `null` if no tsconfig exists.
+ */
+function createLoreScipTsconfig(rootDir: string): string | null {
+  const log = getLogger();
+  const tsconfigPath = join(rootDir, 'tsconfig.json');
+  if (!existsSync(tsconfigPath)) return null;
+
+  try {
+    const raw = JSON.parse(readFileSync(tsconfigPath, 'utf8'));
+    const compilerOptions = { ...(raw.compilerOptions ?? {}) };
+
+    // Strip build-only fields
+    for (const field of TSCONFIG_BUILD_ONLY_FIELDS) {
+      delete compilerOptions[field];
+    }
+
+    const loreTsconfig = {
+      compilerOptions,
+      // Include all TypeScript files in the project
+      include: ['**/*.ts', '**/*.tsx'],
+      // Preserve the project's exclude but drop the original include restriction
+      exclude: raw.exclude ?? ['node_modules'],
+    };
+
+    const outPath = join(rootDir, LORE_SCIP_TSCONFIG);
+    fs.writeFileSync(outPath, JSON.stringify(loreTsconfig, null, 2));
+    log.debug('scip', `generated broad tsconfig for SCIP: ${outPath}`);
+    return outPath;
+  } catch {
     return null;
   }
 }
