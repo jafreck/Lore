@@ -16,7 +16,6 @@ function createStubContext(): PipelineContext {
     files: [],
     indexDependencies: false,
     history: false,
-    docsAutoNotes: true,
     staleSymbolIds: [],
     changedSourcePaths: [],
     changedDocPaths: [],

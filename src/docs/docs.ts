@@ -48,8 +48,6 @@ export interface DocsDiscoveryConfig {
   extensions?: string[];
 }
 
-type SeedableDocumentKind = Extract<DocumentKind, 'readme' | 'architecture' | 'adr'>;
-
 const DEFAULT_EXCLUDES = [
   '**/node_modules/**',
   '**/.git/**',
@@ -71,7 +69,6 @@ export const DEFAULT_DOC_INCLUDE_GLOBS = [
 ];
 
 const MARKDOWN_HEADING_RE = /^(#{1,6})\s+(.+?)\s*#*\s*$/;
-const SEEDABLE_DOC_KINDS = new Set<SeedableDocumentKind>(['readme', 'architecture', 'adr']);
 
 export async function discoverDocumentationFiles(config: DocsDiscoveryConfig): Promise<DocumentationFile[]> {
   const includePatterns = config.includeGlobs && config.includeGlobs.length > 0
@@ -243,30 +240,6 @@ export function inferDocumentChunks(
   }
 
   return chunks;
-}
-
-export function inferSeededDocNoteKey(doc: Pick<DocumentationFile, 'path' | 'kind'>): string | null {
-  if (!SEEDABLE_DOC_KINDS.has(doc.kind as SeedableDocumentKind)) {
-    return null;
-  }
-
-  if (doc.kind === 'readme') {
-    return 'docs/readme';
-  }
-
-  const stem = basename(doc.path, extname(doc.path));
-  const slug = toSlug(stem) || 'doc';
-  if (doc.kind === 'architecture') {
-    return slug === 'architecture' || slug === 'arch'
-      ? 'docs/architecture'
-      : `docs/architecture/${slug}`;
-  }
-
-  return `docs/adr/${slug}`;
-}
-
-export function buildDocNoteScope(docPath: string, branch: string): string {
-  return `doc:${docPath}@${branch}`;
 }
 
 function extractFirstMarkdownHeading(content: string): string | undefined {

@@ -109,9 +109,6 @@ export class SourceIndexStage implements PipelineStage {
   async execute(context: PipelineContext, mode: 'build' | 'update'): Promise<void> {
     this.pool = new ParserPool();
 
-    // Save docs auto-notes setting.
-    setLoreMeta(context.db, 'docs_auto_notes', context.docsAutoNotes ? '1' : '0');
-
     if (mode === 'build') {
       const allFiles = await walkFiles(context.walkerConfig);
       let files: Array<{ path: string; language: string }>;

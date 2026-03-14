@@ -9,8 +9,8 @@
  * ## ToolModule contract
  *
  * Every tool file must export **at least**:
- *   - `toolDef` (or `writeToolDef` / `readToolDef`) containing `name`, `description`, and `inputSchema`
- *   - `handler(db, args, ...)` (or `writeHandler` / `readHandler` for notes)
+ *   - `toolDef` containing `name`, `description`, and `inputSchema`
+ *   - `handler(db, args, ...)`
  *
  * The registry iterates over a list of declared `ToolModule` descriptors and
  * calls `server.tool()` for each, using a standard `loggedHandler` wrapper.
@@ -235,7 +235,6 @@ export async function buildToolModules(): Promise<ToolModule[]> {
     search,
     docsMod,
     routes,
-    notes,
     testMap,
     snippet,
     blame,
@@ -247,7 +246,6 @@ export async function buildToolModules(): Promise<ToolModule[]> {
     import('./tools/search.js'),
     import('./tools/docs.js'),
     import('./tools/routes.js'),
-    import('./tools/notes.js'),
     import('./tools/test-map.js'),
     import('./tools/snippet.js'),
     import('./tools/blame.js'),
@@ -275,14 +273,6 @@ export async function buildToolModules(): Promise<ToolModule[]> {
     {
       def: routes.toolDef,
       handlerFactory: (deps) => (args) => routes.handler(deps.db, args),
-    },
-    {
-      def: notes.writeToolDef,
-      handlerFactory: (deps) => (args) => notes.writeHandler(deps.dbPath, args),
-    },
-    {
-      def: notes.readToolDef,
-      handlerFactory: (deps) => (args) => notes.readHandler(deps.db, args),
     },
     {
       def: testMap.toolDef,

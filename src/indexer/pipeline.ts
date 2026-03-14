@@ -69,8 +69,6 @@ export interface PipelineContext {
   indexDependencies: boolean;
   /** History ingestion policy. */
   history: boolean | { depth?: number; all?: boolean };
-  /** Whether to auto-seed documentation notes. */
-  docsAutoNotes: boolean;
 
   // ── Update-mode fields (populated by stages during incremental updates) ──
 

@@ -89,18 +89,6 @@ function readKbMeta(dbPath: string, key: string): string | undefined {
   return row?.value;
 }
 
-function readDocScopedNotes(dbPath: string): Array<{ key: string; scope: string }> {
-  const db = new Database(dbPath, { readonly: true });
-  const rows = db.prepare(
-    `SELECT key, scope
-     FROM notes
-     WHERE scope LIKE 'doc:%'
-     ORDER BY key, scope`,
-  ).all() as Array<{ key: string; scope: string }>;
-  db.close();
-  return rows;
-}
-
 function mockIndexBuilderWithOptionsCapture(capture: (options: unknown) => void): void {
   const factory = () => ({
     IndexBuilder: class {
@@ -256,7 +244,6 @@ describe('cli', () => {
         '--docs-exclude', '**/draft/**',
         '--docs-exclude', '**/skip/**',
         '--docs-extension', '.md',
-        '--no-docs-auto-notes',
       ]);
 
       await waitForFile(dbPath);
@@ -265,11 +252,9 @@ describe('cli', () => {
         'index docs ingestion to complete',
       );
       expect(readDocsPaths(dbPath)).toEqual([includedDoc]);
-      expect(readKbMeta(dbPath, 'docs_auto_notes')).toBe('0');
-      expect(readDocScopedNotes(dbPath)).toEqual([]);
     });
 
-    it('should default docs auto-notes to enabled in index mode when unspecified', async () => {
+    it('should index documentation files by default', async () => {
       const dbPath = freshDb();
       const readmePath = nodePath.join(tmpDir, 'README.md');
       nodeFs.writeFileSync(readmePath, '# Lore\n', 'utf8');
@@ -277,30 +262,11 @@ describe('cli', () => {
       await loadCli(['index', '--db', dbPath, '--root', tmpDir]);
       await waitForFile(dbPath);
       await waitForCondition(
-        () => readDocScopedNotes(dbPath).length === 1,
-        'index seeded docs note to be created',
+        () => readDocsPaths(dbPath).length >= 1,
+        'index docs ingestion to complete',
       );
 
-      expect(readKbMeta(dbPath, 'docs_auto_notes')).toBe('1');
-      expect(readDocScopedNotes(dbPath)).toEqual([
-        { key: 'docs/readme', scope: `doc:${readmePath}@HEAD` },
-      ]);
-    });
-
-    it('should reject conflicting docs auto-notes flags in index mode', async () => {
-      const dbPath = freshDb();
-      await loadCli([
-        'index',
-        '--db', dbPath,
-        '--root', tmpDir,
-        '--docs-auto-notes',
-        '--no-docs-auto-notes',
-      ]);
-
-      expect(exitSpy).toHaveBeenCalledWith(1);
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        expect.stringContaining('--docs-auto-notes and --no-docs-auto-notes cannot be used together'),
-      );
+      expect(readDocsPaths(dbPath).length).toBeGreaterThanOrEqual(1);
     });
   });
 
@@ -772,21 +738,6 @@ describe('cli', () => {
       await loadCli(['refresh']);
       expect(exitSpy).toHaveBeenCalledWith(1);
     });
-
-    it('should reject conflicting docs auto-notes flags in refresh mode', async () => {
-      await loadCli([
-        'refresh',
-        '--db', freshDb(),
-        '--root', tmpDir,
-        '--docs-auto-notes',
-        '--no-docs-auto-notes',
-      ]);
-
-      expect(exitSpy).toHaveBeenCalledWith(1);
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        expect.stringContaining('--docs-auto-notes and --no-docs-auto-notes cannot be used together'),
-      );
-    });
   });
 
   // ── refresh subcommand — manual mode ──────────────────────────────────────
@@ -811,28 +762,20 @@ describe('cli', () => {
         '--docs-exclude', '**/draft/**',
         '--docs-exclude', '**/skip/**',
         '--docs-extension', '.md',
-        '--docs-auto-notes',
       ]);
       await waitForStderr(stderrSpy, 'refresh complete');
       await waitForFile(dbPath);
       expect(readDocsPaths(dbPath)).toEqual([includedDoc]);
-      expect(readKbMeta(dbPath, 'docs_auto_notes')).toBe('1');
-      expect(readDocScopedNotes(dbPath)).toEqual([
-        { key: 'docs/readme', scope: `doc:${includedDoc}@HEAD` },
-      ]);
     });
 
-    it('should default docs auto-notes to enabled in manual refresh when unspecified', async () => {
+    it('should default docs to enabled in manual refresh when unspecified', async () => {
       const dbPath = freshDb();
       const readmePath = nodePath.join(tmpDir, 'README.md');
       nodeFs.writeFileSync(readmePath, '# Lore\n', 'utf8');
       await loadCli(['refresh', '--db', dbPath, '--root', tmpDir]);
       await waitForStderr(stderrSpy, 'refresh complete');
       await waitForFile(dbPath);
-      expect(readKbMeta(dbPath, 'docs_auto_notes')).toBe('1');
-      expect(readDocScopedNotes(dbPath)).toEqual([
-        { key: 'docs/readme', scope: `doc:${readmePath}@HEAD` },
-      ]);
+      expect(readDocsPaths(dbPath).length).toBeGreaterThanOrEqual(1);
     });
 
     it('should complete refresh when --index-deps is provided', async () => {

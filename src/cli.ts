@@ -63,8 +63,6 @@ Options:
   --docs-include <glob>    Glob pattern for docs to include (repeatable)
   --docs-exclude <glob>    Glob pattern for docs to exclude (repeatable)
   --docs-extension <ext>   Documentation extension to include, e.g. .md (repeatable)
-  --docs-auto-notes        Enable doc-based note seeding during indexing (default)
-  --no-docs-auto-notes     Disable doc-based note seeding during indexing
   --watch                  Enable fs-event watch mode (low-latency, may miss events on some platforms)
   --poll                   Enable polling mode (reliable but higher CPU/IO cost)
   --lsp                    Enable index-time LSP enrichment (disabled by default)
@@ -92,18 +90,6 @@ function flags(args: string[], name: string): string[] {
     if (args[i] === name) results.push(args[i + 1] as string);
   }
   return results;
-}
-
-function docsAutoNotesFlag(args: string[]): boolean {
-  const enable = args.includes('--docs-auto-notes');
-  const disable = args.includes('--no-docs-auto-notes');
-  if (enable && disable) {
-    console.error('Error: --docs-auto-notes and --no-docs-auto-notes cannot be used together.\n');
-    usage();
-  }
-  if (enable) return true;
-  if (disable) return false;
-  return true;
 }
 
 function explicitLspEnabled(args: string[]): boolean | undefined {
@@ -229,7 +215,6 @@ async function main(): Promise<void> {
     const docsIncludeGlobs = flags(args, '--docs-include');
     const docsExcludeGlobs = flags(args, '--docs-exclude');
     const docsExtensions = flags(args, '--docs-extension');
-    const docsAutoNotes = docsAutoNotesFlag(args);
 
     // Static reverse map: language name → extensions (mirrors EXT_TO_LANG in walker.ts)
     const LANG_TO_EXTS: Record<string, string[]> = {
@@ -284,7 +269,6 @@ async function main(): Promise<void> {
 
     const shouldEnableHistory = historyEnabled || historyAll || historyDepth !== undefined;
     const options = {
-      docsAutoNotes,
       indexDependencies,
       lsp: lspSettings,
       scip: scipSettings,
@@ -369,7 +353,6 @@ async function main(): Promise<void> {
       scip: null,
       history: false,
       indexDependencies: false,
-      docsAutoNotes: true,
       embeddingModel: modelName ?? undefined,
       refreshMode: (watchMode && rootDir) ? 'watch' : (pollMode && rootDir) ? 'poll' : 'none',
     }, log);
@@ -483,7 +466,6 @@ async function main(): Promise<void> {
     const docsIncludeGlobs = flags(args, '--docs-include');
     const docsExcludeGlobs = flags(args, '--docs-exclude');
     const docsExtensions = flags(args, '--docs-extension');
-    const docsAutoNotes = docsAutoNotesFlag(args);
 
     const walkerConfig = {
       rootDir,
@@ -510,7 +492,6 @@ async function main(): Promise<void> {
         scip: scipSettings,
         history: shouldEnableHistory ? historyOption : false,
         indexDependencies,
-        docsAutoNotes,
         embeddingModel: embeddingModel ?? undefined,
         refreshMode: watchMode ? 'watch' : 'poll',
       }, log);
@@ -522,7 +503,6 @@ async function main(): Promise<void> {
       const { IndexBuilder } = await import('./indexer/index.js');
       const builder = new IndexBuilder(dbPath, walkerConfig, undefined, {
         ...refreshOptions,
-        docsAutoNotes,
       });
 
       const dbExists = fs.existsSync(dbPath);
