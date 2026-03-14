@@ -216,4 +216,81 @@ describe('buildLoreStrategy', () => {
     expect(toolNames).toContain('lore_lookup');
     expect(toolNames).toContain('lore_graph');
   });
+
+  it('should use lore_dependents for dead code detection questions (1.6)', () => {
+    const task = makeTask({
+      questionId: '1.6',
+      prompt: 'Which exported functions in `src/logger.ts` are never called?',
+      family: 'coverage',
+    });
+    const strategy = buildLoreStrategy(task);
+    const toolNames = strategy.steps.map((s) => s.toolName);
+    expect(toolNames).toContain('lore_dependents');
+  });
+
+  it('should use lore_search semantic mode for clone detection questions (5.1)', () => {
+    const task = makeTask({
+      questionId: '5.1',
+      prompt: 'What functions have similar logic to `buildControlStrategy`?',
+      family: 'explanation',
+    });
+    const strategy = buildLoreStrategy(task);
+    const toolNames = strategy.steps.map((s) => s.toolName);
+    expect(toolNames).toContain('lore_search');
+  });
+
+  it('should use lore_lookup for dependency isolation questions (3.5)', () => {
+    const task = makeTask({
+      questionId: '3.5',
+      prompt: 'Which external packages are only imported by a single directory?',
+      family: 'explanation',
+    });
+    const strategy = buildLoreStrategy(task);
+    const toolNames = strategy.steps.map((s) => s.toolName);
+    expect(toolNames).toContain('lore_lookup');
+  });
+
+  it('should use lore_test_map with line for per-test coverage questions (4.2)', () => {
+    const task = makeTask({
+      questionId: '4.2',
+      prompt: 'Which tests exercise line 1 of `src/parsing/parser.ts`?',
+      family: 'testing',
+    });
+    const strategy = buildLoreStrategy(task);
+    const toolNames = strategy.steps.map((s) => s.toolName);
+    expect(toolNames).toContain('lore_test_map');
+  });
+
+  it('should use lore_diff for API surface diff questions (9.1)', () => {
+    const task = makeTask({
+      questionId: '9.1',
+      prompt: 'What exported symbols have changed between branches?',
+      family: 'history',
+    });
+    const strategy = buildLoreStrategy(task);
+    const toolNames = strategy.steps.map((s) => s.toolName);
+    expect(toolNames).toContain('lore_diff');
+  });
+
+  it('should use lore_structure for layer violation questions (12.1)', () => {
+    const task = makeTask({
+      questionId: '12.1',
+      prompt: 'Are there any architectural layering violations in this codebase?',
+      family: 'explanation',
+    });
+    const strategy = buildLoreStrategy(task);
+    const toolNames = strategy.steps.map((s) => s.toolName);
+    expect(toolNames).toContain('lore_structure');
+  });
+
+  it('should use lore_cohesion for module cohesion questions (14.1)', () => {
+    const task = makeTask({
+      questionId: '14.1',
+      prompt: 'Which directories have the lowest cohesion?',
+      family: 'explanation',
+    });
+    const strategy = buildLoreStrategy(task);
+    const toolNames = strategy.steps.map((s) => s.toolName);
+    expect(toolNames).toContain('lore_cohesion');
+  });
 });

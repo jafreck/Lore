@@ -14,7 +14,7 @@ import type { RepoSpec, RepoInstance } from './types.js';
 const execFileAsync = promisify(execFile);
 
 /** Default directory for benchmark repo checkouts. */
-const DEFAULT_WORK_DIR = join(process.cwd(), '.benchmark-repos');
+const DEFAULT_WORK_DIR = join(process.cwd(), '.benchmark');
 
 /**
  * Manages the lifecycle of benchmark repo checkouts:
