@@ -240,6 +240,7 @@ export async function buildToolModules(): Promise<ToolModule[]> {
     metrics,
     history,
     trace,
+    cohesion,
   ] = await Promise.all([
     import('./tools/lookup.js'),
     import('./tools/graph.js'),
@@ -251,6 +252,7 @@ export async function buildToolModules(): Promise<ToolModule[]> {
     import('./tools/metrics.js'),
     import('./tools/history.js'),
     import('./tools/trace.js'),
+    import('./tools/cohesion.js'),
   ]);
 
   return [
@@ -293,6 +295,10 @@ export async function buildToolModules(): Promise<ToolModule[]> {
     {
       def: trace.toolDef,
       handlerFactory: (deps) => (args) => trace.handler(deps.db, args),
+    },
+    {
+      def: cohesion.toolDef,
+      handlerFactory: (deps) => (args) => cohesion.handler(deps.db, args ?? {}),
     },
   ];
 }
