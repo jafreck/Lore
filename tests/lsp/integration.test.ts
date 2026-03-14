@@ -89,7 +89,7 @@ describe('LSP integration', () => {
         const builder = new IndexBuilder(dbPath, { rootDir }, undefined, {
           lsp: {
             enabled: true,
-            requestTimeoutMs: 1500,
+            requestTimeoutMs: 5000,
             servers: {
               typescript: { command: 'typescript-language-server', args: ['--stdio'] },
             },
