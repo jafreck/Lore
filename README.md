@@ -9,14 +9,14 @@
 
 **The teammate that knows it all** 
 
-Lore holds your agent's institutional knowledge over the codebase — it knows what was built, why it changed, and how it all connects. Lore indexes your code and git history into a structured knowledge base that agents query through MCP. It maps symbols, imports, call relationships, type relationships, routes, annotations, docs, and all git data — with optional embeddings for semantic search — so agents can reason about your codebase without re-reading it from scratch.
+Lore holds your agent's institutional knowledge over the codebase — it knows what was built, why it changed, and how it all connects. Lore indexes your code and git history into a structured knowledge base that agents query through MCP. It maps symbols, imports, call relationships, type relationships, annotations, docs, and all git data — with optional embeddings for semantic search — so agents can reason about your codebase without re-reading it from scratch.
 
 Lore-enabled agents achieve up to **8.8× faster** responses, up to **97% fewer tokens**, and up to **+33pp correctness improvement** on code intelligence tasks compared to a baseline agent with grep and file reads alone. See the [full benchmark results](docs/benchmark-results.md) for details.
 
 ## What Lore does
 
 - Indexes source files using SCIP indexers by default for pre-resolved symbols and edges, with tree-sitter parsing as a fallback for languages without a SCIP indexer
-- Extracts symbols, imports, call refs, type refs, annotations, and API routes across all 23 supported languages
+- Extracts symbols, imports, call refs, type refs, and annotations across all 23 supported languages
 - Resolves internal vs external imports and builds call/import/module/inheritance/type-dependency graph edges using a 3-tier resolution strategy (SCIP/LSP containment, same-file name match, unique name match)
 - Discovers and indexes documentation (`.md`, `.rst`, `.adoc`, `.txt`) with inferred kinds/titles
 - Stores everything in a normalized SQL schema with optional vector search
@@ -39,11 +39,11 @@ flowchart LR
 
     subgraph INDEXER[Lore Indexer]
         SCIPDIRECT[SCIP Source<br/>pre-resolved symbols + refs] --> WALK
-        WALK[Walker] --> PARSE[Parser] --> EXTRACT[Extractors<br/>symbols · imports · call refs<br/>type refs · routes · annotations]
+        WALK[Walker] --> PARSE[Parser] --> EXTRACT[Extractors<br/>symbols · imports · call refs<br/>type refs · annotations]
         EXTRACT --> RESOLVE[Import Resolver<br/>internal ↔ external]
         EXTRACT --> CALLGRAPH[Relationship Resolver]
         EXTRACT -.-> LSPENRICH[LSP Enrichment<br/>type signatures · definition locations]
-        DOCSINGEST[Docs Ingest<br/>sections · headings · notes]
+        DOCSINGEST[Docs Ingest<br/>sections · headings]
         GITHIST[Git History Ingest<br/>commits · diffs · refs]
         COVINGEST[Coverage Ingest<br/>lcov · cobertura]
     end
@@ -62,8 +62,11 @@ flowchart LR
         SEARCH[lore_search]
         DOCS_TOOL[lore_docs]
         GRAPH[lore_graph]
-        ROUTES[lore_routes]
-        NOTES[lore_notes_read/write]
+        DEPENDENTS[lore_dependents]
+        TRACE[lore_trace]
+        DIFF[lore_diff]
+        COHESION[lore_cohesion]
+        STRUCTURE[lore_structure]
         TESTMAP[lore_test_map]
         SNIPPET[lore_snippet]
         BLAME[lore_blame]
@@ -88,53 +91,13 @@ flowchart LR
     RESOLVE -.->|optional| EMBED
     EMBED -.-> DB
 
-    DB --- LOOKUP & SEARCH & DOCS_TOOL & GRAPH & ROUTES & NOTES & TESTMAP & SNIPPET & BLAME & HISTORY & METRICS
+    DB --- LOOKUP & SEARCH & DOCS_TOOL & GRAPH & DEPENDENTS & TRACE & DIFF & COHESION & STRUCTURE & TESTMAP & SNIPPET & BLAME & HISTORY & METRICS
     EMBED <-.->|semantic/fused| SEARCH
 
-    LOOKUP & SEARCH & DOCS_TOOL & GRAPH & ROUTES & NOTES & TESTMAP & SNIPPET & BLAME & HISTORY & METRICS <--> MCP_CLIENTS
+    LOOKUP & SEARCH & DOCS_TOOL & GRAPH & DEPENDENTS & TRACE & DIFF & COHESION & STRUCTURE & TESTMAP & SNIPPET & BLAME & HISTORY & METRICS <--> MCP_CLIENTS
 ```
 
-Lore sits between your codebase and any LLM-powered tool. A `LoreRuntime`
-instance owns all long-lived resources (database, embedder, LSP coordinators,
-watcher/poller) and dispatches both CLI commands and MCP server requests through
-a single lifecycle.
-
-The **indexer** is decomposed into composable **pipeline stages** orchestrated
-by `IndexPipeline`. `IndexBuilder` is now a thin façade (~310 lines, down from
-~1 230) that delegates to the pipeline for both full builds and incremental
-updates. The stage ordering enforces data dependencies structurally:
-
-```
-ScipSource → SourceIndex → DocsIndex → ImportResolution → DependencyApi
-  → ScipEnrichment → LspEnrichment → Resolution → TestMap → History → Embedding
-```
-
-**SCIP is the default source stage.** `ScipSourceStage` runs first and
-populates symbols, refs, and pre-resolved edges for every language that has
-a SCIP indexer available. `SourceIndexStage` then handles remaining languages
-(or all languages if SCIP is explicitly disabled) via tree-sitter as a
-fallback. A **SCIP enrichment** stage then writes definition locations and
-type metadata from SCIP data, while an optional **LSP enrichment** stage can
-enrich symbols not already covered by SCIP. Symbol references are
-resolved using a **3-tier strategy**: SCIP/LSP containment → same-file name
-match → unique name match. An optional **embedder** generates dense vectors
-for semantic search (with async initialization so the MCP server starts
-instantly), and a parallel **git history** ingest captures commits, diffs,
-and refs. Everything is persisted to a normalized SQL database.
-
-The **MCP server** uses a `ToolRegistry` that auto-discovers tool modules
-from their exported `toolDef` / `handler` definitions — no duplicate schema
-code. It exposes the database as a set of tools that any MCP-compatible
-client can call to look up symbols, search code, traverse call graphs, read
-snippets, query blame/history, and write summaries back.
-
-The index stays fresh automatically. You can install **git hooks**
-(`post-commit`, `post-merge`, etc.) that trigger an incremental refresh on
-every commit, run a **watch** mode that reacts to filesystem events in
-real time (with live embedding updates), or use **poll** mode for
-environments where watch events are unreliable (also with live embedding
-updates). Each refresh only re-processes files whose content hash has
-changed, so updates are fast even on large repositories.
+Lore sits between your codebase and any LLM-powered tool. The indexer uses a SCIP-first strategy with tree-sitter fallback to extract symbols, imports, and relationships, then persists everything to a normalized SQL database. The MCP server auto-discovers tool modules and exposes the database to any MCP-compatible client. The index stays fresh via git hooks, watch mode, or poll mode — each refresh only re-processes files whose content hash has changed.
 
 See [docs/architecture.md](docs/architecture.md) for the full schema and
 pipeline breakdown.
@@ -189,9 +152,11 @@ await builder.build();
 | `lore_lookup` | Find symbols by name or files by path, including external dependency API symbols and LSP-resolved metadata when available |
 | `lore_search` | Structural BM25, semantic vector, or fused RRF search across symbols and doc sections |
 | `lore_docs` | List, fetch, or search indexed documentation with branch, kind, and path filters |
-| `lore_routes` | Query extracted API routes/endpoints with optional method, path prefix, and framework filters |
-| `lore_notes_write` | Upsert agent-authored notes by key and scope, with optional source hash for staleness tracking |
-| `lore_notes_read` | Read notes by exact key or key prefix with scope-aware staleness metadata |
+| `lore_dependents` | Find everything affected by changing a symbol or file — callers, importers, subclasses, and type references in one call |
+| `lore_trace` | Trace an execution path from an entry point and return an ordered call sequence with source code for each step |
+| `lore_diff` | Compare exported symbols between two indexed branches; returns added, removed, and changed symbols |
+| `lore_cohesion` | Rank directories by module cohesion (ratio of internal to external symbol references) |
+| `lore_structure` | Detect structural anomalies — import cycles (Tarjan SCC), layering violations (Kahn toposort), and outlier couplings |
 | `lore_graph` | Query call/import/inheritance/type-dependency edges; supports `source_id` for outbound and `target_id` for inbound/reverse queries; call edges include `callee_coverage_percent` |
 | `lore_snippet` | Return snippets from indexed source snapshots by file path + line range or by symbol name; path/symbol resolution is branch-aware and responses include containing-symbol context metadata (name, kind, start/end lines) when available |
 | `lore_test_map` | Return mapped test files (with confidence) for a given source file path |
@@ -325,13 +290,6 @@ CLI discovery controls:
 
 - `--docs-include <glob>` / `--docs-exclude <glob>` — repeatable include/exclude filters
 - `--docs-extension <ext>` — repeatable extension filter (e.g. `.md`)
-- `--docs-auto-notes` / `--no-docs-auto-notes` — toggle seeded doc-note upserts (default: enabled)
-
-When auto-notes are enabled, Lore seeds `notes` rows for README, architecture,
-and ADR docs using deterministic keys. Each note tracks a `source_hash` for
-staleness detection — `lore_notes_read` reports doc-scoped notes as stale when
-the backing document changes or disappears.
-
 Programmatic example:
 
 ```ts
@@ -515,7 +473,7 @@ are fast even on large repositories.
 Build or update a knowledge base.
 
 ```bash
-npx @jafreck/lore index --root <dir> --db <path> [--embedding-model <id>] [--blocking-embedder] [--index-deps] [--history] [--history-depth <n>] [--history-all] [--include <glob>] [--exclude <glob>] [--language <lang>] [--docs-include <glob>] [--docs-exclude <glob>] [--docs-extension <ext>] [--docs-auto-notes|--no-docs-auto-notes] [--lsp] [--no-scip]
+npx @jafreck/lore index --root <dir> --db <path> [--embedding-model <id>] [--blocking-embedder] [--index-deps] [--history] [--history-depth <n>] [--history-all] [--include <glob>] [--exclude <glob>] [--language <lang>] [--docs-include <glob>] [--docs-exclude <glob>] [--docs-extension <ext>] [--lsp] [--no-scip]
 ```
 
 ### lore refresh
@@ -523,7 +481,7 @@ npx @jafreck/lore index --root <dir> --db <path> [--embedding-model <id>] [--blo
 Incremental refresh (one-shot, watch, or poll).
 
 ```bash
-npx @jafreck/lore refresh --db <path> --root <dir> [--index-deps] [--history] [--history-depth <n>] [--history-all] [--docs-include <glob>] [--docs-exclude <glob>] [--docs-extension <ext>] [--docs-auto-notes|--no-docs-auto-notes] [--lsp] [--no-scip]
+npx @jafreck/lore refresh --db <path> --root <dir> [--index-deps] [--history] [--history-depth <n>] [--history-all] [--docs-include <glob>] [--docs-exclude <glob>] [--docs-extension <ext>] [--lsp] [--no-scip]
 npx @jafreck/lore refresh --db <path> --root <dir> --watch [--index-deps] [--history] [--docs-include <glob>] [--docs-exclude <glob>] [--docs-extension <ext>] [--lsp] [--no-scip]
 npx @jafreck/lore refresh --db <path> --root <dir> --poll [--index-deps] [--history] [--docs-include <glob>] [--docs-exclude <glob>] [--docs-extension <ext>] [--lsp] [--no-scip]
 ```
@@ -546,10 +504,12 @@ npx @jafreck/lore ingest-coverage --db <path> --root <dir> --file <path> --forma
 
 ### lore mcp
 
-Start the MCP server over stdio.
+Start the MCP server over stdio. When `--root` is given and no database exists
+yet, Lore auto-indexes before starting.
 
 ```bash
-npx @jafreck/lore mcp --db <path> [--blocking-embedder]
+npx @jafreck/lore mcp --root <dir> [--watch|--poll]
+npx @jafreck/lore mcp --db <path> [--root <dir> --watch|--poll] [--blocking-embedder]
 ```
 
 ## Build from source
@@ -579,62 +539,3 @@ npm run coverage
 CI currently enforces minimum coverage thresholds of 77% statements, 64%
 branches, 80% functions, and 79% lines.
 
-## Publish authentication (npm)
-
-Lore publish operations use `NODE_AUTH_TOKEN` (see `.npmrc`) and never commit
-tokens to the repository.
-
-Local publish flow:
-
-```bash
-export NODE_AUTH_TOKEN=<npm automation token>
-npm publish --access public
-```
-
-CI publish flow:
-
-- Add `NODE_AUTH_TOKEN` as a secret in your CI provider (for GitHub Actions,
-  use a repository or environment secret).
-- Ensure publish jobs expose that secret as the `NODE_AUTH_TOKEN` environment
-  variable before running `npm publish`.
-
-## Release publish workflow
-
-Publishing is automated by `.github/workflows/publish.yml`. Publishing a
-GitHub Release triggers the npm publish job.
-
-Release steps:
-
-1. Ensure `package.json` has the target version.
-2. Publish a GitHub Release with the matching `vX.Y.Z` tag.
-3. Confirm the workflow logs show `npm publish --dry-run` output before the
-   live `npm publish` step.
-
-Post-publish verification:
-
-- Check the package metadata: `npm view @jafreck/lore version`.
-- Confirm installability: `npm view @jafreck/lore@<version> name version`.
-
-## Benchmarking index performance (500+ file repos)
-
-Use this procedure when you need measurable before/after evidence for indexing changes:
-
-1. Pick a repository with at least 500 source files and note the exact commit SHA you will test.
-2. Capture a baseline timing from the same machine and environment:
-
-```bash
-time npx @jafreck/lore index --root /path/to/repo --db ./lore-baseline.db
-```
-
-3. Apply your change, rebuild Lore, then capture a post-change timing against the same repository commit:
-
-```bash
-npm run build
-time npx @jafreck/lore index --root /path/to/repo --db ./lore-after.db
-```
-
-4. Record both timings (baseline and post-change) in the related GitHub issue or PR under an "Acceptance Evidence" section, including repo name, commit SHA, and command used.
-
-## License
-
-[MIT](LICENSE)
