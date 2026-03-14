@@ -15,7 +15,7 @@ export const toolDef = {
   description:
     'Rank directories by module cohesion — the ratio of internal symbol references to external ones. ' +
     'Use depth to control directory grouping granularity and limit to cap results. ' +
-    'Directories are ordered by cohesion ascending (worst-bounded first).',
+    'Directories are ordered by cohesion ascending (lowest cohesion first).',
   inputSchema: {
     type: 'object',
     properties: {
