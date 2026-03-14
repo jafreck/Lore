@@ -82,7 +82,6 @@ describe('LSP integration', () => {
 
   it.runIf(commandExists('typescript-language-server'))(
     'persists LSP-enriched metadata and exposes it through lookup/search query tooling',
-    { retry: 2, timeout: 30_000 },
     async () => {
       const rootDir = createFixtureRoot('lore-lsp-live-server-');
       const dbPath = join(rootDir, 'lore.db');
@@ -90,7 +89,7 @@ describe('LSP integration', () => {
         const builder = new IndexBuilder(dbPath, { rootDir }, undefined, {
           lsp: {
             enabled: true,
-            requestTimeoutMs: 10_000,
+            requestTimeoutMs: 5000,
             servers: {
               typescript: { command: 'typescript-language-server', args: ['--stdio'] },
             },
