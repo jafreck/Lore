@@ -66,6 +66,7 @@ describe('refreshTestMappings', () => {
   });
 
   it('should expose the supported confidence taxonomy', () => {
-    expect(TEST_MAPPING_CONFIDENCES).toEqual(['import', 'coverage', 'heuristic']);
+    expect(TEST_MAPPING_CONFIDENCES).toEqual(['import', 'coverage', 'heuristic', 'per_test_coverage']);
   });
+
 });

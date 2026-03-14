@@ -1153,6 +1153,32 @@ export function listTestMappingsBySourcePath(
     .all(sourcePath) as TestMappingRow[];
 }
 
+// ─── Per-test coverage queries ────────────────────────────────────────────────
+
+export interface TestByLineRow {
+  test_file: string;
+  test_name: string | null;
+}
+
+/** Return distinct (test_file, test_name) pairs that cover a given source line. */
+export function listTestsByLine(
+  db: Database.Database,
+  filePath: string,
+  line: number,
+): TestByLineRow[] {
+  return db
+    .prepare(
+      `SELECT DISTINCT r.test_file, r.test_name
+         FROM test_coverage_lines l
+         JOIN test_coverage_runs r ON r.id = l.run_id
+        WHERE l.file_path = ?
+          AND l.line_number = ?
+          AND l.hit_count > 0
+        ORDER BY r.test_file ASC, r.test_name ASC`,
+    )
+    .all(filePath, line) as TestByLineRow[];
+}
+
 // ─── Config helpers (REMOVED) ─────────────────────────────────────────────────
 //
 // `listConfigEntries` has been removed. No DDL exists for `config_entries` or

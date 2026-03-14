@@ -5,7 +5,7 @@
  */
 
 import type { Database } from '../../db/read-only.js';
-import { listTestMappingsBySourcePath } from '../../db/read-only.js';
+import { listTestMappingsBySourcePath, listTestsByLine } from '../../db/read-only.js';
 
 export const toolDef = {
   name: 'lore_test_map',
@@ -22,6 +22,11 @@ export const toolDef = {
         type: 'string',
         description: 'Optional branch to constrain mappings.',
       },
+      line: {
+        type: 'number',
+        description:
+          'Optional source line number. When provided, returns per-test coverage mappings for that line.',
+      },
     },
     required: ['source_path'],
   },
@@ -30,15 +35,35 @@ export const toolDef = {
 export interface TestMapArgs {
   source_path: string;
   branch?: string;
+  line?: number;
 }
 
 export interface TestMapResult {
   source_path: string;
   branch: string | null;
-  mappings: Array<{ test_path: string; confidence: string }>;
+  mappings: Array<{
+    test_path: string;
+    confidence: string;
+    line?: number;
+    test_name?: string | null;
+  }>;
 }
 
 export function handler(db: Database.Database, args: TestMapArgs): TestMapResult {
+  if (args.line != null) {
+    const rows = listTestsByLine(db, args.source_path, args.line);
+    return {
+      source_path: args.source_path,
+      branch: args.branch ?? null,
+      mappings: rows.map((r) => ({
+        test_path: r.test_file,
+        confidence: 'per_test_coverage' as const,
+        line: args.line,
+        test_name: r.test_name,
+      })),
+    };
+  }
+
   return {
     source_path: args.source_path,
     branch: args.branch ?? null,
