@@ -8,6 +8,7 @@ import * as graph from '../../src/server/tools/graph.js';
 import type { EmbeddingProvider } from '../../src/embeddings/embedder.js';
 import * as search from '../../src/server/tools/search.js';
 import * as metrics from '../../src/server/tools/metrics.js';
+import * as diff from '../../src/server/tools/diff.js';
 
 const {
   mockTool,
@@ -607,6 +608,60 @@ describe('createLoreMcpServer', () => {
     const toolNames = mockTool.mock.calls.map((call) => call[0]);
     expect(toolNames.length).toBeGreaterThan(0);
   });
+
+  it('should register lore_diff with expected schema fields', () => {
+    const db = new Database(':memory:');
+    createLoreMcpServer(db, '/tmp/test.db');
+
+    const diffToolCall = mockTool.mock.calls.find((call) => call[0] === 'lore_diff');
+    expect(diffToolCall).toBeDefined();
+
+    const diffSchema = diffToolCall?.[2] as Record<string, z.ZodTypeAny>;
+    // old_branch is required (string)
+    expect(diffSchema.old_branch.safeParse('main').success).toBe(true);
+    expect(diffSchema.old_branch.safeParse(undefined).success).toBe(false);
+    // new_branch is optional
+    expect(diffSchema.new_branch.safeParse('feature').success).toBe(true);
+    expect(diffSchema.new_branch.safeParse(undefined).success).toBe(true);
+    // path_prefix is optional string
+    expect(diffSchema.path_prefix.safeParse('/src').success).toBe(true);
+    expect(diffSchema.path_prefix.safeParse(undefined).success).toBe(true);
+    // kind is optional string
+    expect(diffSchema.kind.safeParse('function').success).toBe(true);
+    expect(diffSchema.kind.safeParse(undefined).success).toBe(true);
+    // limit is optional integer with min/max
+    expect(diffSchema.limit.safeParse(50).success).toBe(true);
+    expect(diffSchema.limit.safeParse(undefined).success).toBe(true);
+    expect(diffSchema.limit.safeParse(0).success).toBe(false);
+    expect(diffSchema.limit.safeParse(501).success).toBe(false);
+  });
+
+  it('should route lore_diff tool calls through diff.handler', async () => {
+    const db = new Database(':memory:');
+    const diffResult = {
+      old_branch: 'v1',
+      new_branch: 'v2',
+      added: [],
+      removed: [],
+      changed: [],
+      summary: { added_count: 0, removed_count: 0, changed_count: 0 },
+    };
+    const diffHandlerSpy = vi.spyOn(diff, 'handler').mockReturnValue(diffResult);
+
+    createLoreMcpServer(db, '/tmp/test.db');
+
+    const callback = getToolCall('lore_diff')[3] as (args: unknown) => Promise<{
+      content: Array<{ type: string; text: string }>;
+    }>;
+    const args = { old_branch: 'v1', new_branch: 'v2' };
+    const response = await callback(args);
+
+    expect(diffHandlerSpy).toHaveBeenCalledWith(db, args);
+    expect(response).toEqual({
+      content: [{ type: 'text', text: JSON.stringify(diffResult) }],
+    });
+    diffHandlerSpy.mockRestore();
+  });
 });
 
 describe('createLoreMcpServerAsync', () => {
@@ -622,6 +677,7 @@ describe('createLoreMcpServerAsync', () => {
     expect(toolNames).toContain('lore_lookup');
     expect(toolNames).toContain('lore_search');
     expect(toolNames).toContain('lore_graph');
+    expect(toolNames).toContain('lore_diff');
   });
 
   it('should accept embedder and options', async () => {
@@ -631,7 +687,7 @@ describe('createLoreMcpServerAsync', () => {
     await createLoreMcpServerAsync(db, '/tmp/test.db', embedder, { searchObserver: observer });
 
     const toolNames = mockTool.mock.calls.map((call: unknown[]) => call[0]);
-    expect(toolNames.length).toBeGreaterThanOrEqual(9);
+    expect(toolNames.length).toBeGreaterThanOrEqual(10);
   });
 
   it('should accept custom logger', async () => {

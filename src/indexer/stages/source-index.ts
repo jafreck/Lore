@@ -339,8 +339,8 @@ function processFileWithSource(
 
   // Insert symbols (FTS5 index is rebuilt in bulk by ftsRefreshStage)
   const insertSymbol = db.prepare(
-    `INSERT INTO symbols (file_id, name, kind, start_line, end_line, signature, doc_comment)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO symbols (file_id, name, kind, start_line, end_line, signature, doc_comment, is_exported)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
   );
 
   const symbolIdMap = new Map<string, number>();
@@ -356,6 +356,7 @@ function processFileWithSource(
       sym.endLine,
       sym.signature ?? null,
       sym.docComment ?? null,
+      sym.isExported ? 1 : 0,
     ) as { lastInsertRowid: number | bigint };
     const symId = Number(info.lastInsertRowid);
     symbolIdMap.set(sym.name, symId);

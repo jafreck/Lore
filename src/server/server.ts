@@ -16,6 +16,7 @@
  *   lore_blame     — git blame metadata for file lines
  *   lore_metrics   — aggregate code metrics
  *   lore_history   — git commit history queries
+ *   lore_diff      — exported symbol diff between branches
  *
  * Standalone usage:
  *   node dist/lore-server/server.js --db <path-to-lore.db>
@@ -43,6 +44,7 @@ import * as snippet from './tools/snippet.js';
 import * as blame from './tools/blame.js';
 import * as metrics from './tools/metrics.js';
 import * as history from './tools/history.js';
+import * as diff from './tools/diff.js';
 import * as trace from './tools/trace.js';
 import * as structure from './tools/structure.js';
 
@@ -135,6 +137,7 @@ function buildToolModulesSync(): ToolModule[] {
     { def: blame.toolDef, handlerFactory: (deps) => (args) => blame.handler(deps.db, args) },
     { def: metrics.toolDef, handlerFactory: (deps) => (args) => metrics.handler(deps.db, args ?? {}) },
     { def: history.toolDef, handlerFactory: (deps) => (args) => history.handler(deps.db, args, deps.embedder) },
+    { def: diff.toolDef, handlerFactory: (deps) => (args) => diff.handler(deps.db, args) },
     { def: trace.toolDef, handlerFactory: (deps) => (args) => trace.handler(deps.db, args) },
     { def: structure.toolDef, handlerFactory: (deps) => (args) => structure.handler(deps.db, args) },
   ];

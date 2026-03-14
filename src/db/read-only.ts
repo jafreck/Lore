@@ -59,6 +59,7 @@ export interface SymbolRow {
   resolved_return_type?: string | null;
   definition_uri?: string | null;
   definition_path?: string | null;
+  is_exported?: number | null;
 }
 
 export interface SymbolRangeLookupOptions {

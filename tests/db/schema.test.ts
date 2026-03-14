@@ -217,6 +217,36 @@ describe('openDb', () => {
     );
   });
 
+  it('should create is_exported column on symbols with default 0', () => {
+    db = openDb(dbPath);
+
+    const symbolColumns = db.pragma('table_info(symbols)') as Array<{ name: string; dflt_value: string | null }>;
+    const isExportedCol = symbolColumns.find((c) => c.name === 'is_exported');
+    expect(isExportedCol).toBeDefined();
+    expect(isExportedCol!.dflt_value).toBe('0');
+
+    // Verify default value is applied when omitted
+    const fileRow = db.prepare(
+      "INSERT INTO files (path, branch, language) VALUES ('src/a.ts', 'main', 'typescript')",
+    ).run() as { lastInsertRowid: number | bigint };
+    db.prepare(
+      `INSERT INTO symbols (file_id, name, kind, start_line, end_line)
+       VALUES (?, 'myFn', 'function', 1, 5)`,
+    ).run(fileRow.lastInsertRowid);
+
+    const row = db.prepare('SELECT is_exported FROM symbols WHERE name = ?').get('myFn') as { is_exported: number };
+    expect(row.is_exported).toBe(0);
+  });
+
+  it('should create idx_symbols_exported partial index on symbols', () => {
+    db = openDb(dbPath);
+
+    const indexes = (
+      db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='symbols'").all() as Array<{ name: string }>
+    ).map((row) => row.name);
+    expect(indexes).toContain('idx_symbols_exported');
+  });
+
   it('should create enrichment metadata columns and indexes for symbols and symbol_refs', () => {
     db = openDb(dbPath);
 
@@ -534,7 +564,7 @@ describe('openDb', () => {
 
     expect(fileColumns).toContain('source');
     expect(symbolColumns).toEqual(
-      expect.arrayContaining(['resolved_type_signature', 'resolved_return_type', 'definition_uri', 'definition_path']),
+      expect.arrayContaining(['resolved_type_signature', 'resolved_return_type', 'definition_uri', 'definition_path', 'is_exported']),
     );
     expect(refColumns).toEqual(
       expect.arrayContaining([

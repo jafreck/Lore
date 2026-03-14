@@ -128,3 +128,47 @@ export function branchy(x: number): string {
     expect(metrics!.cyclomatic).toBeGreaterThanOrEqual(origCyclomatic);
   });
 });
+
+describe('processFile — is_exported persistence', () => {
+  let db: Database.Database;
+  let pool: ParserPool;
+
+  afterEach(() => {
+    db?.close();
+  });
+
+  it('should set is_exported = 1 for exported symbols', () => {
+    const content = 'export function hello(): string { return "hi"; }\n';
+    const filePath = createTempFile(content);
+    db = openDb(':memory:');
+    pool = new ParserPool();
+
+    processFile(db, pool, filePath, 'typescript', 'main');
+
+    const row = db.prepare(
+      `SELECT s.name, s.is_exported FROM symbols s WHERE s.name = 'hello'`,
+    ).get() as { name: string; is_exported: number } | undefined;
+    expect(row).toBeDefined();
+    expect(row!.is_exported).toBe(1);
+  });
+
+  it('should set is_exported = 0 for non-exported symbols', () => {
+    const content = 'function internal(): void {}\nexport function pub(): void {}\n';
+    const filePath = createTempFile(content);
+    db = openDb(':memory:');
+    pool = new ParserPool();
+
+    processFile(db, pool, filePath, 'typescript', 'main');
+
+    const rows = db.prepare(
+      `SELECT s.name, s.is_exported FROM symbols s ORDER BY s.name`,
+    ).all() as Array<{ name: string; is_exported: number }>;
+
+    const internal = rows.find(r => r.name === 'internal');
+    const pub = rows.find(r => r.name === 'pub');
+    expect(internal).toBeDefined();
+    expect(internal!.is_exported).toBe(0);
+    expect(pub).toBeDefined();
+    expect(pub!.is_exported).toBe(1);
+  });
+});
