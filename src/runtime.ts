@@ -42,8 +42,6 @@ export interface RuntimeConfig {
   history: boolean | { depth?: number; all?: boolean };
   /** Whether to index dependency declarations (.d.ts, etc.). */
   indexDependencies: boolean;
-  /** Whether to auto-seed notes from documentation files. */
-  docsAutoNotes: boolean;
   /** Refresh mode: `'none'` (one-shot), `'watch'`, or `'poll'`. */
   refreshMode: 'none' | 'watch' | 'poll';
 }

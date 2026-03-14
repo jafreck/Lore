@@ -6,7 +6,6 @@ import * as history from '../../src/server/tools/history.js';
 import * as lookup from '../../src/server/tools/lookup.js';
 import * as graph from '../../src/server/tools/graph.js';
 import type { EmbeddingProvider } from '../../src/embeddings/embedder.js';
-import * as notes from '../../src/server/tools/notes.js';
 import * as search from '../../src/server/tools/search.js';
 import * as metrics from '../../src/server/tools/metrics.js';
 
@@ -68,40 +67,12 @@ describe('createLoreMcpServer', () => {
     createLoreMcpServer(db, '/tmp/test.db');
 
     const toolNames = mockTool.mock.calls.map((call) => call[0]);
-    expect(toolNames).toContain('lore_notes_write');
-    expect(toolNames).toContain('lore_notes_read');
 
   });
 
   it('should register newly exposed tools with expected schema fields', () => {
     const db = new Database(':memory:');
     createLoreMcpServer(db, '/tmp/test.db');
-
-    const notesWriteSchema = getToolCall('lore_notes_write')[2] as {
-      key: { safeParse: (v: unknown) => { success: boolean } };
-      scope: { safeParse: (v: unknown) => { success: boolean } };
-      content: { safeParse: (v: unknown) => { success: boolean } };
-      model: { safeParse: (v: unknown) => { success: boolean } };
-      source_hash: { safeParse: (v: unknown) => { success: boolean } };
-    };
-    expect(notesWriteSchema.key.safeParse('architecture/overview').success).toBe(true);
-    expect(notesWriteSchema.scope.safeParse('file:src/index.ts').success).toBe(true);
-    expect(notesWriteSchema.content.safeParse('note').success).toBe(true);
-    expect(notesWriteSchema.model.safeParse('gpt').success).toBe(true);
-    expect(notesWriteSchema.source_hash.safeParse('abc123').success).toBe(true);
-    expect(notesWriteSchema.content.safeParse(42).success).toBe(false);
-
-    const notesReadSchema = getToolCall('lore_notes_read')[2] as {
-      key: { safeParse: (v: unknown) => { success: boolean } };
-      key_prefix: { safeParse: (v: unknown) => { success: boolean } };
-      scope: { safeParse: (v: unknown) => { success: boolean } };
-      limit: { safeParse: (v: unknown) => { success: boolean } };
-    };
-    expect(notesReadSchema.key.safeParse('architecture/overview').success).toBe(true);
-    expect(notesReadSchema.key_prefix.safeParse('architecture/').success).toBe(true);
-    expect(notesReadSchema.scope.safeParse('global').success).toBe(true);
-    expect(notesReadSchema.limit.safeParse(20).success).toBe(true);
-    expect(notesReadSchema.limit.safeParse('20').success).toBe(false);
 
 
   });
@@ -220,44 +191,6 @@ describe('createLoreMcpServer', () => {
     expect(docsHandlerSpy).toHaveBeenCalledWith(db, { action: 'search', query: 'architecture' }, undefined);
   });
 
-  it('should route lore_notes_write tool calls through notes.writeHandler', async () => {
-    const db = new Database(':memory:');
-    const notesWriteResult = { ok: true, key: 'architecture/overview', scope: 'global', updated_at: 123 };
-    const notesWriteHandlerSpy = vi.spyOn(notes, 'writeHandler').mockReturnValue(notesWriteResult);
-
-    createLoreMcpServer(db, '/tmp/test.db');
-
-    const callback = getToolCall('lore_notes_write')[3] as (args: unknown) => Promise<{
-      content: Array<{ type: string; text: string }>;
-    }>;
-    const args = { key: 'architecture/overview', content: 'note body', model: 'test-model' };
-    const response = await callback(args);
-
-    expect(notesWriteHandlerSpy).toHaveBeenCalledWith('/tmp/test.db', args);
-    expect(response).toEqual({
-      content: [{ type: 'text', text: JSON.stringify(notesWriteResult) }],
-    });
-  });
-
-  it('should route lore_notes_read tool calls through notes.readHandler', async () => {
-    const db = new Database(':memory:');
-    const notesReadResult = { notes: [], count: 0 };
-    const notesReadHandlerSpy = vi.spyOn(notes, 'readHandler').mockReturnValue(notesReadResult);
-
-    createLoreMcpServer(db, '/tmp/test.db');
-
-    const callback = getToolCall('lore_notes_read')[3] as (args: unknown) => Promise<{
-      content: Array<{ type: string; text: string }>;
-    }>;
-    const args = { key_prefix: 'architecture/', limit: 5 };
-    const response = await callback(args);
-
-    expect(notesReadHandlerSpy).toHaveBeenCalledWith(db, args);
-    expect(response).toEqual({
-      content: [{ type: 'text', text: JSON.stringify(notesReadResult) }],
-    });
-  });
-
   it('should route lore_search tool calls through search.handler with filter args and observer', async () => {
     const db = new Database(':memory:');
     const observer = vi.fn();
@@ -299,31 +232,6 @@ describe('createLoreMcpServer', () => {
     } finally {
       searchHandlerSpy.mockRestore();
     }
-  });
-
-  it('should propagate errors from newly exposed tool handlers', async () => {
-    const db = new Database(':memory:');
-    const callbackArgs = {
-      notesWrite: { key: 'architecture/overview', content: 'note body' },
-      notesRead: { key_prefix: 'architecture/' },
-    };
-    const notesWriteError = new Error('notes write failed');
-    const notesReadError = new Error('notes read failed');
-
-    vi.spyOn(notes, 'writeHandler').mockImplementation(() => {
-      throw notesWriteError;
-    });
-    vi.spyOn(notes, 'readHandler').mockImplementation(() => {
-      throw notesReadError;
-    });
-
-    createLoreMcpServer(db, '/tmp/test.db');
-
-    const notesWriteCallback = getToolCall('lore_notes_write')[3] as (args: unknown) => Promise<unknown>;
-    const notesReadCallback = getToolCall('lore_notes_read')[3] as (args: unknown) => Promise<unknown>;
-
-    await expect(notesWriteCallback(callbackArgs.notesWrite)).rejects.toThrow(notesWriteError);
-    await expect(notesReadCallback(callbackArgs.notesRead)).rejects.toThrow(notesReadError);
   });
 
   it('should register lore_metrics with expected complexity schema fields', () => {
@@ -723,7 +631,7 @@ describe('createLoreMcpServerAsync', () => {
     await createLoreMcpServerAsync(db, '/tmp/test.db', embedder, { searchObserver: observer });
 
     const toolNames = mockTool.mock.calls.map((call: unknown[]) => call[0]);
-    expect(toolNames.length).toBeGreaterThan(10);
+    expect(toolNames.length).toBeGreaterThanOrEqual(9);
   });
 
   it('should accept custom logger', async () => {

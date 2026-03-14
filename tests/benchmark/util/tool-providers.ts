@@ -25,7 +25,6 @@ const LORE_TOOL_NAMES = [
   'lore_search',
   'lore_graph',
   'lore_docs',
-  'lore_notes',
   'lore_test_map',
   'lore_snippet',
   'lore_blame',

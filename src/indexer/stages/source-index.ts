@@ -109,9 +109,6 @@ export class SourceIndexStage implements PipelineStage {
   async execute(context: PipelineContext, mode: 'build' | 'update'): Promise<void> {
     this.pool = new ParserPool();
 
-    // Save docs auto-notes setting.
-    setLoreMeta(context.db, 'docs_auto_notes', context.docsAutoNotes ? '1' : '0');
-
     if (mode === 'build') {
       const allFiles = await walkFiles(context.walkerConfig);
       let files: Array<{ path: string; language: string }>;
@@ -134,7 +131,7 @@ export class SourceIndexStage implements PipelineStage {
         files = allFiles;
       }
 
-      // Merge with any files already added by ScipSourceStage
+      // Merge with any files already added by ScipIndexerStage
       context.files = [...context.files, ...files];
       context.log.indexing('walk complete', { fileCount: files.length });
       await this.processBuild(context, files);
@@ -440,7 +437,7 @@ function computeMetricsForScipFiles(
 
   db.transaction(() => {
     for (const file of files) {
-      // Prefer sourceCache (populated by ScipSourceStage) to avoid re-reading.
+      // Prefer sourceCache (populated by ScipIndexerStage) to avoid re-reading.
       let source = sourceCache?.get(file.path);
       if (source === undefined) {
         try {
@@ -458,7 +455,7 @@ function computeMetricsForScipFiles(
 
       const result = extractor.extract(tree, source, file.path);
 
-      // Look up existing symbol IDs (inserted by ScipSourceStage)
+      // Look up existing symbol IDs (inserted by ScipIndexerStage)
       const fileRow = db.prepare(
         'SELECT id FROM files WHERE path = ? AND branch = ?',
       ).get(file.path, branch) as { id: number } | undefined;

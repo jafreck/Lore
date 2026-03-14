@@ -300,7 +300,7 @@ export async function enrichProjectRefs(
 /**
  * For SCIP-sourced files, only enrich refs that are still `unresolved`.
  *
- * SCIP pre-resolves most refs during `ScipSourceStage`, but some refs
+ * SCIP pre-resolves most refs during `ScipIndexerStage`, but some refs
  * (notably member-access calls like `db.prepare(...)`) remain unresolved
  * because SCIP tracks the receiver and method as separate occurrences.
  *

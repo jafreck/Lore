@@ -1,7 +1,7 @@
 /**
- * Integration tests for the SCIP source stage.
+ * Integration tests for the SCIP indexer stage.
  *
- * Covers the full ScipSourceStage.execute path with a real SQLite DB
+ * Covers the full ScipIndexerStage.execute path with a real SQLite DB
  * to catch schema-level bugs like NOT NULL violations.
  */
 
@@ -19,7 +19,7 @@ import {
   SymbolRole,
 } from '../../src/scip/scip_pb.js';
 import { openDb } from '../../src/db/schema.js';
-import { ScipSourceStage } from '../../src/indexer/stages/scip-source.js';
+import { ScipIndexerStage } from '../../src/indexer/stages/scip-indexer.js';
 import type { PipelineContext } from '../../src/indexer/pipeline.js';
 import { initLogger, LogLevel } from '../../src/logger.js';
 import { resolveEffectiveScipSettings } from '../../src/scip/config.js';
@@ -89,7 +89,6 @@ function makeContext(rootDir: string, dbPath: string): PipelineContext {
     files: [],
     indexDependencies: false,
     history: false,
-    docsAutoNotes: false,
     staleSymbolIds: [],
     changedSourcePaths: [],
     changedDocPaths: [],
@@ -99,7 +98,147 @@ function makeContext(rootDir: string, dbPath: string): PipelineContext {
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
-describe('ScipSourceStage', () => {
+describe('ScipIndexerStage', () => {
+  it('populates enrichment columns for symbols inline', async () => {
+    const rootDir = makeTmpDir('lore-scip-enrich-sym-');
+    const indexDir = join(rootDir, '.scip-indexes');
+    mkdirSync(indexDir, { recursive: true });
+
+    const symGreet = 'typescript npm test 1.0 `main`/greet().';
+    const symMain = 'typescript npm test 1.0 `main`/main().';
+    const sourceContent = 'function greet(name: string): string {\n  return "hi " + name;\n}\nfunction main() {\n  greet("world");\n}\n';
+    writeFileSync(join(rootDir, 'main.ts'), sourceContent);
+
+    const bytes = buildScipIndexBytes([{
+      relativePath: 'main.ts',
+      language: 'TypeScript',
+      occurrences: [
+        { range: [0, 9, 0, 14], symbol: symGreet, symbolRoles: SymbolRole.Definition },
+        { range: [3, 9, 3, 13], symbol: symMain, symbolRoles: SymbolRole.Definition },
+        // Call to greet inside main()
+        { range: [4, 2, 4, 7], symbol: symGreet, symbolRoles: 0 },
+      ],
+      symbols: [
+        { symbol: symGreet, displayName: 'greet', documentation: ['```ts\nfunction greet(name: string): string\n```'] },
+        { symbol: symMain, displayName: 'main', documentation: ['```ts\nfunction main(): void\n```'] },
+      ],
+    }]);
+    writeFileSync(join(indexDir, 'typescript.scip'), bytes);
+
+    const dbPath = join(rootDir, 'test.db');
+    const ctx = makeContext(rootDir, dbPath);
+
+    const stage = new ScipIndexerStage();
+    await stage.execute(ctx, 'build');
+
+    // Symbol should have enrichment columns populated
+    const sym = ctx.db.prepare('SELECT resolved_type_signature, resolved_return_type, definition_uri, definition_path FROM symbols WHERE name = ?').get('greet') as any;
+    expect(sym.resolved_type_signature).toBeTruthy();
+    expect(sym.resolved_return_type).toBe('string');
+    expect(sym.definition_uri).toContain('main.ts');
+    expect(sym.definition_path).toBe(join(rootDir, 'main.ts'));
+
+    // Call ref (main calling greet) should have enrichment columns populated
+    const ref = ctx.db.prepare('SELECT resolved_type_signature, resolved_return_type, definition_path, definition_line FROM symbol_refs WHERE callee_name = ?').get('greet') as any;
+    expect(ref).toBeTruthy();
+    expect(ref.resolved_type_signature).toBeTruthy();
+    expect(ref.resolved_return_type).toBe('string');
+    expect(ref.definition_path).toBe(join(rootDir, 'main.ts'));
+    expect(ref.definition_line).toBe(0);
+
+    // scipCoveredLanguages should be set
+    expect(ctx.scipCoveredLanguages).toBeDefined();
+    expect(ctx.scipCoveredLanguages!.has('typescript')).toBe(true);
+
+    ctx.db.close();
+  });
+
+  it('populates enrichment columns for type refs inline', async () => {
+    const rootDir = makeTmpDir('lore-scip-enrich-typeref-');
+    const indexDir = join(rootDir, '.scip-indexes');
+    mkdirSync(indexDir, { recursive: true });
+
+    const typeSym = 'typescript npm test 1.0 `main`/MyType#';
+    const fnSym = 'typescript npm test 1.0 `main`/doStuff().';
+    const sourceContent = 'interface MyType { x: number; }\nfunction doStuff(v: MyType) {}\n';
+    writeFileSync(join(rootDir, 'main.ts'), sourceContent);
+
+    const bytes = buildScipIndexBytes([{
+      relativePath: 'main.ts',
+      language: 'TypeScript',
+      occurrences: [
+        { range: [0, 10, 0, 16], symbol: typeSym, symbolRoles: SymbolRole.Definition },
+        { range: [1, 9, 1, 16], symbol: fnSym, symbolRoles: SymbolRole.Definition },
+        // Type reference to MyType in doStuff's parameter
+        { range: [1, 20, 1, 26], symbol: typeSym, symbolRoles: 0 },
+      ],
+      symbols: [
+        { symbol: typeSym, displayName: 'MyType', documentation: ['```ts\ninterface MyType\n```'] },
+        { symbol: fnSym, displayName: 'doStuff', documentation: ['```ts\nfunction doStuff(v: MyType): void\n```'] },
+      ],
+    }]);
+    writeFileSync(join(indexDir, 'typescript.scip'), bytes);
+
+    const dbPath = join(rootDir, 'test.db');
+    const ctx = makeContext(rootDir, dbPath);
+
+    const stage = new ScipIndexerStage();
+    await stage.execute(ctx, 'build');
+
+    // Type ref should have enrichment columns populated
+    const typeRef = ctx.db.prepare('SELECT resolved_type_signature, definition_path, definition_line FROM type_refs LIMIT 1').get() as any;
+    expect(typeRef).toBeTruthy();
+    expect(typeRef.definition_path).toBe(join(rootDir, 'main.ts'));
+    expect(typeRef.definition_line).toBe(0);
+
+    ctx.db.close();
+  });
+
+  it('populates enrichment columns for relationships', async () => {
+    const rootDir = makeTmpDir('lore-scip-enrich-rel-');
+    const indexDir = join(rootDir, '.scip-indexes');
+    mkdirSync(indexDir, { recursive: true });
+
+    const symBase = 'go . example.com/pkg 1.0 `main`/Animal#';
+    const symChild = 'go . example.com/pkg 1.0 `main`/Dog#';
+    const sourceContent = 'package main\ntype Animal struct{}\ntype Dog struct{}';
+    writeFileSync(join(rootDir, 'main.go'), sourceContent);
+
+    const bytes = buildScipIndexBytes([{
+      relativePath: 'main.go',
+      language: 'Go',
+      occurrences: [
+        { range: [1, 5, 1, 11], symbol: symBase, symbolRoles: SymbolRole.Definition },
+        { range: [2, 5, 2, 8], symbol: symChild, symbolRoles: SymbolRole.Definition },
+      ],
+      symbols: [
+        { symbol: symBase, displayName: 'Animal', documentation: ['type Animal struct'] },
+        {
+          symbol: symChild,
+          displayName: 'Dog',
+          documentation: ['type Dog struct'],
+          relationships: [{ symbol: symBase, isImplementation: true }],
+        },
+      ],
+    }]);
+    writeFileSync(join(indexDir, 'go.scip'), bytes);
+
+    const dbPath = join(rootDir, 'test.db');
+    const ctx = makeContext(rootDir, dbPath);
+
+    const stage = new ScipIndexerStage();
+    await stage.execute(ctx, 'build');
+
+    const rel = ctx.db.prepare('SELECT definition_path, definition_line, definition_uri FROM symbol_relationships LIMIT 1').get() as any;
+    expect(rel).toBeTruthy();
+    // Target is Animal, defined at line 1
+    expect(rel.definition_path).toBe(join(rootDir, 'main.go'));
+    expect(rel.definition_line).toBe(1);
+    expect(rel.definition_uri).toContain('main.go');
+
+    ctx.db.close();
+  });
+
   it('inserts relationships when definition location is known', async () => {
     const rootDir = makeTmpDir('lore-scip-rel-known-');
     const indexDir = join(rootDir, '.scip-indexes');
@@ -134,7 +273,7 @@ describe('ScipSourceStage', () => {
     const dbPath = join(rootDir, 'test.db');
     const ctx = makeContext(rootDir, dbPath);
 
-    const stage = new ScipSourceStage();
+    const stage = new ScipIndexerStage();
     await stage.execute(ctx, 'build');
 
     const rels = ctx.db.prepare('SELECT * FROM symbol_relationships').all() as any[];
@@ -184,7 +323,7 @@ describe('ScipSourceStage', () => {
     const dbPath = join(rootDir, 'test.db');
     const ctx = makeContext(rootDir, dbPath);
 
-    const stage = new ScipSourceStage();
+    const stage = new ScipIndexerStage();
 
     // Before the fix this threw: SqliteError: NOT NULL constraint failed:
     // symbol_relationships.line

@@ -207,19 +207,6 @@ CREATE TABLE IF NOT EXISTS lore_meta (
   value TEXT NOT NULL
 );
 
--- User and system notes scoped by key/scope pair.
-CREATE TABLE IF NOT EXISTS notes (
-  id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  key         TEXT    NOT NULL,
-  scope       TEXT    NOT NULL DEFAULT 'global',
-  content     TEXT    NOT NULL,
-  model       TEXT    NOT NULL DEFAULT '',
-  source_hash TEXT,
-  created_at  INTEGER NOT NULL DEFAULT (unixepoch()),
-  updated_at  INTEGER NOT NULL DEFAULT (unixepoch()),
-  UNIQUE(key, scope)
-);
-
 -- Indexed documentation files.
 CREATE TABLE IF NOT EXISTS docs (
   id           INTEGER PRIMARY KEY AUTOINCREMENT,

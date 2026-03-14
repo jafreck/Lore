@@ -7,13 +7,17 @@
  * For full builds, `build()` delegates entirely to the pipeline which
  * enforces the data-dependency chain:
  * ```
- * SourceIndexStage → DocsIndexStage → ImportResolutionStage
- *   → DependencyApiStage → ScipEnrichmentStage → LspEnrichmentStage
- *   → ResolutionStage → TestMapStage → HistoryStage → EmbeddingStage
+ * ScipIndexerStage → SourceIndexStage → DocsIndexStage
+ *   → ImportResolutionStage → DependencyApiStage
+ *   → LspEnrichmentStage → ResolutionStage → TestMapStage
+ *   → HistoryStage → EmbeddingStage
  * ```
  *
- * For incremental updates, `update()` uses stage-extracted helpers
- * while managing the changed-file diff itself.
+ * `ScipIndexerStage` now populates both structural data (symbols, refs)
+ * and enrichment metadata (type signatures, definition locations) in a
+ * single pass.  `SourceIndexStage` then adds tree-sitter metrics
+ * (complexity, nesting depth) to SCIP-sourced files and handles
+ * remaining languages.
  *
  * The enrichment → resolution ordering is **load-bearing** and enforced
  * structurally by the pipeline rather than by call-site discipline.
@@ -42,12 +46,11 @@ import { getLogger } from '../logger.js';
 import { IndexPipeline } from './pipeline.js';
 import type { PipelineContext, PipelineStage } from './pipeline.js';
 import {
-  ScipSourceStage,
+  ScipIndexerStage,
   SourceIndexStage,
   DocsIndexStage,
   ImportResolutionStage,
   DependencyApiStage,
-  ScipEnrichmentStage,
   LspEnrichmentStage,
   EmbeddingStage,
 } from './stages/index.js';
@@ -57,7 +60,6 @@ import {
 interface IndexBuilderOptions {
   history?: boolean | { depth?: number; all?: boolean };
   embeddingModel?: string;
-  docsAutoNotes?: boolean;
   indexDependencies?: boolean;
   lsp?: EffectiveLspSettings;
   scip?: EffectiveScipSettings;
@@ -84,7 +86,6 @@ export class IndexBuilder {
   private readonly history: boolean | { depth?: number; all?: boolean };
   private readonly indexDependencies: boolean;
   private readonly embeddingModel: string;
-  private readonly docsAutoNotes: boolean;
   private readonly lspSettings: EffectiveLspSettings | null;
   private readonly scipSettings: EffectiveScipSettings | null;
 
@@ -111,7 +112,6 @@ export class IndexBuilder {
     }
 
     this.history = opts.history ?? false;
-    this.docsAutoNotes = opts.docsAutoNotes ?? true;
     this.indexDependencies = opts.indexDependencies ?? false;
     this.lspSettings = opts.lsp ?? null;
     this.scipSettings = opts.scip ?? null;
@@ -134,20 +134,21 @@ export class IndexBuilder {
     log.indexing('build started', { dbPath: this.dbPath, branch, rootDir: this.walkerConfig.rootDir });
 
     // Build the pipeline with all stages in dependency order.
-    // ScipSourceStage runs first for SCIP-covered languages (symbols + refs
-    // from SCIP directly).  SourceIndexStage then handles remaining languages
-    // via tree-sitter.  LSP enrichment is optional for both paths.
+    // ScipIndexerStage runs first for SCIP-covered languages (symbols + refs
+    // from SCIP directly, with enrichment metadata populated inline).
+    // SourceIndexStage then adds tree-sitter metrics to SCIP files and
+    // handles remaining languages.  LSP enrichment is optional.
     //
     // Stages in arrays run concurrently:
     //   - SourceIndexStage + DocsIndexStage: write to disjoint tables.
-    //   - HistoryStage + ScipEnrichment + LspEnrichment: history writes to
+    //   - HistoryStage + LspEnrichment: history writes to
     //     commits/commit_files (disjoint from enrichment targets).
     const pipeline = new IndexPipeline([
-      new ScipSourceStage(),
+      new ScipIndexerStage(),
       [new SourceIndexStage(), new DocsIndexStage()],
       new ImportResolutionStage(),
       new DependencyApiStage(),
-      [new ScipEnrichmentStage(), new LspEnrichmentStage(), historyStage()],
+      [new LspEnrichmentStage(), historyStage()],
       ftsRefreshStage(),
       resolutionStage(),
       testMapStage(),
@@ -166,7 +167,6 @@ export class IndexBuilder {
       files: [],
       indexDependencies: this.indexDependencies,
       history: this.history,
-      docsAutoNotes: this.docsAutoNotes,
       staleSymbolIds: [],
       changedSourcePaths: [],
       changedDocPaths: [],
@@ -208,11 +208,11 @@ export class IndexBuilder {
     const log = getLogger();
 
     const pipeline = new IndexPipeline([
-      new ScipSourceStage(),
+      new ScipIndexerStage(),
       [new SourceIndexStage(), new DocsIndexStage()],
       new ImportResolutionStage(),
       new DependencyApiStage(),
-      [new ScipEnrichmentStage(), new LspEnrichmentStage(), historyStage()],
+      [new LspEnrichmentStage(), historyStage()],
       ftsRefreshStage(),
       resolutionStage(),
       testMapStage(),
@@ -231,7 +231,6 @@ export class IndexBuilder {
       files: [],
       indexDependencies: this.indexDependencies,
       history: this.history,
-      docsAutoNotes: this.docsAutoNotes,
       changedFiles,
       staleSymbolIds: [],
       changedSourcePaths: [],
