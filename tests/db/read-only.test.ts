@@ -17,7 +17,6 @@ import {
   searchDocSections,
   semanticSearchDocSections,
   semanticSearchSymbols,
-  listConfigEntries,
   listTestMappingsBySourcePath,
   getSymbolsByName,
   listSymbolRangesByName,
@@ -58,8 +57,11 @@ function createTestDb(): Database.Database {
       language    TEXT    NOT NULL,
       size_bytes  INTEGER NOT NULL DEFAULT 0,
       last_hash   TEXT,
+      source      TEXT    NOT NULL DEFAULT '',
       indexed_at  INTEGER NOT NULL DEFAULT 0,
-      UNIQUE(path, branch)
+      layer       TEXT    NOT NULL DEFAULT 'baseline',
+      generation  INTEGER NOT NULL DEFAULT 0,
+      UNIQUE(path, branch, layer)
     );
     CREATE TABLE symbols (
       id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -69,7 +71,23 @@ function createTestDb(): Database.Database {
       start_line  INTEGER NOT NULL,
       end_line    INTEGER NOT NULL,
       signature   TEXT,
-      doc_comment TEXT
+      doc_comment TEXT,
+      resolved_type_signature TEXT,
+      resolved_return_type TEXT,
+      definition_uri TEXT,
+      definition_path TEXT,
+      is_exported INTEGER NOT NULL DEFAULT 0,
+      layer       TEXT    NOT NULL DEFAULT 'baseline',
+      generation  INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE TABLE symbol_metrics (
+      symbol_id   INTEGER PRIMARY KEY REFERENCES symbols(id) ON DELETE CASCADE,
+      line_count  INTEGER NOT NULL,
+      param_count INTEGER NOT NULL,
+      cyclomatic  INTEGER NOT NULL,
+      max_nesting INTEGER NOT NULL,
+      layer       TEXT    NOT NULL DEFAULT 'baseline',
+      generation  INTEGER NOT NULL DEFAULT 0
     );
     CREATE TABLE external_symbols (
       id                   INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -81,25 +99,11 @@ function createTestDb(): Database.Database {
       symbol_name          TEXT    NOT NULL,
       symbol_kind          TEXT    NOT NULL,
       signature            TEXT    NOT NULL DEFAULT '',
-      doc_comment          TEXT
-    );
-    CREATE TABLE config_entries (
-      id            INTEGER PRIMARY KEY AUTOINCREMENT,
-      file_id       INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
-      key           TEXT    NOT NULL,
-      value         TEXT,
-      default_value TEXT,
-      inferred_type TEXT,
-      required      INTEGER NOT NULL DEFAULT 0,
-      description   TEXT,
-      kind          TEXT    NOT NULL,
-      UNIQUE(file_id, key)
-    );
-    CREATE TABLE config_entry_refs (
-      id              INTEGER PRIMARY KEY AUTOINCREMENT,
-      config_entry_id INTEGER NOT NULL REFERENCES config_entries(id) ON DELETE CASCADE,
-      file_id         INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
-      line            INTEGER NOT NULL
+      doc_comment          TEXT,
+      resolved_type_signature TEXT,
+      resolved_return_type TEXT,
+      definition_uri       TEXT,
+      definition_path      TEXT
     );
     CREATE TABLE docs (
       id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -279,37 +283,6 @@ function insertExternalSymbol(
       docComment,
     );
   return result.lastInsertRowid as number;
-}
-
-function insertConfigEntry(
-  db: Database.Database,
-  fileId: number,
-  key: string,
-  kind: string,
-  value: string | null,
-  defaultValue: string | null,
-  inferredType: string,
-  required: number,
-  description: string | null,
-): number {
-  const result = db
-    .prepare(
-      `INSERT INTO config_entries (file_id, key, value, default_value, inferred_type, required, description, kind)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    )
-    .run(fileId, key, value, defaultValue, inferredType, required, description, kind);
-  return result.lastInsertRowid as number;
-}
-
-function insertConfigRef(
-  db: Database.Database,
-  configEntryId: number,
-  fileId: number,
-  line: number,
-): void {
-  db.prepare(
-    'INSERT INTO config_entry_refs (config_entry_id, file_id, line) VALUES (?, ?, ?)',
-  ).run(configEntryId, fileId, line);
 }
 
 function insertDoc(
@@ -1205,15 +1178,6 @@ describe('semanticSearchSymbols', () => {
   });
 
   it('should include symbol metric columns when the symbol_metrics table exists', () => {
-    db.exec(`
-      CREATE TABLE symbol_metrics (
-        symbol_id INTEGER PRIMARY KEY REFERENCES symbols(id) ON DELETE CASCADE,
-        line_count INTEGER,
-        param_count INTEGER,
-        cyclomatic INTEGER,
-        max_nesting INTEGER
-      );
-    `);
     db.prepare(
       'INSERT INTO symbol_metrics(symbol_id, line_count, param_count, cyclomatic, max_nesting) VALUES (?, ?, ?, ?, ?)',
     ).run(mainAlphaId, 10, 2, 3, 1);
@@ -1410,12 +1374,6 @@ describe('external symbol helpers', () => {
   });
 
   it('should return persisted enrichment metadata when external symbol columns exist', () => {
-    db.exec(`
-      ALTER TABLE external_symbols ADD COLUMN resolved_type_signature TEXT;
-      ALTER TABLE external_symbols ADD COLUMN resolved_return_type TEXT;
-      ALTER TABLE external_symbols ADD COLUMN definition_uri TEXT;
-      ALTER TABLE external_symbols ADD COLUMN definition_path TEXT;
-    `);
     const id = insertExternalSymbol(
       db,
       'typed-lib',
@@ -1513,25 +1471,6 @@ describe('external symbol helpers', () => {
     expect(rows.length).toBe(100);
     expect(rows.every((row) => row.symbol_name.toLowerCase().includes('pad'))).toBe(true);
   });
-
-  it('should return empty arrays when external_symbols table is unavailable', () => {
-    const noExternalDb = new Database(':memory:');
-    noExternalDb.exec(`
-      CREATE TABLE files (id INTEGER PRIMARY KEY, path TEXT NOT NULL, branch TEXT NOT NULL, language TEXT NOT NULL);
-      CREATE TABLE symbols (
-        id INTEGER PRIMARY KEY,
-        file_id INTEGER NOT NULL,
-        name TEXT NOT NULL,
-        kind TEXT NOT NULL,
-        start_line INTEGER NOT NULL,
-        end_line INTEGER NOT NULL
-      );
-    `);
-
-    expect(getExternalSymbolsByName(noExternalDb, 'leftPad')).toEqual([]);
-    expect(searchExternalSymbolsByName(noExternalDb, 'left')).toEqual([]);
-    noExternalDb.close();
-  });
 });
 
 // ─── listSymbols ──────────────────────────────────────────────────────────────
@@ -1612,27 +1551,6 @@ describe('listSymbols', () => {
   });
 });
 
-// ─── listConfigEntries ────────────────────────────────────────────────────────
-
-describe('listConfigEntries (stub — no DDL exists)', () => {
-  let db: Database.Database;
-
-  beforeEach(() => {
-    db = createTestDb();
-  });
-
-  it('should always return an empty array (no config_entries DDL exists)', () => {
-    // listConfigEntries is a no-op stub because the config_entries and
-    // config_entry_refs tables were never created in the main DDL.
-    // The stub always returns [] regardless of arguments.
-    expect(listConfigEntries(db)).toEqual([]);
-    expect(listConfigEntries(db, { key: 'API_KEY' })).toEqual([]);
-    expect(listConfigEntries(db, { filePath: 'config/.env' })).toEqual([]);
-    expect(listConfigEntries(db, { kind: 'env' })).toEqual([]);
-    expect(listConfigEntries(db, { key: 'X', filePath: 'Y', kind: 'Z' })).toEqual([]);
-  });
-});
-
 // ─── getSymbolById ────────────────────────────────────────────────────────────
 
 describe('getSymbolById', () => {
@@ -1679,6 +1597,13 @@ describe('getSymbolById', () => {
         signature TEXT,
         doc_comment TEXT,
         is_exported INTEGER NOT NULL DEFAULT 0
+      );
+      CREATE TABLE symbol_metrics (
+        symbol_id   INTEGER PRIMARY KEY REFERENCES symbols(id) ON DELETE CASCADE,
+        line_count  INTEGER NOT NULL,
+        param_count INTEGER NOT NULL,
+        cyclomatic  INTEGER NOT NULL,
+        max_nesting INTEGER NOT NULL
       );
     `);
     const fileResult = dbWithExported
@@ -1814,18 +1739,6 @@ describe('commit helpers', () => {
   it('should return referenced commits when ref query is empty', () => {
     const rows = listCommitsByRef(db, '', 10);
     expect(rows.map((r) => r.sha)).toEqual(['bbb222', 'aaa111']);
-  });
-
-  it('should return empty arrays when commit_refs table is unavailable', () => {
-    const noRefsDb = createCommitDb(false);
-    noRefsDb.prepare(
-      `INSERT INTO commits (sha, author, author_email, timestamp, message, parents)
-       VALUES (?, ?, ?, ?, ?, '[]')`,
-    ).run('sha1', 'User', 'user@example.com', 1, 'msg');
-
-    expect(listCommitRefs(noRefsDb, 'sha1')).toEqual([]);
-    expect(listCommitsByRef(noRefsDb, 'main', 10)).toEqual([]);
-    noRefsDb.close();
   });
 
   it('should list semantic commit matches ordered by vector distance', () => {

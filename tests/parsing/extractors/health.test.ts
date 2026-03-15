@@ -17,7 +17,7 @@
  */
 import { describe, test, expect } from 'vitest';
 import path from 'node:path';
-import { parseAndExtract } from '../../helpers/extractorHelper.js';
+import { parseAndExtractStrict } from '../../helpers/extractorHelper.js';
 
 import { BashExtractor } from '../../../src/parsing/extractors/bash.js';
 import { CExtractor } from '../../../src/parsing/extractors/c.js';
@@ -87,12 +87,12 @@ const LANGUAGES: LanguageSpec[] = [
 
 // ─── Pre-extract all fixtures at module load ──────────────────────────────────
 
-const results = new Map<string, { spec: LanguageSpec; result: ExtractionResult | null }>();
+const results = new Map<string, { spec: LanguageSpec; result: ExtractionResult }>();
 for (const spec of LANGUAGES) {
   const key = `${spec.lang}:${spec.fixture}`;
   results.set(key, {
     spec,
-    result: parseAndExtract(spec.lang, path.join(fixtureDir, spec.fixture), spec.extractor),
+    result: parseAndExtractStrict(spec.lang, path.join(fixtureDir, spec.fixture), spec.extractor),
   });
 }
 
@@ -101,39 +101,26 @@ for (const spec of LANGUAGES) {
 describe('extractor health check', () => {
   for (const [key, { spec, result }] of results) {
     describe(`${key}`, () => {
-      test('parser produces a tree and extraction succeeds', () => {
-        // Every grammar is a declared dependency — a null result means the
-        // native binding failed to load.  This MUST fail, not skip.
-        expect(
-          result,
-          `grammar '${spec.lang}' failed to load or parse fixture '${spec.fixture}' — run \`npm rebuild tree-sitter-${spec.lang}\``,
-        ).not.toBeNull();
-      });
-
       test(`produces >= ${spec.minSymbols} symbols`, () => {
-        expect(result, `grammar '${spec.lang}' unavailable`).not.toBeNull();
-        expect(result!.symbols.length).toBeGreaterThanOrEqual(spec.minSymbols);
+        expect(result.symbols.length).toBeGreaterThanOrEqual(spec.minSymbols);
       });
 
       test('no empty-name symbols', () => {
-        expect(result, `grammar '${spec.lang}' unavailable`).not.toBeNull();
-        const emptyNames = result!.symbols.filter(s => !s.name);
+        const emptyNames = result.symbols.filter(s => !s.name);
         expect(emptyNames).toEqual([]);
       });
 
       test(`emits expected kinds: ${spec.expectedKinds.join(', ')}`, () => {
-        expect(result, `grammar '${spec.lang}' unavailable`).not.toBeNull();
-        const kinds = new Set(result!.symbols.map(s => s.kind));
+        const kinds = new Set(result.symbols.map(s => s.kind));
         for (const expected of spec.expectedKinds) {
           expect(kinds, `missing symbol kind '${expected}'`).toContain(expected);
         }
       });
 
       test('call-refs inside symbols have non-empty callerSymbol', () => {
-        expect(result, `grammar '${spec.lang}' unavailable`).not.toBeNull();
         // Allow some top-level call-refs (callerSymbol === '') but in files with
         // enough call-refs, a reasonable fraction should resolve to a parent.
-        const callRefs = result!.callRefs;
+        const callRefs = result.callRefs;
         if (callRefs.length === 0) return;
         const resolved = callRefs.filter(r => r.callerSymbol !== '');
         if (callRefs.length >= 8) {
@@ -145,8 +132,7 @@ describe('extractor health check', () => {
       });
 
       test('type-refs (if any) have non-empty enclosingSymbol', () => {
-        expect(result, `grammar '${spec.lang}' unavailable`).not.toBeNull();
-        const typeRefs = result!.typeRefs;
+        const typeRefs = result.typeRefs;
         if (typeRefs.length === 0) return;
         const resolved = typeRefs.filter(r => r.enclosingSymbol !== '');
         if (typeRefs.length >= 4) {

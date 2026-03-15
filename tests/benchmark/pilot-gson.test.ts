@@ -16,7 +16,9 @@ import { buildToolsForArm } from './util/tool-providers.js';
 import { runScriptedAgent, runProgrammaticAgent } from './util/agent.js';
 import { buildControlStrategy, buildLoreStrategy, buildDynamicLoreStrategy } from './util/strategies.js';
 import { scoreRun, aggregateScores, formatReport, compareReports } from './util/scorer.js';
-import { GSON_TASKS } from './util/tasks.js';
+import { getTasksForRepo } from './util/tasks.js';
+
+const GSON_TASKS = getTasksForRepo('gson');
 import { PILOT_REPOS } from './util/repos.js';
 import type { RunScore } from './util/types.js';
 

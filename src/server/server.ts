@@ -35,21 +35,7 @@ import { getLoreMeta } from '../db/schema.js';
 import { LazyEmbeddingProvider, type EmbeddingProvider } from '../embeddings/embedder.js';
 import { getLogger, type LoreLogger } from '../logger.js';
 import type { SearchObserver } from './tools/search.js';
-import { buildToolModules, registerTools, type ToolModule } from './tool-registry.js';
-import * as lookup from './tools/lookup.js';
-import * as graph from './tools/graph.js';
-import * as search from './tools/search.js';
-import * as docsMod from './tools/docs.js';
-import * as testMap from './tools/test-map.js';
-import * as snippet from './tools/snippet.js';
-import * as blame from './tools/blame.js';
-import * as metrics from './tools/metrics.js';
-import * as history from './tools/history.js';
-import * as diff from './tools/diff.js';
-import * as trace from './tools/trace.js';
-import * as structure from './tools/structure.js';
-import * as cohesion from './tools/cohesion.js';
-import * as dependents from './tools/dependents.js';
+import { buildToolModules, registerTools } from './tool-registry.js';
 
 // ─── Server options ───────────────────────────────────────────────────────────
 
@@ -71,40 +57,7 @@ export interface LoreServerOptions {
  * @param embedder Optional live embedding provider for semantic/fused search.
  * @param options  Optional server configuration (e.g. search observer).
  */
-export function createLoreMcpServer(
-  db: Database.Database,
-  dbPath: string,
-  embedder?: EmbeddingProvider,
-  options?: LoreServerOptions,
-): McpServer {
-  const log = options?.logger ?? getLogger();
-
-  const server = new McpServer(
-    { name: 'lore-server', version: '0.1.0' },
-    { capabilities: { tools: {} } },
-  );
-
-  // The tool modules are built synchronously from eagerly-imported tool files
-  // at startup, then registered via the data-driven registry loop.
-  // NOTE: `buildToolModules()` is async but only because it uses dynamic
-  // imports.  The synchronous variant `createLoreMcpServerAsync()` should be
-  // preferred for new code.  For backward-compat we register eagerly here
-  // using a self-invoking async helper that blocks the server from being
-  // ready until registration completes.
-  //
-  // However, McpServer.tool() is synchronous, so we need to register modules
-  // synchronously.  We import tool modules eagerly at module scope instead.
-  const toolModules = buildToolModulesSync();
-  registerTools(server, toolModules, { db, dbPath, embedder, searchObserver: options?.searchObserver, logger: log });
-
-  return server;
-}
-
-/**
- * Async version of `createLoreMcpServer` that properly awaits dynamic tool
- * module imports.  Preferred for new call-sites.
- */
-export async function createLoreMcpServerAsync(
+export async function createLoreMcpServer(
   db: Database.Database,
   dbPath: string,
   embedder?: EmbeddingProvider,
@@ -121,31 +74,6 @@ export async function createLoreMcpServerAsync(
   registerTools(server, toolModules, { db, dbPath, embedder, searchObserver: options?.searchObserver, logger: log });
 
   return server;
-}
-
-// ─── Synchronous tool module builder ──────────────────────────────────────────
-
-/**
- * Eagerly import all tool modules and build the registration list.
- * Used by the synchronous `createLoreMcpServer()` for backward compatibility.
- */
-function buildToolModulesSync(): ToolModule[] {
-  return [
-    { def: lookup.toolDef, handlerFactory: (deps) => (args) => lookup.handler(deps.db, args, deps.embedder) },
-    { def: graph.toolDef, handlerFactory: (deps) => (args) => graph.handler(deps.db, args) },
-    { def: search.toolDef, handlerFactory: (deps) => (args) => search.handler(deps.db, args, deps.embedder, deps.searchObserver) },
-    { def: docsMod.toolDef, handlerFactory: (deps) => (args) => docsMod.handler(deps.db, args, deps.embedder) },
-    { def: testMap.toolDef, handlerFactory: (deps) => (args) => testMap.handler(deps.db, args) },
-    { def: snippet.toolDef, handlerFactory: (deps) => (args) => snippet.handler(deps.db, args) },
-    { def: blame.toolDef, handlerFactory: (deps) => (args) => blame.handler(deps.db, args) },
-    { def: metrics.toolDef, handlerFactory: (deps) => (args) => metrics.handler(deps.db, args ?? {}) },
-    { def: history.toolDef, handlerFactory: (deps) => (args) => history.handler(deps.db, args, deps.embedder) },
-    { def: diff.toolDef, handlerFactory: (deps) => (args) => diff.handler(deps.db, args) },
-    { def: trace.toolDef, handlerFactory: (deps) => (args) => trace.handler(deps.db, args) },
-    { def: structure.toolDef, handlerFactory: (deps) => (args) => structure.handler(deps.db, args) },
-    { def: cohesion.toolDef, handlerFactory: (deps) => (args) => cohesion.handler(deps.db, args ?? {}) },
-    { def: dependents.toolDef, handlerFactory: (deps) => (args) => dependents.handler(deps.db, args) },
-  ];
 }
 
 // ─── Embedding helper ─────────────────────────────────────────────────────────
@@ -184,7 +112,7 @@ async function main(): Promise<void> {
   const db = openReadOnly(dbPath);
   const embedder = await buildEmbedder(db);
 
-  const server = createLoreMcpServer(db, dbPath, embedder);
+  const server = await createLoreMcpServer(db, dbPath, embedder);
 
   // Connect via stdio transport (standalone/debug mode).
   const transport = new StdioServerTransport();

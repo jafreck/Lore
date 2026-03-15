@@ -2,6 +2,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { LspClient, type LspClientOptions, type LspPosition, type LspServerCommand } from './client.js';
 import type { EffectiveLspSettings } from './config.js';
 import { resolveLspServerRegistry, type ResolvedLspServerCommand } from './registry.js';
+import { extractReturnType } from '../scip/index-reader.js';
 
 export interface ResolvedTypeMetadata {
   resolvedTypeSignature: string | null;
@@ -231,24 +232,6 @@ function extractHoverContentValue(contents: unknown): string | null {
   if (isRecord(contents) && typeof contents.value === 'string') {
     return contents.value;
   }
-  return null;
-}
-
-function extractReturnType(signature: string | null): string | null {
-  if (!signature) return null;
-  const lines = signature.split('\n').map((line) => line.trim()).filter(Boolean);
-  if (lines.length === 0) return null;
-  const firstLine = lines[0]!;
-
-  const functionStyle = firstLine.match(/\)\s*:\s*([^={]+)$/u);
-  if (functionStyle?.[1]) return functionStyle[1].trim();
-
-  const arrowStyle = firstLine.match(/->\s*([^={]+)$/u);
-  if (arrowStyle?.[1]) return arrowStyle[1].trim();
-
-  const colonStyle = firstLine.match(/:\s*([^={]+)$/u);
-  if (colonStyle?.[1]) return colonStyle[1].trim();
-
   return null;
 }
 

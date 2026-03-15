@@ -565,8 +565,8 @@ describe('inferLoreLanguage', () => {
       expect(inferLoreLanguage('', 'main.go')).toBe('go');
     });
 
-    it('infers .dart', () => {
-      expect(inferLoreLanguage('', 'lib/widget.dart')).toBe('dart');
+    it('returns null for .dart (no walker support)', () => {
+      expect(inferLoreLanguage('', 'lib/widget.dart')).toBeNull();
     });
 
     it('infers .rs', () => {

@@ -72,7 +72,6 @@ describe('src/index.ts — public exports', () => {
   it('should export MCP server factories', async () => {
     const mod = await import('../src/index.js');
     expect(typeof mod.createLoreMcpServer).toBe('function');
-    expect(typeof mod.createLoreMcpServerAsync).toBe('function');
   });
 
   it('should export git hooks installer', async () => {
