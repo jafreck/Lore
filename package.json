@@ -63,6 +63,8 @@
     "@elm-tooling/tree-sitter-elm": "^5.9.0",
     "@huggingface/transformers": "^3.8.1",
     "@modelcontextprotocol/sdk": "^1.27.1",
+    "@sourcegraph/scip-python": "^0.6.6",
+    "@sourcegraph/scip-typescript": "^0.4.0",
     "@tree-sitter-grammars/tree-sitter-lua": "^0.4.1",
     "@tree-sitter-grammars/tree-sitter-zig": "^1.1.2",
     "better-sqlite3": "^12.6.2",

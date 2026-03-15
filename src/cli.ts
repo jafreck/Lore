@@ -48,6 +48,8 @@ function usage(): never {
                          Ingest an explicit coverage report file into the knowledge base
   lore analyze --db <path> [--mode <mode>] [--edge-kinds <kind>] [--branch <name>] [--max-lines <n>]
                          Run graph analysis on the knowledge-base (cycles, components, clusters, summary)
+  lore install-scip [--language <lang>] [--list]
+                         Install SCIP indexers for richer code intelligence (auto-downloads missing indexers)
 
 Options:
   --root <dir>             Root directory to index (required for index, refresh)
@@ -715,6 +717,38 @@ async function main(): Promise<void> {
 
     db.close();
     console.log(JSON.stringify(result, null, 2));
+
+  } else if (subcommand === 'install-scip') {
+    // ── Install SCIP indexers ──────────────────────────────────────────────────
+    const { installAllMissing, SCIP_INSTALL_SPECS } = await import('./scip/installer.js');
+
+    const languageFilter = flags(args, '--language');
+
+    if (args.includes('--list')) {
+      // Just list available indexers and their status
+      for (const spec of SCIP_INSTALL_SPECS) {
+        console.log(`  ${spec.command.padEnd(20)} ${spec.languages.join(', ').padEnd(25)} ${spec.method}`);
+      }
+      return;
+    }
+
+    const results = await installAllMissing({
+      languages: languageFilter.length > 0 ? languageFilter : undefined,
+    });
+
+    let installed = 0;
+    let failed = 0;
+    for (const r of results) {
+      if (r.installed) {
+        console.log(`  ✓ ${r.command} → ${r.path}`);
+        installed++;
+      } else {
+        console.log(`  ✗ ${r.command}: ${r.error ?? 'unknown error'}`);
+        failed++;
+      }
+    }
+    console.log(`\n${installed} installed, ${failed} unavailable`);
+
   } else {
     console.error(`Unknown subcommand: ${subcommand}\n`);
     usage();

@@ -29,6 +29,8 @@ import {
   type ScipIndexData,
 } from './index-reader.js';
 import { getLogger } from '../logger.js';
+import { getSpecsForLanguage, installScipIndexer } from './installer.js';
+import { ensureCompilationDatabase } from './compdb.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -48,7 +50,7 @@ export interface ScipEnrichmentRequest {
 
 export class ScipEnrichmentCoordinator {
   private readonly rootDir: string;
-  private readonly resolvedIndexers: Record<string, ResolvedScipIndexerCommand>;
+  private resolvedIndexers: Record<string, ResolvedScipIndexerCommand>;
   /** Merged SCIP index data from all indexer runs. */
   private indexData: ScipIndexData | null = null;
   /** Languages for which SCIP indexing succeeded. */
@@ -76,11 +78,30 @@ export class ScipEnrichmentCoordinator {
 
     // Determine which languages have SCIP coverage.
     const toProcess = new Set<string>();
+    const missingLanguages = new Set<string>();
     for (const lang of uniqueLanguages) {
       if (SCIP_SUPPORTED_LANGUAGES.has(lang)) {
         const resolved = this.resolvedIndexers[lang];
         if (resolved?.available || this.settings.indexDir) {
           toProcess.add(lang);
+        } else {
+          missingLanguages.add(lang);
+        }
+      }
+    }
+
+    // Auto-install missing SCIP indexers
+    if (missingLanguages.size > 0) {
+      const installedAny = await this.autoInstallMissing(missingLanguages);
+      if (installedAny) {
+        // Re-resolve the registry after installation
+        this.resolvedIndexers = resolveScipIndexerRegistry(this.settings.indexers);
+        for (const lang of missingLanguages) {
+          const resolved = this.resolvedIndexers[lang];
+          if (resolved?.available) {
+            toProcess.add(lang);
+            missingLanguages.delete(lang);
+          }
         }
       }
     }
@@ -208,6 +229,35 @@ export class ScipEnrichmentCoordinator {
 
   // ─── Private helpers ──────────────────────────────────────────────────────
 
+  /**
+   * Attempt to auto-install SCIP indexers for the given languages.
+   * Returns true if at least one indexer was newly installed.
+   */
+  private async autoInstallMissing(languages: ReadonlySet<string>): Promise<boolean> {
+    const log = getLogger();
+    let installedAny = false;
+    const attempted = new Set<string>();
+
+    for (const lang of languages) {
+      const specs = getSpecsForLanguage(lang);
+      for (const spec of specs) {
+        if (attempted.has(spec.command)) continue;
+        attempted.add(spec.command);
+
+        log.indexing(`scip: auto-installing ${spec.command} for ${lang}...`);
+        const result = await installScipIndexer(spec);
+        if (result.installed) {
+          log.indexing(`scip: installed ${spec.command} at ${result.path}`);
+          installedAny = true;
+        } else {
+          log.indexing(`scip: could not auto-install ${spec.command}: ${result.error ?? 'unknown'}`);
+        }
+      }
+    }
+
+    return installedAny;
+  }
+
   private readPrecomputedIndex(language: string): Uint8Array | null {
     if (!this.settings.indexDir) return null;
 
@@ -233,9 +283,19 @@ export class ScipEnrichmentCoordinator {
     const outputPath = join(this.rootDir, `.lore-scip-${language}.scip`);
 
     // Replace {output} placeholder in args.
-    const args = resolved.args.map((arg) =>
+    let args = resolved.args.map((arg) =>
       arg.replace(/\{output\}/gu, outputPath),
     );
+
+    // For C/C++: ensure compile_commands.json exists and replace {compdb} placeholder
+    if ((language === 'c' || language === 'cpp') && args.some(a => a.includes('{compdb}'))) {
+      const compdb = await ensureCompilationDatabase(this.rootDir, this.settings.timeoutMs);
+      if (!compdb.path) {
+        log.indexing(`scip: no compile_commands.json for ${language}, skipping`);
+        return null;
+      }
+      args = args.map(a => a.replace(/\{compdb\}/gu, compdb.path!));
+    }
 
     const cwd = resolved.cwd ? join(this.rootDir, resolved.cwd) : this.rootDir;
 
@@ -243,7 +303,7 @@ export class ScipEnrichmentCoordinator {
 
     const execFileAsync = promisify(execFile);
     try {
-      await execFileAsync(resolved.command, args, {
+      await execFileAsync(resolved.resolvedPath ?? resolved.command, args, {
         cwd,
         timeout: this.settings.timeoutMs,
       });
