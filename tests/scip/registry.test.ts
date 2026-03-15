@@ -16,7 +16,7 @@ import {
 describe('SCIP indexer registry', () => {
   it('default registry covers expected languages', () => {
     const expectedLanguages = [
-      'typescript', 'javascript', 'python', 'java', 'scala', 'kotlin',
+      'typescript', 'python', 'java', 'scala', 'kotlin',
       'rust', 'c', 'cpp', 'csharp', 'ruby', 'php', 'go', 'dart',
     ];
     for (const lang of expectedLanguages) {
@@ -49,8 +49,9 @@ describe('SCIP indexer registry', () => {
       const resolved = resolveScipIndexerRegistry(DEFAULT_SCIP_INDEXER_REGISTRY, { PATH: dir });
       expect(resolved.typescript!.available).toBe(true);
       expect(resolved.typescript!.resolvedPath).toBe(fakeExec);
-      // JavaScript also uses scip-typescript.
-      expect(resolved.javascript!.available).toBe(true);
+      // JavaScript is not in the SCIP registry (scip-typescript lacks
+      // reliable CommonJS/import support for plain JS repos).
+      expect(resolved.javascript).toBeUndefined();
       // Python uses scip-python which isn't in our fake PATH.
       expect(resolved.python!.available).toBe(false);
     } finally {
