@@ -26,6 +26,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { fileURLToPath } from 'url';
+import { realpathSync } from 'fs';
 import {
   openReadOnly,
   type Database,
@@ -190,7 +191,8 @@ async function main(): Promise<void> {
 }
 
 // Only run when executed as a standalone script, not when imported as a module.
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+// Use realpathSync to handle macOS /var → /private/var symlink.
+if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
   main().catch((err) => {
     console.error('Lore server fatal error:', err);
     process.exit(1);
