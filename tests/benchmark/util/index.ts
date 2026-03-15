@@ -50,8 +50,7 @@ export {
   compareReports,
   type AggregateReport,
 } from './scorer.js';
-export { BenchmarkRunner } from './runner.js';
 export { runCopilotAgent, type CopilotAgentOptions } from './copilot-agent.js';
 export { buildControlStrategy, buildLoreStrategy, buildDynamicLoreStrategy } from './strategies.js';
-export { LORE_SELF_TASKS, GSON_TASKS, getTasksForRepo, getAllTasks, getBenchmarkRepoNames } from './tasks.js';
+export { getTasksForRepo, getAllTasks, getBenchmarkRepoNames } from './tasks.js';
 export { PILOT_REPOS, isPending } from './repos.js';

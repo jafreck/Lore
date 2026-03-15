@@ -406,7 +406,7 @@ async function main(): Promise<void> {
       commitCount,
     });
 
-    const server = createLoreMcpServer(db, dbPath, embedder, { logger: log });
+    const server = await createLoreMcpServer(db, dbPath, embedder, { logger: log });
 
     const transport = new StdioServerTransport();
     await server.connect(transport);

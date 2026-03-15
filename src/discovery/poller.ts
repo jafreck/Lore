@@ -14,6 +14,7 @@ import type { EffectiveLspSettings } from '../lsp/config.js';
 import type { EffectiveScipSettings } from '../scip/config.js';
 import { walkFiles } from './walker.js';
 import type { WalkerConfig } from './walker.js';
+import { ScipFlushManager } from './scip-flush.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -84,10 +85,8 @@ export class FilePoller {
   private timer: ReturnType<typeof setInterval> | null = null;
   private pollRunning = false;
 
-  /** Paths changed since the last SCIP-enabled update. */
-  private pathsSinceLastScip: Set<string> = new Set();
-  /** Timer for the deferred SCIP update. */
-  private scipTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Deferred SCIP baseline rebuild manager. */
+  private scipFlush: ScipFlushManager | null = null;
 
   constructor(dbPath: string, walkerConfig: WalkerConfig, options: PollerOptions = {}) {
     this.dbPath = dbPath;
@@ -100,6 +99,20 @@ export class FilePoller {
     this.scip = options.scip;
     this.scipQuietPeriodMs = options.scipQuietPeriodMs ?? 10_000;
     this.embedder = options.embedder;
+
+    if (this.scip && this.scipQuietPeriodMs > 0) {
+      this.scipFlush = new ScipFlushManager({
+        dbPath: this.dbPath,
+        walkerConfig: this.walkerConfig,
+        embedder: this.embedder,
+        history: this.history,
+        indexDependencies: this.indexDependencies,
+        lsp: this.lsp,
+        scip: this.scip,
+        scipQuietPeriodMs: this.scipQuietPeriodMs,
+        source: 'FilePoller',
+      });
+    }
   }
 
   /** Begin polling `walkerConfig.rootDir` at the configured interval. */
@@ -114,10 +127,7 @@ export class FilePoller {
       clearInterval(this.timer);
       this.timer = null;
     }
-    if (this.scipTimer !== null) {
-      clearTimeout(this.scipTimer);
-      this.scipTimer = null;
-    }
+    this.scipFlush?.cancel();
   }
 
   // ─── Private helpers ──────────────────────────────────────────────────────
@@ -201,9 +211,8 @@ export class FilePoller {
 
         // If SCIP is configured with throttling, accumulate paths and
         // schedule a deferred SCIP-enabled update after the quiet period.
-        if (this.scip && this.scipQuietPeriodMs > 0) {
-          for (const p of changed) this.pathsSinceLastScip.add(p);
-          this.scheduleScipFlush();
+        if (this.scipFlush) {
+          this.scipFlush.accumulate(changed);
         }
       }
 
@@ -221,49 +230,4 @@ export class FilePoller {
     }
   }
 
-  /**
-   * Schedule (or reschedule) a background baseline rebuild after the quiet period.
-   *
-   * Every call resets the timer so that the baseline rebuild only runs once
-   * editing stops for `scipQuietPeriodMs` milliseconds.
-   */
-  private scheduleScipFlush(): void {
-    if (this.scipTimer !== null) {
-      clearTimeout(this.scipTimer);
-    }
-    this.scipTimer = setTimeout(() => this.scipFlush(), this.scipQuietPeriodMs);
-  }
-
-  private async scipFlush(): Promise<void> {
-    this.scipTimer = null;
-    const paths = [...this.pathsSinceLastScip];
-    this.pathsSinceLastScip.clear();
-
-    if (paths.length === 0) return;
-
-    // Background baseline rebuild: full SCIP pipeline + overlay cleanup.
-    const builder = new IndexBuilder(this.dbPath, this.walkerConfig, this.embedder, {
-      history: this.history,
-      ...(this.indexDependencies && { indexDependencies: true }),
-      ...(this.lsp && { lsp: this.lsp }),
-      scip: this.scip!,
-    });
-
-    try {
-      await builder.baselineRebuild();
-    } catch (err) {
-      process.stderr.write(
-        JSON.stringify({ level: 'error', source: 'FilePoller', message: String(err) }) + '\n',
-      );
-    }
-
-    process.stderr.write(
-      JSON.stringify({
-        level: 'info',
-        source: 'FilePoller',
-        message: 'baseline rebuild complete',
-        files: paths.length,
-      }) + '\n',
-    );
-  }
 }

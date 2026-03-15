@@ -64,6 +64,7 @@ import { getLogger } from '../../logger.js';
 import { extractReturnType } from '../../scip/index-reader.js';
 import { getSpecsForLanguage, installScipIndexer } from '../../scip/installer.js';
 import { ensureCompilationDatabase } from '../../scip/compdb.js';
+import { EXT_TO_LANG } from '../../discovery/walker.js';
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { execFile } from 'node:child_process';
@@ -1286,33 +1287,6 @@ function detectProjectLanguages(rootDir: string): Set<string> {
 
   return found;
 }
-
-const EXT_TO_LANG: Record<string, string> = {
-  '.ts': 'typescript',
-  '.tsx': 'typescript',
-  '.js': 'javascript',
-  '.jsx': 'javascript',
-  '.mjs': 'javascript',
-  '.cjs': 'javascript',
-  '.py': 'python',
-  '.java': 'java',
-  '.scala': 'scala',
-  '.sc': 'scala',
-  '.kt': 'kotlin',
-  '.kts': 'kotlin',
-  '.rs': 'rust',
-  '.c': 'c',
-  '.h': 'c',
-  '.cpp': 'cpp',
-  '.cc': 'cpp',
-  '.cxx': 'cpp',
-  '.hpp': 'cpp',
-  '.cs': 'csharp',
-  '.rb': 'ruby',
-  '.php': 'php',
-  '.go': 'go',
-  '.dart': 'dart',
-};
 
 /**
  * Determine the Lore language for a SCIP document.

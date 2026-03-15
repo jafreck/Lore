@@ -7,23 +7,9 @@ import { createRequire } from 'node:module';
 
 const esmRequire = createRequire(import.meta.url);
 
-function createTestDb(includeEnrichmentColumns = false): Database.Database {
+function createTestDb(): Database.Database {
   const db = new Database(':memory:');
   db.pragma('foreign_keys = ON');
-  const symbolEnrichmentColumns = includeEnrichmentColumns
-    ? `,
-       resolved_type_signature TEXT,
-       resolved_return_type    TEXT,
-       definition_uri          TEXT,
-       definition_path         TEXT`
-    : '';
-  const externalEnrichmentColumns = includeEnrichmentColumns
-    ? `,
-       resolved_type_signature TEXT,
-       resolved_return_type    TEXT,
-       definition_uri          TEXT,
-       definition_path         TEXT`
-    : '';
   db.exec(`
     CREATE TABLE files (
       id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -43,7 +29,11 @@ function createTestDb(includeEnrichmentColumns = false): Database.Database {
       start_line  INTEGER NOT NULL DEFAULT 1,
       end_line    INTEGER NOT NULL DEFAULT 10,
       signature   TEXT,
-      doc_comment TEXT${symbolEnrichmentColumns}
+      doc_comment TEXT,
+      resolved_type_signature TEXT,
+      resolved_return_type    TEXT,
+      definition_uri          TEXT,
+      definition_path         TEXT
     );
     CREATE TABLE symbol_metrics (
       symbol_id    INTEGER PRIMARY KEY REFERENCES symbols(id) ON DELETE CASCADE,
@@ -62,7 +52,11 @@ function createTestDb(includeEnrichmentColumns = false): Database.Database {
       symbol_name          TEXT    NOT NULL,
       symbol_kind          TEXT    NOT NULL,
       signature            TEXT    NOT NULL DEFAULT '',
-      doc_comment          TEXT${externalEnrichmentColumns}
+      doc_comment          TEXT,
+      resolved_type_signature TEXT,
+      resolved_return_type    TEXT,
+      definition_uri          TEXT,
+      definition_path         TEXT
     );
   `);
   return db;
@@ -324,7 +318,7 @@ describe('lookup handler – kind=symbol', () => {
 
 describe('lookup handler – enrichment metadata projection', () => {
   it('should return persisted internal and external enrichment metadata when present', async () => {
-    const db = createTestDb(true);
+    const db = createTestDb();
     const fileId = insertFile(db, 'src/main.ts', 'main');
     const symbolId = insertSymbol(db, fileId, 'parseConfig');
     db.prepare(

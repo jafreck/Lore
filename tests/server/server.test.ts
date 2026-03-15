@@ -22,7 +22,7 @@ vi.mock('@modelcontextprotocol/sdk/server/mcp.js', () => ({
   },
 }));
 
-import { createLoreMcpServer, createLoreMcpServerAsync, type LoreServerOptions } from '../../src/server/server.js';
+import { createLoreMcpServer, type LoreServerOptions } from '../../src/server/server.js';
 
 function schemaDescription(schema: { description?: string; _def?: { description?: string } }): string {
   return schema.description ?? schema._def?.description ?? '';
@@ -49,13 +49,13 @@ describe('createLoreMcpServer', () => {
     vi.clearAllMocks();
   });
 
-  it('should accept an options parameter with searchObserver', () => {
+  it('should accept an options parameter with searchObserver', async () => {
     const db = new Database(':memory:');
     const observer = vi.fn();
     const options: LoreServerOptions = { searchObserver: observer };
 
     // Should not throw when options are provided.
-    createLoreMcpServer(db, '/tmp/test.db', undefined, options);
+    await createLoreMcpServer(db, '/tmp/test.db', undefined, options);
 
     // All standard tools should still be registered.
     const toolNames = mockTool.mock.calls.map((call) => call[0]);
@@ -63,25 +63,25 @@ describe('createLoreMcpServer', () => {
     expect(toolNames).toContain('lore_lookup');
   });
 
-  it('should register newly exposed MCP tools', () => {
+  it('should register newly exposed MCP tools', async () => {
     const db = new Database(':memory:');
-    createLoreMcpServer(db, '/tmp/test.db');
+    await createLoreMcpServer(db, '/tmp/test.db');
 
     const toolNames = mockTool.mock.calls.map((call) => call[0]);
     expect(toolNames).toContain('lore_structure');
   });
 
-  it('should register newly exposed tools with expected schema fields', () => {
+  it('should register newly exposed tools with expected schema fields', async () => {
     const db = new Database(':memory:');
-    createLoreMcpServer(db, '/tmp/test.db');
+    await createLoreMcpServer(db, '/tmp/test.db');
 
 
   });
 
-  it('should register lore_graph kind schema with inheritance values', () => {
+  it('should register lore_graph kind schema with inheritance values', async () => {
     const db = new Database(':memory:');
 
-    createLoreMcpServer(db, '/tmp/test.db');
+    await createLoreMcpServer(db, '/tmp/test.db');
 
     const graphToolCall = mockTool.mock.calls.find((call) => call[0] === 'lore_graph');
     expect(graphToolCall).toBeDefined();
@@ -108,10 +108,10 @@ describe('createLoreMcpServer', () => {
     expect(graphSchema.semantic_max_distance.safeParse(0.4).success).toBe(true);
   });
 
-  it('should register lore_test_map with expected schema fields', () => {
+  it('should register lore_test_map with expected schema fields', async () => {
     const db = new Database(':memory:');
 
-    createLoreMcpServer(db, '/tmp/test.db');
+    await createLoreMcpServer(db, '/tmp/test.db');
 
     const testMapToolCall = mockTool.mock.calls.find((call) => call[0] === 'lore_test_map');
     expect(testMapToolCall).toBeDefined();
@@ -125,10 +125,10 @@ describe('createLoreMcpServer', () => {
     expect(testMapSchema.source_path.safeParse(42).success).toBe(false);
   });
 
-  it('should register lore_docs with list/get/search schema fields', () => {
+  it('should register lore_docs with list/get/search schema fields', async () => {
     const db = new Database(':memory:');
 
-    createLoreMcpServer(db, '/tmp/test.db');
+    await createLoreMcpServer(db, '/tmp/test.db');
 
     const docsToolCall = mockTool.mock.calls.find((call) => call[0] === 'lore_docs');
     expect(docsToolCall).toBeDefined();
@@ -162,7 +162,7 @@ describe('createLoreMcpServer', () => {
     const embedder = createStubEmbedder();
     const docsResult = { action: 'list', docs: [], count: 0 };
     const docsHandlerSpy = vi.spyOn(docs, 'handler').mockResolvedValue(docsResult);
-    createLoreMcpServer(db, '/tmp/test.db', embedder);
+    await createLoreMcpServer(db, '/tmp/test.db', embedder);
 
     const docsToolCall = mockTool.mock.calls.find((call) => call[0] === 'lore_docs');
     expect(docsToolCall).toBeDefined();
@@ -182,7 +182,7 @@ describe('createLoreMcpServer', () => {
   it('should reject lore_docs tool calls when docs.handler fails', async () => {
     const db = new Database(':memory:');
     const docsHandlerSpy = vi.spyOn(docs, 'handler').mockRejectedValue(new Error('docs failed'));
-    createLoreMcpServer(db, '/tmp/test.db');
+    await createLoreMcpServer(db, '/tmp/test.db');
 
     const docsToolCall = mockTool.mock.calls.find((call) => call[0] === 'lore_docs');
     expect(docsToolCall).toBeDefined();
@@ -206,7 +206,7 @@ describe('createLoreMcpServer', () => {
     const searchHandlerSpy = vi.spyOn(search, 'handler').mockResolvedValue(searchResult);
 
     try {
-      createLoreMcpServer(db, '/tmp/test.db', embedder, { searchObserver: observer });
+      await createLoreMcpServer(db, '/tmp/test.db', embedder, { searchObserver: observer });
 
       const searchToolCall = mockTool.mock.calls.find((call) => call[0] === 'lore_search');
       expect(searchToolCall).toBeDefined();
@@ -235,10 +235,10 @@ describe('createLoreMcpServer', () => {
     }
   });
 
-  it('should register lore_metrics with expected complexity schema fields', () => {
+  it('should register lore_metrics with expected complexity schema fields', async () => {
     const db = new Database(':memory:');
 
-    createLoreMcpServer(db, '/tmp/test.db');
+    await createLoreMcpServer(db, '/tmp/test.db');
 
     const metricsToolCall = mockTool.mock.calls.find((call) => call[0] === 'lore_metrics');
     expect(metricsToolCall).toBeDefined();
@@ -258,7 +258,7 @@ describe('createLoreMcpServer', () => {
     const metricsResult = { symbols: [] };
     const metricsHandlerSpy = vi.spyOn(metrics, 'handler').mockReturnValue(metricsResult);
 
-    createLoreMcpServer(db, '/tmp/test.db');
+    await createLoreMcpServer(db, '/tmp/test.db');
 
     const metricsToolCall = mockTool.mock.calls.find((call) => call[0] === 'lore_metrics');
     expect(metricsToolCall).toBeDefined();
@@ -275,9 +275,9 @@ describe('createLoreMcpServer', () => {
     });
   });
 
-  it('should register lore_lookup semantic mode schema and describe query metadata', () => {
+  it('should register lore_lookup semantic mode schema and describe query metadata', async () => {
     const db = new Database(':memory:');
-    createLoreMcpServer(db, '/tmp/test.db');
+    await createLoreMcpServer(db, '/tmp/test.db');
 
     const lookupToolCall = mockTool.mock.calls.find((call) => call[0] === 'lore_lookup');
     expect(lookupToolCall).toBeDefined();
@@ -300,7 +300,7 @@ describe('createLoreMcpServer', () => {
     const lookupResult = { results: [], mode_used: 'exact' };
     const lookupHandlerSpy = vi.spyOn(lookup, 'handler').mockResolvedValue(lookupResult);
 
-    createLoreMcpServer(db, '/tmp/test.db', embedder);
+    await createLoreMcpServer(db, '/tmp/test.db', embedder);
 
     const lookupToolCall = mockTool.mock.calls.find((call) => call[0] === 'lore_lookup');
     expect(lookupToolCall).toBeDefined();
@@ -320,7 +320,7 @@ describe('createLoreMcpServer', () => {
   it('should reject lore_lookup tool calls when lookup.handler fails', async () => {
     const db = new Database(':memory:');
     const lookupHandlerSpy = vi.spyOn(lookup, 'handler').mockRejectedValue(new Error('lookup failed'));
-    createLoreMcpServer(db, '/tmp/test.db');
+    await createLoreMcpServer(db, '/tmp/test.db');
 
     const lookupToolCall = mockTool.mock.calls.find((call) => call[0] === 'lore_lookup');
     expect(lookupToolCall).toBeDefined();
@@ -339,7 +339,7 @@ describe('createLoreMcpServer', () => {
     const graphResult = { edges: [], semantic_nodes: [], mode_used: 'semantic' };
     const graphHandlerSpy = vi.spyOn(graph, 'handler').mockReturnValue(graphResult);
 
-    createLoreMcpServer(db, '/tmp/test.db');
+    await createLoreMcpServer(db, '/tmp/test.db');
 
     const graphToolCall = mockTool.mock.calls.find((call) => call[0] === 'lore_graph');
     expect(graphToolCall).toBeDefined();
@@ -362,9 +362,9 @@ describe('createLoreMcpServer', () => {
     });
   });
 
-  it('should register lore_lookup with optional match/filter/pagination fields', () => {
+  it('should register lore_lookup with optional match/filter/pagination fields', async () => {
     const db = new Database(':memory:');
-    createLoreMcpServer(db, '/tmp/test.db');
+    await createLoreMcpServer(db, '/tmp/test.db');
 
     const lookupToolCall = mockTool.mock.calls.find((call) => call[0] === 'lore_lookup');
     expect(lookupToolCall).toBeDefined();
@@ -399,9 +399,9 @@ describe('createLoreMcpServer', () => {
     expect(lookupSchema.offset.safeParse(0.5).success).toBe(false);
   });
 
-  it('should describe lore_search branch as SQLite-only query-time retrieval', () => {
+  it('should describe lore_search branch as SQLite-only query-time retrieval', async () => {
     const db = new Database(':memory:');
-    createLoreMcpServer(db, '/tmp/test.db');
+    await createLoreMcpServer(db, '/tmp/test.db');
 
     const searchToolCall = mockTool.mock.calls.find((call) => call[0] === 'lore_search');
     expect(searchToolCall).toBeDefined();
@@ -421,7 +421,7 @@ describe('createLoreMcpServer', () => {
     const historyResult = { mode: 'semantic', results: [], count: 0 };
     const historyHandlerSpy = vi.spyOn(history, 'handler').mockResolvedValue(historyResult);
 
-    createLoreMcpServer(db, '/tmp/test.db', embedder);
+    await createLoreMcpServer(db, '/tmp/test.db', embedder);
 
     const historyToolCall = mockTool.mock.calls.find((call) => call[0] === 'lore_history');
     expect(historyToolCall).toBeDefined();
@@ -438,9 +438,9 @@ describe('createLoreMcpServer', () => {
     });
   });
 
-  it('should register lore_history with semantic mode support', () => {
+  it('should register lore_history with semantic mode support', async () => {
     const db = new Database(':memory:');
-    createLoreMcpServer(db, '/tmp/test.db');
+    await createLoreMcpServer(db, '/tmp/test.db');
 
     const historyToolCall = mockTool.mock.calls.find((call) => call[0] === 'lore_history');
     expect(historyToolCall).toBeDefined();
@@ -453,9 +453,9 @@ describe('createLoreMcpServer', () => {
     expect(historySchema.mode.safeParse('invalid').success).toBe(false);
   });
 
-  it('should register lore_blame schema with extended modes while preserving legacy line/range payloads', () => {
+  it('should register lore_blame schema with extended modes while preserving legacy line/range payloads', async () => {
     const db = new Database(':memory:');
-    createLoreMcpServer(db, '/tmp/test.db');
+    await createLoreMcpServer(db, '/tmp/test.db');
 
     const blameToolCall = mockTool.mock.calls.find((call) => call[0] === 'lore_blame');
     expect(blameToolCall).toBeDefined();
@@ -486,9 +486,9 @@ describe('createLoreMcpServer', () => {
 
 
 
-  it('should register lore_search schema fields for symbol and doc filters', () => {
+  it('should register lore_search schema fields for symbol and doc filters', async () => {
     const db = new Database(':memory:');
-    createLoreMcpServer(db, '/tmp/test.db');
+    await createLoreMcpServer(db, '/tmp/test.db');
 
     const searchToolCall = mockTool.mock.calls.find((call) => call[0] === 'lore_search');
     expect(searchToolCall).toBeDefined();
@@ -520,7 +520,7 @@ describe('createLoreMcpServer', () => {
     const historyResult = { commits: [], count: 0 };
     const historyHandlerSpy = vi.spyOn(history, 'handler').mockResolvedValue(historyResult);
 
-    createLoreMcpServer(db, '/tmp/test.db', embedder);
+    await createLoreMcpServer(db, '/tmp/test.db', embedder);
 
     const callback = getToolCall('lore_history')[3] as (args: unknown) => Promise<{
       content: Array<{ type: string; text: string }>;
@@ -541,7 +541,7 @@ describe('createLoreMcpServer', () => {
     const lookupResult = { kind: 'symbol', results: [] };
     const lookupHandlerSpy = vi.spyOn(lookup, 'handler').mockResolvedValue(lookupResult);
 
-    createLoreMcpServer(db, '/tmp/test.db', embedder);
+    await createLoreMcpServer(db, '/tmp/test.db', embedder);
 
     const callback = getToolCall('lore_lookup')[3] as (args: unknown) => Promise<{
       content: Array<{ type: string; text: string }>;
@@ -561,7 +561,7 @@ describe('createLoreMcpServer', () => {
     const graphResult = { edges: [], count: 0 };
     const graphHandlerSpy = vi.spyOn(graph, 'handler').mockReturnValue(graphResult);
 
-    createLoreMcpServer(db, '/tmp/test.db');
+    await createLoreMcpServer(db, '/tmp/test.db');
 
     const callback = getToolCall('lore_graph')[3] as (args: unknown) => Promise<{
       content: Array<{ type: string; text: string }>;
@@ -582,7 +582,7 @@ describe('createLoreMcpServer', () => {
       throw new Error('metrics exploded');
     });
 
-    createLoreMcpServer(db, '/tmp/test.db');
+    await createLoreMcpServer(db, '/tmp/test.db');
 
     const callback = getToolCall('lore_metrics')[3] as (args: unknown) => Promise<unknown>;
 
@@ -591,7 +591,7 @@ describe('createLoreMcpServer', () => {
     metricsHandlerSpy.mockRestore();
   });
 
-  it('should pass options.logger to loggedHandler', () => {
+  it('should pass options.logger to loggedHandler', async () => {
     const db = new Database(':memory:');
     const customLogger = {
       info: vi.fn(),
@@ -603,15 +603,15 @@ describe('createLoreMcpServer', () => {
     };
 
     // Should not throw
-    createLoreMcpServer(db, '/tmp/test.db', undefined, { logger: customLogger as any });
+    await createLoreMcpServer(db, '/tmp/test.db', undefined, { logger: customLogger as any });
 
     const toolNames = mockTool.mock.calls.map((call) => call[0]);
     expect(toolNames.length).toBeGreaterThan(0);
   });
 
-  it('should register lore_diff with expected schema fields', () => {
+  it('should register lore_diff with expected schema fields', async () => {
     const db = new Database(':memory:');
-    createLoreMcpServer(db, '/tmp/test.db');
+    await createLoreMcpServer(db, '/tmp/test.db');
 
     const diffToolCall = mockTool.mock.calls.find((call) => call[0] === 'lore_diff');
     expect(diffToolCall).toBeDefined();
@@ -648,7 +648,7 @@ describe('createLoreMcpServer', () => {
     };
     const diffHandlerSpy = vi.spyOn(diff, 'handler').mockReturnValue(diffResult);
 
-    createLoreMcpServer(db, '/tmp/test.db');
+    await createLoreMcpServer(db, '/tmp/test.db');
 
     const callback = getToolCall('lore_diff')[3] as (args: unknown) => Promise<{
       content: Array<{ type: string; text: string }>;
@@ -661,49 +661,5 @@ describe('createLoreMcpServer', () => {
       content: [{ type: 'text', text: JSON.stringify(diffResult) }],
     });
     diffHandlerSpy.mockRestore();
-  });
-});
-
-describe('createLoreMcpServerAsync', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it('should register all tools via async path', async () => {
-    const db = new Database(':memory:');
-    await createLoreMcpServerAsync(db, '/tmp/test.db');
-
-    const toolNames = mockTool.mock.calls.map((call: unknown[]) => call[0]);
-    expect(toolNames).toContain('lore_lookup');
-    expect(toolNames).toContain('lore_search');
-    expect(toolNames).toContain('lore_graph');
-    expect(toolNames).toContain('lore_diff');
-  });
-
-  it('should accept embedder and options', async () => {
-    const db = new Database(':memory:');
-    const embedder = createStubEmbedder();
-    const observer = vi.fn();
-    await createLoreMcpServerAsync(db, '/tmp/test.db', embedder, { searchObserver: observer });
-
-    const toolNames = mockTool.mock.calls.map((call: unknown[]) => call[0]);
-    expect(toolNames.length).toBeGreaterThanOrEqual(10);
-  });
-
-  it('should accept custom logger', async () => {
-    const db = new Database(':memory:');
-    const customLogger = {
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-      debug: vi.fn(),
-      toolCall: vi.fn(),
-      startup: vi.fn(),
-      indexing: vi.fn(),
-    };
-    await createLoreMcpServerAsync(db, '/tmp/test.db', undefined, { logger: customLogger as any });
-
-    const toolNames = mockTool.mock.calls.map((call: unknown[]) => call[0]);
-    expect(toolNames.length).toBeGreaterThan(0);
   });
 });

@@ -53,7 +53,6 @@ describe('public API surface', () => {
 
   it('should export MCP server factories', () => {
     expect(publicApi.createLoreMcpServer).toBeDefined();
-    expect(publicApi.createLoreMcpServerAsync).toBeDefined();
   });
 
   it('should export tool registry', () => {

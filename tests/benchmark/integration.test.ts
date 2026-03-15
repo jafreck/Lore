@@ -25,7 +25,9 @@ import { buildToolsForArm } from './util/tool-providers.js';
 import { runScriptedAgent, runProgrammaticAgent } from './util/agent.js';
 import { buildControlStrategy, buildLoreStrategy, buildDynamicLoreStrategy } from './util/strategies.js';
 import { scoreRun, aggregateScores, formatReport, compareReports } from './util/scorer.js';
-import { LORE_SELF_TASKS } from './util/tasks.js';
+import { getTasksForRepo } from './util/tasks.js';
+
+const LORE_SELF_TASKS = getTasksForRepo('lore-self');
 import { PILOT_REPOS } from './util/repos.js';
 import type { RunScore } from './util/types.js';
 

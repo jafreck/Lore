@@ -200,13 +200,4 @@ export function getBenchmarkRepoNames(): string[] {
   return ALL_REPO_ANSWERS.map((r) => r.repoName);
 }
 
-// ─── Backward-compatible exports ────────────────────────────────────────────
 
-/** @deprecated Use `getTasksForRepo('lore-self')` instead. */
-export const LORE_SELF_TASKS: BenchmarkTask[] = getTasksForRepo('lore-self');
-
-/** @deprecated Use `getTasksForRepo('gson')` instead. */
-export const GSON_TASKS: BenchmarkTask[] = getTasksForRepo('gson');
-
-/** @deprecated Use `getTasksForRepo('postgres')` instead. */
-export const POSTGRES_TASKS: BenchmarkTask[] = getTasksForRepo('postgres');

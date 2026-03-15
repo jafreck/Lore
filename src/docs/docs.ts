@@ -261,11 +261,3 @@ function isReadmeVariant(filePath: string): boolean {
   const lowerName = basename(filePath).toLowerCase();
   return lowerName === 'readme' || lowerName.startsWith('readme.');
 }
-
-function toSlug(value: string): string {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-}
