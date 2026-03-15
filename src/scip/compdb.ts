@@ -12,9 +12,6 @@
  * | CMake       | CMakeLists.txt             | cmake -DCMAKE_EXPORT_...    |
  * | Meson       | meson.build                | meson setup                 |
  * | Make        | Makefile / configure       | bear -- make                |
- *
- * The generated file is placed in a `.lore-compdb/` directory inside the
- * project root so it doesn't interfere with the user's build.
  */
 
 import { existsSync, mkdirSync } from 'node:fs';
@@ -27,42 +24,70 @@ const execFileAsync = promisify(execFile);
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type BuildSystem = 'cmake' | 'meson' | 'make' | 'none';
+export type BuildSystem = 'cmake' | 'meson' | 'make' | 'none';
 
 export interface CompdbResult {
-  /** Absolute path to compile_commands.json, or null if generation failed. */
   path: string | null;
-  /** Build system detected. */
   buildSystem: BuildSystem;
-  /** Whether the file already existed (vs. was freshly generated). */
   preExisting: boolean;
+}
+
+/** Injectable I/O seam for testing. */
+export interface CompdbIO {
+  existsSync: (p: string) => boolean;
+  mkdirSync: (p: string, opts?: { recursive: boolean }) => void;
+  execFileAsync: (cmd: string, args: string[], opts?: Record<string, unknown>) => Promise<{ stdout: string; stderr: string }>;
+}
+
+// ─── Default I/O ──────────────────────────────────────────────────────────────
+
+export function createDefaultCompdbIO(): CompdbIO {
+  return {
+    existsSync,
+    mkdirSync: (p, o) => mkdirSync(p, o),
+    execFileAsync: (cmd, args, opts) => execFileAsync(cmd, args, opts as Record<string, unknown>),
+  };
+}
+
+// ─── Detection (pure, exported for testing) ───────────────────────────────────
+
+export function findExistingCompdb(rootDir: string, io: Pick<CompdbIO, 'existsSync'> = { existsSync }): string | null {
+  const candidates = [
+    join(rootDir, 'compile_commands.json'),
+    join(rootDir, 'build', 'compile_commands.json'),
+    join(rootDir, 'builddir', 'compile_commands.json'),
+    join(rootDir, '.lore-compdb', 'compile_commands.json'),
+  ];
+  for (const p of candidates) {
+    if (io.existsSync(p)) return p;
+  }
+  return null;
+}
+
+export function detectBuildSystem(rootDir: string, io: Pick<CompdbIO, 'existsSync'> = { existsSync }): BuildSystem {
+  if (io.existsSync(join(rootDir, 'CMakeLists.txt'))) return 'cmake';
+  if (io.existsSync(join(rootDir, 'meson.build'))) return 'meson';
+  if (io.existsSync(join(rootDir, 'Makefile')) || io.existsSync(join(rootDir, 'configure'))) return 'make';
+  return 'none';
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
-/**
- * Ensure a compile_commands.json exists for the given project.
- *
- * 1. Check for an existing compile_commands.json in standard locations.
- * 2. If not found, detect the build system and generate one.
- *
- * @returns Path to compile_commands.json or null if generation failed.
- */
 export async function ensureCompilationDatabase(
   rootDir: string,
   timeoutMs: number = 300_000,
+  io: CompdbIO = createDefaultCompdbIO(),
 ): Promise<CompdbResult> {
   const log = getLogger();
   const absRoot = resolve(rootDir);
 
-  // Check standard locations for existing compile_commands.json
-  const existing = findExistingCompdb(absRoot);
+  const existing = findExistingCompdb(absRoot, io);
   if (existing) {
     log.indexing(`compdb: found existing compile_commands.json at ${existing}`);
-    return { path: existing, buildSystem: detectBuildSystem(absRoot), preExisting: true };
+    return { path: existing, buildSystem: detectBuildSystem(absRoot, io), preExisting: true };
   }
 
-  const buildSystem = detectBuildSystem(absRoot);
+  const buildSystem = detectBuildSystem(absRoot, io);
   if (buildSystem === 'none') {
     log.indexing('compdb: no supported build system detected');
     return { path: null, buildSystem: 'none', preExisting: false };
@@ -71,7 +96,7 @@ export async function ensureCompilationDatabase(
   log.indexing(`compdb: detected ${buildSystem} build system, generating compile_commands.json...`);
 
   try {
-    const path = await generateCompdb(absRoot, buildSystem, timeoutMs);
+    const path = await generateCompdb(absRoot, buildSystem, timeoutMs, io);
     if (path) {
       log.indexing(`compdb: generated compile_commands.json at ${path}`);
       return { path, buildSystem, preExisting: false };
@@ -86,115 +111,70 @@ export async function ensureCompilationDatabase(
   return { path: null, buildSystem, preExisting: false };
 }
 
-// ─── Detection ────────────────────────────────────────────────────────────────
-
-function findExistingCompdb(rootDir: string): string | null {
-  const candidates = [
-    join(rootDir, 'compile_commands.json'),
-    join(rootDir, 'build', 'compile_commands.json'),
-    join(rootDir, 'builddir', 'compile_commands.json'),
-    join(rootDir, '.lore-compdb', 'compile_commands.json'),
-  ];
-  for (const p of candidates) {
-    if (existsSync(p)) return p;
-  }
-  return null;
-}
-
-function detectBuildSystem(rootDir: string): BuildSystem {
-  // Check in priority order
-  if (existsSync(join(rootDir, 'CMakeLists.txt'))) return 'cmake';
-  if (existsSync(join(rootDir, 'meson.build'))) return 'meson';
-  if (existsSync(join(rootDir, 'Makefile')) || existsSync(join(rootDir, 'configure'))) return 'make';
-  return 'none';
-}
-
 // ─── Generation ───────────────────────────────────────────────────────────────
 
-async function generateCompdb(
+export async function generateCompdb(
   rootDir: string,
   buildSystem: BuildSystem,
   timeoutMs: number,
+  io: CompdbIO = createDefaultCompdbIO(),
 ): Promise<string | null> {
   switch (buildSystem) {
-    case 'cmake':
-      return generateCmakeCompdb(rootDir, timeoutMs);
-    case 'meson':
-      return generateMesonCompdb(rootDir, timeoutMs);
-    case 'make':
-      return generateBearCompdb(rootDir, timeoutMs);
-    default:
-      return null;
+    case 'cmake': return generateCmakeCompdb(rootDir, timeoutMs, io);
+    case 'meson': return generateMesonCompdb(rootDir, timeoutMs, io);
+    case 'make':  return generateBearCompdb(rootDir, timeoutMs, io);
+    default:      return null;
   }
 }
 
-async function generateCmakeCompdb(rootDir: string, timeoutMs: number): Promise<string | null> {
+async function generateCmakeCompdb(rootDir: string, timeoutMs: number, io: CompdbIO): Promise<string | null> {
   const buildDir = join(rootDir, '.lore-compdb');
-  mkdirSync(buildDir, { recursive: true });
-
-  await execFileAsync('cmake', [
-    '-S', rootDir,
-    '-B', buildDir,
-    '-DCMAKE_EXPORT_COMPILE_COMMANDS=ON',
-  ], { cwd: rootDir, timeout: timeoutMs });
-
+  io.mkdirSync(buildDir, { recursive: true });
+  await io.execFileAsync('cmake', ['-S', rootDir, '-B', buildDir, '-DCMAKE_EXPORT_COMPILE_COMMANDS=ON'], { cwd: rootDir, timeout: timeoutMs });
   const result = join(buildDir, 'compile_commands.json');
-  return existsSync(result) ? result : null;
+  return io.existsSync(result) ? result : null;
 }
 
-async function generateMesonCompdb(rootDir: string, timeoutMs: number): Promise<string | null> {
+async function generateMesonCompdb(rootDir: string, timeoutMs: number, io: CompdbIO): Promise<string | null> {
   const log = getLogger();
   const buildDir = join(rootDir, '.lore-compdb');
 
-  // Meson fails if the build dir already has a configured project from a different source dir.
-  // If .lore-compdb already exists with a meson-private dir, just check for compile_commands.json.
-  if (existsSync(join(buildDir, 'meson-private'))) {
+  if (io.existsSync(join(buildDir, 'meson-private'))) {
     const result = join(buildDir, 'compile_commands.json');
-    if (existsSync(result)) return result;
+    if (io.existsSync(result)) return result;
   }
 
-  // Don't pre-create the directory — meson setup creates it and
-  // refuses to run if it already exists but isn't a meson build dir.
   log.indexing(`compdb: running meson setup ${buildDir} (timeout: ${timeoutMs}ms)`);
-  const { stdout, stderr } = await execFileAsync('meson', ['setup', buildDir], {
-    cwd: rootDir,
-    timeout: timeoutMs,
-  });
+  const { stderr } = await io.execFileAsync('meson', ['setup', buildDir], { cwd: rootDir, timeout: timeoutMs });
   if (stderr) log.indexing(`compdb: meson stderr: ${stderr.slice(-200)}`);
 
   const result = join(buildDir, 'compile_commands.json');
-  const found = existsSync(result);
+  const found = io.existsSync(result);
   log.indexing(`compdb: meson complete, compile_commands.json exists: ${found}`);
   return found ? result : null;
 }
 
-async function generateBearCompdb(rootDir: string, timeoutMs: number): Promise<string | null> {
+async function generateBearCompdb(rootDir: string, timeoutMs: number, io: CompdbIO): Promise<string | null> {
   const log = getLogger();
 
-  // Check if bear is available
   try {
-    await execFileAsync('bear', ['--version'], { timeout: 5000 });
+    await io.execFileAsync('bear', ['--version'], { timeout: 5000 });
   } catch {
     log.indexing('compdb: bear not found — cannot generate compile_commands.json for Make projects. Install via: brew install bear / apt install bear');
     return null;
   }
 
-  // If there's a configure script that hasn't been run, run it first
-  if (existsSync(join(rootDir, 'configure')) && !existsSync(join(rootDir, 'config.status'))) {
+  if (io.existsSync(join(rootDir, 'configure')) && !io.existsSync(join(rootDir, 'config.status'))) {
     try {
-      await execFileAsync('./configure', [], { cwd: rootDir, timeout: timeoutMs });
+      await io.execFileAsync('./configure', [], { cwd: rootDir, timeout: timeoutMs });
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       log.indexing(`compdb: ./configure failed: ${msg}`);
-      // Continue anyway — Makefile might work without configure
     }
   }
 
   const output = join(rootDir, 'compile_commands.json');
-  await execFileAsync('bear', ['--output', output, '--', 'make', '-j4'], {
-    cwd: rootDir,
-    timeout: timeoutMs,
-  });
+  await io.execFileAsync('bear', ['--output', output, '--', 'make', '-j4'], { cwd: rootDir, timeout: timeoutMs });
 
-  return existsSync(output) ? output : null;
+  return io.existsSync(output) ? output : null;
 }
