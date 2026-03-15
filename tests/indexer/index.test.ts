@@ -55,11 +55,24 @@ function queryFilesWithBranch(dbPath: string, branch: string): { path: string; b
 
 function queryFileSourceForBranch(dbPath: string, filePath: string, branch: string): string | undefined {
   const db = new Database(dbPath, { readonly: true });
-  const row = db.prepare('SELECT source FROM files WHERE path = ? AND branch = ?').get(filePath, branch) as
+  // In overlay mode, prefer the overlay row if it exists for this branch
+  let row = db.prepare('SELECT source FROM files WHERE path = ? AND branch = ? AND layer = ? ORDER BY indexed_at DESC LIMIT 1').get(filePath, branch, 'overlay') as
     | { source: string }
     | undefined;
+  if (!row) {
+    row = db.prepare('SELECT source FROM files WHERE path = ? AND branch = ? ORDER BY indexed_at DESC LIMIT 1').get(filePath, branch) as
+      | { source: string }
+      | undefined;
+  }
   db.close();
   return row?.source;
+}
+
+function hasView(db: Database.Database, viewName: string): boolean {
+  const row = db.prepare(
+    "SELECT 1 AS ok FROM sqlite_master WHERE type = 'view' AND name = ? LIMIT 1",
+  ).get(viewName) as { ok: number } | undefined;
+  return row?.ok === 1;
 }
 
 function queryStructuralEmbeddingCount(dbPath: string): number {
@@ -162,11 +175,12 @@ function queryTestsForSourceFile(
   branch: string,
 ): Array<{ test_path: string; confidence: string }> {
   const db = new Database(dbPath, { readonly: true });
+  const fTable = hasView(db, 'effective_files') ? 'effective_files' : 'files';
   const rows = db.prepare(
     `SELECT test_files.path AS test_path, tm.confidence
      FROM test_mappings tm
-     JOIN files source_files ON source_files.id = tm.source_file_id
-     JOIN files test_files ON test_files.id = tm.test_file_id
+     JOIN ${fTable} source_files ON source_files.id = tm.source_file_id
+     JOIN ${fTable} test_files ON test_files.id = tm.test_file_id
      WHERE source_files.path = ? AND source_files.branch = ?
      ORDER BY test_files.path`,
   ).all(sourcePath, branch) as Array<{ test_path: string; confidence: string }>;
@@ -949,9 +963,12 @@ describe('IndexBuilder — branch support in update()', () => {
     await builderMain.update([srcFile]);
 
     const afterDb = new Database(dbPath, { readonly: true });
+    const efTable = hasView(afterDb, 'effective_files') ? 'effective_files' : 'files';
     const deletedMainFile = afterDb
-      .prepare('SELECT id FROM files WHERE path = ? AND branch = ?')
+      .prepare(`SELECT id FROM ${efTable} WHERE path = ? AND branch = ?`)
       .get(srcFile, 'main') as { id: number } | undefined;
+    // Check that the dev branch baseline row is still present in the raw table
+    // (effective_files may exclude it since the path is in dirty_files)
     const devFile = afterDb
       .prepare('SELECT id FROM files WHERE path = ? AND branch = ?')
       .get(srcFile, 'dev') as { id: number } | undefined;
@@ -980,9 +997,12 @@ describe('IndexBuilder — branch support in update()', () => {
 
     expect(deletedMainFile).toBeUndefined();
     expect(devFile).toBeDefined();
+    // In the overlay model, the FTS index is rebuilt from effective_symbols
+    // which excludes the deleted file, so no stale FTS entries.
     expect(staleFtsCountRow.count).toBe(0);
-    expect(staleSymbolRefCountRow.count).toBe(0);
-    expect(clearedResolvedCount.count).toBe(resolvedImportRows.length);
+    // In overlay mode, baseline symbol_refs/file_imports are NOT cleaned up
+    // until the next baseline rebuild.  The stale refs exist in the raw
+    // table but are excluded by the effective_* views.
   });
 
   it('should NULL cross-file callee_id, type_id, and target_symbol_id when a tracked file is deleted (FK safety)', async () => {
@@ -1325,5 +1345,69 @@ describe('IndexBuilder — symbol metrics', () => {
     for (const row of metricsRows) {
       expect(row.cyclomatic).toBeGreaterThanOrEqual(0);
     }
+  });
+});
+
+describe('IndexBuilder — baselineRebuild()', () => {
+  let srcDir: string;
+  let dbPath: string;
+
+  beforeEach(() => {
+    srcDir = mkdtempSync(join(tmpdir(), 'lore-index-test-src-'));
+    dbPath = join(srcDir, 'test.db');
+    writeFileSync(join(srcDir, 'hello.ts'), HELLO_SOURCE);
+  });
+
+  it('should perform a full baseline rebuild with generation tracking', async () => {
+    // First do a regular build
+    const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
+    await builder.build();
+
+    // Add an overlay update
+    writeFileSync(join(srcDir, 'hello.ts'), 'export function updated(): void {}\n');
+    await builder.update([join(srcDir, 'hello.ts')]);
+
+    // Now do a baseline rebuild
+    await builder.baselineRebuild();
+
+    const db = new Database(dbPath, { readonly: true });
+    // Generation should have been incremented (build sets gen 1, baselineRebuild increments further)
+    const gen = db.prepare("SELECT value FROM lore_meta WHERE key = 'generation'").get() as { value: string } | undefined;
+    expect(gen).toBeDefined();
+    const genVal = parseInt(gen!.value, 10);
+    expect(genVal).toBeGreaterThanOrEqual(2);
+
+    // Should have files (either baseline or overlay)
+    const totalFiles = (db.prepare('SELECT COUNT(*) AS cnt FROM files').get() as { cnt: number }).cnt;
+    expect(totalFiles).toBeGreaterThan(0);
+
+    db.close();
+  });
+
+  it('should clean up stale overlay rows after promotion', async () => {
+    // Build baseline
+    const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
+    await builder.build();
+
+    // Create overlay via update
+    writeFileSync(join(srcDir, 'hello.ts'), 'export function overlaid(): void {}\n');
+    await builder.update([join(srcDir, 'hello.ts')]);
+
+    // Verify dirty_files has entry
+    let db = new Database(dbPath);
+    const dirtyBefore = db.prepare('SELECT COUNT(*) AS cnt FROM dirty_files').get() as { cnt: number };
+    expect(dirtyBefore.cnt).toBeGreaterThanOrEqual(1);
+
+    // Set dirty_since to far in the past so the baseline rebuild cleanup picks it up
+    db.prepare('UPDATE dirty_files SET dirty_since = 1000').run();
+    db.close();
+
+    // Baseline rebuild should promote and clean overlay
+    await builder.baselineRebuild();
+
+    db = new Database(dbPath, { readonly: true });
+    const dirtyAfter = db.prepare('SELECT COUNT(*) AS cnt FROM dirty_files').get() as { cnt: number };
+    db.close();
+    expect(dirtyAfter.cnt).toBe(0);
   });
 });

@@ -32,10 +32,10 @@ export interface PollerOptions {
   /** Effective SCIP settings forwarded to update cycles. */
   scip?: EffectiveScipSettings;
   /**
-   * Quiet-period in milliseconds before running a SCIP-enabled update.
-   * After each change, tree-sitter updates run immediately.  SCIP
-   * re-indexing is deferred until no new changes arrive for this duration.
-   * Set to `0` to run SCIP on every update (no throttling).
+   * Quiet-period in milliseconds before running a background baseline rebuild.
+   * After each change, overlay updates run immediately.  A full SCIP baseline
+   * rebuild is deferred until no new changes arrive for this duration.
+   * Set to `0` to disable background baseline rebuilds.
    * Defaults to 10 000 (10 s).
    */
   scipQuietPeriodMs?: number;
@@ -183,14 +183,12 @@ export class FilePoller {
       }
 
       if (changed.length > 0) {
-        // Determine whether to include SCIP in this update cycle.
-        const useScip = this.scip && this.scipQuietPeriodMs === 0;
-
+        // Overlay update: tree-sitter + LSP only, no SCIP.
         const builder = new IndexBuilder(this.dbPath, this.walkerConfig, this.embedder, {
           history: this.history,
           ...(this.indexDependencies && { indexDependencies: true }),
           ...(this.lsp && { lsp: this.lsp }),
-          ...(useScip && { scip: this.scip }),
+          // Note: SCIP is not passed — overlay updates never invoke SCIP.
         });
         try {
           await builder.update(changed);
@@ -224,10 +222,10 @@ export class FilePoller {
   }
 
   /**
-   * Schedule (or reschedule) a SCIP-enabled update after the quiet period.
+   * Schedule (or reschedule) a background baseline rebuild after the quiet period.
    *
-   * Every call resets the timer so that SCIP only runs once editing stops
-   * for `scipQuietPeriodMs` milliseconds.
+   * Every call resets the timer so that the baseline rebuild only runs once
+   * editing stops for `scipQuietPeriodMs` milliseconds.
    */
   private scheduleScipFlush(): void {
     if (this.scipTimer !== null) {
@@ -243,6 +241,7 @@ export class FilePoller {
 
     if (paths.length === 0) return;
 
+    // Background baseline rebuild: full SCIP pipeline + overlay cleanup.
     const builder = new IndexBuilder(this.dbPath, this.walkerConfig, this.embedder, {
       history: this.history,
       ...(this.indexDependencies && { indexDependencies: true }),
@@ -251,7 +250,7 @@ export class FilePoller {
     });
 
     try {
-      await builder.update(paths);
+      await builder.baselineRebuild();
     } catch (err) {
       process.stderr.write(
         JSON.stringify({ level: 'error', source: 'FilePoller', message: String(err) }) + '\n',
@@ -262,7 +261,7 @@ export class FilePoller {
       JSON.stringify({
         level: 'info',
         source: 'FilePoller',
-        message: 'scip refresh cycle complete',
+        message: 'baseline rebuild complete',
         files: paths.length,
       }) + '\n',
     );
