@@ -48,6 +48,8 @@ import * as history from './tools/history.js';
 import * as diff from './tools/diff.js';
 import * as trace from './tools/trace.js';
 import * as structure from './tools/structure.js';
+import * as cohesion from './tools/cohesion.js';
+import * as dependents from './tools/dependents.js';
 
 // ─── Server options ───────────────────────────────────────────────────────────
 
@@ -141,6 +143,8 @@ function buildToolModulesSync(): ToolModule[] {
     { def: diff.toolDef, handlerFactory: (deps) => (args) => diff.handler(deps.db, args) },
     { def: trace.toolDef, handlerFactory: (deps) => (args) => trace.handler(deps.db, args) },
     { def: structure.toolDef, handlerFactory: (deps) => (args) => structure.handler(deps.db, args) },
+    { def: cohesion.toolDef, handlerFactory: (deps) => (args) => cohesion.handler(deps.db, args ?? {}) },
+    { def: dependents.toolDef, handlerFactory: (deps) => (args) => dependents.handler(deps.db, args) },
   ];
 }
 
