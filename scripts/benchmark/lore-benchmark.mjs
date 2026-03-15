@@ -27,13 +27,6 @@ const TOOL_MODULES = new Map([
   ['structure', '../../dist/server/tools/structure.js'],
   ['cohesion', '../../dist/server/tools/cohesion.js'],
   ['diff', '../../dist/server/tools/diff.js'],
-  ['coverage', '../../dist/server/tools/coverage.js'],
-  ['routes', '../../dist/server/tools/routes.js'],
-  ['notes', '../../dist/server/tools/notes.js'],
-  ['annotations', '../../dist/server/tools/annotations.js'],
-  ['graph-analysis', '../../dist/server/tools/graph-analysis.js'],
-  ['architecture', '../../dist/server/tools/architecture.js'],
-  ['writeback', '../../dist/server/tools/writeback.js'],
 ]);
 
 function usage() {

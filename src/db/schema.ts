@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS symbols (
   resolved_return_type TEXT,
   definition_uri TEXT,
   definition_path TEXT,
+  is_exported INTEGER NOT NULL DEFAULT 0,
   layer       TEXT    NOT NULL DEFAULT 'baseline',
   generation  INTEGER NOT NULL DEFAULT 0
 );
@@ -347,6 +348,19 @@ CREATE INDEX IF NOT EXISTS idx_external_symbols_package_name ON external_symbols
 CREATE INDEX IF NOT EXISTS idx_external_symbols_symbol_name ON external_symbols(symbol_name);
 CREATE INDEX IF NOT EXISTS idx_symbols_file_id ON symbols(file_id);
 CREATE INDEX IF NOT EXISTS idx_symbols_name ON symbols(name);
+CREATE INDEX IF NOT EXISTS idx_symbols_definition_path ON symbols(definition_path);
+CREATE INDEX IF NOT EXISTS idx_symbols_exported ON symbols(is_exported) WHERE is_exported = 1;
+CREATE INDEX IF NOT EXISTS idx_symbol_refs_definition_path ON symbol_refs(definition_path);
+CREATE INDEX IF NOT EXISTS idx_symbol_refs_file_id ON symbol_refs(file_id);
+CREATE INDEX IF NOT EXISTS idx_symbol_refs_resolution_method ON symbol_refs(resolution_method);
+CREATE INDEX IF NOT EXISTS idx_type_refs_resolution_method ON type_refs(resolution_method);
+CREATE INDEX IF NOT EXISTS idx_external_symbols_definition_path ON external_symbols(definition_path);
+CREATE INDEX IF NOT EXISTS idx_files_layer ON files(layer);
+CREATE INDEX IF NOT EXISTS idx_files_layer_path ON files(layer, path);
+CREATE INDEX IF NOT EXISTS idx_symbols_layer ON symbols(layer);
+CREATE INDEX IF NOT EXISTS idx_symbol_refs_layer ON symbol_refs(layer);
+CREATE INDEX IF NOT EXISTS idx_type_refs_layer ON type_refs(layer);
+CREATE INDEX IF NOT EXISTS idx_symbol_relationships_layer ON symbol_relationships(layer);
 
 -- ─── Incremental indexing: new tables ──────────────────────────────────────────
 
@@ -368,73 +382,6 @@ CREATE TABLE IF NOT EXISTS reverse_deps (
 CREATE INDEX IF NOT EXISTS idx_reverse_deps_file ON reverse_deps(file_id);
 CREATE INDEX IF NOT EXISTS idx_reverse_deps_dependent ON reverse_deps(dependent_id);
 `;
-
-const ENRICHMENT_SCHEMA_MIGRATIONS: Array<{ table: string; column: string; sql: string }> = [
-  { table: 'files', column: 'source', sql: "ALTER TABLE files ADD COLUMN source TEXT NOT NULL DEFAULT ''" },
-  { table: 'symbols', column: 'resolved_type_signature', sql: 'ALTER TABLE symbols ADD COLUMN resolved_type_signature TEXT' },
-  { table: 'symbols', column: 'resolved_return_type', sql: 'ALTER TABLE symbols ADD COLUMN resolved_return_type TEXT' },
-  { table: 'symbols', column: 'definition_uri', sql: 'ALTER TABLE symbols ADD COLUMN definition_uri TEXT' },
-  { table: 'symbols', column: 'definition_path', sql: 'ALTER TABLE symbols ADD COLUMN definition_path TEXT' },
-  { table: 'symbol_refs', column: 'call_kind', sql: "ALTER TABLE symbol_refs ADD COLUMN call_kind TEXT NOT NULL DEFAULT 'direct'" },
-  { table: 'symbol_refs', column: 'resolved_type_signature', sql: 'ALTER TABLE symbol_refs ADD COLUMN resolved_type_signature TEXT' },
-  { table: 'symbol_refs', column: 'resolved_return_type', sql: 'ALTER TABLE symbol_refs ADD COLUMN resolved_return_type TEXT' },
-  { table: 'symbol_refs', column: 'definition_uri', sql: 'ALTER TABLE symbol_refs ADD COLUMN definition_uri TEXT' },
-  { table: 'symbol_refs', column: 'definition_path', sql: 'ALTER TABLE symbol_refs ADD COLUMN definition_path TEXT' },
-  { table: 'external_symbols', column: 'resolved_type_signature', sql: 'ALTER TABLE external_symbols ADD COLUMN resolved_type_signature TEXT' },
-  { table: 'external_symbols', column: 'resolved_return_type', sql: 'ALTER TABLE external_symbols ADD COLUMN resolved_return_type TEXT' },
-  { table: 'external_symbols', column: 'definition_uri', sql: 'ALTER TABLE external_symbols ADD COLUMN definition_uri TEXT' },
-  { table: 'external_symbols', column: 'definition_path', sql: 'ALTER TABLE external_symbols ADD COLUMN definition_path TEXT' },
-  { table: 'symbol_relationships', column: 'character', sql: 'ALTER TABLE symbol_relationships ADD COLUMN character INTEGER' },
-  // LSP-first ref resolution columns
-  { table: 'symbol_refs', column: 'file_id', sql: 'ALTER TABLE symbol_refs ADD COLUMN file_id INTEGER REFERENCES files(id) ON DELETE CASCADE' },
-  { table: 'symbol_refs', column: 'definition_line', sql: 'ALTER TABLE symbol_refs ADD COLUMN definition_line INTEGER' },
-  { table: 'symbol_refs', column: 'definition_character', sql: 'ALTER TABLE symbol_refs ADD COLUMN definition_character INTEGER' },
-  { table: 'symbol_refs', column: 'resolution_method', sql: "ALTER TABLE symbol_refs ADD COLUMN resolution_method TEXT NOT NULL DEFAULT 'unresolved'" },
-  { table: 'type_refs', column: 'definition_line', sql: 'ALTER TABLE type_refs ADD COLUMN definition_line INTEGER' },
-  { table: 'type_refs', column: 'definition_character', sql: 'ALTER TABLE type_refs ADD COLUMN definition_character INTEGER' },
-  { table: 'type_refs', column: 'resolution_method', sql: "ALTER TABLE type_refs ADD COLUMN resolution_method TEXT NOT NULL DEFAULT 'unresolved'" },
-  { table: 'symbol_relationships', column: 'definition_line', sql: 'ALTER TABLE symbol_relationships ADD COLUMN definition_line INTEGER' },
-  { table: 'symbol_relationships', column: 'definition_character', sql: 'ALTER TABLE symbol_relationships ADD COLUMN definition_character INTEGER' },
-  { table: 'symbol_relationships', column: 'resolution_method', sql: "ALTER TABLE symbol_relationships ADD COLUMN resolution_method TEXT NOT NULL DEFAULT 'unresolved'" },
-  { table: 'symbols', column: 'is_exported', sql: 'ALTER TABLE symbols ADD COLUMN is_exported INTEGER NOT NULL DEFAULT 0' },
-  // Incremental indexing: layer + generation columns
-  { table: 'files', column: 'layer', sql: "ALTER TABLE files ADD COLUMN layer TEXT NOT NULL DEFAULT 'baseline'" },
-  { table: 'files', column: 'generation', sql: 'ALTER TABLE files ADD COLUMN generation INTEGER NOT NULL DEFAULT 0' },
-  { table: 'symbols', column: 'layer', sql: "ALTER TABLE symbols ADD COLUMN layer TEXT NOT NULL DEFAULT 'baseline'" },
-  { table: 'symbols', column: 'generation', sql: 'ALTER TABLE symbols ADD COLUMN generation INTEGER NOT NULL DEFAULT 0' },
-  { table: 'annotations', column: 'layer', sql: "ALTER TABLE annotations ADD COLUMN layer TEXT NOT NULL DEFAULT 'baseline'" },
-  { table: 'annotations', column: 'generation', sql: 'ALTER TABLE annotations ADD COLUMN generation INTEGER NOT NULL DEFAULT 0' },
-  { table: 'file_imports', column: 'layer', sql: "ALTER TABLE file_imports ADD COLUMN layer TEXT NOT NULL DEFAULT 'baseline'" },
-  { table: 'file_imports', column: 'generation', sql: 'ALTER TABLE file_imports ADD COLUMN generation INTEGER NOT NULL DEFAULT 0' },
-  { table: 'symbol_refs', column: 'layer', sql: "ALTER TABLE symbol_refs ADD COLUMN layer TEXT NOT NULL DEFAULT 'baseline'" },
-  { table: 'symbol_refs', column: 'generation', sql: 'ALTER TABLE symbol_refs ADD COLUMN generation INTEGER NOT NULL DEFAULT 0' },
-  { table: 'symbol_relationships', column: 'layer', sql: "ALTER TABLE symbol_relationships ADD COLUMN layer TEXT NOT NULL DEFAULT 'baseline'" },
-  { table: 'symbol_relationships', column: 'generation', sql: 'ALTER TABLE symbol_relationships ADD COLUMN generation INTEGER NOT NULL DEFAULT 0' },
-  { table: 'type_refs', column: 'layer', sql: "ALTER TABLE type_refs ADD COLUMN layer TEXT NOT NULL DEFAULT 'baseline'" },
-  { table: 'type_refs', column: 'generation', sql: 'ALTER TABLE type_refs ADD COLUMN generation INTEGER NOT NULL DEFAULT 0' },
-  { table: 'external_deps', column: 'layer', sql: "ALTER TABLE external_deps ADD COLUMN layer TEXT NOT NULL DEFAULT 'baseline'" },
-  { table: 'external_deps', column: 'generation', sql: 'ALTER TABLE external_deps ADD COLUMN generation INTEGER NOT NULL DEFAULT 0' },
-  { table: 'symbol_metrics', column: 'layer', sql: "ALTER TABLE symbol_metrics ADD COLUMN layer TEXT NOT NULL DEFAULT 'baseline'" },
-  { table: 'symbol_metrics', column: 'generation', sql: 'ALTER TABLE symbol_metrics ADD COLUMN generation INTEGER NOT NULL DEFAULT 0' },
-];
-
-const ENRICHMENT_INDEX_MIGRATIONS = [
-  'CREATE INDEX IF NOT EXISTS idx_symbols_definition_path ON symbols(definition_path)',
-  'CREATE INDEX IF NOT EXISTS idx_symbol_refs_definition_path ON symbol_refs(definition_path)',
-  'CREATE INDEX IF NOT EXISTS idx_external_symbols_definition_path ON external_symbols(definition_path)',
-  'CREATE INDEX IF NOT EXISTS idx_symbol_refs_file_id ON symbol_refs(file_id)',
-  'CREATE INDEX IF NOT EXISTS idx_symbol_refs_resolution_method ON symbol_refs(resolution_method)',
-  'CREATE INDEX IF NOT EXISTS idx_type_refs_resolution_method ON type_refs(resolution_method)',
-  'CREATE INDEX IF NOT EXISTS idx_symbol_rels_resolution_method ON symbol_relationships(resolution_method)',
-  'CREATE INDEX IF NOT EXISTS idx_symbols_exported ON symbols(is_exported) WHERE is_exported = 1',
-  // Layer indexes for incremental indexing
-  'CREATE INDEX IF NOT EXISTS idx_files_layer ON files(layer)',
-  'CREATE INDEX IF NOT EXISTS idx_files_layer_path ON files(layer, path)',
-  'CREATE INDEX IF NOT EXISTS idx_symbols_layer ON symbols(layer)',
-  'CREATE INDEX IF NOT EXISTS idx_symbol_refs_layer ON symbol_refs(layer)',
-  'CREATE INDEX IF NOT EXISTS idx_type_refs_layer ON type_refs(layer)',
-  'CREATE INDEX IF NOT EXISTS idx_symbol_relationships_layer ON symbol_relationships(layer)',
-];
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
@@ -459,26 +406,9 @@ export function openDb(path: string): Database.Database {
 
   // Create all tables in a single transaction.
   db.exec(DDL);
-  ensureEnrichmentSchema(db);
   ensureIncrementalSchema(db);
 
   return db;
-}
-
-function ensureEnrichmentSchema(db: Database.Database): void {
-  for (const migration of ENRICHMENT_SCHEMA_MIGRATIONS) {
-    if (!hasTableColumn(db, migration.table, migration.column)) {
-      db.exec(migration.sql);
-    }
-  }
-  for (const indexMigration of ENRICHMENT_INDEX_MIGRATIONS) {
-    db.exec(indexMigration);
-  }
-}
-
-function hasTableColumn(db: Database.Database, table: string, column: string): boolean {
-  const rows = db.pragma(`table_info(${table})`) as Array<{ name: string }>;
-  return rows.some((row) => row.name === column);
 }
 
 /**

@@ -80,7 +80,7 @@ export { FilePoller } from './discovery/poller.js';
 export type { PollerOptions } from './discovery/poller.js';
 
 // ── MCP server ────────────────────────────────────────────────────────────────
-export { createLoreMcpServer, createLoreMcpServerAsync } from './server/server.js';
+export { createLoreMcpServer } from './server/server.js';
 export type { LoreServerOptions } from './server/server.js';
 export type { SearchObservation, SearchObserver } from './server/tools/search.js';
 export { registerTools } from './server/tool-registry.js';

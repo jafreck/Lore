@@ -158,23 +158,14 @@ export interface ListSymbolsOptions {
   limit?: number;
   offset?: number;
 }
-function hasSymbolMetricsTable(db: Database.Database): boolean {
-  const row = db
-    .prepare("SELECT 1 AS ok FROM sqlite_master WHERE type = 'table' AND name = 'symbol_metrics' LIMIT 1")
-    .get() as { ok: number } | undefined;
-  return row?.ok === 1;
-}
 
 /** Fetch a single symbol by primary key.  Returns `undefined` if not found. */
 export function getSymbolById(db: Database.Database, id: number): SymbolRow | undefined {
-  if (hasSymbolMetricsTable(db)) {
-    return db
-      .prepare(
-        'SELECT s.*, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting FROM symbols s LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id WHERE s.id = ?'
-      )
-      .get(id) as SymbolRow | undefined;
-  }
-  return db.prepare('SELECT * FROM symbols WHERE id = ?').get(id) as SymbolRow | undefined;
+  return db
+    .prepare(
+      'SELECT s.*, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting FROM symbols s LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id WHERE s.id = ?'
+    )
+    .get(id) as SymbolRow | undefined;
 }
 
 function normalizeSymbolLookupOptions(branchOrOptions?: string | SymbolLookupOptions): SymbolLookupOptions {
@@ -291,7 +282,6 @@ export function getSymbolsByName(
   name: string,
   branchOrOptions?: string | SymbolLookupOptions,
 ): SymbolRow[] {
-  const includeMetrics = hasSymbolMetricsTable(db);
   const options = normalizeSymbolLookupOptions(branchOrOptions);
   const matchMode = options.matchMode ?? 'exact';
   const { clause, value } = buildNameMatch(name, matchMode);
@@ -301,12 +291,10 @@ export function getSymbolsByName(
 
   return db
     .prepare(
-      `${includeMetrics
-        ? 'SELECT s.*, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting'
-        : 'SELECT s.*'}
+      `SELECT s.*, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting
        FROM symbols s
        JOIN files f ON s.file_id = f.id
-       ${includeMetrics ? 'LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id' : ''}
+       LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id
        WHERE ${where.join(' AND ')}`,
     )
     .all(...params) as SymbolRow[];
@@ -320,7 +308,6 @@ export function listSymbols(
   limitOrOptions: number | ListSymbolsOptions = 100,
   branch?: string,
 ): SymbolRow[] {
-  const includeMetrics = hasSymbolMetricsTable(db);
   const options: ListSymbolsOptions = typeof limitOrOptions === 'number'
     ? { limit: limitOrOptions, branch }
     : (limitOrOptions ?? {});
@@ -333,12 +320,10 @@ export function listSymbols(
 
   return db
     .prepare(
-      `${includeMetrics
-        ? 'SELECT s.*, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting'
-        : 'SELECT s.*'}
+      `SELECT s.*, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting
        FROM symbols s
        JOIN files f ON s.file_id = f.id
-       ${includeMetrics ? 'LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id' : ''}
+       LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id
        ${where.length > 0 ? `WHERE ${where.join(' AND ')}` : ''}
        LIMIT ? OFFSET ?`,
     )
@@ -364,7 +349,6 @@ export function semanticSearchSymbols(
 ): SemanticSymbolRow[] {
   if (args.queryVector.length === 0) return [];
 
-  const includeMetrics = hasSymbolMetricsTable(db);
   const limit = Math.max(1, Math.floor(args.limit ?? 20));
   const where: string[] = ['se.embedding MATCH ?', 'se.k = ?'];
   const params: Array<string | number> = [JSON.stringify(args.queryVector), limit];
@@ -374,20 +358,16 @@ export function semanticSearchSymbols(
     params.push(args.branch);
   }
 
-  const metricSelect = includeMetrics
-    ? ', sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting'
-    : '';
-  const metricJoin = includeMetrics ? ' LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id' : '';
-
   return db
     .prepare(
-      `SELECT s.*${metricSelect},
+      `SELECT s.*, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting,
               f.path AS file_path,
               f.branch AS file_branch,
               distance AS score
          FROM symbol_embeddings se
          JOIN symbols s ON s.rowid = se.rowid
-         JOIN files f ON f.id = s.file_id${metricJoin}
+         JOIN files f ON f.id = s.file_id
+         LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id
         WHERE ${where.join(' AND ')}
         ORDER BY distance ASC,
                  f.path ASC,
@@ -418,56 +398,18 @@ export interface ExternalSymbolRow {
   definition_path: string | null;
 }
 
-function hasExternalSymbolsTable(db: Database.Database): boolean {
-  const row = db
-    .prepare("SELECT 1 AS ok FROM sqlite_master WHERE type = 'table' AND name = 'external_symbols' LIMIT 1")
-    .get() as { ok: number } | undefined;
-  return row?.ok === 1;
-}
-
-function getTableColumns(db: Database.Database, table: string): Set<string> {
-  try {
-    const rows = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
-    return new Set(rows.map((row) => row.name));
-  } catch {
-    return new Set<string>();
-  }
-}
-
-function externalSymbolSelectColumns(db: Database.Database): string {
-  const columns = getTableColumns(db, 'external_symbols');
-  const enrichmentColumn = (name: string): string => (
-    columns.has(name) ? name : `NULL AS ${name}`
-  );
-  return `id,
-          dependency_ecosystem,
-          source_type,
-          source_ref,
-          package_name,
-          package_version,
-          symbol_name,
-          symbol_kind,
-          signature,
-          doc_comment,
-          ${enrichmentColumn('resolved_type_signature')},
-          ${enrichmentColumn('resolved_return_type')},
-          ${enrichmentColumn('definition_uri')},
-          ${enrichmentColumn('definition_path')}`;
-}
+const EXTERNAL_SYMBOL_COLUMNS = `id, dependency_ecosystem, source_type, source_ref,
+  package_name, package_version, symbol_name, symbol_kind, signature, doc_comment,
+  resolved_type_signature, resolved_return_type, definition_uri, definition_path`;
 
 /** Fetch external symbols whose exported name exactly matches (case-insensitive). */
 export function getExternalSymbolsByName(
   db: Database.Database,
   name: string,
 ): ExternalSymbolRow[] {
-  if (!hasExternalSymbolsTable(db)) {
-    return [];
-  }
-
-  const selectColumns = externalSymbolSelectColumns(db);
   return db
     .prepare(
-      `SELECT ${selectColumns}
+      `SELECT ${EXTERNAL_SYMBOL_COLUMNS}
          FROM external_symbols
          WHERE symbol_name = ? COLLATE NOCASE
          ORDER BY dependency_ecosystem ASC, package_name ASC, package_version ASC, symbol_kind ASC, signature ASC`,
@@ -481,14 +423,9 @@ export function searchExternalSymbolsByName(
   nameQuery: string,
   limit = 100,
 ): ExternalSymbolRow[] {
-  if (!hasExternalSymbolsTable(db)) {
-    return [];
-  }
-
-  const selectColumns = externalSymbolSelectColumns(db);
   return db
     .prepare(
-      `SELECT ${selectColumns}
+      `SELECT ${EXTERNAL_SYMBOL_COLUMNS}
          FROM external_symbols
          WHERE symbol_name LIKE ? ESCAPE '\\' COLLATE NOCASE
          ORDER BY dependency_ecosystem ASC, package_name ASC, package_version ASC, symbol_kind ASC, signature ASC
@@ -1223,53 +1160,6 @@ export function listTestsByLine(
     .all(filePath, line) as TestByLineRow[];
 }
 
-// ─── Config helpers (REMOVED) ─────────────────────────────────────────────────
-//
-// `listConfigEntries` has been removed. No DDL exists for `config_entries` or
-// `config_entry_refs` tables. The function would silently return [] at runtime.
-// If config indexing is desired, add DDL and a writer in a future milestone.
-//
-// Types retained for backward compatibility during migration:
-
-export interface ConfigEntryRefRow {
-  path: string;
-  branch: string;
-  line: number;
-}
-
-export interface ConfigEntryRow {
-  id: number;
-  file_id: number;
-  key: string;
-  value: string | null;
-  default_value: string | null;
-  inferred_type: string | null;
-  required: number;
-  description: string | null;
-  kind: string;
-  file_path: string;
-  file_branch: string;
-  references: ConfigEntryRefRow[];
-}
-
-export interface ListConfigEntriesArgs {
-  key?: string;
-  filePath?: string;
-  kind?: string;
-}
-
-/**
- * @removed No DDL exists for `config_entries` or `config_entry_refs`.
- * Always returns an empty array. Retained as a stub to avoid breaking
- * downstream imports during migration.
- */
-export function listConfigEntries(
-  _db: Database.Database,
-  _args: ListConfigEntriesArgs = {},
-): ConfigEntryRow[] {
-  return [];
-}
-
 // ─── Annotation helpers ───────────────────────────────────────────────────────
 
 export interface AnnotationRow {
@@ -1547,42 +1437,34 @@ export function listCommitFiles(db: Database.Database, commitSha: string): Commi
 
 /** Return refs (branches/tags) that currently point to the given commit SHA. */
 export function listCommitRefs(db: Database.Database, commitSha: string): CommitRefRow[] {
-  try {
-    return db
-      .prepare('SELECT * FROM commit_refs WHERE commit_sha = ? ORDER BY ref_type ASC, ref_name ASC')
-      .all(commitSha) as CommitRefRow[];
-  } catch {
-    return [];
-  }
+  return db
+    .prepare('SELECT * FROM commit_refs WHERE commit_sha = ? ORDER BY ref_type ASC, ref_name ASC')
+    .all(commitSha) as CommitRefRow[];
 }
 
 /** Return commits associated with a branch/tag ref name or prefix. */
 export function listCommitsByRef(db: Database.Database, refQuery: string, limit = 50): CommitRow[] {
   const exact = refQuery;
   const wildcard = `%${escapeLikeWildcards(refQuery)}%`;
-  try {
-    if (!refQuery) {
-      return db
-        .prepare(
-          `SELECT DISTINCT c.* FROM commits c
-           JOIN commit_refs cr ON cr.commit_sha = c.sha
-           ORDER BY c.timestamp DESC, c.sha ASC
-           LIMIT ?`,
-        )
-        .all(limit) as CommitRow[];
-    }
+  if (!refQuery) {
     return db
       .prepare(
         `SELECT DISTINCT c.* FROM commits c
          JOIN commit_refs cr ON cr.commit_sha = c.sha
-         WHERE cr.ref_name = ? OR cr.ref_name LIKE ? ESCAPE '\\'
          ORDER BY c.timestamp DESC, c.sha ASC
          LIMIT ?`,
       )
-      .all(exact, wildcard, limit) as CommitRow[];
-  } catch {
-    return [];
+      .all(limit) as CommitRow[];
   }
+  return db
+    .prepare(
+      `SELECT DISTINCT c.* FROM commits c
+       JOIN commit_refs cr ON cr.commit_sha = c.sha
+       WHERE cr.ref_name = ? OR cr.ref_name LIKE ? ESCAPE '\\'
+       ORDER BY c.timestamp DESC, c.sha ASC
+       LIMIT ?`,
+    )
+    .all(exact, wildcard, limit) as CommitRow[];
 }
 
 /** Whether commit semantic vectors are queryable and contain at least one row. */
@@ -1608,20 +1490,16 @@ export function listCommitsBySemanticQuery(
     return [];
   }
 
-  try {
-    return db
-      .prepare(
-        `SELECT c.*
-           FROM commit_embeddings ce
-           JOIN commits c ON c.rowid = ce.rowid
-          WHERE ce.embedding MATCH ?
-            AND k = ?
-          ORDER BY distance, c.timestamp DESC, c.sha ASC`,
-      )
-      .all(JSON.stringify(queryVector), limit) as CommitRow[];
-  } catch {
-    return [];
-  }
+  return db
+    .prepare(
+      `SELECT c.*
+         FROM commit_embeddings ce
+         JOIN commits c ON c.rowid = ce.rowid
+        WHERE ce.embedding MATCH ?
+          AND k = ?
+        ORDER BY distance, c.timestamp DESC, c.sha ASC`,
+    )
+    .all(JSON.stringify(queryVector), limit) as CommitRow[];
 }
 
 export function listCommitCadence(
@@ -1759,21 +1637,17 @@ export function listCommitBranchActivity(
 ): CommitBranchActivityRow[] {
   const { where, params } = buildCommitStatsWhere(filters);
   const limit = clampStatsLimit(filters.limit);
-  try {
-    return db
-      .prepare(
-        `SELECT cr.ref_name, cr.ref_type, COUNT(DISTINCT c.sha) AS commits
-         FROM commits c
-         JOIN commit_refs cr ON cr.commit_sha = c.sha
-         ${where}
-         GROUP BY cr.ref_name, cr.ref_type
-         ORDER BY commits DESC, cr.ref_name ASC
-         LIMIT ?`,
-      )
-      .all(...params, limit) as CommitBranchActivityRow[];
-  } catch {
-    return [];
-  }
+  return db
+    .prepare(
+      `SELECT cr.ref_name, cr.ref_type, COUNT(DISTINCT c.sha) AS commits
+       FROM commits c
+       JOIN commit_refs cr ON cr.commit_sha = c.sha
+       ${where}
+       GROUP BY cr.ref_name, cr.ref_type
+       ORDER BY commits DESC, cr.ref_name ASC
+       LIMIT ?`,
+    )
+    .all(...params, limit) as CommitBranchActivityRow[];
 }
 
 // ─── Coverage helpers ─────────────────────────────────────────────────────────
