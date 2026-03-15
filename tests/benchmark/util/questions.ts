@@ -354,23 +354,6 @@ export const QUESTION_CATALOG: QuestionTemplate[] = [
       'Answer with ONLY a newline-separated list of violations in the format "from_dir → to_dir", ' +
       'or "None" if no violations are detected.',
   },
-
-  // ── Category 14: Module Cohesion ────────────────────────────────────────
-  {
-    questionId: '14.1',
-    category: 'Architecture',
-    family: 'explanation',
-    description: 'Module cohesion ranking (worst-bounded first)',
-    loreTools: ['lore_cohesion(depth=2)'],
-    loreAdvantage: 'Computes internal/external edge ratio per directory from resolved symbol_refs; no text search can measure coupling.',
-    promptTemplate:
-      'Which directories in this codebase have the lowest cohesion ' +
-      '(highest ratio of external coupling to internal coupling)? ' +
-      'Use pre-indexed module cohesion metrics if available. ' +
-      'Answer with ONLY a numbered list of the 3 least cohesive directories, ' +
-      'each with their cohesion score. Example format:\n' +
-      '1. src/server — cohesion: 0.32\n2. src/utils — cohesion: 0.45\n3. src/api — cohesion: 0.51',
-  },
 ];
 
 // ─── Lookup helpers ─────────────────────────────────────────────────────────

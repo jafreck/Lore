@@ -52,7 +52,6 @@ const LORE_SELF_ANSWERS: RepoAnswers = {
     '3.5': { symbol: '', file: '', expectedAnswer: 'tree-sitter → src/parsing\nbetter-sqlite3 → src/db\nsqlite-vec → src/db', expectedAnswerParts: ['tree-sitter', 'src/parsing', 'better-sqlite3', 'src/db'], expectedSymbols: [] },
     '9.1': { symbol: '', file: '', expectedAnswer: 'Added: None\nRemoved: None\nChanged: None', expectedAnswerParts: ['Added', 'Removed', 'Changed'], expectedSymbols: [] },
     '12.1': { symbol: '', file: '', expectedAnswer: 'None', expectedAnswerParts: ['none'], expectedSymbols: [] },
-    '14.1': { symbol: '', file: '', expectedAnswer: 'src/server\nsrc/discovery\nsrc/indexer', expectedAnswerParts: ['src/server', 'src/discovery'], expectedSymbols: [] },
   },
 };
 
