@@ -829,7 +829,11 @@ describe('cli', () => {
       await waitForStderr(stderrSpy, 'refresh complete');
 
       db = new Database(dbPath, { readonly: true });
-      row = db.prepare('SELECT path FROM files WHERE path = ?').get(filePath) as { path: string } | undefined;
+      // In the overlay model, deleted files are marked dirty and excluded
+      // from effective_files, even though the baseline row still exists.
+      const viewExists = (db.prepare("SELECT 1 AS ok FROM sqlite_master WHERE type = 'view' AND name = 'effective_files' LIMIT 1").get() as { ok: number } | undefined)?.ok === 1;
+      const table = viewExists ? 'effective_files' : 'files';
+      row = db.prepare(`SELECT path FROM ${table} WHERE path = ?`).get(filePath) as { path: string } | undefined;
       db.close();
       expect(row).toBeUndefined();
     });

@@ -125,7 +125,7 @@ export class SourceIndexStage implements PipelineStage {
         // Compute symbol metrics for SCIP-sourced files (SCIP doesn't provide
         // cyclomatic complexity data, but tree-sitter can compute it).
         if (scipFiles.length > 0) {
-          computeMetricsForScipFiles(context.db, this.pool!, scipFiles, context.branch, context.sourceCache);
+          computeMetricsForScipFiles(context.db, this.pool!, scipFiles, context.branch, context.sourceCache, context.layer, context.generation);
         }
       } else {
         files = allFiles;
@@ -166,7 +166,7 @@ export class SourceIndexStage implements PipelineStage {
         for (let i = batchStart; i < batchEnd; i++) {
           const file = files[i];
           if (!file) continue;
-          processFile(db, pool, file.path, file.language, branch, context.sourceCache);
+          processFile(db, pool, file.path, file.language, branch, context.sourceCache, context.layer, context.generation);
         }
       })();
       // Checkpoint between batches — committed outside the batch transaction
@@ -182,22 +182,37 @@ export class SourceIndexStage implements PipelineStage {
     const changedFiles = context.changedFiles ?? [];
     const pool = this.pool!;
     const enrichedFiles: Array<{ path: string; language: string }> = [];
+    const layer = context.layer;
+    const generation = context.generation;
 
     db.transaction(() => {
       for (const filePath of changedFiles) {
         // If the file no longer exists, remove it from the DB
         if (!fs.existsSync(filePath)) {
-          const row = db.prepare('SELECT id FROM files WHERE path = ? AND branch = ?').get(filePath, branch) as
-            | { id: number }
-            | undefined;
-          if (row) {
-            const symRows = db.prepare('SELECT id FROM symbols WHERE file_id = ?').all(row.id) as Array<{ id: number }>;
-            for (const s of symRows) context.staleSymbolIds.push(s.id);
-            db.prepare('UPDATE file_imports SET resolved_id = NULL WHERE resolved_id = ?').run(row.id);
-            db.prepare('UPDATE symbol_refs SET callee_id = NULL WHERE callee_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(row.id);
-            db.prepare('UPDATE type_refs SET type_id = NULL WHERE type_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(row.id);
-            db.prepare('UPDATE symbol_relationships SET target_symbol_id = NULL WHERE target_symbol_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(row.id);
-            db.prepare('DELETE FROM files WHERE id = ?').run(row.id);
+          if (layer === 'overlay') {
+            // Only delete overlay rows; baseline stays for the rebuild
+            const overlayRow = db.prepare('SELECT id FROM files WHERE path = ? AND branch = ? AND layer = ?').get(filePath, branch, 'overlay') as
+              | { id: number } | undefined;
+            if (overlayRow) {
+              const symRows = db.prepare('SELECT id FROM symbols WHERE file_id = ?').all(overlayRow.id) as Array<{ id: number }>;
+              for (const s of symRows) context.staleSymbolIds.push(s.id);
+              db.prepare('DELETE FROM files WHERE id = ?').run(overlayRow.id);
+            }
+            // Mark as dirty with a sentinel so effective_files excludes the baseline row
+            db.prepare('INSERT OR REPLACE INTO dirty_files (path, dirty_since, overlay_gen) VALUES (?, unixepoch(), ?)').run(filePath, generation);
+          } else {
+            // Baseline mode: delete all rows for this file
+            const row = db.prepare('SELECT id FROM files WHERE path = ? AND branch = ?').get(filePath, branch) as
+              | { id: number } | undefined;
+            if (row) {
+              const symRows = db.prepare('SELECT id FROM symbols WHERE file_id = ?').all(row.id) as Array<{ id: number }>;
+              for (const s of symRows) context.staleSymbolIds.push(s.id);
+              db.prepare('UPDATE file_imports SET resolved_id = NULL WHERE resolved_id = ?').run(row.id);
+              db.prepare('UPDATE symbol_refs SET callee_id = NULL WHERE callee_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(row.id);
+              db.prepare('UPDATE type_refs SET type_id = NULL WHERE type_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(row.id);
+              db.prepare('UPDATE symbol_relationships SET target_symbol_id = NULL WHERE target_symbol_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(row.id);
+              db.prepare('DELETE FROM files WHERE id = ?').run(row.id);
+            }
           }
           continue;
         }
@@ -206,20 +221,31 @@ export class SourceIndexStage implements PipelineStage {
         if (language) {
           enrichedFiles.push({ path: filePath, language });
           context.changedSourcePaths.push(filePath);
-          const existingRow = db.prepare('SELECT id FROM files WHERE path = ? AND branch = ?').get(filePath, branch) as
-            | { id: number }
-            | undefined;
-          if (existingRow) {
-            const symRows = db.prepare('SELECT id FROM symbols WHERE file_id = ?').all(existingRow.id) as Array<{ id: number }>;
-            for (const s of symRows) context.staleSymbolIds.push(s.id);
-            db.prepare('UPDATE file_imports SET resolved_id = NULL WHERE resolved_id = ?').run(existingRow.id);
-            db.prepare('UPDATE symbol_refs SET callee_id = NULL WHERE callee_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(existingRow.id);
-            db.prepare('UPDATE type_refs SET type_id = NULL WHERE type_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(existingRow.id);
-            db.prepare('UPDATE symbol_relationships SET target_symbol_id = NULL WHERE target_symbol_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(existingRow.id);
+
+          if (layer === 'overlay') {
+            // Overlay: delete only prior overlay rows (processFile handles this)
+            const overlayRow = db.prepare('SELECT id FROM files WHERE path = ? AND branch = ? AND layer = ?').get(filePath, branch, 'overlay') as
+              | { id: number } | undefined;
+            if (overlayRow) {
+              const symRows = db.prepare('SELECT id FROM symbols WHERE file_id = ?').all(overlayRow.id) as Array<{ id: number }>;
+              for (const s of symRows) context.staleSymbolIds.push(s.id);
+            }
+          } else {
+            // Baseline: delete all data for this path
+            const existingRow = db.prepare('SELECT id FROM files WHERE path = ? AND branch = ?').get(filePath, branch) as
+              | { id: number } | undefined;
+            if (existingRow) {
+              const symRows = db.prepare('SELECT id FROM symbols WHERE file_id = ?').all(existingRow.id) as Array<{ id: number }>;
+              for (const s of symRows) context.staleSymbolIds.push(s.id);
+              db.prepare('UPDATE file_imports SET resolved_id = NULL WHERE resolved_id = ?').run(existingRow.id);
+              db.prepare('UPDATE symbol_refs SET callee_id = NULL WHERE callee_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(existingRow.id);
+              db.prepare('UPDATE type_refs SET type_id = NULL WHERE type_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(existingRow.id);
+              db.prepare('UPDATE symbol_relationships SET target_symbol_id = NULL WHERE target_symbol_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(existingRow.id);
+            }
+            db.prepare('DELETE FROM files WHERE path = ? AND branch = ?').run(filePath, branch);
           }
 
-          db.prepare('DELETE FROM files WHERE path = ? AND branch = ?').run(filePath, branch);
-          processFile(db, pool, filePath, language, branch, context.sourceCache);
+          processFile(db, pool, filePath, language, branch, context.sourceCache, layer, generation);
         }
       }
     })();
@@ -242,11 +268,15 @@ export function processFile(
   language: string,
   branch: string,
   sourceCache?: Map<string, string>,
+  layer: 'baseline' | 'overlay' = 'baseline',
+  generation = 0,
 ): void {
   // P3: fast-path — check file size via stat before reading+hashing.
-  const existing = db.prepare('SELECT id, last_hash, size_bytes FROM files WHERE path = ? AND branch = ?').get(filePath, branch) as
-    | FileRow
-    | undefined;
+  // In overlay mode, look up existing baseline row for hash comparison;
+  // overlay rows are always re-created.
+  const existing = db.prepare('SELECT id, last_hash, size_bytes FROM files WHERE path = ? AND branch = ? AND layer = ?').get(
+    filePath, branch, layer === 'overlay' ? 'overlay' : 'baseline',
+  ) as FileRow | undefined;
   if (existing) {
     try {
       const stat = fs.statSync(filePath);
@@ -260,7 +290,7 @@ export function processFile(
         }
         const hash = crypto.createHash('sha256').update(source).digest('hex');
         if (existing.last_hash === hash) return;
-        processFileWithSource(db, pool, filePath, language, branch, source, hash, existing, sourceCache);
+        processFileWithSource(db, pool, filePath, language, branch, source, hash, existing, sourceCache, layer, generation);
         return;
       }
     } catch {
@@ -277,7 +307,7 @@ export function processFile(
   }
   const hash = crypto.createHash('sha256').update(source).digest('hex');
   if (existing?.last_hash === hash) return;
-  processFileWithSource(db, pool, filePath, language, branch, source, hash, existing, sourceCache);
+  processFileWithSource(db, pool, filePath, language, branch, source, hash, existing, sourceCache, layer, generation);
 }
 
 /** Core file processing after source has been read and hashed. */
@@ -291,6 +321,8 @@ function processFileWithSource(
   hash: string,
   existing: FileRow | undefined,
   sourceCache?: Map<string, string>,
+  layer: 'baseline' | 'overlay' = 'baseline',
+  generation = 0,
 ): void {
   // Populate the source cache for later stages (enrichment) to avoid re-reading.
   if (sourceCache) sourceCache.set(filePath, source);
@@ -299,16 +331,16 @@ function processFileWithSource(
 
   // Upsert the file row
   let fileId: number;
-  if (existing) {
+  if (existing && layer === 'baseline') {
+    // Baseline mode: update existing baseline row in place
     db.prepare(
       `UPDATE files SET language = ?, size_bytes = ?, last_hash = ?, source = ?, indexed_at = unixepoch()
         WHERE id = ?`,
     ).run(language, sizeBytes, hash, source, existing.id);
     fileId = existing.id;
-    // Remove stale symbols / imports / external deps
+    // Remove stale symbols / imports / external deps for this baseline row
     db.prepare('DELETE FROM symbol_relationships WHERE file_id = ?').run(fileId);
     db.prepare('DELETE FROM type_refs WHERE file_id = ?').run(fileId);
-    // NULL out cross-file FK references that point to symbols in this file
     db.prepare('UPDATE symbol_refs SET callee_id = NULL WHERE callee_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(fileId);
     db.prepare('UPDATE type_refs SET type_id = NULL WHERE type_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(fileId);
     db.prepare('UPDATE symbol_relationships SET target_symbol_id = NULL WHERE target_symbol_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(fileId);
@@ -316,13 +348,45 @@ function processFileWithSource(
     db.prepare('DELETE FROM file_imports WHERE file_id = ?').run(fileId);
     db.prepare('DELETE FROM external_deps WHERE file_id = ?').run(fileId);
     db.prepare('DELETE FROM annotations WHERE file_id = ?').run(fileId);
-  } else {
+  } else if (layer === 'overlay') {
+    // Overlay mode: delete prior overlay rows for this file (not baseline)
+    const overlayRow = db.prepare(
+      'SELECT id FROM files WHERE path = ? AND branch = ? AND layer = ?',
+    ).get(filePath, branch, 'overlay') as { id: number } | undefined;
+    if (overlayRow) {
+      db.prepare('DELETE FROM symbol_relationships WHERE file_id = ?').run(overlayRow.id);
+      db.prepare('DELETE FROM type_refs WHERE file_id = ?').run(overlayRow.id);
+      db.prepare('UPDATE symbol_refs SET callee_id = NULL WHERE callee_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(overlayRow.id);
+      db.prepare('UPDATE type_refs SET type_id = NULL WHERE type_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(overlayRow.id);
+      db.prepare('UPDATE symbol_relationships SET target_symbol_id = NULL WHERE target_symbol_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(overlayRow.id);
+      db.prepare('DELETE FROM symbols WHERE file_id = ?').run(overlayRow.id);
+      db.prepare('DELETE FROM file_imports WHERE file_id = ?').run(overlayRow.id);
+      db.prepare('DELETE FROM external_deps WHERE file_id = ?').run(overlayRow.id);
+      db.prepare('DELETE FROM annotations WHERE file_id = ?').run(overlayRow.id);
+      db.prepare('DELETE FROM files WHERE id = ?').run(overlayRow.id);
+    }
+    // Insert a new overlay file row (baseline row is untouched)
     const info = db
       .prepare(
-        `INSERT INTO files (path, branch, language, size_bytes, last_hash, source)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO files (path, branch, language, size_bytes, last_hash, source, layer, generation)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .run(filePath, branch, language, sizeBytes, hash, source) as {
+      .run(filePath, branch, language, sizeBytes, hash, source, layer, generation) as {
+        lastInsertRowid: number | bigint;
+      };
+    fileId = Number(info.lastInsertRowid);
+    // Mark file as dirty
+    db.prepare(
+      'INSERT OR REPLACE INTO dirty_files (path, dirty_since, overlay_gen) VALUES (?, unixepoch(), ?)',
+    ).run(filePath, generation);
+  } else {
+    // Baseline mode, new file
+    const info = db
+      .prepare(
+        `INSERT INTO files (path, branch, language, size_bytes, last_hash, source, layer, generation)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(filePath, branch, language, sizeBytes, hash, source, layer, generation) as {
         lastInsertRowid: number | bigint;
       };
     fileId = Number(info.lastInsertRowid);
@@ -339,8 +403,8 @@ function processFileWithSource(
 
   // Insert symbols (FTS5 index is rebuilt in bulk by ftsRefreshStage)
   const insertSymbol = db.prepare(
-    `INSERT INTO symbols (file_id, name, kind, start_line, end_line, signature, doc_comment, is_exported)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO symbols (file_id, name, kind, start_line, end_line, signature, doc_comment, is_exported, layer, generation)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   );
 
   const symbolIdMap = new Map<string, number>();
@@ -357,6 +421,7 @@ function processFileWithSource(
       sym.signature ?? null,
       sym.docComment ?? null,
       sym.isExported ? 1 : 0,
+      layer, generation,
     ) as { lastInsertRowid: number | bigint };
     const symId = Number(info.lastInsertRowid);
     symbolIdMap.set(sym.name, symId);
@@ -364,55 +429,55 @@ function processFileWithSource(
 
   // Insert symbol metrics (cyclomatic complexity, line count, etc.)
   const insertMetrics = db.prepare(
-    `INSERT OR REPLACE INTO symbol_metrics (symbol_id, line_count, param_count, cyclomatic, max_nesting)
-     VALUES (?, ?, ?, ?, ?)`,
+    `INSERT OR REPLACE INTO symbol_metrics (symbol_id, line_count, param_count, cyclomatic, max_nesting, layer, generation)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
   );
   for (const sym of result.symbols) {
     if (!sym.name) continue;
     const symId = symbolIdMap.get(sym.name);
     if (symId === undefined) continue;
     const metrics = computeSymbolMetrics(sym, language);
-    insertMetrics.run(symId, metrics.line_count, metrics.param_count, metrics.cyclomatic, metrics.max_nesting);
+    insertMetrics.run(symId, metrics.line_count, metrics.param_count, metrics.cyclomatic, metrics.max_nesting, layer, generation);
   }
 
   // Insert raw imports
   const insertImport = db.prepare(
-    'INSERT INTO file_imports (file_id, raw_import) VALUES (?, ?)',
+    'INSERT INTO file_imports (file_id, raw_import, layer, generation) VALUES (?, ?, ?, ?)',
   );
   for (const imp of result.imports) {
-    insertImport.run(fileId, imp.source);
+    insertImport.run(fileId, imp.source, layer, generation);
   }
 
   // Insert call refs
   const insertCallRef = db.prepare(
-    `INSERT INTO symbol_refs (caller_id, file_id, callee_name, call_line, call_character, call_kind)
-     VALUES (?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO symbol_refs (caller_id, file_id, callee_name, call_line, call_character, call_kind, layer, generation)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
   );
   for (const ref of result.callRefs) {
     const callerId = symbolIdMap.get(ref.callerSymbol);
     if (callerId !== undefined) {
-      insertCallRef.run(callerId, fileId, ref.calleeRaw, ref.line, ref.character ?? null, ref.callKind ?? 'direct');
+      insertCallRef.run(callerId, fileId, ref.calleeRaw, ref.line, ref.character ?? null, ref.callKind ?? 'direct', layer, generation);
     }
   }
 
   // Insert relationships
   const insertRelationship = db.prepare(
-    `INSERT INTO symbol_relationships (file_id, source_symbol_id, target_symbol_name, relationship_type, line, character)
-     VALUES (?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO symbol_relationships (file_id, source_symbol_id, target_symbol_name, relationship_type, line, character, layer, generation)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
   );
   for (const rel of result.relationships) {
     const sourceId = symbolIdMap.get(rel.fromSymbol) ?? null;
-    insertRelationship.run(fileId, sourceId, rel.toSymbol, rel.kind, rel.line, rel.character ?? null);
+    insertRelationship.run(fileId, sourceId, rel.toSymbol, rel.kind, rel.line, rel.character ?? null, layer, generation);
   }
 
   // Insert type refs
   const insertTypeRef = db.prepare(
-    `INSERT INTO type_refs (file_id, symbol_id, type_name, type_name_bare, ref_kind, ref_line, ref_character)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO type_refs (file_id, symbol_id, type_name, type_name_bare, ref_kind, ref_line, ref_character, layer, generation)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   );
   for (const ref of result.typeRefs) {
     const symId = symbolIdMap.get(ref.enclosingSymbol) ?? null;
-    insertTypeRef.run(fileId, symId, ref.typeRaw, normalizeTypeName(ref.typeRaw), ref.refKind, ref.line, ref.character ?? null);
+    insertTypeRef.run(fileId, symId, ref.typeRaw, normalizeTypeName(ref.typeRaw), ref.refKind, ref.line, ref.character ?? null, layer, generation);
   }
 }
 
@@ -430,10 +495,12 @@ function computeMetricsForScipFiles(
   files: Array<{ path: string; language: string }>,
   branch: string,
   sourceCache?: Map<string, string>,
+  layer: 'baseline' | 'overlay' = 'baseline',
+  generation = 0,
 ): void {
   const insertMetrics = db.prepare(
-    `INSERT OR REPLACE INTO symbol_metrics (symbol_id, line_count, param_count, cyclomatic, max_nesting)
-     VALUES (?, ?, ?, ?, ?)`,
+    `INSERT OR REPLACE INTO symbol_metrics (symbol_id, line_count, param_count, cyclomatic, max_nesting, layer, generation)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
   );
 
   db.transaction(() => {
@@ -480,7 +547,7 @@ function computeMetricsForScipFiles(
         const symId = symbolMap.get(sym.name);
         if (symId === undefined) continue;
         const metrics = computeSymbolMetrics(sym, file.language);
-        insertMetrics.run(symId, metrics.line_count, metrics.param_count, metrics.cyclomatic, metrics.max_nesting);
+        insertMetrics.run(symId, metrics.line_count, metrics.param_count, metrics.cyclomatic, metrics.max_nesting, layer, generation);
       }
     }
   })();

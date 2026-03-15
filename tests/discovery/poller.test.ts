@@ -4,6 +4,7 @@ import type { Stats } from 'node:fs';
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
 const mockUpdate = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+const mockBaselineRebuild = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 
 vi.mock('node:fs', () => ({
   statSync: vi.fn(),
@@ -13,6 +14,7 @@ vi.mock('../../src/indexer/index.js', () => ({
   // Must use a regular function (not arrow) so `new IndexBuilder(...)` works
   IndexBuilder: vi.fn(function (this: Record<string, unknown>) {
     this.update = mockUpdate;
+    this.baselineRebuild = mockBaselineRebuild;
   }),
 }));
 
@@ -433,7 +435,7 @@ describe('FilePoller', () => {
       expect(opts.scip).toBeUndefined();
     });
 
-    it('should schedule a SCIP-enabled update after the quiet period', async () => {
+    it('should schedule a baseline rebuild after the quiet period', async () => {
       vi.mocked(walkFiles).mockResolvedValue([makeEntry('/tmp/testroot/a.ts')]);
       vi.mocked(fs.statSync).mockReturnValue({ mtimeMs: 1000 } as Stats);
 
@@ -447,11 +449,11 @@ describe('FilePoller', () => {
 
       expect(mockUpdate).toHaveBeenCalledOnce();
 
-      // Wait for SCIP quiet period (mtime unchanged so no new tree-sitter update)
+      // Wait for SCIP quiet period (mtime unchanged so no new overlay update)
       await vi.advanceTimersByTimeAsync(500);
       poller.stop();
 
-      expect(mockUpdate).toHaveBeenCalledTimes(2);
+      expect(mockBaselineRebuild).toHaveBeenCalledOnce();
       const opts = vi.mocked(IndexBuilder).mock.calls[1]![3] as Record<string, unknown>;
       expect(opts.scip).toEqual(scipSettings);
     });
@@ -475,7 +477,7 @@ describe('FilePoller', () => {
       expect(mockUpdate).toHaveBeenCalledOnce();
     });
 
-    it('should include SCIP on every poll when scipQuietPeriodMs is 0', async () => {
+    it('should not schedule baseline rebuilds when scipQuietPeriodMs is 0', async () => {
       vi.mocked(walkFiles).mockResolvedValue([makeEntry('/tmp/testroot/a.ts')]);
       vi.mocked(fs.statSync).mockReturnValue({ mtimeMs: 1000 } as Stats);
 
@@ -489,8 +491,10 @@ describe('FilePoller', () => {
       poller.stop();
 
       expect(mockUpdate).toHaveBeenCalledOnce();
+      // Overlay updates never include SCIP
       const opts = vi.mocked(IndexBuilder).mock.calls[0]![3] as Record<string, unknown>;
-      expect(opts.scip).toEqual(scipSettings);
+      expect(opts.scip).toBeUndefined();
+      expect(mockBaselineRebuild).not.toHaveBeenCalled();
     });
   });
 });

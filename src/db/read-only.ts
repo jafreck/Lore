@@ -40,6 +40,49 @@ export function openReadOnly(path: string): Database.Database {
   return db;
 }
 
+// ─── Freshness metadata ───────────────────────────────────────────────────────
+
+/** Freshness info describing the data source for a query result. */
+export interface FreshnessInfo {
+  /** 'baseline' = all data from last full SCIP build.
+      'mixed'    = some files use overlay data.
+      'overlay'  = all queried files have overlay data. */
+  source: 'baseline' | 'mixed' | 'overlay';
+  /** Seconds since the baseline was last rebuilt. */
+  baseline_age_s: number;
+  /** Number of dirty files in the index. */
+  dirty_file_count: number;
+}
+
+/**
+ * Compute freshness metadata for the current database state.
+ * Call this to include with MCP tool responses.
+ */
+export function getFreshness(db: Database.Database): FreshnessInfo {
+  let dirtyCount = 0;
+  try {
+    const row = db.prepare('SELECT COUNT(*) AS cnt FROM dirty_files').get() as { cnt: number } | undefined;
+    dirtyCount = row?.cnt ?? 0;
+  } catch {
+    // dirty_files table may not exist in old databases
+  }
+
+  let baselineAgeS = 0;
+  try {
+    const row = db.prepare(
+      "SELECT MAX(indexed_at) AS latest FROM files WHERE layer = 'baseline'",
+    ).get() as { latest: number | null } | undefined;
+    if (row?.latest) {
+      baselineAgeS = Math.max(0, Math.floor(Date.now() / 1000) - row.latest);
+    }
+  } catch {
+    // layer column may not exist in old databases
+  }
+
+  const source: FreshnessInfo['source'] = dirtyCount === 0 ? 'baseline' : 'mixed';
+  return { source, baseline_age_s: baselineAgeS, dirty_file_count: dirtyCount };
+}
+
 // ─── Symbol helpers ───────────────────────────────────────────────────────────
 
 export interface SymbolRow {

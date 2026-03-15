@@ -287,6 +287,8 @@ export class ScipIndexerStage implements PipelineStage {
 
   async execute(context: PipelineContext, mode: 'build' | 'update'): Promise<void> {
     if (!context.scip?.enabled) return;
+    // SCIP only runs during baseline builds — never during overlay updates.
+    if (context.layer === 'overlay') return;
 
     const log = context.log;
     const rootDir = context.walkerConfig.rootDir;
@@ -407,28 +409,31 @@ export class ScipIndexerStage implements PipelineStage {
 
     // Prepared statements
     const insertFile = db.prepare(
-      `INSERT INTO files (path, branch, language, size_bytes, last_hash, source)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO files (path, branch, language, size_bytes, last_hash, source, layer, generation)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     const insertSymbol = db.prepare(
-      `INSERT INTO symbols (file_id, name, kind, start_line, end_line, signature, doc_comment, resolved_type_signature, resolved_return_type, definition_uri, definition_path)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO symbols (file_id, name, kind, start_line, end_line, signature, doc_comment, resolved_type_signature, resolved_return_type, definition_uri, definition_path, layer, generation)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     const insertCallRef = db.prepare(
-      `INSERT INTO symbol_refs (caller_id, file_id, callee_id, callee_name, call_line, call_character, call_kind, resolution_method, resolved_type_signature, resolved_return_type, definition_uri, definition_path, definition_line, definition_character)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO symbol_refs (caller_id, file_id, callee_id, callee_name, call_line, call_character, call_kind, resolution_method, resolved_type_signature, resolved_return_type, definition_uri, definition_path, definition_line, definition_character, layer, generation)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     const insertTypeRef = db.prepare(
-      `INSERT INTO type_refs (file_id, symbol_id, type_id, type_name, type_name_bare, ref_kind, ref_line, ref_character, resolution_method, resolved_type_signature, definition_uri, definition_path, definition_line, definition_character)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO type_refs (file_id, symbol_id, type_id, type_name, type_name_bare, ref_kind, ref_line, ref_character, resolution_method, resolved_type_signature, definition_uri, definition_path, definition_line, definition_character, layer, generation)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     const insertImport = db.prepare(
-      'INSERT INTO file_imports (file_id, raw_import, resolved_id) VALUES (?, ?, ?)',
+      'INSERT INTO file_imports (file_id, raw_import, resolved_id, layer, generation) VALUES (?, ?, ?, ?, ?)',
     );
     const insertRelationship = db.prepare(
-      `INSERT INTO symbol_relationships (file_id, source_symbol_id, target_symbol_name, relationship_type, line, character, resolution_method, definition_uri, definition_path, definition_line, definition_character)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO symbol_relationships (file_id, source_symbol_id, target_symbol_name, relationship_type, line, character, resolution_method, definition_uri, definition_path, definition_line, definition_character, layer, generation)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
+
+    const layer = context.layer;
+    const generation = context.generation;
 
     // Global map: SCIP symbol string → Lore numeric symbol ID (across all files)
     const scipToLoreId = new Map<string, number>();
@@ -469,7 +474,7 @@ export class ScipIndexerStage implements PipelineStage {
         }
 
         // Insert file
-        const fileInfo = insertFile.run(absPath, branch, loreLang, sizeBytes, hash, source) as { lastInsertRowid: number | bigint };
+        const fileInfo = insertFile.run(absPath, branch, loreLang, sizeBytes, hash, source, layer, generation) as { lastInsertRowid: number | bigint };
         const fileId = Number(fileInfo.lastInsertRowid);
         fileIdMap.set(absPath, fileId);
         coveredFiles.add(absPath);
@@ -541,6 +546,7 @@ export class ScipIndexerStage implements PipelineStage {
             defLoc.startLine, defLoc.endLine,
             signature || null, docComment,
             resolvedTypeSig, resolvedReturnType, definitionUri, absPath,
+            layer, generation,
           ) as { lastInsertRowid: number | bigint };
           const loreId = Number(info.lastInsertRowid);
           scipToLoreId.set(symInfo.symbol, loreId);
@@ -580,7 +586,7 @@ export class ScipIndexerStage implements PipelineStage {
               }
             } else {
               seenImports.set(rawImport, resolvedFileId);
-              insertImport.run(fileId, rawImport, resolvedFileId);
+              insertImport.run(fileId, rawImport, resolvedFileId, layer, generation);
             }
           }
         }
@@ -636,6 +642,7 @@ export class ScipIndexerStage implements PipelineStage {
               targetDef?.filePath ?? null,
               targetDef?.line ?? null,
               targetDef?.character ?? null,
+              layer, generation,
             );
 
             // If we have both source and target IDs, update the resolved target
@@ -811,6 +818,7 @@ export class ScipIndexerStage implements PipelineStage {
                 refDef?.filePath ?? null,
                 refDef?.line ?? null,
                 refDef?.character ?? null,
+                layer, generation,
               );
               typeRefsInserted++;
             } catch {
@@ -849,6 +857,7 @@ export class ScipIndexerStage implements PipelineStage {
                 refDef?.filePath ?? null,
                 refDef?.line ?? null,
                 refDef?.character ?? null,
+                layer, generation,
               );
               refsInserted++;
               if (isExternal) refsExternal++;

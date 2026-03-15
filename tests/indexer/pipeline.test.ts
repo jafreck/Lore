@@ -20,6 +20,8 @@ function createStubContext(): PipelineContext {
     changedSourcePaths: [],
     changedDocPaths: [],
     sourceCache: new Map(),
+    layer: 'baseline',
+    generation: 0,
   } as PipelineContext;
 }
 
