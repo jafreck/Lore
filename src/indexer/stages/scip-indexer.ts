@@ -964,7 +964,7 @@ const TSCONFIG_BUILD_ONLY_FIELDS = [
  *
  * Returns the path to the temp file, or `null` if no tsconfig exists.
  */
-function createLoreScipTsconfig(rootDir: string): string | null {
+export function createLoreScipTsconfig(rootDir: string): string | null {
   const log = getLogger();
   const tsconfigPath = join(rootDir, 'tsconfig.json');
   if (!existsSync(tsconfigPath)) return null;
