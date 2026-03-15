@@ -1347,3 +1347,67 @@ describe('IndexBuilder — symbol metrics', () => {
     }
   });
 });
+
+describe('IndexBuilder — baselineRebuild()', () => {
+  let srcDir: string;
+  let dbPath: string;
+
+  beforeEach(() => {
+    srcDir = mkdtempSync(join(tmpdir(), 'lore-index-test-src-'));
+    dbPath = join(srcDir, 'test.db');
+    writeFileSync(join(srcDir, 'hello.ts'), HELLO_SOURCE);
+  });
+
+  it('should perform a full baseline rebuild with generation tracking', async () => {
+    // First do a regular build
+    const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
+    await builder.build();
+
+    // Add an overlay update
+    writeFileSync(join(srcDir, 'hello.ts'), 'export function updated(): void {}\n');
+    await builder.update([join(srcDir, 'hello.ts')]);
+
+    // Now do a baseline rebuild
+    await builder.baselineRebuild();
+
+    const db = new Database(dbPath, { readonly: true });
+    // Generation should have been incremented (build sets gen 1, baselineRebuild increments further)
+    const gen = db.prepare("SELECT value FROM lore_meta WHERE key = 'generation'").get() as { value: string } | undefined;
+    expect(gen).toBeDefined();
+    const genVal = parseInt(gen!.value, 10);
+    expect(genVal).toBeGreaterThanOrEqual(2);
+
+    // Should have files (either baseline or overlay)
+    const totalFiles = (db.prepare('SELECT COUNT(*) AS cnt FROM files').get() as { cnt: number }).cnt;
+    expect(totalFiles).toBeGreaterThan(0);
+
+    db.close();
+  });
+
+  it('should clean up stale overlay rows after promotion', async () => {
+    // Build baseline
+    const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
+    await builder.build();
+
+    // Create overlay via update
+    writeFileSync(join(srcDir, 'hello.ts'), 'export function overlaid(): void {}\n');
+    await builder.update([join(srcDir, 'hello.ts')]);
+
+    // Verify dirty_files has entry
+    let db = new Database(dbPath);
+    const dirtyBefore = db.prepare('SELECT COUNT(*) AS cnt FROM dirty_files').get() as { cnt: number };
+    expect(dirtyBefore.cnt).toBeGreaterThanOrEqual(1);
+
+    // Set dirty_since to far in the past so the baseline rebuild cleanup picks it up
+    db.prepare('UPDATE dirty_files SET dirty_since = 1000').run();
+    db.close();
+
+    // Baseline rebuild should promote and clean overlay
+    await builder.baselineRebuild();
+
+    db = new Database(dbPath, { readonly: true });
+    const dirtyAfter = db.prepare('SELECT COUNT(*) AS cnt FROM dirty_files').get() as { cnt: number };
+    db.close();
+    expect(dirtyAfter.cnt).toBe(0);
+  });
+});
