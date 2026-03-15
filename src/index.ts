@@ -39,6 +39,8 @@ export { installGitHooks } from './git/hooks.js';
 export type { InstallGitHooksOptions } from './git/hooks.js';
 export type { EffectiveLspSettings, LspSettingsOverrides } from './lsp/config.js';
 export type { EffectiveScipSettings, ScipSettingsOverrides } from './scip/config.js';
+export { installAllMissing as installScipIndexers, SCIP_INSTALL_SPECS } from './scip/installer.js';
+export type { ScipInstallResult, ScipInstallSpec } from './scip/installer.js';
 export { TransformersJsProvider, LazyEmbeddingProvider, DEFAULT_EMBEDDING_MODEL, tokenAwareBatch, hashEmbeddingText, buildStructuralEmbeddingText } from './embeddings/embedder.js';
 export type { EmbeddingProvider, OnnxDtype } from './embeddings/embedder.js';
 export type {
