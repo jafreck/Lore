@@ -225,21 +225,11 @@ export async function runCopilotAgent(
   // For lore-enabled arm, register the Lore MCP server
   let mcpConfigPath: string | undefined;
   if (arm === 'lore-enabled' && dbPath) {
-    // Find the Lore project root (where dist/ lives)
-    // For self-benchmarks this is the Lore repo itself
-    const loreProjectRoot = findLoreProjectRoot(repoPath);
+    // Always use the current Lore build, not the cloned repo's (which may
+    // be at an older SHA without recent fixes like the realpathSync guard).
+    const loreProjectRoot = findLoreProjectRoot();
     mcpConfigPath = writeLoreMcpConfig(dbPath, loreProjectRoot);
     args.push('--additional-mcp-config', `@${mcpConfigPath}`);
-  }
-
-  // For control arm, deny Lore tools explicitly
-  if (arm === 'control') {
-    args.push(
-      '--deny-tool', 'lore_lookup', 'lore_search', 'lore_graph',
-      'lore_docs',
-      'lore_test_map', 'lore_snippet', 'lore_blame',
-      'lore_metrics', 'lore_history',
-    );
   }
 
   if (options.extraFlags) {
@@ -261,7 +251,7 @@ export async function runCopilotAgent(
       toolCalls: result.toolCalls,
       filesRead: result.filesRead,
       finalAnswer: result.answer,
-      totalTokensEstimate: result.outputTokens || estimateTokensFromCalls(result.toolCalls, result.answer),
+      totalTokensEstimate: result.outputTokens,
       loreToolsCalled: extractLoreToolsCalled(result.toolCalls),
       rawOutput: output,
     };
@@ -295,29 +285,23 @@ export async function runCopilotAgent(
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-function estimateTokensFromCalls(calls: ToolCallRecord[], answer: string): number {
-  let totalChars = answer.length;
-  for (const call of calls) {
-    totalChars += JSON.stringify(call.args).length;
-    totalChars += call.result.length;
+/**
+ * Resolve the Lore project root that contains `dist/server/server.js`.
+ *
+ * The MCP server must always come from the **current checkout** — never from
+ * a cloned target repo, even when that target is Lore itself.  A pinned-SHA
+ * clone may lack fixes present in the running build (e.g. the realpathSync
+ * entry-guard fix), which would cause the server to silently fail.
+ */
+function findLoreProjectRoot(): string {
+  // Relative to this file: tests/benchmark/util/ → project root
+  const root = join(import.meta.dirname, '..', '..', '..');
+  if (!existsSync(join(root, 'dist', 'server', 'server.js'))) {
+    throw new Error(
+      'Cannot find dist/server/server.js — run `npm run build` before the benchmark.',
+    );
   }
-  return Math.ceil(totalChars / 4);
+  return root;
 }
 
-/**
- * Walk up from repoPath to find the Lore project root (directory containing
- * dist/server/server.js). Falls back to __dirname-based resolution.
- */
-function findLoreProjectRoot(repoPath: string): string {
-  // Check if the repo itself is Lore (has a built server)
-  if (existsSync(join(repoPath, 'dist', 'server', 'server.js'))) {
-    return repoPath;
-  }
-  // Fall back to the Lore project root relative to this file
-  const pkgRoot = join(import.meta.dirname, '..', '..', '..');
-  if (existsSync(join(pkgRoot, 'dist', 'server', 'server.js'))) {
-    return pkgRoot;
-  }
-  // Last resort: assume Lore is built in the current working directory
-  return process.cwd();
-}
+
