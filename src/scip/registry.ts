@@ -9,8 +9,9 @@
  * to LSP enrichment (and ultimately to tree-sitter-only resolution).
  */
 
-import { accessSync, constants } from 'node:fs';
-import { delimiter, isAbsolute, join } from 'node:path';
+import { accessSync, constants, existsSync } from 'node:fs';
+import { delimiter, dirname, isAbsolute, join } from 'node:path';
+import { homedir } from 'node:os';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -60,8 +61,8 @@ export const DEFAULT_SCIP_INDEXER_REGISTRY: ScipIndexerRegistry = {
   scala:      { command: 'scip-java',       args: ['index', '--output', '{output}'] },
   kotlin:     { command: 'scip-java',       args: ['index', '--output', '{output}'] },
   rust:       { command: 'rust-analyzer',   args: ['scip', '.'] },
-  c:          { command: 'scip-clang',      args: ['--index-output-path={output}'] },
-  cpp:        { command: 'scip-clang',      args: ['--index-output-path={output}'] },
+  c:          { command: 'scip-clang',      args: ['--compdb-path={compdb}', '--index-output-path={output}'] },
+  cpp:        { command: 'scip-clang',      args: ['--compdb-path={compdb}', '--index-output-path={output}'] },
   csharp:     { command: 'scip-dotnet',     args: ['index', '.', '--output', '{output}'] },
   ruby:       { command: 'scip-ruby',       args: ['--output', '{output}'] },
   php:        { command: 'scip-php',        args: ['index', '--output', '{output}'] },
@@ -131,6 +132,26 @@ export function resolveScipIndexerRegistry(
 
 // ─── PATH resolution (shared with LSP registry pattern) ──────────────────────
 
+/** Directory where Lore stores managed SCIP indexer binaries. */
+function getLoreBinDir(): string {
+  return join(homedir(), '.lore', 'bin');
+}
+
+/**
+ * Resolve an npm-bundled binary (e.g. scip-typescript shipped as an npm dep).
+ * Checks node_modules/.bin relative to the Lore package root.
+ */
+function resolveNpmBundledBinary(command: string): string | null {
+  // Lore package root is two levels up from dist/scip/
+  const candidates = [
+    join(dirname(new URL(import.meta.url).pathname), '..', '..', 'node_modules', '.bin', command),
+  ];
+  for (const candidate of candidates) {
+    if (isExecutable(candidate)) return candidate;
+  }
+  return null;
+}
+
 function resolveExecutableOnPath(command: string, env: NodeJS.ProcessEnv = process.env): string | null {
   if (!command.trim()) return null;
 
@@ -138,6 +159,15 @@ function resolveExecutableOnPath(command: string, env: NodeJS.ProcessEnv = proce
     return isExecutable(command) ? command : null;
   }
 
+  // 1. Check Lore managed bin directory (~/.lore/bin/)
+  const loreBin = join(getLoreBinDir(), command);
+  if (isExecutable(loreBin)) return loreBin;
+
+  // 2. Check npm-bundled binaries (node_modules/.bin/)
+  const npmBin = resolveNpmBundledBinary(command);
+  if (npmBin) return npmBin;
+
+  // 3. Check system PATH
   const pathValue = env.PATH ?? '';
   if (!pathValue) return null;
 

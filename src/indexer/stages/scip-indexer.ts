@@ -62,6 +62,8 @@ import { SCIP_SUPPORTED_LANGUAGES, resolveScipIndexerRegistry } from '../../scip
 import type { EffectiveScipSettings } from '../../scip/config.js';
 import { getLogger } from '../../logger.js';
 import { extractReturnType } from '../../scip/index-reader.js';
+import { getSpecsForLanguage, installScipIndexer } from '../../scip/installer.js';
+import { ensureCompilationDatabase } from '../../scip/compdb.js';
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { execFile } from 'node:child_process';
@@ -110,6 +112,9 @@ function inferKindFromScipSymbol(scipSymbol: string, docHint: string): string {
     if (docHint.includes('(enum member)')) return 'enum_member';
     if (docHint.includes('const ')) return 'constant';
     if (docHint.includes('(property)')) return 'property';
+    // scip-clang uses term descriptors for C/C++ functions:
+    //   ` $ funcName(hexhash).` — the (hash) indicates a function, not a variable.
+    if (/\([0-9a-f]{8,}\)\.$/.test(scipSymbol)) return 'function';
     return 'variable';
   }
 
@@ -135,6 +140,10 @@ function extractNameFromScipSymbol(scipSymbol: string): string {
   // For methods, strip the disambiguator: `name(+1).` → `name`
   cleaned = cleaned.replace(/\(\+?\d*\)$/, '');
 
+  // scip-clang uses ` $ name(hash)` for C/C++ symbols — strip the hash.
+  // E.g., ` $ parse_analyze_fixedparams(39d222e79bbfb7c0)` → `parse_analyze_fixedparams`
+  cleaned = cleaned.replace(/\([0-9a-f]{8,}\)$/, '');
+
   // Get the last descriptor's name
   // Descriptors are separated by ., #, /, :, or ()
   const parts = cleaned.split(/[.#/:]/);
@@ -142,6 +151,9 @@ function extractNameFromScipSymbol(scipSymbol: string): string {
 
   // Remove backtick escaping
   name = name.replace(/`/g, '');
+
+  // Strip leading ` $ ` prefix used by scip-clang
+  name = name.replace(/^\s*\$\s*/, '');
 
   // Handle parameter descriptors like `(paramName)`
   if (name.startsWith('(') && name.endsWith(')')) {
@@ -301,14 +313,23 @@ export class ScipIndexerStage implements PipelineStage {
       log.indexing('scip-indexer: stale languages', { languages: [...staleLanguages] });
     }
 
-    // Load SCIP index
-    const indexBuffer = await this.loadScipIndex(context.scip, rootDir, staleLanguages);
-    if (!indexBuffer) {
+    // Load SCIP indexes (one per indexer that succeeds)
+    const indexBuffers = await this.loadScipIndexes(context.scip, rootDir, staleLanguages);
+    if (indexBuffers.length === 0) {
       log.indexing('scip-indexer: no SCIP index available');
       return;
     }
 
-    const scipIndex = fromBinary(IndexSchema, indexBuffer);
+    // Parse all SCIP index buffers and combine their documents
+    const allDocuments: import('../../scip/scip_pb.js').Document[] = [];
+    const allExternalSymbols: import('../../scip/scip_pb.js').SymbolInformation[] = [];
+    for (const buf of indexBuffers) {
+      const parsed = fromBinary(IndexSchema, buf);
+      allDocuments.push(...parsed.documents);
+      allExternalSymbols.push(...parsed.externalSymbols);
+    }
+
+    const scipIndex = { documents: allDocuments, externalSymbols: allExternalSymbols };
     log.indexing('scip-indexer: loaded index', {
       documents: scipIndex.documents.length,
       externalSymbols: scipIndex.externalSymbols.length,
@@ -774,25 +795,36 @@ export class ScipIndexerStage implements PipelineStage {
             const refSig = refInfo ? extractSignatureFromDoc(refInfo.documentation[0] ?? '') || null : null;
             const refDefUri = refDef ? pathToFileURL(refDef.filePath).toString() : null;
 
-            insertTypeRef.run(
-              fileId,
-              callerId,
-              calleeId,
-              calleeName,
-              normalizeTypeName(calleeName),
-              typeRefKind,
-              line,
-              character,
-              method,
-              refSig,
-              refDefUri,
-              refDef?.filePath ?? null,
-              refDef?.line ?? null,
-              refDef?.character ?? null,
-            );
-            typeRefsInserted++;
+            try {
+              insertTypeRef.run(
+                fileId,
+                callerId,
+                calleeId ?? null,
+                calleeName,
+                normalizeTypeName(calleeName),
+                typeRefKind,
+                line,
+                character,
+                method,
+                refSig,
+                refDefUri,
+                refDef?.filePath ?? null,
+                refDef?.line ?? null,
+                refDef?.character ?? null,
+              );
+              typeRefsInserted++;
+            } catch {
+              // FK constraint failure — skip this ref
+              refsNoCaller++;
+            }
           } else {
             // refKind === 'call'
+
+            // Skip if callee can't be resolved — FK constraint requires valid callee_id
+            if (!calleeId) {
+              refsNoCaller++;
+              continue;
+            }
 
             // Resolve enrichment metadata for the callee
             const refDef = symbolDefinitions.get(occ.symbol);
@@ -801,24 +833,29 @@ export class ScipIndexerStage implements PipelineStage {
             const refReturnType = extractReturnType(refSig);
             const refDefUri = refDef ? pathToFileURL(refDef.filePath).toString() : null;
 
-            insertCallRef.run(
-              callerId,
-              fileId,
-              calleeId,
-              calleeName,
-              line,
-              character,
-              'direct',
-              method,
-              refSig,
-              refReturnType,
-              refDefUri,
-              refDef?.filePath ?? null,
-              refDef?.line ?? null,
-              refDef?.character ?? null,
-            );
-            refsInserted++;
-            if (isExternal) refsExternal++;
+            try {
+              insertCallRef.run(
+                callerId,
+                fileId,
+                calleeId,
+                calleeName,
+                line,
+                character,
+                'direct',
+                method,
+                refSig,
+                refReturnType,
+                refDefUri,
+                refDef?.filePath ?? null,
+                refDef?.line ?? null,
+                refDef?.character ?? null,
+              );
+              refsInserted++;
+              if (isExternal) refsExternal++;
+            } catch {
+              // FK constraint failure — skip this ref
+              refsNoCaller++;
+            }
           }
         }
       }
@@ -857,46 +894,98 @@ export class ScipIndexerStage implements PipelineStage {
 
   // ─── SCIP index loading ──────────────────────────────────────────────────
 
-  private async loadScipIndex(
+  private async loadScipIndexes(
     settings: EffectiveScipSettings,
     rootDir: string,
     staleLanguages: Set<string> | null = null,
-  ): Promise<Uint8Array | null> {
+  ): Promise<Uint8Array[]> {
     // Try pre-computed index directory first
     if (settings.indexDir) {
+      const precomputed: Uint8Array[] = [];
       // When staleLanguages is set, prefer per-language index files so
       // we only load the languages that actually need re-processing.
       if (staleLanguages) {
         for (const lang of staleLanguages) {
           const candidate = join(rootDir, settings.indexDir, `${lang}.scip`);
           if (existsSync(candidate)) {
-            return readFileSync(candidate);
+            precomputed.push(readFileSync(candidate));
           }
         }
       }
-      const candidates = [
-        join(rootDir, settings.indexDir, 'index.scip'),
-        // Language-specific index files
-        ...['typescript', 'javascript', 'python', 'java', 'rust', 'c', 'cpp', 'csharp', 'ruby', 'php', 'go', 'dart'].map(
-          lang => join(rootDir, settings.indexDir!, `${lang}.scip`),
-        ),
-      ];
-      for (const candidate of candidates) {
-        if (existsSync(candidate)) {
-          return readFileSync(candidate);
+      if (precomputed.length === 0) {
+        const candidates = [
+          join(rootDir, settings.indexDir, 'index.scip'),
+          ...['typescript', 'javascript', 'python', 'java', 'rust', 'c', 'cpp', 'csharp', 'ruby', 'php', 'go', 'dart'].map(
+            lang => join(rootDir, settings.indexDir!, `${lang}.scip`),
+          ),
+        ];
+        for (const candidate of candidates) {
+          if (existsSync(candidate)) {
+            precomputed.push(readFileSync(candidate));
+          }
         }
       }
+      if (precomputed.length > 0) return precomputed;
     }
 
     // Try running an indexer
-    const resolvedIndexers = resolveScipIndexerRegistry(settings.indexers);
+    let resolvedIndexers = resolveScipIndexerRegistry(settings.indexers);
+    const log = getLogger();
+
+    // Check if any indexers are available; if not, try auto-installing
+    const requestedLanguages = staleLanguages ?? new Set(Object.keys(resolvedIndexers));
+    const hasAvailable = [...requestedLanguages].some(
+      (lang) => resolvedIndexers[lang]?.available,
+    );
+    if (!hasAvailable) {
+      const attempted = new Set<string>();
+      for (const lang of requestedLanguages) {
+        for (const spec of getSpecsForLanguage(lang)) {
+          if (attempted.has(spec.command)) continue;
+          attempted.add(spec.command);
+          log.indexing(`scip-indexer: auto-installing ${spec.command} for ${lang}...`);
+          const result = await installScipIndexer(spec);
+          if (result.installed) {
+            log.indexing(`scip-indexer: installed ${spec.command} at ${result.path}`);
+          } else {
+            log.indexing(`scip-indexer: could not install ${spec.command}: ${result.error ?? 'unknown'}`);
+          }
+        }
+      }
+      // Re-resolve after installation
+      resolvedIndexers = resolveScipIndexerRegistry(settings.indexers);
+    }
+
+    // Determine which SCIP-supported languages actually exist in the project
+    // so we don't waste time running irrelevant indexers (e.g., scip-go on a C project).
+    const projectLanguages = staleLanguages ?? detectProjectLanguages(resolve(rootDir));
+
+    // Run all available indexers and merge results — don't stop at the first success.
+    // Group by shared command to avoid running the same indexer twice (e.g., scip-java for java/scala/kotlin).
+    const commandsRun = new Set<string>();
+    const indexBuffers: Uint8Array[] = [];
+
     for (const [lang, indexer] of Object.entries(resolvedIndexers)) {
       if (!indexer.available) continue;
-      // Per-language staleness: skip indexers for languages that haven't changed.
-      if (staleLanguages && !staleLanguages.has(lang)) continue;
+      // Skip languages not present in the project
+      if (!projectLanguages.has(lang)) continue;
+      // Don't run the same command twice (e.g., scip-clang for both c and cpp)
+      if (commandsRun.has(indexer.command)) continue;
+      commandsRun.add(indexer.command);
       try {
-        const outputPath = join(rootDir, `.lore-scip-${lang}.scip`);
-        const args = indexer.args.map(a => a.replace(/\{output\}/g, outputPath));
+        const outputPath = resolve(rootDir, `.lore-scip-${lang}.scip`);
+        let args = indexer.args.map(a => a.replace(/\{output\}/g, outputPath));
+        const cwd = resolve(rootDir);
+
+        // For C/C++: ensure a compile_commands.json exists and pass it to scip-clang
+        if ((lang === 'c' || lang === 'cpp') && args.some(a => a.includes('{compdb}'))) {
+          const compdb = await ensureCompilationDatabase(rootDir, settings.timeoutMs);
+          if (!compdb.path) {
+            log.indexing(`scip-indexer: no compile_commands.json for ${lang}, skipping`);
+            continue;
+          }
+          args = args.map(a => a.replace(/\{compdb\}/g, compdb.path!));
+        }
 
         // For TypeScript: generate a broad tsconfig so scip-typescript
         // indexes ALL .ts files (including tests), not just those in the
@@ -909,11 +998,17 @@ export class ScipIndexerStage implements PipelineStage {
           }
         }
 
+        // scip-clang needs a longer timeout for large C projects
+        const indexerTimeout = (lang === 'c' || lang === 'cpp')
+          ? Math.max(settings.timeoutMs, 600_000)
+          : settings.timeoutMs;
+
         const execFileAsync = promisify(execFile);
+        const executablePath = indexer.resolvedPath ?? indexer.command;
         try {
-          await execFileAsync(indexer.command, args, {
-            cwd: rootDir,
-            timeout: settings.timeoutMs,
+          await execFileAsync(executablePath, args, {
+            cwd,
+            timeout: indexerTimeout,
           });
         } finally {
           if (tempTsconfigPath) {
@@ -922,19 +1017,22 @@ export class ScipIndexerStage implements PipelineStage {
         }
 
         // Check for output
-        for (const candidate of [outputPath, join(rootDir, 'index.scip')]) {
+        for (const candidate of [outputPath, resolve(rootDir, 'index.scip')]) {
           if (existsSync(candidate)) {
             const data = readFileSync(candidate);
             try { fs.unlinkSync(candidate); } catch { /* best effort */ }
-            return data;
+            indexBuffers.push(data);
+            break;
           }
         }
-      } catch {
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        log.indexing(`scip-indexer: indexer failed for ${lang}: ${msg}`);
         continue;
       }
     }
 
-    return null;
+    return indexBuffers;
   }
 }
 
@@ -1012,6 +1110,10 @@ export function createLoreScipTsconfig(rootDir: string): string | null {
 function classifyScipReference(scipSymbol: string): 'call' | 'type' | 'skip' {
   // Method/function: ends with ().  or (+N).  (with disambiguator)
   if (/\(\+?\d*\)\.$/.test(scipSymbol)) return 'call';
+
+  // scip-clang C/C++ functions: term descriptors ending with `(hexhash).`
+  // E.g., `$ parse_analyze_fixedparams(39d222e79bbfb7c0).`
+  if (/\([0-9a-f]{8,}\)\.$/.test(scipSymbol)) return 'call';
 
   // Type: ends with #
   if (scipSymbol.endsWith('#')) return 'type';
@@ -1117,6 +1219,64 @@ const SCIP_LANG_MAP: Record<string, string> = {
   go: 'go',
   dart: 'dart',
 };
+
+/**
+ * Quick scan of the project root to detect which SCIP-supported languages
+ * are present.  Checks for telltale file extensions and build files.
+ * Only scans top-level + one directory deep to stay fast.
+ */
+function detectProjectLanguages(rootDir: string): Set<string> {
+  const found = new Set<string>();
+  const langIndicators: Record<string, string[]> = {
+    typescript: ['tsconfig.json', 'package.json'],
+    python: ['setup.py', 'pyproject.toml', 'requirements.txt'],
+    java:   ['pom.xml', 'build.gradle', 'build.gradle.kts'],
+    rust:   ['Cargo.toml'],
+    c:      ['Makefile', 'CMakeLists.txt', 'meson.build', 'configure', 'configure.ac'],
+    cpp:    ['CMakeLists.txt', 'meson.build'],
+    csharp: ['.csproj', '.sln'],
+    ruby:   ['Gemfile'],
+    go:     ['go.mod'],
+    php:    ['composer.json'],
+    dart:   ['pubspec.yaml'],
+  };
+
+  // Check for language indicator files at the root
+  for (const [lang, indicators] of Object.entries(langIndicators)) {
+    for (const indicator of indicators) {
+      if (existsSync(join(rootDir, indicator))) {
+        found.add(lang);
+        break;
+      }
+    }
+  }
+
+  // Quick extension scan: read first-level directory entries
+  try {
+    const entries = fs.readdirSync(rootDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isFile()) {
+        const ext = entry.name.slice(entry.name.lastIndexOf('.')).toLowerCase();
+        const lang = EXT_TO_LANG[ext];
+        if (lang && SCIP_SUPPORTED_LANGUAGES.has(lang)) found.add(lang);
+      } else if (entry.isDirectory() && entry.name !== 'node_modules' && !entry.name.startsWith('.')) {
+        // One level deep
+        try {
+          const subEntries = fs.readdirSync(join(rootDir, entry.name), { withFileTypes: true });
+          for (const sub of subEntries.slice(0, 50)) { // Limit to avoid scanning huge dirs
+            if (sub.isFile()) {
+              const ext = sub.name.slice(sub.name.lastIndexOf('.')).toLowerCase();
+              const lang = EXT_TO_LANG[ext];
+              if (lang && SCIP_SUPPORTED_LANGUAGES.has(lang)) found.add(lang);
+            }
+          }
+        } catch { /* ignore permission errors */ }
+      }
+    }
+  } catch { /* ignore */ }
+
+  return found;
+}
 
 const EXT_TO_LANG: Record<string, string> = {
   '.ts': 'typescript',
