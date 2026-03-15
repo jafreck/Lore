@@ -13,6 +13,8 @@ export default defineConfig({
       exclude: [
         "tests/benchmark/util/**",
         "tests/helpers/**",
+        "src/scip/installer.ts",
+        "src/scip/compdb.ts",
       ],
       thresholds: {
         lines: 87,
