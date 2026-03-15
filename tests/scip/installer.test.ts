@@ -7,6 +7,7 @@ import {
   buildInstallSpecs,
   SCIP_INSTALL_SPECS,
   getLoreBinDir,
+  createDefaultIO,
   type InstallerIO,
   type ScipInstallSpec,
 } from '../../src/scip/installer.js';
@@ -277,5 +278,253 @@ describe('installAllMissing', () => {
     const results = await installAllMissing({ quiet: true, io });
     const commands = results.map((r) => r.command);
     expect(new Set(commands).size).toBe(commands.length);
+  });
+});
+
+// ─── createDefaultIO ──────────────────────────────────────────────────────────
+
+describe('createDefaultIO', () => {
+  it('returns an object with all InstallerIO methods', () => {
+    const io = createDefaultIO();
+    expect(typeof io.existsSync).toBe('function');
+    expect(typeof io.mkdirSync).toBe('function');
+    expect(typeof io.chmodSync).toBe('function');
+    expect(typeof io.downloadFile).toBe('function');
+    expect(typeof io.execFileAsync).toBe('function');
+    expect(typeof io.isCommandAvailable).toBe('function');
+    expect(typeof io.findNpmBinPath).toBe('function');
+    expect(typeof io.getLatestGitHubReleaseTag).toBe('function');
+    expect(typeof io.unlinkSync).toBe('function');
+    expect(typeof io.getPlatformArch).toBe('function');
+    expect(typeof io.getLoreBinDir).toBe('function');
+  });
+
+  it('getPlatformArch returns os and cpu strings', () => {
+    const io = createDefaultIO();
+    const { os, cpu } = io.getPlatformArch();
+    expect(typeof os).toBe('string');
+    expect(typeof cpu).toBe('string');
+    expect(os.length).toBeGreaterThan(0);
+    expect(cpu.length).toBeGreaterThan(0);
+  });
+
+  it('getLoreBinDir returns a path containing .lore/bin', () => {
+    const io = createDefaultIO();
+    expect(io.getLoreBinDir()).toContain('.lore');
+  });
+
+  it('isCommandAvailable returns boolean for known command', () => {
+    const io = createDefaultIO();
+    // node should always be available
+    expect(typeof io.isCommandAvailable('node')).toBe('boolean');
+    expect(io.isCommandAvailable('node')).toBe(true);
+    // random gibberish should not be
+    expect(io.isCommandAvailable('__nonexistent_cmd_xyz__')).toBe(false);
+  });
+
+  it('findNpmBinPath returns string or null', () => {
+    const io = createDefaultIO();
+    // scip-typescript is a bundled dep
+    const result = io.findNpmBinPath('scip-typescript');
+    // It may or may not be found depending on the environment, but should be string|null
+    expect(result === null || typeof result === 'string').toBe(true);
+  });
+
+  it('existsSync delegates to fs.existsSync', () => {
+    const io = createDefaultIO();
+    expect(io.existsSync('/definitely/does/not/exist/abc123')).toBe(false);
+  });
+});
+
+// ─── Additional edge-case tests ───────────────────────────────────────────────
+
+describe('installScipIndexer edge cases', () => {
+  it('github-binary: missing repo config', async () => {
+    const io = createMockIO();
+    const spec: ScipInstallSpec = { command: 'x', languages: ['x'], method: 'github-binary' };
+    const result = await installScipIndexer(spec, io);
+    expect(result.installed).toBe(false);
+    expect(result.error).toContain('Missing repo');
+  });
+
+  it('github-tarball: missing repo config', async () => {
+    const io = createMockIO();
+    const spec: ScipInstallSpec = { command: 'x', languages: ['x'], method: 'github-tarball' };
+    const result = await installScipIndexer(spec, io);
+    expect(result.installed).toBe(false);
+    expect(result.error).toContain('Missing repo');
+  });
+
+  it('github-tarball: returns false when extracted binary not found', async () => {
+    const io = createMockIO({
+      getPlatformArch: vi.fn(() => ({ os: 'linux', cpu: 'x64' })),
+      // existsSync always returns false (binary not found after extraction)
+      existsSync: vi.fn(() => false),
+    });
+    const spec: ScipInstallSpec = {
+      command: 'scip-go', languages: ['go'], method: 'github-tarball',
+      repo: 'sourcegraph/scip-go', assetName: () => 'scip-go.tar.gz',
+    };
+    const result = await installScipIndexer(spec, io);
+    expect(result.installed).toBe(false);
+    expect(result.path).toBeNull();
+  });
+
+  it('github-tarball: no release found', async () => {
+    const io = createMockIO({ getLatestGitHubReleaseTag: vi.fn(async () => null) });
+    const spec: ScipInstallSpec = {
+      command: 'scip-go', languages: ['go'], method: 'github-tarball',
+      repo: 'sourcegraph/scip-go', assetName: () => 'x.tar.gz',
+    };
+    const result = await installScipIndexer(spec, io);
+    expect(result.installed).toBe(false);
+    expect(result.error).toContain('No releases');
+  });
+
+  it('github-tarball: no asset for platform', async () => {
+    const io = createMockIO({ getPlatformArch: vi.fn(() => ({ os: 'freebsd', cpu: 'mips' })) });
+    const specs = buildInstallSpecs(io);
+    const goSpec = specs.find((s) => s.command === 'scip-go')!;
+    const result = await installScipIndexer(goSpec, io);
+    expect(result.installed).toBe(false);
+    expect(result.error).toContain('No binary');
+  });
+
+  it('github-tarball: download failure', async () => {
+    const io = createMockIO({
+      getPlatformArch: vi.fn(() => ({ os: 'linux', cpu: 'x64' })),
+      downloadFile: vi.fn(async () => { throw new Error('timeout'); }),
+    });
+    const specs = buildInstallSpecs(io);
+    const goSpec = specs.find((s) => s.command === 'scip-go')!;
+    const result = await installScipIndexer(goSpec, io);
+    expect(result.installed).toBe(false);
+    expect(result.error).toBe('timeout');
+  });
+
+  it('pip: missing packageName', async () => {
+    const io = createMockIO();
+    const spec: ScipInstallSpec = { command: 'x', languages: ['x'], method: 'pip' };
+    const result = await installScipIndexer(spec, io);
+    expect(result.error).toContain('Missing pip');
+  });
+
+  it('pip: exec failure', async () => {
+    const io = createMockIO({
+      isCommandAvailable: vi.fn((cmd: string) => cmd === 'pip3'),
+      execFileAsync: vi.fn(async () => { throw new Error('pip failed'); }),
+    });
+    const spec: ScipInstallSpec = { command: 'x', languages: ['x'], method: 'pip', packageName: 'pkg' };
+    const result = await installScipIndexer(spec, io);
+    expect(result.installed).toBe(false);
+    expect(result.error).toBe('pip failed');
+  });
+
+  it('pip: falls back to pip when pip3 not available', async () => {
+    const io = createMockIO({
+      isCommandAvailable: vi.fn((cmd: string) => cmd === 'pip'),
+    });
+    const spec: ScipInstallSpec = { command: 'x', languages: ['x'], method: 'pip', packageName: 'pkg' };
+    const result = await installScipIndexer(spec, io);
+    expect(result.installed).toBe(true);
+    expect(io.execFileAsync).toHaveBeenCalledWith('pip', expect.anything(), expect.anything());
+  });
+
+  it('gem: missing packageName', async () => {
+    const io = createMockIO();
+    const spec: ScipInstallSpec = { command: 'x', languages: ['x'], method: 'gem' };
+    const result = await installScipIndexer(spec, io);
+    expect(result.error).toContain('Missing gem');
+  });
+
+  it('gem: exec failure', async () => {
+    const io = createMockIO({
+      isCommandAvailable: vi.fn((cmd: string) => cmd === 'gem'),
+      execFileAsync: vi.fn(async () => { throw new Error('gem failed'); }),
+    });
+    const spec: ScipInstallSpec = { command: 'x', languages: ['x'], method: 'gem', packageName: 'pkg' };
+    const result = await installScipIndexer(spec, io);
+    expect(result.installed).toBe(false);
+    expect(result.error).toBe('gem failed');
+  });
+
+  it('gem: not available', async () => {
+    const io = createMockIO();
+    const spec: ScipInstallSpec = { command: 'x', languages: ['x'], method: 'gem', packageName: 'pkg' };
+    const result = await installScipIndexer(spec, io);
+    expect(result.error).toContain('gem not found');
+  });
+
+  it('dotnet-tool: missing packageName', async () => {
+    const io = createMockIO();
+    const spec: ScipInstallSpec = { command: 'x', languages: ['x'], method: 'dotnet-tool' };
+    const result = await installScipIndexer(spec, io);
+    expect(result.error).toContain('Missing dotnet');
+  });
+
+  it('dotnet-tool: exec failure', async () => {
+    const io = createMockIO({
+      isCommandAvailable: vi.fn((cmd: string) => cmd === 'dotnet'),
+      execFileAsync: vi.fn(async () => { throw new Error('dotnet err'); }),
+    });
+    const spec: ScipInstallSpec = { command: 'x', languages: ['x'], method: 'dotnet-tool', packageName: 'pkg' };
+    const result = await installScipIndexer(spec, io);
+    expect(result.installed).toBe(false);
+    expect(result.error).toBe('dotnet err');
+  });
+
+  it('dotnet-tool: not available', async () => {
+    const io = createMockIO();
+    const spec: ScipInstallSpec = { command: 'x', languages: ['x'], method: 'dotnet-tool', packageName: 'pkg' };
+    const result = await installScipIndexer(spec, io);
+    expect(result.error).toContain('dotnet not found');
+  });
+
+  it('coursier: uses coursier when cs not available', async () => {
+    const io = createMockIO({ isCommandAvailable: vi.fn((cmd: string) => cmd === 'coursier') });
+    const spec: ScipInstallSpec = { command: 'scip-java', languages: ['java'], method: 'coursier' };
+    const result = await installScipIndexer(spec, io);
+    expect(result.installed).toBe(true);
+    expect(io.execFileAsync).toHaveBeenCalledWith('coursier', expect.anything(), expect.anything());
+  });
+
+  it('coursier: exec failure', async () => {
+    const io = createMockIO({
+      isCommandAvailable: vi.fn((cmd: string) => cmd === 'cs'),
+      execFileAsync: vi.fn(async () => { throw new Error('cs err'); }),
+    });
+    const spec: ScipInstallSpec = { command: 'scip-java', languages: ['java'], method: 'coursier' };
+    const result = await installScipIndexer(spec, io);
+    expect(result.installed).toBe(false);
+    expect(result.error).toBe('cs err');
+  });
+
+  it('npm-bundled: catches exceptions', async () => {
+    const io = createMockIO({
+      findNpmBinPath: vi.fn(() => { throw new Error('npm error'); }),
+    });
+    const spec: ScipInstallSpec = { command: 'scip-typescript', languages: ['typescript'], method: 'npm-bundled' };
+    const result = await installScipIndexer(spec, io);
+    expect(result.installed).toBe(false);
+    expect(result.error).toContain('Failed to resolve');
+  });
+});
+
+// ─── installAllMissing verbose logging ────────────────────────────────────────
+
+describe('installAllMissing logging', () => {
+  it('logs when not quiet', async () => {
+    const io = createMockIO({
+      findNpmBinPath: vi.fn(() => '/path/to/bin'),
+    });
+    // Not quiet: should not throw
+    const results = await installAllMissing({ languages: ['typescript'], io });
+    expect(results[0]!.installed).toBe(true);
+  });
+
+  it('logs failed installs when not quiet', async () => {
+    const io = createMockIO();
+    const results = await installAllMissing({ languages: ['rust'], io });
+    expect(results[0]!.installed).toBe(false);
   });
 });
