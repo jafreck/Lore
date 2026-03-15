@@ -51,12 +51,11 @@ flowchart LR
         SCIPSRC[SCIP Source<br/>pre-resolved symbols + refs]
         WALK[Walker<br/>fast-glob · extension map]
         PARSE[ParserPool<br/>tree-sitter 0.25 grammars]
-        EXTRACT[Extractors<br/>symbols · imports · call refs<br/>type refs · routes · annotations]
+        EXTRACT[Extractors<br/>symbols · imports · call refs<br/>type refs · annotations]
         RESOLVE[ImportResolver<br/>internal ↔ external]
         DEPAPI[Dependency API Indexer<br/>direct deps · TS/Py/Go/Rust declarations]
         CALLGRAPH[Relationship Resolver<br/>3-tier resolution · topo sort]
         DOCINGEST[Docs Ingest<br/>discover · classify · chunk]
-        DOCNOTES[Doc Note Seeding<br/>README · architecture · ADR]
         SCIPENRICH[SCIP Enrichment<br/>definition + type metadata from SCIP]
         LSP[LSP Enrichment<br/>batch-pipelined hover + definition<br/>persisted metadata]
         COVER[Coverage Ingest<br/>LCOV · Cobertura]
@@ -72,9 +71,7 @@ flowchart LR
         REFS[(symbol_refs)]
         TYPES[(symbol_relationships · type_refs)]
         ANN[(annotations)]
-        ROUTE_STORE[(api_routes)]
         DOCS[(docs · doc_sections)]
-        NOTES[(notes)]
         COV[(coverage_runs · coverage_files<br/>coverage_lines)]
         VEC[(symbol_embeddings · symbol_semantic_embeddings<br/>doc_section_embeddings · commit_embeddings)]
         HIST[(commits · commit_files<br/>commit_refs)]
@@ -86,13 +83,15 @@ flowchart LR
         SEARCH[lore_search<br/>BM25 · vector · fused]
         DOCS_TOOL[lore_docs]
         GRAPH[lore_graph]
-        ROUTES[lore_routes]
-        NOTES_TOOL[lore_notes_read/write]
         SNIPPET[lore_snippet]
         TESTMAP[lore_test_map]
         BLAME[lore_blame]
         HISTORY[lore_history]
         METRICS[lore_metrics]
+        TRACE[lore_trace]
+        DIFF[lore_diff]
+        COHESION[lore_cohesion]
+        DEPENDENTS[lore_dependents]
     end
 
     subgraph LLM_AGENTS[Agents]
@@ -117,7 +116,6 @@ flowchart LR
     EXTRACT --> CALLGRAPH --> REFS
     EXTRACT --> CALLGRAPH --> TYPES
     EXTRACT --> ANN
-    EXTRACT --> ROUTE_STORE
     EXTRACT --> SCIPENRICH
     SCIPENRICH --> SYM
     SCIPENRICH --> REFS
@@ -129,15 +127,14 @@ flowchart LR
     LSP --> EXT
     EXTRACT --> FILES & SYM
     DOCSRC --> DOCINGEST --> DOCS
-    DOCINGEST --> DOCNOTES --> NOTES
     COVER --> COV
     COVREP --> COVER
     EMBED -.->|optional| VEC
     GIT --> GITHIST --> HIST
 
-    FILES & SYM & IMP & EXT & REFS & TYPES & ANN & ROUTE_STORE & DOCS & NOTES & COV & VEC & HIST & META --- LOOKUP & SEARCH & DOCS_TOOL & GRAPH & ROUTES & NOTES_TOOL & SNIPPET & TESTMAP & BLAME & HISTORY & METRICS
+    FILES & SYM & IMP & EXT & REFS & TYPES & ANN & DOCS & COV & VEC & HIST & META --- LOOKUP & SEARCH & DOCS_TOOL & GRAPH & SNIPPET & TESTMAP & BLAME & HISTORY & METRICS & TRACE & DIFF & COHESION & DEPENDENTS
 
-    LOOKUP & SEARCH & DOCS_TOOL & GRAPH & ROUTES & NOTES_TOOL & SNIPPET & TESTMAP & BLAME & HISTORY & METRICS <--> LLM_AGENTS
+    LOOKUP & SEARCH & DOCS_TOOL & GRAPH & SNIPPET & TESTMAP & BLAME & HISTORY & METRICS & TRACE & DIFF & COHESION & DEPENDENTS <--> LLM_AGENTS
 
     LLM_AGENTS <--- ENTRY
 ```
@@ -182,7 +179,7 @@ during enrichment stages (SCIP enrichment and/or LSP enrichment).
 |--------|--------------|
 | `discovery/walker.ts` | Discovers source files via `fast-glob`, maps extensions to languages |
 | `parsing/parser.ts` | Lazily creates one tree-sitter 0.25 `Parser` per language, caches for reuse |
-| `parsing/extractors/*` | Language-specific AST visitors for symbols, imports, call refs, type refs, annotations, and API routes; all 23 supported languages extract call references |
+| `parsing/extractors/*` | Language-specific AST visitors for symbols, imports, call refs, type refs, and annotations; all 23 supported languages extract call references |
 | `resolution/resolver.ts` | Classifies each raw import as internal (resolved to a file ID) or external (third-party / stdlib) |
 | `resolution/call-graph.ts` | 3-tier symbol resolution with SCIP/LSP-first ref resolution and name-based fallback; supports topo sort and cycle detection |
 | `resolution/graph-analysis.ts` | Higher-level graph primitives: Tarjan SCC on symbol adjacency, union-find connected components, SCC-contracted bounded clustering, and condensed codebase summary |
@@ -239,9 +236,7 @@ Key optimizations in the indexing pipeline (v0.3.0):
 | Dependency APIs | `external_symbols` | Exported/public declarations from direct dependency APIs across npm, Python, Go, and Rust (ecosystem/source/package/version + symbol metadata), stored separately from in-repo symbols; includes optional persisted LSP enrichment metadata |
 | Relationships | `symbol_refs`, `symbol_relationships`, `type_refs` | Call-site edges, inheritance/implements-style relationships, and symbol → referenced-type edges, including optional persisted LSP enrichment metadata |
 | Annotations | `annotations` | Indexed TODO/FIXME/HACK/NOTE-style source annotations with file and line metadata |
-| Routes | `api_routes` | Indexed API routes/endpoints with method, path, framework, handler, and middleware metadata |
 | Docs | `docs`, `doc_sections` | Indexed docs keyed by `(path, branch)` plus chunked sections with heading metadata |
-| Notes | `notes` | User/system notes keyed by `(key, scope)`; doc-scoped notes use `source_hash` to track staleness against `docs.content_hash` |
 | Coverage | `coverage_runs`, `coverage_files`, `coverage_lines` | Coverage ingestion run metadata plus normalized per-file and per-line hit data |
 | Embeddings | `symbol_embeddings`, `symbol_semantic_embeddings`, `doc_section_embeddings`, `commit_embeddings` | vec0 virtual tables for semantic symbol/doc-section retrieval and semantic commit-message history retrieval |
 | History | `commits`, `commit_files`, `commit_refs` | Git commit metadata, touched files, and named refs |
@@ -254,9 +249,11 @@ Key optimizations in the indexing pipeline (v0.3.0):
 | `lore_lookup` | Find symbols by name or files by path (optional branch filter), including external API symbol matches from `external_symbols` and persisted LSP-enrichment metadata when available |
 | `lore_search` | Structural BM25, semantic vector, or fused RRF search; semantic/fused modes can return docs section hits and structural results are augmented by external symbol-name matches from `external_symbols`; returns persisted LSP-enrichment metadata fields when available |
 | `lore_docs` | List indexed docs, fetch full docs with optional sections, or search indexed sections |
-| `lore_routes` | Query extracted API routes/endpoints with optional method, path prefix, and framework filters |
-| `lore_notes_read` / `lore_notes_write` | Persist notes and read note freshness metadata (`source_hash_mismatch`, `doc_missing`, etc.) |
 | `lore_graph` | Query call, import, inheritance, or type-dependency edges; supports `source_id` for outbound and `target_id` for inbound/reverse queries (`call` edges include `callee_coverage_percent`) |
+| `lore_trace` | Trace execution paths between two symbols through the call graph |
+| `lore_diff` | Diff exported API surfaces between branches |
+| `lore_cohesion` | Compute module cohesion metrics for a file or directory |
+| `lore_dependents` | Unified reverse-dependency / blast-radius query across callers, importers, subclasses, and type refs |
 | `lore_snippet` | Return snippets from indexed DB-backed file snapshots by file path + line range or by symbol name; path/symbol resolution is branch-aware and responses include containing-symbol context metadata when available |
 | `lore_test_map` | Return mapped test files (with confidence) for a given source file path |
 | `lore_blame` | Query blame (`mode: "blame"`), line-range evolution (`mode: "history"`), or ownership aggregates (`mode: "ownership"`), including symbol-targeted range resolution |
