@@ -22,6 +22,7 @@ import type { Database } from '../db/read-only.js';
 import type { EmbeddingProvider } from '../embeddings/embedder.js';
 import type { LoreLogger } from '../logger.js';
 import type { SearchObserver } from './tools/search.js';
+import { getFreshness } from '../db/read-only.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -163,12 +164,23 @@ function loggedHandler<A>(
   toolName: string,
   fn: (args: A) => unknown | Promise<unknown>,
   log: LoreLogger,
+  db?: Database.Database,
 ): (args: A) => Promise<{ content: Array<{ type: 'text'; text: string }> }> {
   return async (args: A) => {
     const start = performance.now();
     try {
-      const result = await fn(args);
+      let result = await fn(args);
       const durationMs = Math.round((performance.now() - start) * 100) / 100;
+
+      // Inject freshness metadata into the response if result is an object.
+      if (db && result && typeof result === 'object' && !Array.isArray(result)) {
+        try {
+          (result as Record<string, unknown>).freshness = getFreshness(db);
+        } catch {
+          // Freshness unavailable — skip silently.
+        }
+      }
+
       log.toolCall({
         tool: toolName,
         requestBody: args,
@@ -212,7 +224,7 @@ export function registerTools(
       mod.def.name,
       mod.def.description,
       zodShape,
-      loggedHandler(mod.def.name, handler, deps.logger),
+      loggedHandler(mod.def.name, handler, deps.logger, deps.db),
     );
   }
 }

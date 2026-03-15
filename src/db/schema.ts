@@ -28,7 +28,9 @@ CREATE TABLE IF NOT EXISTS files (
   last_hash   TEXT,
   source      TEXT    NOT NULL DEFAULT '',
   indexed_at  INTEGER NOT NULL DEFAULT (unixepoch()),
-  UNIQUE(path, branch)
+  layer       TEXT    NOT NULL DEFAULT 'baseline',
+  generation  INTEGER NOT NULL DEFAULT 0,
+  UNIQUE(path, branch, layer)
 );
 
 -- Named symbols extracted from source files.
@@ -44,7 +46,9 @@ CREATE TABLE IF NOT EXISTS symbols (
   resolved_type_signature TEXT,
   resolved_return_type TEXT,
   definition_uri TEXT,
-  definition_path TEXT
+  definition_path TEXT,
+  layer       TEXT    NOT NULL DEFAULT 'baseline',
+  generation  INTEGER NOT NULL DEFAULT 0
 );
 
 -- File-linked annotations extracted from comments (e.g. TODO/FIXME/NOTE).
@@ -56,7 +60,9 @@ CREATE TABLE IF NOT EXISTS annotations (
   text        TEXT    NOT NULL,
   symbol_id   INTEGER REFERENCES symbols(id) ON DELETE SET NULL,
   author      TEXT,
-  created_at  INTEGER
+  created_at  INTEGER,
+  layer       TEXT    NOT NULL DEFAULT 'baseline',
+  generation  INTEGER NOT NULL DEFAULT 0
 );
 
 -- Import / use declarations found in source files.
@@ -64,7 +70,9 @@ CREATE TABLE IF NOT EXISTS file_imports (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   file_id     INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
   raw_import  TEXT    NOT NULL,
-  resolved_id INTEGER REFERENCES files(id)
+  resolved_id INTEGER REFERENCES files(id),
+  layer       TEXT    NOT NULL DEFAULT 'baseline',
+  generation  INTEGER NOT NULL DEFAULT 0
 );
 
 -- Test file to source file mappings derived during indexing.
@@ -91,7 +99,9 @@ CREATE TABLE IF NOT EXISTS symbol_refs (
   definition_path TEXT,
   definition_line INTEGER,
   definition_character INTEGER,
-  resolution_method TEXT NOT NULL DEFAULT 'unresolved'
+  resolution_method TEXT NOT NULL DEFAULT 'unresolved',
+  layer       TEXT    NOT NULL DEFAULT 'baseline',
+  generation  INTEGER NOT NULL DEFAULT 0
 );
 
 -- Semantic relationships between symbols (extends, implements, etc.).
@@ -108,7 +118,9 @@ CREATE TABLE IF NOT EXISTS symbol_relationships (
   definition_path    TEXT,
   definition_line    INTEGER,
   definition_character INTEGER,
-  resolution_method  TEXT NOT NULL DEFAULT 'unresolved'
+  resolution_method  TEXT NOT NULL DEFAULT 'unresolved',
+  layer       TEXT    NOT NULL DEFAULT 'baseline',
+  generation  INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_symbol_rels_source ON symbol_relationships(source_symbol_id);
 CREATE INDEX IF NOT EXISTS idx_symbol_rels_target ON symbol_relationships(target_symbol_id);
@@ -132,7 +144,9 @@ CREATE TABLE IF NOT EXISTS type_refs (
   definition_path         TEXT,
   definition_line         INTEGER,
   definition_character    INTEGER,
-  resolution_method       TEXT NOT NULL DEFAULT 'unresolved'
+  resolution_method       TEXT NOT NULL DEFAULT 'unresolved',
+  layer       TEXT    NOT NULL DEFAULT 'baseline',
+  generation  INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_type_refs_type_name ON type_refs(type_name);
 CREATE INDEX IF NOT EXISTS idx_type_refs_type_name_bare ON type_refs(type_name_bare);
@@ -146,6 +160,8 @@ CREATE TABLE IF NOT EXISTS external_deps (
   file_id     INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
   package     TEXT    NOT NULL,
   version     TEXT,
+  layer       TEXT    NOT NULL DEFAULT 'baseline',
+  generation  INTEGER NOT NULL DEFAULT 0,
   UNIQUE(file_id, package)
 );
 
@@ -197,7 +213,9 @@ CREATE TABLE IF NOT EXISTS symbol_metrics (
   line_count  INTEGER NOT NULL,
   param_count INTEGER NOT NULL,
   cyclomatic  INTEGER NOT NULL,
-  max_nesting INTEGER NOT NULL
+  max_nesting INTEGER NOT NULL,
+  layer       TEXT    NOT NULL DEFAULT 'baseline',
+  generation  INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_symbol_metrics_cyclomatic ON symbol_metrics(cyclomatic);
 
@@ -329,6 +347,26 @@ CREATE INDEX IF NOT EXISTS idx_external_symbols_package_name ON external_symbols
 CREATE INDEX IF NOT EXISTS idx_external_symbols_symbol_name ON external_symbols(symbol_name);
 CREATE INDEX IF NOT EXISTS idx_symbols_file_id ON symbols(file_id);
 CREATE INDEX IF NOT EXISTS idx_symbols_name ON symbols(name);
+
+-- ─── Incremental indexing: new tables ──────────────────────────────────────────
+
+-- Tracks files with active overlay data.
+CREATE TABLE IF NOT EXISTS dirty_files (
+  path        TEXT PRIMARY KEY,
+  dirty_since INTEGER NOT NULL DEFAULT (unixepoch()),
+  overlay_gen INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_dirty_files_path ON dirty_files(path);
+
+-- Reverse dependency graph: "file X is depended on by file Y".
+CREATE TABLE IF NOT EXISTS reverse_deps (
+  file_id      INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+  dependent_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+  dep_kind     TEXT    NOT NULL DEFAULT 'import',
+  PRIMARY KEY (file_id, dependent_id, dep_kind)
+);
+CREATE INDEX IF NOT EXISTS idx_reverse_deps_file ON reverse_deps(file_id);
+CREATE INDEX IF NOT EXISTS idx_reverse_deps_dependent ON reverse_deps(dependent_id);
 `;
 
 const ENRICHMENT_SCHEMA_MIGRATIONS: Array<{ table: string; column: string; sql: string }> = [
@@ -359,6 +397,25 @@ const ENRICHMENT_SCHEMA_MIGRATIONS: Array<{ table: string; column: string; sql: 
   { table: 'symbol_relationships', column: 'definition_character', sql: 'ALTER TABLE symbol_relationships ADD COLUMN definition_character INTEGER' },
   { table: 'symbol_relationships', column: 'resolution_method', sql: "ALTER TABLE symbol_relationships ADD COLUMN resolution_method TEXT NOT NULL DEFAULT 'unresolved'" },
   { table: 'symbols', column: 'is_exported', sql: 'ALTER TABLE symbols ADD COLUMN is_exported INTEGER NOT NULL DEFAULT 0' },
+  // Incremental indexing: layer + generation columns
+  { table: 'files', column: 'layer', sql: "ALTER TABLE files ADD COLUMN layer TEXT NOT NULL DEFAULT 'baseline'" },
+  { table: 'files', column: 'generation', sql: 'ALTER TABLE files ADD COLUMN generation INTEGER NOT NULL DEFAULT 0' },
+  { table: 'symbols', column: 'layer', sql: "ALTER TABLE symbols ADD COLUMN layer TEXT NOT NULL DEFAULT 'baseline'" },
+  { table: 'symbols', column: 'generation', sql: 'ALTER TABLE symbols ADD COLUMN generation INTEGER NOT NULL DEFAULT 0' },
+  { table: 'annotations', column: 'layer', sql: "ALTER TABLE annotations ADD COLUMN layer TEXT NOT NULL DEFAULT 'baseline'" },
+  { table: 'annotations', column: 'generation', sql: 'ALTER TABLE annotations ADD COLUMN generation INTEGER NOT NULL DEFAULT 0' },
+  { table: 'file_imports', column: 'layer', sql: "ALTER TABLE file_imports ADD COLUMN layer TEXT NOT NULL DEFAULT 'baseline'" },
+  { table: 'file_imports', column: 'generation', sql: 'ALTER TABLE file_imports ADD COLUMN generation INTEGER NOT NULL DEFAULT 0' },
+  { table: 'symbol_refs', column: 'layer', sql: "ALTER TABLE symbol_refs ADD COLUMN layer TEXT NOT NULL DEFAULT 'baseline'" },
+  { table: 'symbol_refs', column: 'generation', sql: 'ALTER TABLE symbol_refs ADD COLUMN generation INTEGER NOT NULL DEFAULT 0' },
+  { table: 'symbol_relationships', column: 'layer', sql: "ALTER TABLE symbol_relationships ADD COLUMN layer TEXT NOT NULL DEFAULT 'baseline'" },
+  { table: 'symbol_relationships', column: 'generation', sql: 'ALTER TABLE symbol_relationships ADD COLUMN generation INTEGER NOT NULL DEFAULT 0' },
+  { table: 'type_refs', column: 'layer', sql: "ALTER TABLE type_refs ADD COLUMN layer TEXT NOT NULL DEFAULT 'baseline'" },
+  { table: 'type_refs', column: 'generation', sql: 'ALTER TABLE type_refs ADD COLUMN generation INTEGER NOT NULL DEFAULT 0' },
+  { table: 'external_deps', column: 'layer', sql: "ALTER TABLE external_deps ADD COLUMN layer TEXT NOT NULL DEFAULT 'baseline'" },
+  { table: 'external_deps', column: 'generation', sql: 'ALTER TABLE external_deps ADD COLUMN generation INTEGER NOT NULL DEFAULT 0' },
+  { table: 'symbol_metrics', column: 'layer', sql: "ALTER TABLE symbol_metrics ADD COLUMN layer TEXT NOT NULL DEFAULT 'baseline'" },
+  { table: 'symbol_metrics', column: 'generation', sql: 'ALTER TABLE symbol_metrics ADD COLUMN generation INTEGER NOT NULL DEFAULT 0' },
 ];
 
 const ENRICHMENT_INDEX_MIGRATIONS = [
@@ -370,6 +427,13 @@ const ENRICHMENT_INDEX_MIGRATIONS = [
   'CREATE INDEX IF NOT EXISTS idx_type_refs_resolution_method ON type_refs(resolution_method)',
   'CREATE INDEX IF NOT EXISTS idx_symbol_rels_resolution_method ON symbol_relationships(resolution_method)',
   'CREATE INDEX IF NOT EXISTS idx_symbols_exported ON symbols(is_exported) WHERE is_exported = 1',
+  // Layer indexes for incremental indexing
+  'CREATE INDEX IF NOT EXISTS idx_files_layer ON files(layer)',
+  'CREATE INDEX IF NOT EXISTS idx_files_layer_path ON files(layer, path)',
+  'CREATE INDEX IF NOT EXISTS idx_symbols_layer ON symbols(layer)',
+  'CREATE INDEX IF NOT EXISTS idx_symbol_refs_layer ON symbol_refs(layer)',
+  'CREATE INDEX IF NOT EXISTS idx_type_refs_layer ON type_refs(layer)',
+  'CREATE INDEX IF NOT EXISTS idx_symbol_relationships_layer ON symbol_relationships(layer)',
 ];
 
 // ─── Public API ───────────────────────────────────────────────────────────────
@@ -396,6 +460,7 @@ export function openDb(path: string): Database.Database {
   // Create all tables in a single transaction.
   db.exec(DDL);
   ensureEnrichmentSchema(db);
+  ensureIncrementalSchema(db);
 
   return db;
 }
@@ -416,12 +481,89 @@ function hasTableColumn(db: Database.Database, table: string, column: string): b
   return rows.some((row) => row.name === column);
 }
 
+/**
+ * Ensure incremental indexing tables (dirty_files, reverse_deps) and
+ * effective_* views exist.  These are idempotent CREATE IF NOT EXISTS
+ * statements needed for databases created before incremental support.
+ */
+function ensureIncrementalSchema(db: Database.Database): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS dirty_files (
+      path        TEXT PRIMARY KEY,
+      dirty_since INTEGER NOT NULL DEFAULT (unixepoch()),
+      overlay_gen INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE INDEX IF NOT EXISTS idx_dirty_files_path ON dirty_files(path);
+
+    CREATE TABLE IF NOT EXISTS reverse_deps (
+      file_id      INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+      dependent_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+      dep_kind     TEXT    NOT NULL DEFAULT 'import',
+      PRIMARY KEY (file_id, dependent_id, dep_kind)
+    );
+    CREATE INDEX IF NOT EXISTS idx_reverse_deps_file ON reverse_deps(file_id);
+    CREATE INDEX IF NOT EXISTS idx_reverse_deps_dependent ON reverse_deps(dependent_id);
+  `);
+
+  // Create effective_* views (DROP + CREATE to pick up any schema changes).
+  db.exec(`
+    DROP VIEW IF EXISTS effective_symbol_metrics;
+    DROP VIEW IF EXISTS effective_file_imports;
+    DROP VIEW IF EXISTS effective_annotations;
+    DROP VIEW IF EXISTS effective_symbol_relationships;
+    DROP VIEW IF EXISTS effective_type_refs;
+    DROP VIEW IF EXISTS effective_symbol_refs;
+    DROP VIEW IF EXISTS effective_symbols;
+    DROP VIEW IF EXISTS effective_files;
+
+    CREATE VIEW effective_files AS
+    SELECT * FROM files
+    WHERE (layer = 'overlay' AND path IN (SELECT path FROM dirty_files))
+       OR (layer = 'baseline' AND path NOT IN (SELECT path FROM dirty_files));
+
+    CREATE VIEW effective_symbols AS
+    SELECT s.* FROM symbols s
+    JOIN effective_files f ON f.id = s.file_id;
+
+    CREATE VIEW effective_symbol_refs AS
+    SELECT sr.* FROM symbol_refs sr
+    JOIN effective_files f ON f.id = sr.file_id;
+
+    CREATE VIEW effective_type_refs AS
+    SELECT tr.* FROM type_refs tr
+    JOIN effective_files f ON f.id = tr.file_id;
+
+    CREATE VIEW effective_symbol_relationships AS
+    SELECT rel.* FROM symbol_relationships rel
+    JOIN effective_files f ON f.id = rel.file_id;
+
+    CREATE VIEW effective_annotations AS
+    SELECT a.* FROM annotations a
+    JOIN effective_files f ON f.id = a.file_id;
+
+    CREATE VIEW effective_file_imports AS
+    SELECT fi.* FROM file_imports fi
+    JOIN effective_files f ON f.id = fi.file_id;
+
+    CREATE VIEW effective_symbol_metrics AS
+    SELECT sm.* FROM symbol_metrics sm
+    JOIN effective_symbols s ON s.id = sm.symbol_id;
+  `);
+}
+
 // ─── lore_meta helpers ──────────────────────────────────────────────────────────
 
 export const LORE_META_INDEX_CHECKPOINT = 'index_checkpoint';
 export const LORE_META_LAST_HEAD_SHA = 'last_known_head_sha';
 export const LORE_META_COVERAGE_LAST_SOURCE_PATH = 'coverage_last_source_path';
 export const LORE_META_COVERAGE_LAST_SOURCE_MTIME = 'coverage_last_source_mtime';
+
+// Incremental indexing metadata keys
+export const LORE_META_GENERATION = 'generation';
+export const LORE_META_GENERATION_PENDING = 'generation_pending';
+export const LORE_META_OVERLAY_DIRTY_FILES = 'overlay_dirty_files';
+export const LORE_META_BASELINE_HEAD_SHA = 'baseline_head_sha';
+export const LORE_META_OVERLAY_HEAD_SHA = 'overlay_head_sha';
 
 /** Write (or overwrite) a key-value pair in `lore_meta`. */
 export function setLoreMeta(db: Database.Database, key: string, value: string): void {
@@ -434,6 +576,19 @@ export function getLoreMeta(db: Database.Database, key: string): string | undefi
     | { value: string }
     | undefined;
   return row?.value;
+}
+
+/** Get the current baseline generation counter (defaults to 0). */
+export function getGeneration(db: Database.Database): number {
+  const val = getLoreMeta(db, LORE_META_GENERATION);
+  return val ? parseInt(val, 10) : 0;
+}
+
+/** Increment and return the next generation counter. */
+export function incrementGeneration(db: Database.Database): number {
+  const next = getGeneration(db) + 1;
+  setLoreMeta(db, LORE_META_GENERATION, String(next));
+  return next;
 }
 
 // ─── Vec0 virtual tables ──────────────────────────────────────────────────────

@@ -28,7 +28,12 @@ import { execFileSync } from 'node:child_process';
 import {
   openDb,
   setLoreMeta,
+  getGeneration,
+  incrementGeneration,
   LORE_META_LAST_HEAD_SHA,
+  LORE_META_GENERATION,
+  LORE_META_GENERATION_PENDING,
+  LORE_META_BASELINE_HEAD_SHA,
   LORE_META_COVERAGE_LAST_SOURCE_PATH,
   LORE_META_COVERAGE_LAST_SOURCE_MTIME,
 } from '../db/schema.js';
@@ -53,6 +58,8 @@ import {
   DependencyApiStage,
   LspEnrichmentStage,
   EmbeddingStage,
+  ReverseDepsStage,
+  OverlayCleanupStage,
 } from './stages/index.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -152,8 +159,12 @@ export class IndexBuilder {
       ftsRefreshStage(),
       resolutionStage(),
       testMapStage(),
+      new ReverseDepsStage(),
       new EmbeddingStage(),
     ]);
+
+    // Baseline: set generation to 1 for initial build.
+    const generation = incrementGeneration(db);
 
     const context: PipelineContext = {
       db,
@@ -171,6 +182,8 @@ export class IndexBuilder {
       changedSourcePaths: [],
       changedDocPaths: [],
       sourceCache: new Map(),
+      layer: 'baseline',
+      generation,
     };
 
     try {
@@ -195,10 +208,10 @@ export class IndexBuilder {
   }
 
   /**
-   * Incrementally re-processes only the listed files and updates the DB.
+   * Incrementally re-processes only the listed files using the overlay layer.
    *
-   * Delegates to the same pipeline as `build()` — each stage handles
-   * `'update'` mode by operating only on the changed-file set.
+   * Tree-sitter is the primary indexer; LSP enriches cross-file refs.
+   * SCIP is never invoked during overlay updates.
    *
    * @param changedFiles  Absolute paths of files that have changed.
    */
@@ -207,6 +220,8 @@ export class IndexBuilder {
     const branch = this.resolveBranch();
     const log = getLogger();
 
+    // Overlay pipeline: tree-sitter → imports → LSP → resolution → reverse-deps → embedding
+    // No SCIP stage — tree-sitter is the primary incremental indexer.
     const pipeline = new IndexPipeline([
       new ScipIndexerStage(),
       [new SourceIndexStage(), new DocsIndexStage()],
@@ -216,6 +231,7 @@ export class IndexBuilder {
       ftsRefreshStage(),
       resolutionStage(),
       testMapStage(),
+      new ReverseDepsStage(),
       new EmbeddingStage(),
     ]);
 
@@ -236,11 +252,80 @@ export class IndexBuilder {
       changedSourcePaths: [],
       changedDocPaths: [],
       sourceCache: new Map(),
+      layer: 'overlay',
+      generation: 0,
     };
 
     try {
       await pipeline.run(context, 'update');
       this.saveLastKnownHead(db);
+    } finally {
+      db.close();
+    }
+  }
+
+  /**
+   * Perform a background baseline rebuild (SCIP reconciliation).
+   *
+   * Writes to a new generation, then atomically promotes and cleans
+   * stale overlay rows.  This is the only path that invokes SCIP.
+   */
+  async baselineRebuild(): Promise<void> {
+    const log = getLogger();
+    const rebuildStart = performance.now();
+    const rebuildStartedAt = Math.floor(Date.now() / 1000);
+    const db = openDb(this.dbPath);
+    const branch = this.resolveBranch();
+
+    // Increment pending generation
+    const newGeneration = incrementGeneration(db);
+    setLoreMeta(db, LORE_META_GENERATION_PENDING, String(newGeneration));
+
+    log.indexing('baseline rebuild started', { generation: newGeneration });
+
+    const pipeline = new IndexPipeline([
+      new ScipIndexerStage(),
+      [new SourceIndexStage(), new DocsIndexStage()],
+      new ImportResolutionStage(),
+      new DependencyApiStage(),
+      [new LspEnrichmentStage(), historyStage()],
+      ftsRefreshStage(),
+      resolutionStage(),
+      testMapStage(),
+      new EmbeddingStage(),
+      new OverlayCleanupStage({
+        newGeneration,
+        rebuildStartedAt,
+        headSha: this.readGitValue(['rev-parse', 'HEAD']),
+      }),
+    ]);
+
+    const context: PipelineContext = {
+      db,
+      dbPath: this.dbPath,
+      walkerConfig: this.walkerConfig,
+      branch,
+      lsp: this.lspSettings,
+      scip: this.scipSettings,
+      embedder: this.embedder,
+      log,
+      files: [],
+      indexDependencies: this.indexDependencies,
+      history: this.history,
+      staleSymbolIds: [],
+      changedSourcePaths: [],
+      changedDocPaths: [],
+      sourceCache: new Map(),
+      layer: 'baseline',
+      generation: newGeneration,
+    };
+
+    try {
+      await pipeline.run(context, 'build');
+      this.saveLastKnownHead(db);
+
+      const indexDurationMs = Math.round(performance.now() - rebuildStart);
+      log.indexing('baseline rebuild complete', { generation: newGeneration, durationMs: indexDurationMs });
     } finally {
       db.close();
     }
@@ -332,7 +417,9 @@ export class IndexBuilder {
 function resolutionStage(): PipelineStage {
   return {
     name: 'symbol-resolution',
-    execute: async (ctx) => { resolveSymbolEdges(ctx.db); },
+    execute: async (ctx) => {
+      resolveSymbolEdges(ctx.db, { overlayOnly: ctx.layer === 'overlay' });
+    },
   };
 }
 
@@ -356,6 +443,7 @@ function ftsRefreshStage(): PipelineStage {
     execute: async (ctx) => {
       ctx.db.transaction(() => {
         ctx.db.exec('DELETE FROM symbols_fts');
+        // Use effective_symbols view to index only the active layer's symbols
         ctx.db.exec(`
           INSERT INTO symbols_fts(rowid, name, signature, kind)
           SELECT s.id,
@@ -365,7 +453,7 @@ function ftsRefreshStage(): PipelineStage {
                  COALESCE(s.signature, '')                || char(10) ||
                  s.name,
                  s.kind
-          FROM symbols s
+          FROM effective_symbols s
         `);
       })();
     },

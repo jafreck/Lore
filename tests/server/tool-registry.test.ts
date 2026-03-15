@@ -244,7 +244,12 @@ describe('tool-registry', () => {
       const registeredHandler = mockServer.tool.mock.calls[0][3] as (args: any) => Promise<any>;
       const result = await registeredHandler({});
 
-      expect(result).toEqual({ content: [{ type: 'text', text: '{"answer":42}' }] });
+      expect(result).toEqual({
+        content: [{
+          type: 'text',
+          text: expect.stringContaining('"answer":42'),
+        }],
+      });
       expect(mockLogger.toolCall).toHaveBeenCalledWith(
         expect.objectContaining({
           tool: 'test_tool',

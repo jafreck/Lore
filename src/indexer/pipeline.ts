@@ -123,6 +123,22 @@ export interface PipelineContext {
    * avoid redundant `readFileSync` calls.
    */
   sourceCache: Map<string, string>;
+
+  // ── Incremental (baseline + overlay) fields ───────────────────────────────
+
+  /**
+   * The layer that stages should write to:
+   *  - `'baseline'` for full SCIP builds.
+   *  - `'overlay'` for tree-sitter + LSP incremental updates.
+   */
+  layer: 'baseline' | 'overlay';
+
+  /**
+   * Baseline generation counter produced by SCIP.
+   * Baseline rows are written with this value.
+   * Overlay rows always use `generation = 0`.
+   */
+  generation: number;
 }
 
 /**
