@@ -42,6 +42,29 @@ export class LspEnrichmentStage implements PipelineStage {
   async execute(context: PipelineContext, _mode: 'build' | 'update'): Promise<void> {
     if (!context.lsp?.enabled || context.files.length === 0) return;
 
+    // In baseline builds, SCIP is the sole resolution authority.
+    // LSP enrichment is only used in overlay mode for cross-file resolution.
+    if (context.layer === 'baseline') {
+      // Still run for non-SCIP languages in baseline builds (legacy behavior)
+      const scipSourced = context.scipSourcedLanguages;
+      const scipCovered = context.scipCoveredLanguages;
+      const nonScipFiles = context.files.filter(f =>
+        !(scipSourced?.has(f.language) || scipCovered?.has(f.language)),
+      );
+      if (nonScipFiles.length === 0) return;
+
+      const languages = new Set(nonScipFiles.map(f => f.language));
+      if (context.indexDependencies) languages.add('typescript');
+
+      this.coordinator = new LspEnrichmentCoordinator(context.lsp, context.walkerConfig.rootDir);
+      await this.coordinator.start(languages);
+
+      if (nonScipFiles.length > 0) {
+        await enrichProjectRefs(context.db, context.branch, nonScipFiles, this.coordinator, context.sourceCache);
+      }
+      return;
+    }
+
     const scipSourced = context.scipSourcedLanguages;
     const scipCovered = context.scipCoveredLanguages;
 

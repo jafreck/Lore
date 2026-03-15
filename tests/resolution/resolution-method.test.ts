@@ -7,7 +7,7 @@ import {
 import type { ResolutionMethod } from '../../src/resolution/resolution-method.js';
 
 describe('resolution-method taxonomy', () => {
-  it('should define all seven resolution method values', () => {
+  it('should define all eight resolution method values', () => {
     expect(RESOLUTION_METHODS).toEqual([
       'scip_definition',
       'lsp_definition',
@@ -15,6 +15,7 @@ describe('resolution-method taxonomy', () => {
       'name_unique',
       'external_definition',
       'ambiguous_definition',
+      'overlay_stale',
       'unresolved',
     ]);
   });
@@ -31,6 +32,7 @@ describe('resolution-method taxonomy', () => {
   it('should have UNRESOLVED_METHODS that include all non-resolved tiers', () => {
     expect(UNRESOLVED_METHODS.has('external_definition')).toBe(true);
     expect(UNRESOLVED_METHODS.has('ambiguous_definition')).toBe(true);
+    expect(UNRESOLVED_METHODS.has('overlay_stale')).toBe(true);
     expect(UNRESOLVED_METHODS.has('unresolved')).toBe(true);
     expect(UNRESOLVED_METHODS.has('lsp_definition' as ResolutionMethod)).toBe(false);
   });

@@ -95,12 +95,16 @@ export function extractBareName(raw: string): string {
  *      exactly one symbol across the entire index, resolve it.
  *   4. Leave as `unresolved` / `external_definition` otherwise.
  */
-export function resolveSymbolEdges(db: Database.Database): void {
+export function resolveSymbolEdges(db: Database.Database, options?: { overlayOnly?: boolean }): void {
+  const overlayFilter = options?.overlayOnly ? " AND sr.layer = 'overlay'" : '';
+  const overlayFilterTr = options?.overlayOnly ? " AND tr.layer = 'overlay'" : '';
+  const overlayFilterRel = options?.overlayOnly ? " AND sr.layer = 'overlay'" : '';
+
   const runInTransaction = db.transaction(() => {
     // Pass 1: LSP containment mapping (highest confidence)
-    resolveByContainment(db, 'symbol_refs', 'callee_id', 'definition_path', 'definition_line');
-    resolveByContainment(db, 'type_refs', 'type_id', 'definition_path', 'definition_line');
-    resolveByContainment(db, 'symbol_relationships', 'target_symbol_id', 'definition_path', 'definition_line');
+    resolveByContainment(db, 'symbol_refs', 'callee_id', 'definition_path', 'definition_line', options?.overlayOnly);
+    resolveByContainment(db, 'type_refs', 'type_id', 'definition_path', 'definition_line', options?.overlayOnly);
+    resolveByContainment(db, 'symbol_relationships', 'target_symbol_id', 'definition_path', 'definition_line', options?.overlayOnly);
 
     // Pass 2: Name-based fallback for remaining unresolved refs
     const nameMap = buildNameMap(db);
@@ -112,13 +116,11 @@ export function resolveSymbolEdges(db: Database.Database): void {
         `SELECT sr.id, sr.callee_name AS target_name, s.file_id AS source_file_id
          FROM symbol_refs sr
          JOIN symbols s ON s.id = sr.caller_id
-         WHERE sr.callee_id IS NULL AND sr.resolution_method = 'unresolved'`,
+         WHERE sr.callee_id IS NULL AND sr.resolution_method = 'unresolved'${overlayFilter}`,
       ),
     });
 
     // Pass 2b: Bare-name fallback for member-access call refs.
-    // When `db.prepare` can't match, try just `prepare`.
-    // This resolves ~73% of tree-sitter call refs that use dotted names.
     resolveByNameFallback(db, nameMap, {
       tableName: 'symbol_refs',
       targetIdColumn: 'callee_id',
@@ -126,7 +128,7 @@ export function resolveSymbolEdges(db: Database.Database): void {
         `SELECT sr.id, sr.callee_name AS target_name, s.file_id AS source_file_id
          FROM symbol_refs sr
          JOIN symbols s ON s.id = sr.caller_id
-         WHERE sr.callee_id IS NULL AND sr.resolution_method = 'unresolved'
+         WHERE sr.callee_id IS NULL AND sr.resolution_method = 'unresolved'${overlayFilter}
            AND sr.callee_name LIKE '%.%'`,
       ),
       normalizeTargetName: extractBareName,
@@ -138,7 +140,7 @@ export function resolveSymbolEdges(db: Database.Database): void {
       selectUnresolved: db.prepare(
         `SELECT tr.id, tr.type_name AS target_name, COALESCE(s.file_id, tr.file_id) AS source_file_id
          FROM type_refs tr LEFT JOIN symbols s ON s.id = tr.symbol_id
-         WHERE tr.type_id IS NULL AND tr.resolution_method = 'unresolved'`,
+         WHERE tr.type_id IS NULL AND tr.resolution_method = 'unresolved'${overlayFilterTr}`,
       ),
     });
 
@@ -149,7 +151,7 @@ export function resolveSymbolEdges(db: Database.Database): void {
       selectUnresolved: db.prepare(
         `SELECT tr.id, tr.type_name_bare AS target_name, COALESCE(s.file_id, tr.file_id) AS source_file_id
          FROM type_refs tr LEFT JOIN symbols s ON s.id = tr.symbol_id
-         WHERE tr.type_id IS NULL AND tr.resolution_method = 'unresolved'
+         WHERE tr.type_id IS NULL AND tr.resolution_method = 'unresolved'${overlayFilterTr}
            AND tr.type_name_bare != tr.type_name`,
       ),
     });
@@ -160,7 +162,7 @@ export function resolveSymbolEdges(db: Database.Database): void {
       selectUnresolved: db.prepare(
         `SELECT sr.id, sr.target_symbol_name AS target_name, COALESCE(s.file_id, sr.file_id) AS source_file_id
          FROM symbol_relationships sr LEFT JOIN symbols s ON s.id = sr.source_symbol_id
-         WHERE sr.target_symbol_id IS NULL AND sr.resolution_method = 'unresolved'`,
+         WHERE sr.target_symbol_id IS NULL AND sr.resolution_method = 'unresolved'${overlayFilterRel}`,
       ),
       normalizeTargetName: normalizeTypeName,
     });
@@ -196,13 +198,15 @@ function resolveByContainment(
   targetIdColumn: string,
   defPathColumn: string,
   defLineColumn: string,
+  overlayOnly?: boolean,
 ): void {
+  const layerFilter = overlayOnly ? ` AND layer = 'overlay'` : '';
   const unresolvedWithDef = db.prepare(
     `SELECT id, ${defPathColumn} AS definition_path, ${defLineColumn} AS definition_line
      FROM ${tableName}
      WHERE ${targetIdColumn} IS NULL
        AND ${defPathColumn} IS NOT NULL
-       AND ${defLineColumn} IS NOT NULL`,
+       AND ${defLineColumn} IS NOT NULL${layerFilter}`,
   ).all() as UnresolvedRefRow[];
 
   if (unresolvedWithDef.length === 0) {

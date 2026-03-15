@@ -34,6 +34,7 @@ export const RESOLUTION_METHODS = [
   'name_unique',
   'external_definition',
   'ambiguous_definition',
+  'overlay_stale',
   'unresolved',
 ] as const;
 
@@ -58,5 +59,6 @@ export const RESOLVED_METHODS: ReadonlySet<ResolutionMethod> = new Set([
 export const UNRESOLVED_METHODS: ReadonlySet<ResolutionMethod> = new Set([
   'external_definition',
   'ambiguous_definition',
+  'overlay_stale',
   'unresolved',
 ]);

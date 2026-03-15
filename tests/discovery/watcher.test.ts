@@ -4,6 +4,7 @@ import type { FSWatcher } from 'node:fs';
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
 const mockUpdate = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+const mockBaselineRebuild = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 
 vi.mock('node:fs', () => ({
   watch: vi.fn(),
@@ -13,6 +14,7 @@ vi.mock('../../src/indexer/index.js', () => ({
   // Must use a regular function (not arrow) so `new IndexBuilder(...)` works
   IndexBuilder: vi.fn(function (this: Record<string, unknown>) {
     this.update = mockUpdate;
+    this.baselineRebuild = mockBaselineRebuild;
   }),
 }));
 
@@ -438,7 +440,7 @@ describe('FileWatcher', () => {
       expect(opts.scip).toBeUndefined();
     });
 
-    it('should schedule a SCIP-enabled update after the quiet period', async () => {
+    it('should schedule a baseline rebuild after the quiet period', async () => {
       const watcher = new FileWatcher('/db.sqlite', walkerConfig, {
         debounceMs: 50,
         scip: scipSettings,
@@ -458,8 +460,8 @@ describe('FileWatcher', () => {
       // Wait for SCIP quiet period
       await vi.advanceTimersByTimeAsync(500);
 
-      expect(mockUpdate).toHaveBeenCalledTimes(2);
-      // Second call should include SCIP
+      expect(mockBaselineRebuild).toHaveBeenCalledOnce();
+      // Baseline rebuild should include SCIP
       const opts = vi.mocked(IndexBuilder).mock.calls[1]![3] as Record<string, unknown>;
       expect(opts.scip).toEqual(scipSettings);
     });
@@ -484,13 +486,14 @@ describe('FileWatcher', () => {
       watchCb('change', 'b.ts');
       await vi.advanceTimersByTimeAsync(50); // flush 2
 
-      // 300ms elapsed since last flush — SCIP should NOT have fired yet
+      // 300ms elapsed since last flush — baseline rebuild should NOT have fired yet
       await vi.advanceTimersByTimeAsync(300);
-      expect(mockUpdate).toHaveBeenCalledTimes(2); // only tree-sitter flushes
+      expect(mockUpdate).toHaveBeenCalledTimes(2); // only overlay flushes
+      expect(mockBaselineRebuild).not.toHaveBeenCalled();
 
       // Wait remaining quiet period
       await vi.advanceTimersByTimeAsync(200);
-      expect(mockUpdate).toHaveBeenCalledTimes(3); // now SCIP fires
+      expect(mockBaselineRebuild).toHaveBeenCalledOnce();
     });
 
     it('should cancel SCIP timer on stop()', async () => {
@@ -514,7 +517,7 @@ describe('FileWatcher', () => {
       expect(mockUpdate).toHaveBeenCalledOnce();
     });
 
-    it('should include SCIP on every flush when scipQuietPeriodMs is 0', async () => {
+    it('should not schedule baseline rebuilds when scipQuietPeriodMs is 0', async () => {
       const watcher = new FileWatcher('/db.sqlite', walkerConfig, {
         debounceMs: 50,
         scip: scipSettings,
@@ -530,11 +533,14 @@ describe('FileWatcher', () => {
       await vi.advanceTimersByTimeAsync(50);
 
       expect(mockUpdate).toHaveBeenCalledOnce();
+      // Overlay updates never include SCIP
       const opts = vi.mocked(IndexBuilder).mock.calls[0]![3] as Record<string, unknown>;
-      expect(opts.scip).toEqual(scipSettings);
+      expect(opts.scip).toBeUndefined();
+      // No baseline rebuild scheduled
+      expect(mockBaselineRebuild).not.toHaveBeenCalled();
     });
 
-    it('should accumulate paths across multiple flushes for the deferred SCIP update', async () => {
+    it('should accumulate paths across multiple flushes for the deferred baseline rebuild', async () => {
       const watcher = new FileWatcher('/db.sqlite', walkerConfig, {
         debounceMs: 50,
         scip: scipSettings,
@@ -552,13 +558,11 @@ describe('FileWatcher', () => {
       watchCb('change', 'b.ts');
       await vi.advanceTimersByTimeAsync(50); // flush 2
 
-      // SCIP fires after quiet period from last change
+      // Baseline rebuild fires after quiet period from last change
       await vi.advanceTimersByTimeAsync(500);
 
-      expect(mockUpdate).toHaveBeenCalledTimes(3);
-      const scipPaths = mockUpdate.mock.calls[2]![0] as string[];
-      expect(scipPaths).toContain(`${walkerConfig.rootDir}/a.ts`);
-      expect(scipPaths).toContain(`${walkerConfig.rootDir}/b.ts`);
+      expect(mockBaselineRebuild).toHaveBeenCalledOnce();
+      // Baseline rebuild via baselineRebuild() does not take paths — it re-indexes everything
     });
   });
 });
