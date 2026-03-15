@@ -309,12 +309,12 @@ function estimateTokensFromCalls(calls: ToolCallRecord[], answer: string): numbe
  * dist/server/server.js). Falls back to __dirname-based resolution.
  */
 function findLoreProjectRoot(repoPath: string): string {
-  // Check if the repo itself is Lore
+  // Check if the repo itself is Lore (has a built server)
   if (existsSync(join(repoPath, 'dist', 'server', 'server.js'))) {
     return repoPath;
   }
-  // Fall back to the package's installed location
-  const pkgRoot = join(import.meta.dirname, '..', '..');
+  // Fall back to the Lore project root relative to this file
+  const pkgRoot = join(import.meta.dirname, '..', '..', '..');
   if (existsSync(join(pkgRoot, 'dist', 'server', 'server.js'))) {
     return pkgRoot;
   }
