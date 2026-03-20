@@ -58,6 +58,10 @@ interface CopilotRunResult {
   totalApiDurationMs: number;
   /** Estimated output tokens (sum across assistant.message events). */
   outputTokens: number;
+  /** Whether the Lore MCP server successfully initialized (tools were listed). */
+  loreMcpHealthy: boolean;
+  /** Any MCP server error messages observed in the stream. */
+  mcpErrors: string[];
 }
 
 // ─── MCP config generation ────────────────────────────────────────────────
@@ -94,6 +98,8 @@ function parseCopilotOutput(raw: string): CopilotRunResult {
   let sessionDurationMs = 0;
   let totalApiDurationMs = 0;
   let outputTokens = 0;
+  let loreMcpHealthy = false;
+  const mcpErrors: string[] = [];
 
   // Track pending tool starts: toolCallId → { timestamp, toolName, args }
   const toolStarts = new Map<string, { ts: number; toolName: string; args: Record<string, unknown> }>();
@@ -179,7 +185,46 @@ function parseCopilotOutput(raw: string): CopilotRunResult {
         }
         break;
       }
+
+      default: {
+        // Detect MCP server health signals
+        const evType = ev.type ?? '';
+        const evData = ev.data ?? {};
+
+        // Copilot CLI emits tool listings; if any lore_* tool appears, the server is alive
+        if (evType === 'tools.list' || evType === 'mcp.tools_listed') {
+          const tools = evData.tools ?? evData.toolNames ?? [];
+          if (Array.isArray(tools) && tools.some((t: any) => {
+            const name = typeof t === 'string' ? t : t?.name ?? '';
+            return name.startsWith('lore_') || name.includes('lore-');
+          })) {
+            loreMcpHealthy = true;
+          }
+        }
+
+        // Detect lore tool calls as proof the MCP server is working
+        if (evType === 'tool.execution_start' || evType === 'tool.execution_complete') {
+          const toolName = evData.mcpToolName ?? evData.toolName ?? '';
+          if (typeof toolName === 'string' && (toolName.startsWith('lore_') || toolName.includes('lore-'))) {
+            loreMcpHealthy = true;
+          }
+        }
+
+        // Capture MCP server errors
+        if (evType.includes('mcp') && evType.includes('error')) {
+          mcpErrors.push(JSON.stringify(evData));
+        }
+        if (evType === 'error' && typeof evData.message === 'string' && evData.message.toLowerCase().includes('mcp')) {
+          mcpErrors.push(evData.message);
+        }
+        break;
+      }
     }
+  }
+
+  // Also check tool calls we already parsed — if any lore tool was called, server is healthy
+  if (!loreMcpHealthy && toolCalls.some(tc => tc.toolName.startsWith('lore_') || tc.toolName.includes('lore-'))) {
+    loreMcpHealthy = true;
   }
 
   return {
@@ -189,6 +234,8 @@ function parseCopilotOutput(raw: string): CopilotRunResult {
     sessionDurationMs,
     totalApiDurationMs,
     outputTokens,
+    loreMcpHealthy,
+    mcpErrors,
   };
 }
 
@@ -247,6 +294,30 @@ export async function runCopilotAgent(
     const output = stdout + '\n' + stderr;
     const result = parseCopilotOutput(output);
 
+    // ── MCP health check for lore-enabled arm ─────────────────────────
+    if (arm === 'lore-enabled' && dbPath) {
+      if (result.mcpErrors.length > 0) {
+        throw new Error(
+          `Lore MCP server reported errors: ${result.mcpErrors.join('; ')}`,
+        );
+      }
+      if (!result.loreMcpHealthy && result.outputTokens === 0 && !result.answer) {
+        throw new Error(
+          'Lore MCP server appears to have failed: copilot CLI produced no output ' +
+          '(0 tokens, empty answer). The MCP server may have crashed on startup. ' +
+          'Check that dist/server/server.js exists and the DB path is valid.',
+        );
+      }
+    }
+
+    // ── General CLI crash detection ───────────────────────────────────
+    if (result.outputTokens === 0 && !result.answer) {
+      throw new Error(
+        `Copilot CLI produced no output (0 tokens, empty answer) for ${arm} arm. ` +
+        'The CLI may have crashed or timed out silently.',
+      );
+    }
+
     return {
       toolCalls: result.toolCalls,
       filesRead: result.filesRead,
@@ -260,22 +331,32 @@ export async function runCopilotAgent(
     const partialOutput = (e.stdout ?? '') + '\n' + (e.stderr ?? '');
     if (partialOutput.trim()) {
       const result = parseCopilotOutput(partialOutput);
-      return {
-        toolCalls: result.toolCalls,
-        filesRead: result.filesRead,
-        finalAnswer: result.answer || `Error: ${e.message}`,
-        totalTokensEstimate: result.outputTokens || 0,
-        loreToolsCalled: extractLoreToolsCalled(result.toolCalls),
-        rawOutput: partialOutput,
-      };
+
+      // Even for partial output, throw on MCP errors instead of silently returning bad data
+      if (arm === 'lore-enabled' && result.mcpErrors.length > 0) {
+        throw new Error(
+          `Lore MCP server reported errors: ${result.mcpErrors.join('; ')} ` +
+          `(original error: ${e.message})`,
+        );
+      }
+
+      // If partial output has actual content, return it
+      if (result.answer || result.outputTokens > 0) {
+        return {
+          toolCalls: result.toolCalls,
+          filesRead: result.filesRead,
+          finalAnswer: result.answer || `Error: ${e.message}`,
+          totalTokensEstimate: result.outputTokens,
+          loreToolsCalled: extractLoreToolsCalled(result.toolCalls),
+          rawOutput: partialOutput,
+        };
+      }
     }
-    return {
-      toolCalls: [],
-      filesRead: [],
-      finalAnswer: `Error: ${e.message}`,
-      totalTokensEstimate: 0,
-      loreToolsCalled: [],
-    };
+
+    // No usable output at all — throw instead of returning zeros silently
+    throw new Error(
+      `Copilot CLI failed with no usable output for ${arm} arm: ${e.message}`,
+    );
   } finally {
     if (mcpConfigPath && existsSync(mcpConfigPath)) {
       unlinkSync(mcpConfigPath);

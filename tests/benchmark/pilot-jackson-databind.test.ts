@@ -1,5 +1,5 @@
 /**
- * Integration test: Clones Gson, indexes it with Lore, and runs
+ * Integration test: Clones jackson-databind, indexes it with Lore, and runs
  * benchmark tasks across control and lore-enabled arms.
  *
  * This test makes real git clone calls and takes ~1-2 minutes.
@@ -18,7 +18,7 @@ import { buildControlStrategy, buildLoreStrategy, buildDynamicLoreStrategy } fro
 import { scoreRun, aggregateScores, formatReport, compareReports } from './util/scorer.js';
 import { getTasksForRepo } from './util/tasks.js';
 
-const GSON_TASKS = getTasksForRepo('gson');
+const JACKSON_TASKS = getTasksForRepo('jackson-databind');
 import { PILOT_REPOS } from './util/repos.js';
 import type { RunScore } from './util/types.js';
 
@@ -27,7 +27,7 @@ import type { RunScore } from './util/types.js';
 const SKIP = !process.env['BENCHMARK_PILOT'];
 const WORK_DIR = mkdtempSync(join(tmpdir(), 'lore-pilot-bench-'));
 
-describe.skipIf(SKIP)('Pilot repo benchmark: Gson', () => {
+describe.skipIf(SKIP)('Pilot repo benchmark: jackson-databind', () => {
   const repoManager = new RepoManager(WORK_DIR);
   let repoPath: string;
   let dbPath: string;
@@ -36,11 +36,11 @@ describe.skipIf(SKIP)('Pilot repo benchmark: Gson', () => {
   const controlScores: RunScore[] = [];
   const loreScores: RunScore[] = [];
 
-  const gsonSpec = PILOT_REPOS.find((r) => r.name === 'gson')!;
+  const jacksonSpec = PILOT_REPOS.find((r) => r.name === 'jackson-databind')!;
 
   beforeAll(async () => {
-    // Clone Gson at pinned SHA
-    let instance = await repoManager.prepare(gsonSpec);
+    // Clone jackson-databind at pinned SHA
+    let instance = await repoManager.prepare(jacksonSpec);
     repoPath = instance.localPath;
 
     // Index with Lore
@@ -49,7 +49,7 @@ describe.skipIf(SKIP)('Pilot repo benchmark: Gson', () => {
 
     expect(instance.indexed).toBe(true);
     expect(instance.indexTimeMs).toBeGreaterThan(0);
-    console.log(`Gson indexed in ${instance.indexTimeMs}ms`);
+    console.log(`jackson-databind indexed in ${instance.indexTimeMs}ms`);
   }, 300_000); // 5 min for clone + index
 
   afterAll(async () => {
@@ -58,7 +58,7 @@ describe.skipIf(SKIP)('Pilot repo benchmark: Gson', () => {
 
   // ─── Per-task tests ─────────────────────────────────────────────────────
 
-  for (const task of GSON_TASKS) {
+  for (const task of JACKSON_TASKS) {
     describe(`Task ${task.id} (${task.family})`, () => {
       it('control arm produces a result', async () => {
         const tools = await buildToolsForArm('control', repoPath);
@@ -96,8 +96,8 @@ describe.skipIf(SKIP)('Pilot repo benchmark: Gson', () => {
 
   it('aggregate: control vs lore-enabled', () => {
     // Guard: per-task tests must have run first
-    expect(controlScores.length).toBe(GSON_TASKS.length);
-    expect(loreScores.length).toBe(GSON_TASKS.length);
+    expect(controlScores.length).toBe(JACKSON_TASKS.length);
+    expect(loreScores.length).toBe(JACKSON_TASKS.length);
 
     const controlReport = aggregateScores('control', controlScores);
     const loreReport = aggregateScores('lore-enabled', loreScores);
@@ -107,8 +107,8 @@ describe.skipIf(SKIP)('Pilot repo benchmark: Gson', () => {
     console.log('\n' + compareReports(controlReport, loreReport));
 
     // Both arms should complete all tasks
-    expect(controlReport.totalRuns).toBe(GSON_TASKS.length);
-    expect(loreReport.totalRuns).toBe(GSON_TASKS.length);
+    expect(controlReport.totalRuns).toBe(JACKSON_TASKS.length);
+    expect(loreReport.totalRuns).toBe(JACKSON_TASKS.length);
 
     // Lore arm should actually use Lore tools
     expect(loreReport.loreToolUsageRate).toBeGreaterThan(0);

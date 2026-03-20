@@ -534,20 +534,35 @@ function computeMetricsForScipFiles(
       ).all(fileRow.id) as Array<{ id: number; name: string; start_line: number; end_line: number }>;
 
       // Build a name+line → id map for matching tree-sitter symbols to SCIP symbols
-      const symbolMap = new Map<string, number>();
+      const symbolMap = new Map<string, { id: number; end_line: number }>();
       for (const sym of existingSymbols) {
         // Key by name; if duplicate names, prefer earlier id
         if (!symbolMap.has(sym.name)) {
-          symbolMap.set(sym.name, sym.id);
+          symbolMap.set(sym.name, { id: sym.id, end_line: sym.end_line });
         }
       }
 
+      const patchEndLine = db.prepare(
+        'UPDATE symbols SET end_line = ? WHERE id = ?',
+      );
+
       for (const sym of result.symbols) {
         if (!sym.name) continue;
-        const symId = symbolMap.get(sym.name);
-        if (symId === undefined) continue;
+        // Try exact match first, then bare name (strip receiver prefix like "Server.HandleRequest" → "HandleRequest")
+        let existing = symbolMap.get(sym.name);
+        if (!existing) {
+          const dotIdx = sym.name.lastIndexOf('.');
+          if (dotIdx >= 0) existing = symbolMap.get(sym.name.slice(dotIdx + 1));
+        }
+        if (!existing) continue;
+
+        // Patch symbol end_line if tree-sitter provides a wider range than SCIP
+        if (sym.endLine > existing.end_line) {
+          patchEndLine.run(sym.endLine, existing.id);
+        }
+
         const metrics = computeSymbolMetrics(sym, file.language);
-        insertMetrics.run(symId, metrics.line_count, metrics.param_count, metrics.cyclomatic, metrics.max_nesting, layer, generation);
+        insertMetrics.run(existing.id, metrics.line_count, metrics.param_count, metrics.cyclomatic, metrics.max_nesting, layer, generation);
       }
     }
   })();
