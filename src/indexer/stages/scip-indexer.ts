@@ -499,16 +499,20 @@ export class ScipIndexerStage implements PipelineStage {
           const occ = defOccs[di]!;
           const { symbol, line, character, enclosingRange } = occ;
 
-          // Use enclosing_range for span; fall back to source-based estimation
+          // Use enclosing_range for span; fall back to definition line.
+          // Tree-sitter will patch end_line in the SourceIndexStage metrics pass.
           let startLine = line;
           let endLine = line;
-          if (enclosingRange.length >= 3) {
+          if (enclosingRange.length >= 4) {
+            // Full multi-line enclosing range: [startLine, startChar, endLine, endChar]
             startLine = enclosingRange[0] ?? line;
-            endLine = enclosingRange.length >= 4
-              ? (enclosingRange[2] ?? line)
-              : startLine;
+            endLine = enclosingRange[2] ?? line;
+          } else if (enclosingRange.length === 3) {
+            startLine = enclosingRange[0] ?? line;
+            endLine = startLine;
           } else {
-            // No enclosing_range — estimate from source
+            // No enclosing_range — estimate from source.
+            // Tree-sitter will refine this in the SourceIndexStage metrics pass.
             const nextDefLine = di + 1 < defOccs.length ? defOccs[di + 1]!.line : null;
             endLine = estimateSymbolEndLine(sourceLines, line, nextDefLine);
           }

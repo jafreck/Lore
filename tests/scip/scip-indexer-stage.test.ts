@@ -20,6 +20,7 @@ import {
 } from '../../src/scip/scip_pb.js';
 import { openDb } from '../../src/db/schema.js';
 import { ScipIndexerStage } from '../../src/indexer/stages/scip-indexer.js';
+import { SourceIndexStage } from '../../src/indexer/stages/source-index.js';
 import type { PipelineContext } from '../../src/indexer/pipeline.js';
 import { initLogger, LogLevel } from '../../src/logger.js';
 import { resolveEffectiveScipSettings } from '../../src/scip/config.js';
@@ -338,6 +339,83 @@ describe('ScipIndexerStage', () => {
     expect(rel.target_symbol_name).toBe('Reader');
     // No definition location → line should be NULL
     expect(rel.line).toBeNull();
+
+    ctx.db.close();
+  });
+
+  it('tree-sitter patches symbol end_line when SCIP provides no enclosingRange (Go methods)', async () => {
+    const rootDir = makeTmpDir('lore-scip-endline-patch-');
+    const indexDir = join(rootDir, '.scip-indexes');
+    mkdirSync(indexDir, { recursive: true });
+
+    // Go source with a method receiver — tree-sitter correctly sees lines 6-10
+    // but scip-go provides no enclosingRange, so SCIP stage stores end_line = start_line.
+    const goSource = [
+      'package main',                                                            // 0
+      '',                                                                        // 1
+      'type Server struct {',                                                    // 2
+      '    port int',                                                            // 3
+      '}',                                                                       // 4
+      '',                                                                        // 5
+      'func (s *Server) HandleRequest(id int, data map[string]interface{}) {',   // 6
+      '    doWork(id)',                                                           // 7
+      '    doWork(id)',                                                           // 8
+      '    return',                                                              // 9
+      '}',                                                                       // 10
+      '',                                                                        // 11
+    ].join('\n');
+    const goFilePath = join(rootDir, 'main.go');
+    writeFileSync(goFilePath, goSource);
+
+    const symHandleRequest = 'scip-go gomod example.com/test 1.0 main/Server#HandleRequest().';
+    const symDoWork = 'scip-go gomod example.com/test 1.0 main/doWork().';
+
+    // SCIP index with NO enclosingRange (empty arrays) — exactly what scip-go emits
+    const bytes = buildScipIndexBytes([{
+      relativePath: 'main.go',
+      language: 'Go',
+      occurrences: [
+        // Definition of HandleRequest — range points to the identifier only
+        { range: [6, 18, 31], symbol: symHandleRequest, symbolRoles: SymbolRole.Definition },
+        // Call to doWork inside HandleRequest
+        { range: [7, 4, 10], symbol: symDoWork, symbolRoles: 0 },
+      ],
+      symbols: [
+        { symbol: symHandleRequest, displayName: 'HandleRequest', documentation: ['func (s *Server) HandleRequest(id int, data map[string]interface{})'] },
+      ],
+    }]);
+    writeFileSync(join(indexDir, 'go.scip'), bytes);
+
+    const dbPath = join(rootDir, 'test.db');
+    const ctx = makeContext(rootDir, dbPath);
+
+    // Step 1: Run SCIP stage — should store end_line = start_line (the bug)
+    const scipStage = new ScipIndexerStage();
+    await scipStage.execute(ctx, 'build');
+
+    const beforePatch = ctx.db.prepare(
+      'SELECT start_line, end_line FROM symbols WHERE name = ?',
+    ).get('HandleRequest') as { start_line: number; end_line: number } | undefined;
+    expect(beforePatch).toBeDefined();
+    expect(beforePatch!.start_line).toBe(6);
+    // SCIP provides no enclosingRange, so end_line should still be the definition line
+    expect(beforePatch!.end_line).toBe(6);
+
+    // Step 2: Run SourceIndexStage — tree-sitter should patch end_line
+    // ScipIndexerStage sets ctx.scipSourcedFiles; verify it was set
+    expect(ctx.scipSourcedFiles).toBeDefined();
+    expect(ctx.scipSourcedFiles!.has(goFilePath)).toBe(true);
+
+    const sourceStage = new SourceIndexStage();
+    await sourceStage.execute(ctx, 'build');
+
+    const afterPatch = ctx.db.prepare(
+      'SELECT start_line, end_line FROM symbols WHERE name = ?',
+    ).get('HandleRequest') as { start_line: number; end_line: number } | undefined;
+    expect(afterPatch).toBeDefined();
+    expect(afterPatch!.start_line).toBe(6);
+    // Tree-sitter sees the full method body ending at the closing brace
+    expect(afterPatch!.end_line).toBe(10);
 
     ctx.db.close();
   });
