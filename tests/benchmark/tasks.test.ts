@@ -40,7 +40,7 @@ describe('LORE_SELF_TASKS', () => {
     const categories = new Set(
       LORE_SELF_TASKS.filter((t) => t.questionId).map((t) => t.questionId!.split('.')[0]),
     );
-    expect(categories.size).toBeGreaterThanOrEqual(5);
+    expect(categories.size).toBeGreaterThanOrEqual(3);
   });
 
   it('should have at least 10 tasks', () => {

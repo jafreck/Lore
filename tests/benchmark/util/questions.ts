@@ -69,6 +69,8 @@ export interface QuestionTemplate {
 export interface QuestionParams {
   /** The symbol / function name referenced in the prompt. */
   symbol: string;
+  /** Optional second symbol for questions referencing two symbols (e.g. Q1.5). */
+  symbol2?: string;
   /** The file path referenced in the prompt. */
   file: string;
   /** Canonical expected answer (newline-separated lines). */
@@ -99,13 +101,14 @@ export interface RepoContext {
  * to a specific codebase at runtime.
  */
 export const QUESTION_CATALOG: QuestionTemplate[] = [
-  // ── Category 1: Call Graph & Impact Analysis ────────────────────────────
+  // ── Call Graph: Pure graph traversal ────────────────────────────────────
+
   {
     questionId: '1.1',
     category: 'Call Graph',
     family: 'localization',
     description: 'Direct callers of a function',
-    loreTools: ['lore_lookup', 'lore_graph(kind=call, direction=incoming)'],
+    loreTools: ['lore_dependents'],
     loreAdvantage: 'Resolved symbol_refs distinguish real call sites from comments/strings/imports.',
     promptTemplate:
       'What functions or methods directly call `{{symbol}}`? ' +
@@ -117,7 +120,7 @@ export const QUESTION_CATALOG: QuestionTemplate[] = [
     category: 'Call Graph',
     family: 'localization',
     description: 'Direct callees of a function',
-    loreTools: ['lore_lookup', 'lore_graph(kind=call, direction=outgoing)'],
+    loreTools: ['lore_graph(kind=call)'],
     loreAdvantage: 'Nested calls inside closures are invisible to text search.',
     promptTemplate:
       'What does the function/method `{{symbol}}` call? ' +
@@ -128,231 +131,159 @@ export const QUESTION_CATALOG: QuestionTemplate[] = [
     category: 'Call Graph',
     family: 'modification',
     description: 'Blast radius of a change (transitive callers)',
-    loreTools: ['lore_lookup', 'lore_graph(kind=call, depth=3)'],
+    loreTools: ['lore_dependents(depth=3)'],
     loreAdvantage: 'Transitive closure in 1 call; grep only finds direct mentions.',
     promptTemplate:
       'If I change the function `{{symbol}}` in `{{file}}`, what is the blast radius? ' +
       'Use transitive dependency analysis if available (follow callers of callers, up to 3 hops). ' +
       'Answer with ONLY a newline-separated list of files and functions that transitively depend on it, nothing else.',
   },
+
+  // ── Call Graph + Snippet: graph for navigation, snippet for understanding
+
   {
-    questionId: '1.6',
+    questionId: '1.3',
     category: 'Call Graph',
-    family: 'coverage',
-    description: 'Functions that are never called (dead code)',
-    loreTools: ['lore_lookup', 'lore_graph(kind=call, direction=incoming)'],
-    loreAdvantage: 'LEFT JOIN on resolved symbol_refs finds zero-inbound symbols; grep cannot prove absence of calls.',
-    promptTemplate:
-      'Which exported functions in `{{file}}` are never called from anywhere else in the codebase? ' +
-      'Answer with ONLY a newline-separated list of function names, nothing else. ' +
-      'If all exported functions are called somewhere, answer "None".',
-  },
-
-  // ── Category 2: Type Hierarchy & Inheritance ────────────────────────────
-  {
-    questionId: '2.1',
-    category: 'Type Hierarchy',
-    family: 'localization',
-    description: 'Implementations of an interface',
-    loreTools: ['lore_lookup', 'lore_graph(kind=inheritance)'],
-    loreAdvantage: 'Grep finds "implements X" textually but misses transitive/re-exported implementations.',
-    promptTemplate:
-      'What classes or types implement the interface `{{symbol}}`? ' +
-      'Answer with ONLY a newline-separated list of class/type names, nothing else.',
-  },
-
-  // ── Category 3: Module Dependencies ─────────────────────────────────────
-  {
-    questionId: '3.3',
-    category: 'Module Dependencies',
     family: 'explanation',
-    description: 'Top-level module dependency map',
-    loreTools: ['lore_graph(kind=import)'],
-    loreAdvantage: 'Resolved import graph with path resolution; grep cannot resolve aliases or barrel files.',
+    description: 'Callee parameter flow — what arguments are passed to each callee',
+    loreTools: ['lore_graph(kind=call)', 'lore_snippet'],
+    loreAdvantage: 'Graph identifies callees; snippet shows the actual call expressions and argument passing — impossible from graph alone.',
     promptTemplate:
-      'What are the top-level modules/packages in this codebase and how do they depend on each other? ' +
-      'Answer with ONLY a newline-separated list, one module per line, in the exact format below. ' +
-      'Use module paths relative to the repo root (e.g. src/indexer, lib/router, pkg/api). ' +
-      'List dependencies as comma-separated paths, or (none) if there are no internal dependencies. ' +
-      'Include every module, even those with no dependencies. Nothing else in the answer.\n' +
-      'Example format:\nsrc/module_a → src/module_b, src/module_c\nsrc/module_b → (none)',
+      'What arguments does `{{symbol}}` pass to each of its direct callees? ' +
+      'For each callee, show the callee name and the argument expressions passed to it. ' +
+      'Answer with ONLY a newline-separated list in the format "callee(arg1, arg2, ...)", nothing else. ' +
+      'Example format:\nfoo(config, options)\nbar(result.data)\nbaz()',
   },
   {
-    questionId: '3.5',
-    category: 'Module Dependencies',
-    family: 'explanation',
-    description: 'External packages used by only a single module',
-    loreTools: ['lore_lookup'],
-    loreAdvantage: 'Aggregation over external_deps table gives per-package file counts; grep finds import statements but cannot aggregate.',
-    promptTemplate:
-      'Which external (third-party) packages in this codebase are only imported by files in a single directory? ' +
-      'Answer with ONLY a newline-separated list in the format "package → directory", nothing else. ' +
-      'Example format:\nlodash → src/utils\naxios → src/api',
-  },
-
-  // ── Category 4: Test Mapping & Coverage ─────────────────────────────────
-  {
-    questionId: '4.1',
-    category: 'Test Mapping',
-    family: 'testing',
-    description: 'Test files to run after modifying a source file',
-    loreTools: ['lore_test_map'],
-    loreAdvantage: 'Structural test mapping with confidence scores; grep relies on fragile name heuristics.',
-    promptTemplate:
-      'What test files should I run after modifying `{{file}}`? ' +
-      'Answer with ONLY a newline-separated list of test file paths relative to the repo root, nothing else.',
-  },
-  // DISABLED: requires per-test coverage data (test_coverage_lines) which is not
-  // populated during standard benchmark indexing.  Re-enable once coverage
-  // ingestion is wired into the benchmark preparation pipeline.
-  // {
-  //   questionId: '4.2',
-  //   category: 'Test Mapping',
-  //   family: 'coverage',
-  //   description: 'Which tests exercise a specific line of code',
-  //   loreTools: ['lore_test_map(source_path, line)'],
-  //   loreAdvantage: 'Per-test line coverage attribution from test_coverage_lines; no grep or manual tracing possible.',
-  //   promptTemplate:
-  //     'Which individual tests exercise line 1 of `{{file}}`? ' +
-  //     'Use per-test coverage data if available. ' +
-  //     'Answer with ONLY a newline-separated list of test names, nothing else.',
-  // },
-
-  // ── Category 5: Semantic Similarity ─────────────────────────────────────
-  {
-    questionId: '5.1',
-    category: 'Semantic Similarity',
+    questionId: '1.5',
+    category: 'Call Graph',
     family: 'localization',
-    description: 'Functions with similar logic (clone detection candidates)',
-    loreTools: ['lore_search(mode=semantic)'],
-    loreAdvantage: 'Embedding cosine similarity finds structurally similar code regardless of naming; grep matches text only.',
+    description: 'Shared callers — functions that call both symbol and symbol2',
+    loreTools: ['lore_dependents', 'lore_snippet'],
+    loreAdvantage: 'Graph gives caller-set intersection in 2 calls; control must grep twice and cross-reference manually.',
     promptTemplate:
-      'What functions in this codebase have very similar logic to `{{symbol}}`? ' +
-      'Use embedding similarity search if available rather than text matching. ' +
-      'Answer with ONLY a newline-separated list of function names, nothing else. ' +
-      'Exclude the target function itself.',
+      'What functions call BOTH `{{symbol}}` and `{{symbol2}}`? ' +
+      'For each shared caller, briefly describe what it does with the results of both calls. ' +
+      'Answer with ONLY a newline-separated list in the format "caller — description", nothing else. ' +
+      'Example format:\nmain — calls foo() to get config, then bar(config) to apply it',
   },
-
-  // ── Category 6: Complexity & Code Health ────────────────────────────────
   {
-    questionId: '6.1',
-    category: 'Complexity',
-    family: 'coverage',
-    description: 'Top 5 most complex functions by cyclomatic complexity',
-    loreTools: ['lore_metrics(mode=complexity, limit=5)'],
-    loreAdvantage: 'Pre-indexed cyclomatic complexity; no source scanning needed.',
+    questionId: '1.7',
+    category: 'Call Graph',
+    family: 'explanation',
+    description: 'Call chain trace — find the path between two specific functions',
+    loreTools: ['lore_graph(kind=call, depth=5)', 'lore_snippet'],
+    loreAdvantage: 'Graph gives transitive call chain between two known endpoints; snippet retrieves each function body to summarize behavior.',
     promptTemplate:
-      'What are the 5 most complex functions in this codebase, ranked by cyclomatic complexity? ' +
-      'Use pre-indexed complexity metrics if available rather than scanning source files. ' +
-      'Answer with ONLY a numbered list of function names, one per line, in descending order. ' +
-      'Example format:\n1. foo\n2. bar\n3. baz\n4. qux\n5. quux',
+      'Trace the call chain from `{{symbol}}` to `{{symbol2}}`. ' +
+      'Show every intermediate function on the path. ' +
+      'For each function in the chain, show its name and a one-line summary of what it does. ' +
+      'Answer with ONLY a numbered chain, one function per line, nothing else. ' +
+      'Example format:\n1. foo — orchestrates the build pipeline\n2. bar — opens the database connection\n3. baz — runs SQL migrations',
+  },
+  {
+    questionId: '1.8',
+    category: 'Call Graph',
+    family: 'modification',
+    description: 'Error propagation — which callers handle vs propagate errors',
+    loreTools: ['lore_dependents', 'lore_snippet'],
+    loreAdvantage: 'Graph gives callers; snippet reveals error-handling patterns at each call site.',
+    promptTemplate:
+      'If `{{symbol}}` throws an error or returns an error value, which of its direct callers handle the error ' +
+      '(try/catch, error check, etc.) and which propagate it to their own callers? ' +
+      'Answer with ONLY two sections: "Handle:" and "Propagate:", each followed by a newline-separated list of caller names. ' +
+      'If a section is empty, write "None".\n' +
+      'Example format:\nHandle:\nfoo\nbar\nPropagate:\nbaz\nqux',
   },
 
-  // ── Category 7: Cross-file Consumer Trace ──────────────────────────────
+  // ── Cross-file consumers + snippet context ─────────────────────────────
+
   {
     questionId: '7.2',
     category: 'Cross-file Consumers',
     family: 'localization',
-    description: 'Functions in other files that reference a type/interface',
-    loreTools: ['lore_lookup', 'lore_graph(kind=call)'],
-    loreAdvantage: '2–3 calls to enumerate cross-file consumers; control must grep imports then trace type usage.',
+    description: 'Cross-file callers with calling context',
+    loreTools: ['lore_dependents', 'lore_snippet'],
+    loreAdvantage: 'Graph identifies callers across files; snippet shows calling context — control must grep + read each file.',
     promptTemplate:
-      'What functions across the codebase directly consume or reference the type/interface `{{symbol}}` defined in `{{file}}`? ' +
-      'List only functions in OTHER files (not the file where it is defined). ' +
-      'Answer with ONLY a newline-separated list in the format "function → file", nothing else. ' +
-      'Example format:\nfoo → src/bar.ts\nbaz → src/qux.ts',
+      'What functions in OTHER files call `{{symbol}}` defined in `{{file}}`? ' +
+      'For each caller, show the function name, the file it lives in, and what it does with the return value. ' +
+      'Answer with ONLY a newline-separated list in the format "function → file — description", nothing else. ' +
+      'Example format:\nbuildIndex → src/indexer.ts — stores the result in a local variable and passes it to pipeline.run()',
+  },
+  {
+    questionId: '7.3',
+    category: 'Cross-file Consumers',
+    family: 'localization',
+    description: 'Interface dispatch — concrete implementations called through an abstraction',
+    loreTools: ['lore_graph(kind=call)', 'lore_graph(kind=inheritance)', 'lore_snippet'],
+    loreAdvantage: 'Call graph + type hierarchy finds dispatched implementations; snippet shows each concrete body.',
+    promptTemplate:
+      'What concrete functions or methods get called when `{{symbol}}` is invoked? ' +
+      'If it is an interface/abstract method, list the concrete implementations. ' +
+      'If it is a wrapper/dispatch function, list what it delegates to. ' +
+      'For each, show the function name and file. ' +
+      'Answer with ONLY a newline-separated list in the format "function → file", nothing else.',
   },
 
-  // ── Category 8: Graph Analysis ──────────────────────────────────────────
-  {
-    questionId: '8.1',
-    category: 'Graph Analysis',
-    family: 'explanation',
-    description: 'Circular dependency detection',
-    loreTools: ['lore_graph(kind=import)'],
-    loreAdvantage: 'Tarjan SCC on import graph; no text operation can detect cycles.',
-    promptTemplate:
-      'Are there any circular dependencies (import cycles) between source files in this codebase? ' +
-      'Answer with ONLY a list of the cycle(s), each on its own line showing the file loop ' +
-      '(e.g. "a.ts → b.ts → a.ts"), or "None" if the codebase is acyclic.',
-  },
+  // ── Fan-in analysis + snippet ──────────────────────────────────────────
 
-  // ── Category 9: API Surface ─────────────────────────────────────────────
   {
-    questionId: '9.1',
-    category: 'API Surface',
-    family: 'history',
-    description: 'Public API surface changes between branches',
-    loreTools: ['lore_diff(old_branch, new_branch)'],
-    loreAdvantage: 'Compares exported symbols between indexed branches; grep cannot diff symbol visibility across branches.',
-    promptTemplate:
-      'What exported symbols have been added, removed, or changed between the oldest indexed branch and the current branch? ' +
-      'Answer with ONLY three sections: "Added:", "Removed:", "Changed:", each followed by a newline-separated list of symbol names. ' +
-      'If a section is empty, write "None".',
-  },
-
-  // ── Category 10: Cross-module Fan-in ────────────────────────────────────
-  {
-    questionId: '10.2',
+    questionId: '10.1',
     category: 'Cross-module Fan-in',
     family: 'explanation',
-    description: 'Functions in a file ranked by number of distinct calling files',
-    loreTools: ['lore_lookup', 'lore_graph(kind=call)'],
-    loreAdvantage: '3–5 calls to aggregate callers by file; control must parse exports + grep each across codebase.',
+    description: 'Fan-in count — how many distinct files call a specific function',
+    loreTools: ['lore_dependents', 'lore_snippet'],
+    loreAdvantage: 'One lore_dependents call gives the complete caller list with file info; control must grep the entire codebase.',
     promptTemplate:
-      'Which functions in `{{file}}` are called from the most distinct source files? ' +
-      'Rank the top 3 by number of unique calling files (exclude test files). ' +
-      'Answer with ONLY a numbered list in the format "name — N files: file1, file2, ...", nothing else. ' +
-      'Example format:\n1. foo — 4 files: src/a.ts, src/b.ts, src/c.ts, src/d.ts\n' +
-      '2. bar — 3 files: src/a.ts, src/e.ts, src/f.ts\n' +
-      '3. baz — 2 files: src/a.ts, src/g.ts',
+      'How many distinct source files (not test files) call `{{symbol}}` defined in `{{file}}`? ' +
+      'List every calling function and its file. ' +
+      'Answer with ONLY a count on the first line, then a newline-separated list of "function → file" entries, nothing else. ' +
+      'Example format:\n3\nfoo → src/a.ts\nbar → src/b.ts\nbaz → src/c.ts',
   },
-
-  // ── Category 11: Composite / Multi-Hop ──────────────────────────────────
-  // DISABLED: the prompt asks for coverage percentage which requires ingested
-  // coverage data not available during standard benchmark indexing.  Re-enable
-  // once coverage ingestion is wired into the benchmark preparation pipeline.
-  // {
-  //   questionId: '11.1',
-  //   category: 'Composite',
-  //   family: 'modification',
-  //   description: 'Modify a symbol: find tests, coverage, and reviewer',
-  //   loreTools: ['lore_lookup', 'lore_test_map', 'lore_blame'],
-  //   loreAdvantage: 'Chains test mapping + blame in 2 calls vs. manual multi-step process.',
-  //   promptTemplate:
-  //     'I need to modify `{{symbol}}` in `{{file}}`. ' +
-  //     'What test files should I run, what is the coverage of those test paths, and who should review the change? ' +
-  //     'Answer with ONLY three lines:\n1. Test files (comma-separated paths)\n2. Coverage percentage\n3. Reviewer name',
-  // },
   {
-    questionId: '11.4',
-    category: 'Composite',
-    family: 'modification',
-    description: 'Deletion impact: exported symbols and their consumers',
-    loreTools: ['lore_lookup', 'lore_graph(kind=call)'],
-    loreAdvantage: '2–4 calls to find all exports + their consumers; control needs read + parse + grep per export.',
-    promptTemplate:
-      'If I deleted `{{file}}`, what exported symbols from that file are used elsewhere in the codebase, ' +
-      'and which source files (not test files) use each one? ' +
-      'Answer with ONLY a newline-separated list in the exact format below, nothing else. ' +
-      'Use file paths relative to the repo root. ' +
-      'Only include symbols that are actually imported or referenced by other source files.\n' +
-      'Example format:\nMyFunction → path/to/consumer1.ts, path/to/consumer2.ts\nMyType → path/to/consumer3.ts',
-  },
-
-  // ── Category 12: Architecture ───────────────────────────────────────────
-  {
-    questionId: '12.1',
-    category: 'Architecture',
+    questionId: '10.3',
+    category: 'Cross-module Fan-in',
     family: 'explanation',
-    description: 'Architectural layer violations (back-edges in import DAG)',
-    loreTools: ['lore_structure(analysis=layers)'],
-    loreAdvantage: "Kahn's topological sort on directory-level import DAG flags back-edges; no text search can infer layers.",
+    description: 'Call-site pattern diff — how different callers invoke the same function',
+    loreTools: ['lore_dependents', 'lore_snippet'],
+    loreAdvantage: 'Graph gives callers; snippet reveals divergent calling patterns across files.',
     promptTemplate:
-      'Are there any architectural layering violations in this codebase — directories that import from directories ' +
-      'that should be in a higher layer? Use topological analysis of the import graph if available. ' +
-      'Answer with ONLY a newline-separated list of violations in the format "from_dir → to_dir", ' +
-      'or "None" if no violations are detected.',
+      'How do the different callers of `{{symbol}}` invoke it? Group the callers by calling pattern ' +
+      '(e.g. different arguments, with/without error handling, inside loops vs one-shot, etc.). ' +
+      'Answer with ONLY named groups, each followed by the callers that use that pattern. ' +
+      'Example format:\nWith error handling:\n  foo in src/a.ts\n  bar in src/b.ts\nFire-and-forget:\n  baz in src/c.ts',
+  },
+
+  // ── Modification safety + snippet ──────────────────────────────────────
+
+  {
+    questionId: '11.2',
+    category: 'Modification Safety',
+    family: 'modification',
+    description: 'Safe deletion check — which callers break and where',
+    loreTools: ['lore_dependents(depth=2)', 'lore_snippet'],
+    loreAdvantage: 'Graph gives transitive dependents; snippet shows the exact breaking call site in each.',
+    promptTemplate:
+      'If I delete `{{symbol}}` from `{{file}}`, which functions in other files would break? ' +
+      'For each broken caller, show the function name, file, and the line of code that calls `{{symbol}}`. ' +
+      'Answer with ONLY a newline-separated list in the format "function in file — code", nothing else. ' +
+      'Example format:\nbuildIndex in src/indexer.ts — const db = openDb(path)\nmain in src/cli.ts — await openDb(config.dbPath)',
+  },
+  {
+    questionId: '11.3',
+    category: 'Modification Safety',
+    family: 'refactoring',
+    description: 'Inline refactoring feasibility — can a function be safely inlined',
+    loreTools: ['lore_dependents', 'lore_graph(kind=call)', 'lore_snippet'],
+    loreAdvantage: 'Graph gives callers + callees; snippet shows function body and each call site to judge inlinability.',
+    promptTemplate:
+      'Could `{{symbol}}` be safely inlined into its callers? ' +
+      'Consider: how many callers exist, whether it has side effects, whether it is called more than once per caller, ' +
+      'and whether inlining would duplicate complex logic. ' +
+      'Answer with: 1) The number of callers, 2) A yes/no verdict with reasoning, ' +
+      '3) For each caller, one line showing the call site. ' +
+      'Example format:\nCallers: 3\nVerdict: No — function has 15 lines with side effects (database write), inlining would duplicate logic\nCall sites:\n  foo in src/a.ts — openDb(path)\n  bar in src/b.ts — openDb(config.dbPath)',
   },
 ];
 
@@ -396,6 +327,7 @@ export function renderPrompt(
 ): string {
   return template.promptTemplate
     .replace(/\{\{symbol\}\}/g, params.symbol)
+    .replace(/\{\{symbol2\}\}/g, params.symbol2 ?? '')
     .replace(/\{\{file\}\}/g, params.file)
     .replace(/\{\{languageLabel\}\}/g, repo.languageLabel)
     .replace(/\{\{sourceRoot\}\}/g, repo.sourceRoot);

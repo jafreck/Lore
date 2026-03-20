@@ -13,9 +13,9 @@ import type { RepoSpec } from './types.js';
  */
 export const PILOT_REPOS: RepoSpec[] = [
   {
-    name: 'gson',
-    url: 'https://github.com/google/gson.git',
-    sha: 'b7d59549188867deb42e46073fb38735a5beda1c',
+    name: 'jackson-databind',
+    url: 'https://github.com/FasterXML/jackson-databind.git',
+    sha: '331c4a8ef8616a9f2581dd990bd6b9e9d8bca68b',
     languages: ['java'],
     size: 'medium',
     structure: 'sdk',
