@@ -898,7 +898,7 @@ export class ScipIndexerStage implements PipelineStage {
     // `symbol_refs` rows with `call_kind = 'virtual_dispatch'` so that
     // both `lore_graph` and `lore_dependents` surface these edges.
     const virtualDispatchEdges = materializeVirtualDispatch(
-      db, scipToLoreId, symbolInfoMap, layer, generation, log,
+      db, scipToLoreId, symbolInfoMap, symbolDefinitions, layer, generation, log,
     );
 
     // Communicate coverage to downstream stages
@@ -1353,6 +1353,7 @@ function materializeVirtualDispatch(
   db: Database.Database,
   scipToLoreId: Map<string, number>,
   symbolInfoMap: Map<string, import('../../scip/scip_pb.js').SymbolInformation>,
+  symbolDefinitions: Map<string, { filePath: string; line: number; character: number }>,
   layer: string,
   generation: number,
   log: ReturnType<typeof getLogger>,
@@ -1393,6 +1394,16 @@ function materializeVirtualDispatch(
             definition_uri, definition_path, definition_line, definition_character
        FROM symbol_refs
       WHERE callee_id = ?`,
+  );
+
+  const findExistingCallSite = db.prepare(
+    `SELECT 1
+       FROM symbol_refs
+      WHERE caller_id = ?
+        AND callee_id = ?
+        AND call_line = ?
+        AND call_character IS ?
+      LIMIT 1`,
   );
 
   const insertVDispatch = db.prepare(
@@ -1440,14 +1451,19 @@ function materializeVirtualDispatch(
         }>;
 
         for (const caller of callers) {
-          // Don't insert if this caller → concrete edge already exists
-          const existing = db.prepare(
-            'SELECT 1 FROM symbol_refs WHERE caller_id = ? AND callee_id = ? LIMIT 1',
-          ).get(caller.caller_id, concreteMethodId);
+          // Don't insert if the exact call site already resolves to this concrete callee.
+          const existing = findExistingCallSite.get(
+            caller.caller_id,
+            concreteMethodId,
+            caller.call_line,
+            caller.call_character,
+          );
           if (existing) continue;
 
           // Use the concrete method's name and definition info
           const concreteName = extractNameFromScipSymbol(concreteScip);
+          const concreteDef = symbolDefinitions.get(concreteScip);
+          const concreteDefUri = concreteDef ? pathToFileURL(concreteDef.filePath).toString() : null;
 
           try {
             insertVDispatch.run(
@@ -1461,10 +1477,10 @@ function materializeVirtualDispatch(
               'scip_definition',
               caller.resolved_type_signature,
               caller.resolved_return_type,
-              caller.definition_uri,
-              caller.definition_path,
-              caller.definition_line,
-              caller.definition_character,
+              concreteDefUri,
+              concreteDef?.filePath ?? null,
+              concreteDef?.line ?? null,
+              concreteDef?.character ?? null,
               layer, generation,
             );
             edgesInserted++;
