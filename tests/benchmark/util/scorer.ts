@@ -558,6 +558,171 @@ export function truncate(s: string, maxLen = 200): string {
   return s.slice(0, maxLen) + '…';
 }
 
+export interface StructuredTaskResult {
+  taskId: string;
+  family: string;
+  iteration?: number;
+  control: {
+    score: RunScore;
+    tools: string;
+    loreToolArgs?: string;
+    answer: string;
+    missedParts: string[];
+    missedAnswerLines: string[];
+  };
+  lore: {
+    score: RunScore;
+    tools: string;
+    loreToolArgs: string;
+    answer: string;
+    missedParts: string[];
+    missedAnswerLines: string[];
+  };
+  delta: {
+    correctness: number;
+    tokens: number;
+    tokensPct: number | null;
+    wallTimeMs: number;
+    wallTimePct: number | null;
+  };
+  warnings: string[];
+}
+
+export interface StructuredBenchmarkReport {
+  metadata: {
+    model: string;
+    repo: string;
+    indexMode: string;
+    embeddingModel: string;
+    lsp: boolean;
+    tasks: number;
+    iterations: number;
+    completedRuns: number;
+    totalExpectedRuns: number;
+    timestamp: string;
+  };
+  tasks: StructuredTaskResult[];
+  aggregate: {
+    control: AggregateReport;
+    lore: AggregateReport;
+    comparison: {
+      successRateDelta: number;
+      correctnessDelta: number;
+      firstPassAccuracyDelta: number;
+      answerCoverageDelta: number;
+      toolCallsDelta: number;
+      tokensDelta: number;
+      tokensPct: number | null;
+      wallTimeDelta: number;
+      wallTimePct: number | null;
+    };
+    significance?: {
+      t: number;
+      df: number;
+      p: number;
+      significant: boolean;
+    };
+  };
+}
+
+export function buildStructuredTaskResult(
+  task: BenchmarkTask,
+  controlScore: RunScore,
+  controlTrace: AgentTrace,
+  loreScore: RunScore,
+  loreTrace: AgentTrace,
+  iteration?: number,
+): StructuredTaskResult {
+  const controlDiag = diagnoseExpectations(task, controlTrace);
+  const loreDiag = diagnoseExpectations(task, loreTrace);
+
+  const tokenDelta = loreScore.tokensUsed - controlScore.tokensUsed;
+  const tokensPct = controlScore.tokensUsed ? (tokenDelta / controlScore.tokensUsed) * 100 : null;
+  const wallDelta = loreScore.wallTimeMs - controlScore.wallTimeMs;
+  const wallPct = controlScore.wallTimeMs ? (wallDelta / controlScore.wallTimeMs) * 100 : null;
+  const warnings: string[] = [];
+  if (loreScore.correctness < controlScore.correctness) {
+    warnings.push(`lore worse on correctness — missed: [${loreDiag.correctnessDetail.missed.join(', ')}]`);
+  }
+  if (loreScore.tokensUsed > controlScore.tokensUsed * 1.5) {
+    warnings.push('lore 50%+ more tokens');
+  }
+  if (loreScore.wallTimeMs > controlScore.wallTimeMs * 1.5) {
+    warnings.push('lore 50%+ slower');
+  }
+
+  return {
+    taskId: task.id,
+    family: task.family,
+    ...(iteration !== undefined ? { iteration } : {}),
+    control: {
+      score: controlScore,
+      tools: formatToolFrequency(controlTrace.toolCalls),
+      answer: truncate(controlTrace.finalAnswer.replace(/\n/g, ' '), 300),
+      missedParts: controlDiag.missed,
+      missedAnswerLines: controlDiag.correctnessDetail.missed,
+    },
+    lore: {
+      score: loreScore,
+      tools: formatToolFrequency(loreTrace.toolCalls),
+      loreToolArgs: formatLoreToolArgs(loreTrace.toolCalls),
+      answer: truncate(loreTrace.finalAnswer.replace(/\n/g, ' '), 300),
+      missedParts: loreDiag.missed,
+      missedAnswerLines: loreDiag.correctnessDetail.missed,
+    },
+    delta: {
+      correctness: loreScore.correctness - controlScore.correctness,
+      tokens: tokenDelta,
+      tokensPct,
+      wallTimeMs: wallDelta,
+      wallTimePct: wallPct,
+    },
+    warnings,
+  };
+}
+
+export function buildStructuredReport(
+  metadata: StructuredBenchmarkReport['metadata'],
+  taskResults: StructuredTaskResult[],
+  controlReport: AggregateReport,
+  loreReport: AggregateReport,
+): StructuredBenchmarkReport {
+  const tokenDelta = loreReport.meanTokens - controlReport.meanTokens;
+  const wallDelta = loreReport.meanWallTimeMs - controlReport.meanWallTimeMs;
+
+  const comparison: StructuredBenchmarkReport['aggregate']['comparison'] = {
+    successRateDelta: loreReport.successRate - controlReport.successRate,
+    correctnessDelta: loreReport.meanCorrectness - controlReport.meanCorrectness,
+    firstPassAccuracyDelta: loreReport.firstPassAccuracyRate - controlReport.firstPassAccuracyRate,
+    answerCoverageDelta: loreReport.meanAnswerCoverage - controlReport.meanAnswerCoverage,
+    toolCallsDelta: loreReport.meanToolCalls - controlReport.meanToolCalls,
+    tokensDelta: tokenDelta,
+    tokensPct: controlReport.meanTokens ? (tokenDelta / controlReport.meanTokens) * 100 : null,
+    wallTimeDelta: wallDelta,
+    wallTimePct: controlReport.meanWallTimeMs ? (wallDelta / controlReport.meanWallTimeMs) * 100 : null,
+  };
+
+  let significance: StructuredBenchmarkReport['aggregate']['significance'];
+  if (controlReport.totalRuns > 1 && loreReport.totalRuns > 1) {
+    const tResult = welchTTest(
+      controlReport.meanCorrectness, controlReport.stdCorrectness, controlReport.totalRuns,
+      loreReport.meanCorrectness, loreReport.stdCorrectness, loreReport.totalRuns,
+    );
+    significance = { ...tResult, significant: tResult.p < 0.05 };
+  }
+
+  return {
+    metadata,
+    tasks: taskResults,
+    aggregate: {
+      control: controlReport,
+      lore: loreReport,
+      comparison,
+      ...(significance ? { significance } : {}),
+    },
+  };
+}
+
 /**
  * Format a compact summary of Lore tool calls with their key arguments.
  * e.g. "lore_graph(kind=call, depth=1, target_id=42), lore_lookup(kind=symbol, query=openDb)"
