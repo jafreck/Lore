@@ -22,13 +22,14 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { join } from 'node:path';
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { execFileSync } from 'node:child_process';
 import { RepoManager } from './util/repo-manager.js';
 import { indexRepo } from './util/indexer.js';
 import { runCopilotAgent, type CopilotAgentOptions } from './util/copilot-agent.js';
-import { scoreRun, aggregateScores, formatReport, compareReports, formatToolFrequency, diagnoseExpectations, truncate, formatLoreToolArgs } from './util/scorer.js';
+import { scoreRun, aggregateScores, formatReport, compareReports, formatToolFrequency, diagnoseExpectations, truncate, formatLoreToolArgs, buildStructuredTaskResult, buildStructuredReport } from './util/scorer.js';
+import type { StructuredTaskResult } from './util/scorer.js';
 import { getTasksForRepo } from './util/tasks.js';
 import { PILOT_REPOS } from './util/repos.js';
 import type { RunScore, AgentTrace, BenchmarkTask } from './util/types.js';
@@ -180,6 +181,7 @@ describe.skipIf(SKIP)(`Copilot agent benchmark: ${TARGET_REPO}`, () => {
     // Collect scores for whichever tasks completed (report is always printed)
     const controlScores: RunScore[] = [];
     const loreScores: RunScore[] = [];
+    const structuredTasks: StructuredTaskResult[] = [];
 
     for (const task of COPILOT_TASKS) {
       for (let iter = 0; iter < ITERATIONS; iter++) {
@@ -193,6 +195,12 @@ describe.skipIf(SKIP)(`Copilot agent benchmark: ${TARGET_REPO}`, () => {
         }
         controlScores.push(cr.score);
         loreScores.push(lr.score);
+
+        const structuredTask = buildStructuredTaskResult(
+          task, cr.score, cr.trace, lr.score, lr.trace,
+          ITERATIONS > 1 ? iter + 1 : undefined,
+        );
+        structuredTasks.push(structuredTask);
 
         const iterLabel = ITERATIONS > 1 ? ` [iter ${iter + 1}]` : '';
         const tokenDelta = lr.score.tokensUsed - cr.score.tokensUsed;
@@ -234,6 +242,30 @@ describe.skipIf(SKIP)(`Copilot agent benchmark: ${TARGET_REPO}`, () => {
       console.log(formatReport(controlReport));
       console.log('\n' + formatReport(loreReport));
       console.log('\n' + compareReports(controlReport, loreReport));
+
+      const structuredReport = buildStructuredReport(
+        {
+          model: COPILOT_OPTIONS.model!,
+          repo: TARGET_REPO,
+          indexMode: INDEX_MODE,
+          embeddingModel: EMBEDDING_MODEL || 'none',
+          lsp: ENABLE_LSP,
+          tasks: COPILOT_TASKS.length,
+          iterations: ITERATIONS,
+          completedRuns: controlScores.length,
+          totalExpectedRuns,
+          timestamp: new Date().toISOString(),
+        },
+        structuredTasks,
+        controlReport,
+        loreReport,
+      );
+
+      const outDir = join(LORE_BUILD_ROOT, 'benchmark-results');
+      mkdirSync(outDir, { recursive: true });
+      const jsonPath = join(outDir, `${TARGET_REPO}.json`);
+      writeFileSync(jsonPath, JSON.stringify(structuredReport, null, 2) + '\n');
+      console.log(`\nStructured report written to: ${jsonPath}`);
 
       // Assertions come AFTER the report is printed
       expect(controlReport.totalRuns).toBe(totalExpectedRuns);
