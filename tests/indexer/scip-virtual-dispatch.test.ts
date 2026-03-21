@@ -328,11 +328,20 @@ describe('ScipIndexerStage virtual dispatch materialization', () => {
 
     // KEY ASSERTION: there should be a virtual_dispatch edge RunBuild → myBuilder.Build
     const virtualEdge = db.prepare(
-      "SELECT call_kind, resolution_method FROM symbol_refs WHERE caller_id = ? AND callee_id = ?",
-    ).get(runBuildId, concreteBuildId) as { call_kind: string; resolution_method: string } | undefined;
+      "SELECT call_kind, resolution_method, definition_path, definition_line, definition_character FROM symbol_refs WHERE caller_id = ? AND callee_id = ?",
+    ).get(runBuildId, concreteBuildId) as {
+      call_kind: string;
+      resolution_method: string;
+      definition_path: string | null;
+      definition_line: number | null;
+      definition_character: number | null;
+    } | undefined;
     expect(virtualEdge).toBeDefined();
     expect(virtualEdge!.call_kind).toBe('virtual_dispatch');
     expect(virtualEdge!.resolution_method).toBe('scip_definition');
+    expect(virtualEdge!.definition_path).toMatch(/impl\.go$/);
+    expect(virtualEdge!.definition_line).toBe(4);
+    expect(virtualEdge!.definition_character).toBe(22);
 
     // Verify: querying callers of myBuilder.Build should now return RunBuild
     const callers = db.prepare(
@@ -350,7 +359,7 @@ describe('ScipIndexerStage virtual dispatch materialization', () => {
     db.close();
   });
 
-  it('does not duplicate edges that already exist', async () => {
+  it('preserves distinct direct and virtual call sites to the same concrete method', async () => {
     const rootDir = makeTmpDir('lore-scip-vdispatch-nodup-');
     const indexDir = join(rootDir, '.scip-indexes');
     mkdirSync(indexDir, { recursive: true });
@@ -430,17 +439,18 @@ describe('ScipIndexerStage virtual dispatch materialization', () => {
       "SELECT s.id FROM symbols s JOIN files f ON f.id = s.file_id WHERE s.name = 'Do' AND f.path LIKE '%main.go' AND s.start_line = 4",
     ).get() as { id: number })?.id;
 
-    // There should be exactly 1 edge to Impl.Do:
-    // The direct edge (from y.Do() call) already exists, so the virtual_dispatch
-    // edge should NOT be duplicated — the dedup check prevents it.
+    // There should be 2 edges to Impl.Do:
+    // - a virtual_dispatch edge for x.Do() via the interface call site
+    // - a direct edge for y.Do() at its distinct concrete call site
     const edges = db.prepare(
-      "SELECT caller_id, call_kind FROM symbol_refs WHERE callee_id = ?",
-    ).all(implDoId) as Array<{ caller_id: number; call_kind: string }>;
+      "SELECT caller_id, call_kind, call_line FROM symbol_refs WHERE callee_id = ? ORDER BY call_line",
+    ).all(implDoId) as Array<{ caller_id: number; call_kind: string; call_line: number }>;
 
-    // Only the direct edge exists — virtual_dispatch was skipped because
-    // caller→callee already had an edge
-    expect(edges.length).toBe(1);
-    expect(edges[0]!.call_kind).toBe('direct');
+    expect(edges.length).toBe(2);
+    expect(edges).toEqual([
+      { caller_id: edges[0]!.caller_id, call_kind: 'virtual_dispatch', call_line: 7 },
+      { caller_id: edges[1]!.caller_id, call_kind: 'direct', call_line: 9 },
+    ]);
 
     db.close();
   });
