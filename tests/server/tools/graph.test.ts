@@ -202,9 +202,9 @@ describe('graph handler – kind=call', () => {
     expect(result.edges).toEqual([]);
   });
 
-  it('should respect the limit parameter', () => {
-    const result = handler(db, { kind: 'call', limit: 1 });
-    expect(result.edges.length).toBeLessThanOrEqual(1);
+  it('should return all edges without artificial limit', () => {
+    const result = handler(db, { kind: 'call' });
+    expect(result.edges.length).toBeGreaterThan(0);
   });
 
   it('should filter call edges by target_id (reverse/inbound)', () => {
@@ -582,9 +582,9 @@ describe('graph handler – provenance fields', () => {
   });
 });
 
-// ─── depth parameter (transitive traversal) ──────────────────────────────────
+// ─── transitive traversal (always-on) ────────────────────────────────────────
 
-describe('graph handler – depth parameter', () => {
+describe('graph handler – transitive traversal', () => {
   let db: Database.Database;
   let aId: number;
   let bId: number;
@@ -603,23 +603,8 @@ describe('graph handler – depth parameter', () => {
     insertCallEdge(db, cId, dId, 'd');
   });
 
-  it('should return only direct edges at depth=1 (default)', () => {
+  it('should return full transitive chain by default', () => {
     const result = handler(db, { kind: 'call', source_id: aId });
-    expect(result.edges.length).toBe(1);
-    expect(result.depth_used).toBe(1);
-  });
-
-  it('should return 2-hop transitive edges at depth=2', () => {
-    const result = handler(db, { kind: 'call', source_id: aId, depth: 2 });
-    expect(result.edges.length).toBe(2);
-    expect(result.depth_used).toBe(2);
-    const names = (result.edges as GraphEdge[]).map((e) => e.target_name);
-    expect(names).toContain('b');
-    expect(names).toContain('c');
-  });
-
-  it('should return full chain at depth=3', () => {
-    const result = handler(db, { kind: 'call', source_id: aId, depth: 3 });
     expect(result.edges.length).toBe(3);
     const names = (result.edges as GraphEdge[]).map((e) => e.target_name);
     expect(names).toContain('b');
@@ -627,14 +612,9 @@ describe('graph handler – depth parameter', () => {
     expect(names).toContain('d');
   });
 
-  it('should clamp depth to max 5', () => {
-    const result = handler(db, { kind: 'call', source_id: aId, depth: 100 });
+  it('should set depth_used to 5', () => {
+    const result = handler(db, { kind: 'call', source_id: aId });
     expect(result.depth_used).toBe(5);
-  });
-
-  it('should clamp depth to min 1', () => {
-    const result = handler(db, { kind: 'call', source_id: aId, depth: 0 });
-    expect(result.depth_used).toBe(1);
   });
 
   it('should not duplicate edges in cyclic graphs', () => {
@@ -642,16 +622,16 @@ describe('graph handler – depth parameter', () => {
     const allEdges = handler(db, { kind: 'call' }).edges as GraphEdge[];
     const dId = allEdges.find((e) => e.target_name === 'd')?.target_id;
     insertCallEdge(db, dId!, aId, 'a');
-    const result = handler(db, { kind: 'call', source_id: aId, depth: 5 });
+    const result = handler(db, { kind: 'call', source_id: aId });
     // a→b, b→c, c→d, d→a = 4 unique edges
     expect(result.edges.length).toBe(4);
   });
 
-  it('should work for inbound traversal (target_id with depth)', () => {
+  it('should work for inbound traversal (target_id)', () => {
     // Find all transitive callers of d
     const allEdges = handler(db, { kind: 'call' }).edges as GraphEdge[];
     const dId = allEdges.find((e) => e.target_name === 'd')?.target_id!;
-    const result = handler(db, { kind: 'call', target_id: dId, depth: 3 });
+    const result = handler(db, { kind: 'call', target_id: dId });
     expect(result.edges.length).toBe(3);
     const callerNames = (result.edges as GraphEdge[]).map((e) => e.source_name);
     expect(callerNames).toContain('c');
@@ -659,9 +639,9 @@ describe('graph handler – depth parameter', () => {
     expect(callerNames).toContain('a');
   });
 
-  it('should respect limit even during multi-hop traversal', () => {
-    const result = handler(db, { kind: 'call', source_id: aId, depth: 5, limit: 2 });
-    expect(result.edges.length).toBeLessThanOrEqual(2);
+  it('should set truncated=false for small result sets', () => {
+    const result = handler(db, { kind: 'call', source_id: aId });
+    expect(result.truncated).toBe(false);
   });
 });
 
@@ -716,11 +696,8 @@ describe('graph handler – compact mode', () => {
 // ─── toolDef new parameters ───────────────────────────────────────────────────
 
 describe('lore_graph toolDef – new parameters', () => {
-  it('should expose depth parameter with min/max constraints', () => {
-    const depth = toolDef.inputSchema.properties.depth;
-    expect(depth.type).toBe('number');
-    expect(depth.minimum).toBe(1);
-    expect(depth.maximum).toBe(5);
+  it('should not expose a depth parameter', () => {
+    expect(toolDef.inputSchema.properties).not.toHaveProperty('depth');
   });
 
   it('should expose compact parameter', () => {

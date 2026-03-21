@@ -885,6 +885,22 @@ export class ScipIndexerStage implements PipelineStage {
       skippedNonCall: refsSkippedNonCall,
     });
 
+    // Pass 4: Materialize virtual dispatch edges
+    //
+    // When a caller invokes an interface method (e.g., `builder.Build()`),
+    // SCIP records a call edge to the *interface* method symbol. Concrete
+    // implementations (e.g., `contextImpl.Build()`) are linked via
+    // `implements` relationships at the type level but have no direct
+    // call edges from callers that go through the interface.
+    //
+    // This pass bridges that gap: for each `implements` relationship
+    // between types, it matches methods by name and inserts additional
+    // `symbol_refs` rows with `call_kind = 'virtual_dispatch'` so that
+    // both `lore_graph` and `lore_dependents` surface these edges.
+    const virtualDispatchEdges = materializeVirtualDispatch(
+      db, scipToLoreId, symbolInfoMap, layer, generation, log,
+    );
+
     // Communicate coverage to downstream stages
     context.scipSourcedLanguages = coveredLanguages;
     context.scipSourcedFiles = coveredFiles;
@@ -1292,6 +1308,186 @@ function detectProjectLanguages(rootDir: string): Set<string> {
   return found;
 }
 
+// ─── Virtual dispatch materialization ─────────────────────────────────────────
+
+/**
+ * Extract the parent type's SCIP symbol from a method's SCIP symbol.
+ *
+ * SCIP method symbols look like: `<scheme> <package> <...>TypeName#MethodName().`
+ * The parent type symbol is the prefix up to and including the `#`.
+ *
+ * Returns `null` if the symbol doesn't appear to be a method inside a type.
+ */
+function extractParentTypeSymbol(scipSymbol: string): string | null {
+  // Match everything up to the last `#` followed by a method descriptor
+  const hashIdx = scipSymbol.lastIndexOf('#');
+  if (hashIdx < 0) return null;
+  // Verify what follows the # looks like a method: `MethodName().`
+  const afterHash = scipSymbol.slice(hashIdx + 1);
+  if (!/\w/.test(afterHash)) return null;
+  return scipSymbol.slice(0, hashIdx + 1);
+}
+
+/**
+ * Extract the method descriptor portion after the type's `#`.
+ *
+ * E.g., `...contextImpl#Build().` → `Build().`
+ */
+function extractMethodDescriptor(scipSymbol: string): string | null {
+  const hashIdx = scipSymbol.lastIndexOf('#');
+  if (hashIdx < 0) return null;
+  return scipSymbol.slice(hashIdx + 1);
+}
+
+/**
+ * Materialize virtual dispatch edges in `symbol_refs`.
+ *
+ * For each `implements` relationship between types (concrete → interface),
+ * matches methods by name and inserts `virtual_dispatch` call edges so
+ * that callers of interface methods are also recorded as callers of the
+ * corresponding concrete implementations.
+ *
+ * Returns the number of edges inserted.
+ */
+function materializeVirtualDispatch(
+  db: Database.Database,
+  scipToLoreId: Map<string, number>,
+  symbolInfoMap: Map<string, import('../../scip/scip_pb.js').SymbolInformation>,
+  layer: string,
+  generation: number,
+  log: ReturnType<typeof getLogger>,
+): number {
+  // Step 1: Build a map from type SCIP symbol → method SCIP symbols
+  const typeToMethods = new Map<string, string[]>();
+  for (const scipSymbol of scipToLoreId.keys()) {
+    // Only methods (symbols ending with `().` that live inside a type `#`)
+    if (!/\(\+?\d*\)\.$/.test(scipSymbol)) continue;
+    const parentType = extractParentTypeSymbol(scipSymbol);
+    if (!parentType) continue;
+    let methods = typeToMethods.get(parentType);
+    if (!methods) { methods = []; typeToMethods.set(parentType, methods); }
+    methods.push(scipSymbol);
+  }
+
+  // Step 2: Collect implements relationships from SCIP SymbolInformation
+  // Direction: symInfo.symbol (concrete type) has rel.isImplementation → rel.symbol (interface)
+  const implementsPairs: Array<{ concreteTypeScip: string; interfaceTypeScip: string }> = [];
+  for (const [scipSymbol, info] of symbolInfoMap) {
+    for (const rel of info.relationships) {
+      if (rel.isImplementation && rel.symbol) {
+        implementsPairs.push({ concreteTypeScip: scipSymbol, interfaceTypeScip: rel.symbol });
+      }
+    }
+  }
+
+  if (implementsPairs.length === 0) return 0;
+
+  // Step 3: For each implements pair, match methods by descriptor and
+  // copy call edges from interface method callers to concrete methods.
+  let edgesInserted = 0;
+
+  // Prepared statement to find callers of a given callee
+  const findCallers = db.prepare(
+    `SELECT caller_id, file_id, callee_name, call_line, call_character,
+            resolved_type_signature, resolved_return_type,
+            definition_uri, definition_path, definition_line, definition_character
+       FROM symbol_refs
+      WHERE callee_id = ?`,
+  );
+
+  const insertVDispatch = db.prepare(
+    `INSERT INTO symbol_refs (caller_id, file_id, callee_id, callee_name, call_line, call_character, call_kind, resolution_method, resolved_type_signature, resolved_return_type, definition_uri, definition_path, definition_line, definition_character, layer, generation)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  );
+
+  const insertVirtualDispatch = db.transaction(() => {
+    for (const { concreteTypeScip, interfaceTypeScip } of implementsPairs) {
+      const interfaceMethods = typeToMethods.get(interfaceTypeScip);
+      const concreteMethods = typeToMethods.get(concreteTypeScip);
+      if (!interfaceMethods || !concreteMethods) continue;
+
+      // Build descriptor → concrete SCIP symbol map
+      const concreteByDescriptor = new Map<string, string>();
+      for (const cm of concreteMethods) {
+        const desc = extractMethodDescriptor(cm);
+        if (desc) concreteByDescriptor.set(desc, cm);
+      }
+
+      // Match interface methods to concrete methods by descriptor
+      for (const im of interfaceMethods) {
+        const desc = extractMethodDescriptor(im);
+        if (!desc) continue;
+        const concreteScip = concreteByDescriptor.get(desc);
+        if (!concreteScip) continue;
+
+        const interfaceMethodId = scipToLoreId.get(im);
+        const concreteMethodId = scipToLoreId.get(concreteScip);
+        if (!interfaceMethodId || !concreteMethodId) continue;
+
+        // Find all callers of the interface method
+        const callers = findCallers.all(interfaceMethodId) as Array<{
+          caller_id: number;
+          file_id: number;
+          callee_name: string;
+          call_line: number;
+          call_character: number | null;
+          resolved_type_signature: string | null;
+          resolved_return_type: string | null;
+          definition_uri: string | null;
+          definition_path: string | null;
+          definition_line: number | null;
+          definition_character: number | null;
+        }>;
+
+        for (const caller of callers) {
+          // Don't insert if this caller → concrete edge already exists
+          const existing = db.prepare(
+            'SELECT 1 FROM symbol_refs WHERE caller_id = ? AND callee_id = ? LIMIT 1',
+          ).get(caller.caller_id, concreteMethodId);
+          if (existing) continue;
+
+          // Use the concrete method's name and definition info
+          const concreteName = extractNameFromScipSymbol(concreteScip);
+
+          try {
+            insertVDispatch.run(
+              caller.caller_id,
+              caller.file_id,
+              concreteMethodId,
+              concreteName,
+              caller.call_line,
+              caller.call_character,
+              'virtual_dispatch',
+              'scip_definition',
+              caller.resolved_type_signature,
+              caller.resolved_return_type,
+              caller.definition_uri,
+              caller.definition_path,
+              caller.definition_line,
+              caller.definition_character,
+              layer, generation,
+            );
+            edgesInserted++;
+          } catch {
+            // FK constraint or duplicate — skip
+          }
+        }
+      }
+    }
+  });
+
+  insertVirtualDispatch();
+
+  if (edgesInserted > 0) {
+    log.indexing('scip-indexer: virtual dispatch edges materialized', {
+      implementsPairs: implementsPairs.length,
+      edgesInserted,
+    });
+  }
+
+  return edgesInserted;
+}
+
 /**
  * Determine the Lore language for a SCIP document.
  *
@@ -1326,4 +1522,6 @@ export {
   inferLoreLanguage as _inferLoreLanguage,
   classifyScipReference as _classifyScipReference,
   extractNameFromScipSymbol as _extractNameFromScipSymbol,
+  extractParentTypeSymbol as _extractParentTypeSymbol,
+  extractMethodDescriptor as _extractMethodDescriptor,
 };
