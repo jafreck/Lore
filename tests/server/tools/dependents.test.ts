@@ -94,9 +94,8 @@ describe('lore_dependents toolDef', () => {
     expect(toolDef.inputSchema.properties.kind.enum).toEqual(['symbol', 'file']);
   });
 
-  it('should expose depth with min/max constraints', () => {
-    expect(toolDef.inputSchema.properties.depth.minimum).toBe(1);
-    expect(toolDef.inputSchema.properties.depth.maximum).toBe(5);
+  it('should not expose a depth parameter', () => {
+    expect(toolDef.inputSchema.properties).not.toHaveProperty('depth');
   });
 });
 
@@ -190,15 +189,8 @@ describe('dependents handler – kind=symbol', () => {
     expect(caller).toHaveProperty('resolution_method');
   });
 
-  it('should set depth_used in response', () => {
-    const result = handler(db, { query: 'openDb', kind: 'symbol', depth: 3 });
-    expect(isSuccess(result)).toBe(true);
-    if (!isSuccess(result)) return;
-    expect(result.depth_used).toBe(3);
-  });
-
-  it('should clamp depth to max 5', () => {
-    const result = handler(db, { query: 'openDb', kind: 'symbol', depth: 10 });
+  it('should set depth_used to 5 (always transitive)', () => {
+    const result = handler(db, { query: 'openDb', kind: 'symbol' });
     expect(isSuccess(result)).toBe(true);
     if (!isSuccess(result)) return;
     expect(result.depth_used).toBe(5);
@@ -341,17 +333,8 @@ describe('dependents handler – transitive closure', () => {
     insertCallEdge(db, symB, symC, 'funcC');
   });
 
-  it('depth=1 should return only direct callers', () => {
-    const result = handler(db, { query: 'funcC', kind: 'symbol', depth: 1 });
-    expect(isSuccess(result)).toBe(true);
-    if (!isSuccess(result)) return;
-
-    expect(result.dependents.callers.length).toBe(1);
-    expect((result.dependents.callers[0] as Record<string, unknown>).caller_name).toBe('funcB');
-  });
-
-  it('depth=2 should return transitive callers', () => {
-    const result = handler(db, { query: 'funcC', kind: 'symbol', depth: 2 });
+  it('should return both direct and transitive callers by default', () => {
+    const result = handler(db, { query: 'funcC', kind: 'symbol' });
     expect(isSuccess(result)).toBe(true);
     if (!isSuccess(result)) return;
 
@@ -379,8 +362,8 @@ describe('dependents handler – transitive import chain', () => {
     insertImportEdge(db, file3Id, './mid', file2Id);
   });
 
-  it('depth=2 file query should return transitive importers', () => {
-    const result = handler(db, { query: 'src/lib.ts', kind: 'file', depth: 2 });
+  it('file query should return transitive importers by default', () => {
+    const result = handler(db, { query: 'src/lib.ts', kind: 'file' });
     expect(isSuccess(result)).toBe(true);
     if (!isSuccess(result)) return;
 

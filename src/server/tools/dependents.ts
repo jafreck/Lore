@@ -26,7 +26,7 @@ export const toolDef = {
     'Takes a name or path (not a numeric ID) and returns callers, importers, subclasses, and type references in one call. ' +
     'For kind="symbol", resolves the query to a symbol and returns callers, subclasses, and type-referencers. ' +
     'For kind="file", resolves the query to a file and returns files that import it plus symbols in other files that call into its symbols. ' +
-    'Set depth > 1 for transitive closure (up to 5 hops). Set compact=true to reduce token count.',
+    'Automatically follows transitive dependents up to 5 hops. Set compact=true to reduce token count.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -39,14 +39,6 @@ export const toolDef = {
         enum: ['symbol', 'file'],
         description:
           '"symbol" resolves query as a symbol name; "file" resolves query as a file path.',
-      },
-      depth: {
-        type: 'number',
-        description:
-          'Transitive hops (default 1, max 5). depth=1 returns direct dependents only. ' +
-          'depth=N follows dependents N hops deep.',
-        minimum: 1,
-        maximum: 5,
       },
       branch: {
         type: 'string',
@@ -67,7 +59,6 @@ export const toolDef = {
 export interface DependentsArgs {
   query: string;
   kind: 'symbol' | 'file';
-  depth?: number;
   branch?: string;
   compact?: boolean;
 }
@@ -155,6 +146,7 @@ export interface DependentsResult {
   };
   depth_used: number;
   total_count: number;
+  truncated: boolean;
 }
 
 export interface DependentsErrorResult {
@@ -487,16 +479,16 @@ function expandSubclasses(
 
 // ─── Handler ──────────────────────────────────────────────────────────────────
 
-const DEFAULT_LIMIT = 200;
+const INTERNAL_LIMIT = 1000;
 
 /** Unified reverse-dependency / blast-radius query. */
 export function handler(
   db: Database.Database,
   args: DependentsArgs,
 ): DependentsResult | DependentsErrorResult {
-  const depth = Math.max(1, Math.min(args.depth ?? 1, 5));
+  const depth = 5;
   const compact = args.compact ?? false;
-  const limit = DEFAULT_LIMIT;
+  const limit = INTERNAL_LIMIT;
 
   if (args.kind === 'file') {
     return handleFileDependents(db, args, depth, compact, limit);
@@ -603,6 +595,7 @@ function buildResult(
   const subclasses = compact ? subclassRows.map(compactSubclass) : subclassRows;
   const typeRefs = compact ? typeRefRows.map(compactTypeRef) : typeRefRows;
 
+  const total = callers.length + importers.length + subclasses.length + typeRefs.length;
   return {
     target,
     dependents: {
@@ -612,6 +605,7 @@ function buildResult(
       type_references: typeRefs,
     },
     depth_used: depth,
-    total_count: callers.length + importers.length + subclasses.length + typeRefs.length,
+    total_count: total,
+    truncated: total >= INTERNAL_LIMIT,
   };
 }
