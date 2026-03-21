@@ -152,12 +152,12 @@ await builder.build();
 | `lore_lookup` | Find symbols by name or files by path, including external dependency API symbols and LSP-resolved metadata when available |
 | `lore_search` | Structural BM25, semantic vector, or fused RRF search across symbols and doc sections |
 | `lore_docs` | List, fetch, or search indexed documentation with branch, kind, and path filters |
-| `lore_dependents` | Find everything affected by changing a symbol or file — callers, importers, subclasses, and type references in one call |
+| `lore_dependents` | Find everything affected by changing a symbol or file — callers, importers, subclasses, and type references with automatic transitive traversal (up to 5 hops) in one call |
 | `lore_trace` | Trace an execution path from an entry point and return an ordered call sequence with source code for each step |
 | `lore_diff` | Compare exported symbols between two indexed branches; returns added, removed, and changed symbols |
 | `lore_cohesion` | Rank directories by module cohesion (ratio of internal to external symbol references) |
 | `lore_structure` | Detect structural anomalies — import cycles (Tarjan SCC), layering violations (Kahn toposort), and outlier couplings |
-| `lore_graph` | Query call/import/inheritance/type-dependency edges; supports `source_id` for outbound and `target_id` for inbound/reverse queries; call edges include `callee_coverage_percent` |
+| `lore_graph` | Query call/import/inheritance/type-dependency edges with automatic transitive traversal (up to 5 hops); supports `source_id` for outbound and `target_id` for inbound/reverse queries; materializes virtual dispatch edges for polymorphic call resolution; call edges include `callee_coverage_percent` |
 | `lore_snippet` | Return snippets from indexed source snapshots by file path + line range or by symbol name; path/symbol resolution is branch-aware and responses include containing-symbol context metadata (name, kind, start/end lines) when available |
 | `lore_test_map` | Return mapped test files (with confidence) for a given source file path |
 | `lore_blame` | Query blame, line-range history, or ownership aggregates with optional symbol targeting, commit-context enrichment, and risk signals |

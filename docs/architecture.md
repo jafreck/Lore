@@ -249,11 +249,11 @@ Key optimizations in the indexing pipeline (v0.3.0):
 | `lore_lookup` | Find symbols by name or files by path (optional branch filter), including external API symbol matches from `external_symbols` and persisted LSP-enrichment metadata when available |
 | `lore_search` | Structural BM25, semantic vector, or fused RRF search; semantic/fused modes can return docs section hits and structural results are augmented by external symbol-name matches from `external_symbols`; returns persisted LSP-enrichment metadata fields when available |
 | `lore_docs` | List indexed docs, fetch full docs with optional sections, or search indexed sections |
-| `lore_graph` | Query call, import, inheritance, or type-dependency edges; supports `source_id` for outbound and `target_id` for inbound/reverse queries (`call` edges include `callee_coverage_percent`) |
+| `lore_graph` | Query call, import, inheritance, or type-dependency edges with automatic transitive traversal (up to 5 hops); supports `source_id` for outbound and `target_id` for inbound/reverse queries; materializes virtual dispatch edges (`call` edges include `callee_coverage_percent`) |
 | `lore_trace` | Trace execution paths between two symbols through the call graph |
 | `lore_diff` | Diff exported API surfaces between branches |
 | `lore_cohesion` | Compute module cohesion metrics for a file or directory |
-| `lore_dependents` | Unified reverse-dependency / blast-radius query across callers, importers, subclasses, and type refs |
+| `lore_dependents` | Unified reverse-dependency / blast-radius query with automatic transitive traversal (up to 5 hops) across callers, importers, subclasses, and type refs |
 | `lore_snippet` | Return snippets from indexed DB-backed file snapshots by file path + line range or by symbol name; path/symbol resolution is branch-aware and responses include containing-symbol context metadata when available |
 | `lore_test_map` | Return mapped test files (with confidence) for a given source file path |
 | `lore_blame` | Query blame (`mode: "blame"`), line-range evolution (`mode: "history"`), or ownership aggregates (`mode: "ownership"`), including symbol-targeted range resolution |
