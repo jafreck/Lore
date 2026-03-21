@@ -19,7 +19,7 @@ export const toolDef = {
     'Query call, import, inheritance, or type dependency graph edges stored in the knowledge-base index. ' +
     'Set `kind` to "call", "import", "inheritance", or "type_dependency". ' +
     'Use source_id for outbound edges (what does X call?) and target_id for inbound edges (who calls X?). ' +
-    'Set depth > 1 to follow transitive edges (e.g., depth=3 returns the full 3-hop blast radius in one call). ' +
+    'Automatically follows transitive edges up to 5 hops. ' +
     'Set compact=true to omit provenance fields (line numbers, resolution details) and reduce token count. ' +
     'Optionally set mode="semantic" with query_vector to retrieve semantically related symbol/module nodes alongside edges.',
   inputSchema: {
@@ -45,18 +45,6 @@ export const toolDef = {
           'For kind="call": find all callers of a symbol. For kind="import": find all importers of a file. ' +
           'For kind="inheritance": find all classes that extend/implement a base. ' +
           'For kind="type_dependency": find all symbols that reference a type.',
-      },
-      limit: {
-        type: 'number',
-        description: 'Maximum number of edges to return (default 200).',
-      },
-      depth: {
-        type: 'number',
-        description:
-          'Traversal depth for transitive closure (default 1, max 5). ' +
-          'depth=1 returns direct edges only. depth=N follows edges N hops deep, returning all discovered edges.',
-        minimum: 1,
-        maximum: 5,
       },
       compact: {
         type: 'boolean',
@@ -99,8 +87,7 @@ export interface GraphArgs {
   kind: GraphKind;
   source_id?: number;
   target_id?: number;
-  limit?: number;
-  depth?: number;
+
   compact?: boolean;
   branch?: string;
   mode?: 'structural' | 'semantic';
@@ -143,6 +130,7 @@ export interface GraphResult {
   edges: GraphEdge[] | CompactGraphEdge[];
   mode_used: string;
   depth_used?: number;
+  truncated?: boolean;
   semantic_nodes?: GraphSemanticNode[];
 }
 
@@ -378,17 +366,13 @@ function compactEdge(edge: GraphEdge): CompactGraphEdge {
   return compact;
 }
 
+const INTERNAL_LIMIT = 1000;
+
 /** Return adjacency-list edges from the call graph or import graph. */
 export function handler(db: Database.Database, args: GraphArgs): GraphResult {
-  const limit = args.limit ?? 200;
-  const depth = Math.max(1, Math.min(args.depth ?? 1, 5));
+  const limit = INTERNAL_LIMIT;
+  const depth = 5;
   const compact = args.compact ?? false;
-
-  // Depth-1 fast path (original behaviour)
-  if (depth === 1) {
-    const edges = getStructuralEdges(db, args, limit);
-    return finishResult(db, args, edges, limit, compact, depth);
-  }
 
   // Multi-hop transitive expansion
   const allEdges: GraphEdge[] = [];
@@ -458,7 +442,7 @@ function finishResult(
   const finalEdges = compact ? edges.map(compactEdge) : edges;
 
   if (mode !== 'semantic') {
-    return { edges: finalEdges, mode_used: 'structural', depth_used: depth };
+    return { edges: finalEdges, mode_used: 'structural', depth_used: depth, truncated: edges.length >= limit };
   }
 
   const queryVector = args.query_vector;
@@ -468,6 +452,7 @@ function finishResult(
       semantic_nodes: [],
       mode_used: 'structural (fallback: missing query_vector)',
       depth_used: depth,
+      truncated: edges.length >= limit,
     };
   }
 
@@ -477,6 +462,7 @@ function finishResult(
       semantic_nodes: [],
       mode_used: 'structural (fallback: no embeddings)',
       depth_used: depth,
+      truncated: edges.length >= limit,
     };
   }
 
@@ -506,5 +492,6 @@ function finishResult(
     semantic_nodes: symbolNodes,
     mode_used: 'semantic',
     depth_used: depth,
+    truncated: edges.length >= limit,
   };
 }
