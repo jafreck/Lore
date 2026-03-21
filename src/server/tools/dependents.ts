@@ -22,17 +22,22 @@ import {
 export const toolDef = {
   name: 'lore_dependents',
   description:
-    'Find everything affected by changing a symbol or file — unified blast-radius / reverse-dependency query. ' +
-    'Takes a name or path (not a numeric ID) and returns callers, importers, subclasses, and type references in one call. ' +
-    'For kind="symbol", resolves the query to a symbol and returns callers, subclasses, and type-referencers. ' +
-    'For kind="file", resolves the query to a file and returns files that import it plus symbols in other files that call into its symbols. ' +
-    'Automatically follows transitive dependents up to 5 hops. Set compact=true to reduce token count.',
+    'Use this tool FIRST for any reverse-dependency question: who calls X, what breaks if I delete X, ' +
+    'what is the blast radius of changing X, which other files call X, or can X be safely inlined. ' +
+    'Returns callers, importers, subclasses, and type references in one call — including transitive dependents up to 5 hops. ' +
+    'Finds both same-file wrappers AND cross-file callers; if the question asks about "other files", call this first then filter results. ' +
+    'Every caller the tool returns — direct or transitive — is a real dependent that would break if the target is deleted or changed. ' +
+    'For kind="symbol", resolves the query by name and returns all reverse edges. ' +
+    'For kind="file", returns files that import it plus symbols in other files that call into its exports. ' +
+    'Use compact=true (recommended default) for caller inventories, fan-in counts, and deletion/inline safety checks — one call is usually enough. ' +
+    'Use lore_snippet only if the question explicitly asks for exact call-site code lines. ' +
+    'This is the REVERSE counterpart to lore_graph(kind=call) which answers "what does X call" (forward).',
   inputSchema: {
     type: 'object',
     properties: {
       query: {
         type: 'string',
-        description: 'Symbol name, class name, or file path to find dependents of.',
+        description: 'Symbol name, function name, or file path to find dependents of. Use the name as it appears in source code.',
       },
       kind: {
         type: 'string',
@@ -47,7 +52,7 @@ export const toolDef = {
       compact: {
         type: 'boolean',
         description:
-          'If true, omit provenance fields (line, character, resolution details) to reduce token count. Default false.',
+          'Omit provenance fields to reduce token count. Recommended default for caller inventories, fan-in, deletion, and inline checks. Default false.',
       },
     },
     required: ['query', 'kind'],
