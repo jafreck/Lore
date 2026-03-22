@@ -1,0 +1,4890 @@
+{
+  "metadata": {
+    "model": "claude-opus-4.6",
+    "repo": "fastapi",
+    "indexMode": "scip",
+    "embeddingModel": "none",
+    "lsp": false,
+    "tasks": 13,
+    "iterations": 5,
+    "completedRuns": 65,
+    "totalExpectedRuns": 65,
+    "timestamp": "2026-03-22T03:32:24.091Z"
+  },
+  "tasks": [
+    {
+      "taskId": "fastapi-1.1-solve_dependencies",
+      "family": "localization",
+      "iteration": 1,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 11,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 44767,
+          "tokensUsed": 1520,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 8
+          }
+        },
+        "tools": "view×8, grep×2, report_intent×1",
+        "answer": "The three callers are: - `app` (inner function of `get_request_handler` at line 378) calls it at line 453 - `app` (inner function of `get_websocket_app` at line 733) calls it at line 747 - `solve_dependencies` itself (recursive call at line 646)  app solve_dependencies",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 3,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 31888,
+          "tokensUsed": 638,
+          "answerCoverage": 0.5,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 2,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "lore_graph": 1
+          }
+        },
+        "tools": "report_intent×1, lore_dependents×1, lore_graph×1",
+        "loreToolArgs": "lore_dependents(query=solve_dependencies, kind=symbol, compact=true), lore_graph(kind=call, target_id=2848, compact=true)",
+        "answer": "__init__ app solve_dependencies",
+        "missedParts": [
+          "get_request_handler"
+        ],
+        "missedAnswerLines": [
+          "get_request_handler"
+        ]
+      },
+      "delta": {
+        "correctness": -0.5,
+        "tokens": -882,
+        "tokensPct": -58.026315789473685,
+        "wallTimeMs": -12879,
+        "wallTimePct": -28.76895927803963
+      },
+      "warnings": [
+        "lore worse on correctness — missed: [get_request_handler]"
+      ]
+    },
+    {
+      "taskId": "fastapi-1.1-solve_dependencies",
+      "family": "localization",
+      "iteration": 2,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 10,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 41880,
+          "tokensUsed": 1321,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 7,
+            "bash": 1
+          }
+        },
+        "tools": "view×7, report_intent×1, grep×1, bash×1",
+        "answer": "The three call sites are: 1. Line 453 in `routing.py` — inside the inner `app` function of `get_request_handler` 2. Line 747 in `routing.py` — inside the inner `app` function of `get_websocket_app` 3. Line 646 in `dependencies/utils.py` — inside `solve_dependencies` itself (recursive call)  get_requ…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 3,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 35924,
+          "tokensUsed": 852,
+          "answerCoverage": 0.5,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 2,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "lore_graph": 1
+          }
+        },
+        "tools": "report_intent×1, lore_dependents×1, lore_graph×1",
+        "loreToolArgs": "lore_dependents(query=solve_dependencies, kind=symbol, compact=true), lore_graph(kind=call, target_id=2848, compact=true)",
+        "answer": "__init__ app solve_dependencies",
+        "missedParts": [
+          "get_request_handler"
+        ],
+        "missedAnswerLines": [
+          "get_request_handler"
+        ]
+      },
+      "delta": {
+        "correctness": -0.5,
+        "tokens": -469,
+        "tokensPct": -35.503406510219534,
+        "wallTimeMs": -5956,
+        "wallTimePct": -14.221585482330468
+      },
+      "warnings": [
+        "lore worse on correctness — missed: [get_request_handler]"
+      ]
+    },
+    {
+      "taskId": "fastapi-1.1-solve_dependencies",
+      "family": "localization",
+      "iteration": 3,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 12,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 44559,
+          "tokensUsed": 1704,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 9
+          }
+        },
+        "tools": "view×9, grep×2, report_intent×1",
+        "answer": "The three call sites are in `app` (inner function of `get_request_handler`), `app` (inner function of `get_websocket_app`), and `solve_dependencies` itself (recursive). The direct callers are:  get_request_handler get_websocket_app solve_dependencies",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 3,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 35226,
+          "tokensUsed": 849,
+          "answerCoverage": 0.5,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 2,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "lore_graph": 1
+          }
+        },
+        "tools": "report_intent×1, lore_dependents×1, lore_graph×1",
+        "loreToolArgs": "lore_dependents(query=solve_dependencies, kind=symbol, compact=true), lore_graph(kind=call, target_id=2848, compact=true)",
+        "answer": "__init__ app solve_dependencies",
+        "missedParts": [
+          "get_request_handler"
+        ],
+        "missedAnswerLines": [
+          "get_request_handler"
+        ]
+      },
+      "delta": {
+        "correctness": -0.5,
+        "tokens": -855,
+        "tokensPct": -50.176056338028175,
+        "wallTimeMs": -9333,
+        "wallTimePct": -20.945263583114524
+      },
+      "warnings": [
+        "lore worse on correctness — missed: [get_request_handler]"
+      ]
+    },
+    {
+      "taskId": "fastapi-1.1-solve_dependencies",
+      "family": "localization",
+      "iteration": 4,
+      "control": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 6,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 52264,
+          "tokensUsed": 1726,
+          "answerCoverage": 0.5,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 3,
+            "view": 2
+          }
+        },
+        "tools": "grep×3, view×2, report_intent×1",
+        "answer": "app solve_dependencies",
+        "missedParts": [
+          "get_request_handler"
+        ],
+        "missedAnswerLines": [
+          "get_request_handler"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 3,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 30260,
+          "tokensUsed": 694,
+          "answerCoverage": 0.5,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 2,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "lore_graph": 1
+          }
+        },
+        "tools": "report_intent×1, lore_dependents×1, lore_graph×1",
+        "loreToolArgs": "lore_dependents(query=solve_dependencies, kind=symbol, compact=true), lore_graph(kind=call, target_id=2848, compact=true)",
+        "answer": "__init__ app solve_dependencies",
+        "missedParts": [
+          "get_request_handler"
+        ],
+        "missedAnswerLines": [
+          "get_request_handler"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -1032,
+        "tokensPct": -59.79142526071842,
+        "wallTimeMs": -22004,
+        "wallTimePct": -42.10163783866524
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "fastapi-1.1-solve_dependencies",
+      "family": "localization",
+      "iteration": 5,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 6,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 36160,
+          "tokensUsed": 902,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 3,
+            "view": 2
+          }
+        },
+        "tools": "grep×3, view×2, report_intent×1",
+        "answer": "Now I need to identify which functions contain the calls to `solve_dependencies`. The call at line 453 is inside `get_request_handler` (the inner `app` function), the call at line 747 is inside `get_websocket_app` (the inner `app` function), and the call at line 646 is the recursive call within `sol…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 3,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 33709,
+          "tokensUsed": 701,
+          "answerCoverage": 0.5,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 2,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "lore_graph": 1
+          }
+        },
+        "tools": "report_intent×1, lore_dependents×1, lore_graph×1",
+        "loreToolArgs": "lore_dependents(query=solve_dependencies, kind=symbol, compact=true), lore_graph(kind=call, target_id=2848, compact=true)",
+        "answer": "__init__ app solve_dependencies",
+        "missedParts": [
+          "get_request_handler"
+        ],
+        "missedAnswerLines": [
+          "get_request_handler"
+        ]
+      },
+      "delta": {
+        "correctness": -0.5,
+        "tokens": -201,
+        "tokensPct": -22.283813747228383,
+        "wallTimeMs": -2451,
+        "wallTimePct": -6.778207964601769
+      },
+      "warnings": [
+        "lore worse on correctness — missed: [get_request_handler]"
+      ]
+    },
+    {
+      "taskId": "fastapi-1.2-add_api_route",
+      "family": "localization",
+      "iteration": 1,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 4,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 37756,
+          "tokensUsed": 1675,
+          "answerCoverage": 0.6666666666666666,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 2
+          }
+        },
+        "tools": "view×2, report_intent×1, grep×1",
+        "answer": "For `APIRouter.add_api_route` in `fastapi/routing.py`:  get_value_or_default copy extend append route_class",
+        "missedParts": [
+          "generate_unique_id"
+        ],
+        "missedAnswerLines": [
+          "generate_unique_id",
+          "routes.append"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.5,
+          "firstPassAccurate": true,
+          "toolCallCount": 4,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 28045,
+          "tokensUsed": 696,
+          "answerCoverage": 0.6666666666666666,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 3,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 1,
+            "lore_graph": 2
+          }
+        },
+        "tools": "lore_graph×2, report_intent×1, lore_lookup×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=add_api_route), lore_graph(kind=call, source_id=2399, compact=true), lore_graph(kind=call, source_id=2669, compact=true)",
+        "answer": "Default generate_unique_id add_api_route get_value_or_default",
+        "missedParts": [
+          "APIRoute"
+        ],
+        "missedAnswerLines": [
+          "APIRoute",
+          "routes.append"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -979,
+        "tokensPct": -58.447761194029844,
+        "wallTimeMs": -9711,
+        "wallTimePct": -25.72041529823074
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "fastapi-1.2-add_api_route",
+      "family": "localization",
+      "iteration": 2,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 4,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 37819,
+          "tokensUsed": 1408,
+          "answerCoverage": 0.6666666666666666,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 2
+          }
+        },
+        "tools": "view×2, report_intent×1, grep×1",
+        "answer": "For `APIRouter.add_api_route` in `fastapi/routing.py`:  get_value_or_default copy extend route_class append",
+        "missedParts": [
+          "generate_unique_id"
+        ],
+        "missedAnswerLines": [
+          "generate_unique_id",
+          "routes.append"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.5,
+          "firstPassAccurate": true,
+          "toolCallCount": 4,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 44069,
+          "tokensUsed": 1750,
+          "answerCoverage": 0.6666666666666666,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 3,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 1,
+            "lore_graph": 2
+          }
+        },
+        "tools": "lore_graph×2, report_intent×1, lore_lookup×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=add_api_route), lore_graph(kind=call, source_id=2399, compact=true), lore_graph(kind=call, source_id=2669, compact=true)",
+        "answer": "Default generate_unique_id add_api_route get_value_or_default",
+        "missedParts": [
+          "APIRoute"
+        ],
+        "missedAnswerLines": [
+          "APIRoute",
+          "routes.append"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 342,
+        "tokensPct": 24.289772727272727,
+        "wallTimeMs": 6250,
+        "wallTimePct": 16.526084772204445
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "fastapi-1.2-add_api_route",
+      "family": "localization",
+      "iteration": 3,
+      "control": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.25,
+          "firstPassAccurate": false,
+          "toolCallCount": 4,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 41016,
+          "tokensUsed": 1687,
+          "answerCoverage": 0.3333333333333333,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 2
+          }
+        },
+        "tools": "view×2, report_intent×1, grep×1",
+        "answer": "get_value_or_default copy extend route_class append",
+        "missedParts": [
+          "APIRoute",
+          "generate_unique_id"
+        ],
+        "missedAnswerLines": [
+          "APIRoute",
+          "generate_unique_id",
+          "routes.append"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.5,
+          "firstPassAccurate": true,
+          "toolCallCount": 4,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 35991,
+          "tokensUsed": 1079,
+          "answerCoverage": 0.6666666666666666,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 3,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 1,
+            "lore_graph": 2
+          }
+        },
+        "tools": "lore_graph×2, report_intent×1, lore_lookup×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=add_api_route), lore_graph(kind=call, source_id=2669, compact=true), lore_graph(kind=call, source_id=2399, compact=true)",
+        "answer": "Default generate_unique_id add_api_route get_value_or_default",
+        "missedParts": [
+          "APIRoute"
+        ],
+        "missedAnswerLines": [
+          "APIRoute",
+          "routes.append"
+        ]
+      },
+      "delta": {
+        "correctness": 0.25,
+        "tokens": -608,
+        "tokensPct": -36.040308239478364,
+        "wallTimeMs": -5025,
+        "wallTimePct": -12.251316559391457
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "fastapi-1.2-add_api_route",
+      "family": "localization",
+      "iteration": 4,
+      "control": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 4,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 30378,
+          "tokensUsed": 466,
+          "answerCoverage": 0.3333333333333333,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 1
+          }
+        },
+        "tools": "grep×2, report_intent×1, view×1",
+        "answer": "get_value_or_default get_value_or_default get_value_or_default route_class get_value_or_default self.routes.append",
+        "missedParts": [
+          "APIRoute",
+          "generate_unique_id"
+        ],
+        "missedAnswerLines": [
+          "APIRoute",
+          "generate_unique_id"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.5,
+          "firstPassAccurate": true,
+          "toolCallCount": 4,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 29120,
+          "tokensUsed": 647,
+          "answerCoverage": 0.6666666666666666,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 3,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 1,
+            "lore_graph": 2
+          }
+        },
+        "tools": "lore_graph×2, report_intent×1, lore_lookup×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=add_api_route), lore_graph(kind=call, source_id=2669, compact=true), lore_graph(kind=call, source_id=2399, compact=true)",
+        "answer": "Default generate_unique_id add_api_route get_value_or_default",
+        "missedParts": [
+          "APIRoute"
+        ],
+        "missedAnswerLines": [
+          "APIRoute",
+          "routes.append"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 181,
+        "tokensPct": 38.8412017167382,
+        "wallTimeMs": -1258,
+        "wallTimePct": -4.1411547830666935
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "fastapi-1.2-add_api_route",
+      "family": "localization",
+      "iteration": 5,
+      "control": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 4,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 24395,
+          "tokensUsed": 464,
+          "answerCoverage": 0.3333333333333333,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 1
+          }
+        },
+        "tools": "grep×2, report_intent×1, view×1",
+        "answer": "get_value_or_default get_value_or_default get_value_or_default route_class get_value_or_default self.routes.append",
+        "missedParts": [
+          "APIRoute",
+          "generate_unique_id"
+        ],
+        "missedAnswerLines": [
+          "APIRoute",
+          "generate_unique_id"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.5,
+          "firstPassAccurate": true,
+          "toolCallCount": 4,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 22688,
+          "tokensUsed": 500,
+          "answerCoverage": 0.6666666666666666,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 3,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 1,
+            "lore_graph": 2
+          }
+        },
+        "tools": "lore_graph×2, report_intent×1, lore_lookup×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=add_api_route), lore_graph(kind=call, source_id=2399, compact=true), lore_graph(kind=call, source_id=2669, compact=true)",
+        "answer": "Default generate_unique_id add_api_route get_value_or_default",
+        "missedParts": [
+          "APIRoute"
+        ],
+        "missedAnswerLines": [
+          "APIRoute",
+          "routes.append"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 36,
+        "tokensPct": 7.758620689655173,
+        "wallTimeMs": -1707,
+        "wallTimePct": -6.997335519573683
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "fastapi-1.4-solve_dependencies",
+      "family": "modification",
+      "iteration": 1,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 70,
+          "uniqueFilesRead": 5,
+          "wallTimeMs": 196861,
+          "tokensUsed": 15383,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "view": 14,
+            "grep": 7,
+            "bash": 47,
+            "task": 1
+          }
+        },
+        "tools": "bash×47, view×14, grep×7, report_intent×1, task×1",
+        "answer": "``` fastapi/routing.py get_request_handler fastapi/routing.py get_websocket_app fastapi/dependencies/utils.py solve_dependencies (recursive) fastapi/routing.py APIRoute.get_route_handler fastapi/routing.py APIWebSocketRoute.__init__ fastapi/routing.py APIRoute.__init__ fastapi/routing.py APIRouter.a…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 2,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 25068,
+          "tokensUsed": 732,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1
+          }
+        },
+        "tools": "report_intent×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=solve_dependencies, kind=symbol, compact=true)",
+        "answer": "fastapi/dependencies/utils.py: solve_dependencies fastapi/routing.py: __init__ fastapi/routing.py: app fastapi/routing.py: get_request_handler fastapi/routing.py: get_websocket_app fastapi/routing.py: get_route_handler docs_src/custom_request_and_route/tutorial001_an_py310.py: get_route_handler docs…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -14651,
+        "tokensPct": -95.24150035753755,
+        "wallTimeMs": -171793,
+        "wallTimePct": -87.26614210026364
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "fastapi-1.4-solve_dependencies",
+      "family": "modification",
+      "iteration": 2,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 21,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 86574,
+          "tokensUsed": 3656,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 11,
+            "view": 9
+          }
+        },
+        "tools": "grep×11, view×9, report_intent×1",
+        "answer": "Now I have a complete picture. Here's the transitive dependency chain:  **Hop 0**: `fastapi/dependencies/utils.py` → `solve_dependencies` (also calls itself recursively)  **Hop 1** (direct callers): - `fastapi/routing.py` → `get_request_handler` (line 453) - `fastapi/routing.py` → `get_websocket_app…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 2,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 24456,
+          "tokensUsed": 438,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1
+          }
+        },
+        "tools": "report_intent×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=solve_dependencies, kind=symbol, compact=true)",
+        "answer": "fastapi/dependencies/utils.py solve_dependencies fastapi/routing.py __init__ fastapi/routing.py app fastapi/routing.py get_request_handler fastapi/routing.py get_websocket_app fastapi/routing.py get_route_handler docs_src/custom_request_and_route/tutorial001_an_py310.py get_route_handler docs_src/cu…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -3218,
+        "tokensPct": -88.01969365426696,
+        "wallTimeMs": -62118,
+        "wallTimePct": -71.75133411878855
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "fastapi-1.4-solve_dependencies",
+      "family": "modification",
+      "iteration": 3,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 37,
+          "uniqueFilesRead": 4,
+          "wallTimeMs": 123578,
+          "tokensUsed": 8730,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "view": 14,
+            "grep": 9,
+            "bash": 12,
+            "task": 1
+          }
+        },
+        "tools": "view×14, bash×12, grep×9, report_intent×1, task×1",
+        "answer": "fastapi/dependencies/utils.py solve_dependencies (recursive self-call) fastapi/routing.py get_request_handler (inner app()) fastapi/routing.py get_websocket_app (inner app()) fastapi/routing.py APIRoute.get_route_handler fastapi/routing.py APIWebSocketRoute.__init__ fastapi/routing.py request_respon…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 2,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 28342,
+          "tokensUsed": 935,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1
+          }
+        },
+        "tools": "report_intent×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=solve_dependencies, kind=symbol, compact=true)",
+        "answer": "fastapi/dependencies/utils.py solve_dependencies fastapi/routing.py __init__ fastapi/routing.py get_request_handler fastapi/routing.py app fastapi/routing.py get_websocket_app fastapi/routing.py get_route_handler docs_src/custom_request_and_route/tutorial001_an_py310.py get_route_handler docs_src/cu…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -7795,
+        "tokensPct": -89.28980526918672,
+        "wallTimeMs": -95236,
+        "wallTimePct": -77.06549709495218
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "fastapi-1.4-solve_dependencies",
+      "family": "modification",
+      "iteration": 4,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 47,
+          "uniqueFilesRead": 4,
+          "wallTimeMs": 204495,
+          "tokensUsed": 11859,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 9,
+            "view": 26,
+            "bash": 10,
+            "task": 1
+          }
+        },
+        "tools": "view×26, bash×10, grep×9, report_intent×1, task×1",
+        "answer": "fastapi/dependencies/utils.py: solve_dependencies (recursive self-call) fastapi/routing.py: get_request_handler fastapi/routing.py: get_websocket_app fastapi/routing.py: APIRoute.get_route_handler fastapi/routing.py: APIWebSocketRoute.__init__ fastapi/routing.py: APIRoute.__init__ fastapi/routing.py…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 2,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 29635,
+          "tokensUsed": 938,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1
+          }
+        },
+        "tools": "report_intent×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=solve_dependencies, kind=symbol, compact=true)",
+        "answer": "fastapi/dependencies/utils.py solve_dependencies fastapi/routing.py __init__ fastapi/routing.py get_request_handler fastapi/routing.py app fastapi/routing.py get_websocket_app fastapi/routing.py get_route_handler docs_src/custom_request_and_route/tutorial001_an_py310.py get_route_handler docs_src/cu…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -10921,
+        "tokensPct": -92.09039548022598,
+        "wallTimeMs": -174860,
+        "wallTimePct": -85.50820313455097
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "fastapi-1.4-solve_dependencies",
+      "family": "modification",
+      "iteration": 5,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 76,
+          "uniqueFilesRead": 4,
+          "wallTimeMs": 281704,
+          "tokensUsed": 17035,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 10,
+            "view": 28,
+            "bash": 36,
+            "task": 1
+          }
+        },
+        "tools": "bash×36, view×28, grep×10, report_intent×1, task×1",
+        "answer": "Here is the transitive dependency analysis:  fastapi/dependencies/utils.py :: solve_dependencies (recursive self-call) fastapi/routing.py :: get_request_handler fastapi/routing.py :: get_websocket_app fastapi/routing.py :: APIRoute.__init__ fastapi/routing.py :: APIRoute.get_route_handler fastapi/ro…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 2,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 28184,
+          "tokensUsed": 883,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1
+          }
+        },
+        "tools": "report_intent×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=solve_dependencies, kind=symbol, compact=true)",
+        "answer": "fastapi/dependencies/utils.py: solve_dependencies fastapi/routing.py: __init__ fastapi/routing.py: app fastapi/routing.py: get_request_handler fastapi/routing.py: get_websocket_app fastapi/routing.py: get_route_handler docs_src/custom_request_and_route/tutorial001_an_py310.py: get_route_handler docs…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -16152,
+        "tokensPct": -94.81655415321397,
+        "wallTimeMs": -253520,
+        "wallTimePct": -89.9951722375259
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "fastapi-1.3-add_api_route",
+      "family": "explanation",
+      "iteration": 1,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.8333333333333334,
+          "firstPassAccurate": false,
+          "toolCallCount": 4,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 26395,
+          "tokensUsed": 803,
+          "answerCoverage": 0.6666666666666666,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 1
+          }
+        },
+        "tools": "grep×2, report_intent×1, view×1",
+        "answer": "get_value_or_default(response_class, self.default_response_class) get_value_or_default(generate_unique_id_function, self.generate_unique_id_function) get_value_or_default(strict_content_type, self.strict_content_type) route_class(self.prefix + path, endpoint=endpoint, response_model=response_model, …",
+        "missedParts": [
+          "APIRoute"
+        ],
+        "missedAnswerLines": [
+          "APIRoute"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 6,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 99621,
+          "tokensUsed": 7206,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 5,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_graph",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 1,
+            "lore_graph": 1,
+            "lore_snippet": 3
+          }
+        },
+        "tools": "lore_snippet×3, report_intent×1, lore_lookup×1, lore_graph×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=add_api_route), lore_graph(kind=call, source_id=2669, compact=false), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, start_line=1331, end_line=1412), lore_snippet(end_line=1416, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, start_line=1410), lore_snippet(end_line=1216, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/applications.py, start_line=1161)",
+        "answer": "Focusing on `APIRouter.add_api_route` in `routing.py` (the real implementation):  get_value_or_default(response_class, self.default_response_class) self.tags.copy() current_tags.extend(tags) self.dependencies.copy() current_dependencies.extend(dependencies) self.callbacks.copy() current_callbacks.ex…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0.16666666666666663,
+        "tokens": 6403,
+        "tokensPct": 797.3848069738481,
+        "wallTimeMs": 73226,
+        "wallTimePct": 277.42375449895815
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "fastapi-1.3-add_api_route",
+      "family": "explanation",
+      "iteration": 2,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.8333333333333334,
+          "firstPassAccurate": false,
+          "toolCallCount": 4,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 26291,
+          "tokensUsed": 804,
+          "answerCoverage": 0.6666666666666666,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 1
+          }
+        },
+        "tools": "grep×2, report_intent×1, view×1",
+        "answer": "get_value_or_default(response_class, self.default_response_class) get_value_or_default(generate_unique_id_function, self.generate_unique_id_function) get_value_or_default(strict_content_type, self.strict_content_type) route_class(self.prefix + path, endpoint=endpoint, response_model=response_model, …",
+        "missedParts": [
+          "APIRoute"
+        ],
+        "missedAnswerLines": [
+          "APIRoute"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.8333333333333334,
+          "firstPassAccurate": true,
+          "toolCallCount": 5,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 30526,
+          "tokensUsed": 1470,
+          "answerCoverage": 0.6666666666666666,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 4,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_snippet",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 1,
+            "lore_snippet": 2,
+            "lore_graph": 1
+          }
+        },
+        "tools": "lore_snippet×2, report_intent×1, lore_lookup×1, lore_graph×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=add_api_route), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, start_line=1331, end_line=1412), lore_graph(kind=call, source_id=2669, compact=false), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, start_line=1410, end_line=1416)",
+        "answer": "Now I have the full picture. Let me trace each direct call in the method body:  1. `get_value_or_default(response_class, self.default_response_class)` — line 1368 2. `get_value_or_default(generate_unique_id_function, self.generate_unique_id_function)` — line 1381 3. `route_class(self.prefix + path, …",
+        "missedParts": [
+          "APIRoute"
+        ],
+        "missedAnswerLines": [
+          "APIRoute"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 666,
+        "tokensPct": 82.83582089552239,
+        "wallTimeMs": 4235,
+        "wallTimePct": 16.108173899813625
+      },
+      "warnings": [
+        "lore 50%+ more tokens"
+      ]
+    },
+    {
+      "taskId": "fastapi-1.3-add_api_route",
+      "family": "explanation",
+      "iteration": 3,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 3,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 50531,
+          "tokensUsed": 4384,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 1
+          }
+        },
+        "tools": "report_intent×1, grep×1, view×1",
+        "answer": "Now I can see all the direct callees. Let me also check the `get_value_or_default` calls and `self.routes.append`:  get_value_or_default(response_class, self.default_response_class) get_value_or_default(generate_unique_id_function, self.generate_unique_id_function) get_value_or_default(strict_conten…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.8333333333333334,
+          "firstPassAccurate": true,
+          "toolCallCount": 6,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 82776,
+          "tokensUsed": 5952,
+          "answerCoverage": 0.6666666666666666,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 5,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_graph",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 1,
+            "lore_graph": 1,
+            "lore_snippet": 3
+          }
+        },
+        "tools": "lore_snippet×3, report_intent×1, lore_lookup×1, lore_graph×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=add_api_route), lore_graph(kind=call, source_id=2669, compact=false), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, start_line=1331, end_line=1412), lore_snippet(end_line=1416, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, start_line=1410), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, start_line=1363, end_line=1413)",
+        "answer": "get_value_or_default(response_class, self.default_response_class) self.tags.copy() current_tags.extend(tags) self.dependencies.copy() current_dependencies.extend(dependencies) self.callbacks.copy() current_callbacks.extend(callbacks) get_value_or_default(generate_unique_id_function, self.generate_un…",
+        "missedParts": [
+          "APIRoute"
+        ],
+        "missedAnswerLines": [
+          "APIRoute"
+        ]
+      },
+      "delta": {
+        "correctness": -0.16666666666666663,
+        "tokens": 1568,
+        "tokensPct": 35.76642335766424,
+        "wallTimeMs": 32245,
+        "wallTimePct": 63.81231323346065
+      },
+      "warnings": [
+        "lore worse on correctness — missed: [APIRoute]",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "fastapi-1.3-add_api_route",
+      "family": "explanation",
+      "iteration": 4,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 3,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 62159,
+          "tokensUsed": 6195,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 1
+          }
+        },
+        "tools": "report_intent×1, grep×1, view×1",
+        "answer": "Now I can see all direct callees. Let me also check the `get_value_or_default` calls and `self.routes.append`:  get_value_or_default(response_class, self.default_response_class) get_value_or_default(generate_unique_id_function, self.generate_unique_id_function) get_value_or_default(strict_content_ty…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 6,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 78017,
+          "tokensUsed": 5503,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 5,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_snippet",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 1,
+            "lore_snippet": 3,
+            "lore_graph": 1
+          }
+        },
+        "tools": "lore_snippet×3, report_intent×1, lore_lookup×1, lore_graph×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=add_api_route), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, start_line=1331, end_line=1412), lore_graph(kind=call, source_id=2669, compact=false), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, start_line=1410, end_line=1416), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, start_line=1363, end_line=1413)",
+        "answer": "For `APIRouter.add_api_route` in `fastapi/routing.py`:  ``` get_value_or_default(response_class, self.default_response_class) self.tags.copy() current_tags.extend(tags) self.dependencies.copy() current_dependencies.extend(dependencies) self.callbacks.copy() current_callbacks.extend(callbacks) get_va…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -692,
+        "tokensPct": -11.170298627925748,
+        "wallTimeMs": 15858,
+        "wallTimePct": 25.51199343618784
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "fastapi-1.3-add_api_route",
+      "family": "explanation",
+      "iteration": 5,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.8333333333333334,
+          "firstPassAccurate": false,
+          "toolCallCount": 4,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 29737,
+          "tokensUsed": 803,
+          "answerCoverage": 0.6666666666666666,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 1
+          }
+        },
+        "tools": "grep×2, report_intent×1, view×1",
+        "answer": "get_value_or_default(response_class, self.default_response_class) get_value_or_default(generate_unique_id_function, self.generate_unique_id_function) get_value_or_default(strict_content_type, self.strict_content_type) route_class(self.prefix + path, endpoint=endpoint, response_model=response_model, …",
+        "missedParts": [
+          "APIRoute"
+        ],
+        "missedAnswerLines": [
+          "APIRoute"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 6,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 89417,
+          "tokensUsed": 6152,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 5,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_snippet",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 1,
+            "lore_snippet": 3,
+            "lore_graph": 1
+          }
+        },
+        "tools": "lore_snippet×3, report_intent×1, lore_lookup×1, lore_graph×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=add_api_route), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, start_line=1331, end_line=1412), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/applications.py, start_line=1161, end_line=1216), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, start_line=1410, end_line=1418), lore_graph(kind=call, source_id=2669, compact=true)",
+        "answer": "Answering for `APIRouter.add_api_route` in `fastapi/routing.py` (the primary implementation):  get_value_or_default(response_class, self.default_response_class) get_value_or_default(generate_unique_id_function, self.generate_unique_id_function) get_value_or_default(strict_content_type, self.strict_c…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0.16666666666666663,
+        "tokens": 5349,
+        "tokensPct": 666.1270236612703,
+        "wallTimeMs": 59680,
+        "wallTimePct": 200.69273968456804
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "fastapi-1.5-solve_dependencies",
+      "family": "localization",
+      "iteration": 1,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 20,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 167575,
+          "tokensUsed": 8909,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 8,
+            "view": 7,
+            "bash": 4
+          }
+        },
+        "tools": "grep×8, view×7, bash×4, report_intent×1",
+        "answer": "No function in the codebase directly calls both `solve_dependencies` and `get_request_handler`. The call graph is split:  - `get_request_handler` (via its inner closure `app`) calls `solve_dependencies` - `APIRoute.get_route_handler` calls `get_request_handler`  But no single function invokes both.",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.6666666666666666,
+          "firstPassAccurate": false,
+          "toolCallCount": 24,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 172975,
+          "tokensUsed": 10418,
+          "answerCoverage": 0.6666666666666666,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 14,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_graph",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 2,
+            "lore_dependents": 2,
+            "lore_graph": 7,
+            "bash": 4,
+            "view": 4,
+            "lore_snippet": 5
+          }
+        },
+        "tools": "lore_graph×7, lore_snippet×5, bash×4, view×4, report_intent×2, lore_dependents×2",
+        "loreToolArgs": "lore_dependents(query=solve_dependencies, kind=symbol, compact=true), lore_dependents(query=get_request_handler, kind=symbol, compact=true), lore_graph(kind=call, source_id=2650, compact=true), lore_graph(kind=call, source_id=2649, compact=true), lore_graph(kind=call, source_id=522, compact=true), lore_graph(kind=call, source_id=531, compact=true), lore_graph(kind=call, source_id=537, compact=true), lore_graph(kind=call, source_id=543, compact=true), lore_graph(kind=call, source_id=549, compact=true), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/docs_src/custom_request_and_route/tutorial001_an_py310.py), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/docs_src/custom_request_and_route/tutorial001_py310.py), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/docs_src/custom_request_and_route/tutorial002_an_py310.py), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/docs_src/custom_request_and_route/tutorial002_py310.py), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/docs_src/custom_request_and_route/tutorial003_py310.py)",
+        "answer": "APIRoute.get_route_handler — calls get_request_handler() to build the ASGI request-handling closure, which internally calls solve_dependencies() at request time to resolve the endpoint's dependency-injection tree before invoking the route function GzipRoute.get_route_handler (tutorial001) — calls su…",
+        "missedParts": [
+          "app"
+        ],
+        "missedAnswerLines": [
+          "app"
+        ]
+      },
+      "delta": {
+        "correctness": -0.33333333333333337,
+        "tokens": 1509,
+        "tokensPct": 16.937927938040183,
+        "wallTimeMs": 5400,
+        "wallTimePct": 3.222437714456214
+      },
+      "warnings": [
+        "lore worse on correctness — missed: [app]"
+      ]
+    },
+    {
+      "taskId": "fastapi-1.5-solve_dependencies",
+      "family": "localization",
+      "iteration": 2,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 47,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 308115,
+          "tokensUsed": 19302,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 10,
+            "view": 23,
+            "bash": 12,
+            "task": 1
+          }
+        },
+        "tools": "view×23, bash×12, grep×10, report_intent×1, task×1",
+        "answer": "No function in the codebase calls both `solve_dependencies` and `get_request_handler`. They exist on separate call paths:  - `APIRoute.get_route_handler` calls `get_request_handler` (which returns a closure `app`) - That `app` closure calls `solve_dependencies` at request time  No single function in…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.6666666666666666,
+          "firstPassAccurate": false,
+          "toolCallCount": 23,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 234525,
+          "tokensUsed": 13513,
+          "answerCoverage": 0.6666666666666666,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 11,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_snippet",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 2,
+            "lore_dependents": 2,
+            "lore_snippet": 3,
+            "lore_graph": 6,
+            "bash": 10
+          }
+        },
+        "tools": "bash×10, lore_graph×6, lore_snippet×3, report_intent×2, lore_dependents×2",
+        "loreToolArgs": "lore_dependents(query=solve_dependencies, kind=symbol, compact=true), lore_dependents(query=get_request_handler, kind=symbol, compact=true), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, symbol=get_route_handler), lore_graph(kind=call, source_id=2650, compact=true), lore_graph(kind=call, source_id=2582, compact=true), lore_graph(kind=call, source_id=2649, compact=true), lore_graph(kind=call, source_id=2607, compact=true), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, symbol=get_request_handler), lore_graph(compact=true, kind=call, source_id=2581), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, start_line=870, end_line=1000), lore_graph(compact=true, kind=call, source_id=2554)",
+        "answer": "Based on the call graph analysis, no function makes direct, same-level calls to both. However, `APIRoute.get_route_handler` calls `get_request_handler` directly, and the handler it returns internally calls `solve_dependencies`. The knowledge base identifies these shared (transitive) callers:  get_ro…",
+        "missedParts": [
+          "app"
+        ],
+        "missedAnswerLines": [
+          "app"
+        ]
+      },
+      "delta": {
+        "correctness": -0.33333333333333337,
+        "tokens": -5789,
+        "tokensPct": -29.991710703554038,
+        "wallTimeMs": -73590,
+        "wallTimePct": -23.883939438196776
+      },
+      "warnings": [
+        "lore worse on correctness — missed: [app]"
+      ]
+    },
+    {
+      "taskId": "fastapi-1.5-solve_dependencies",
+      "family": "localization",
+      "iteration": 3,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 18,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 168899,
+          "tokensUsed": 9525,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 10,
+            "view": 7
+          }
+        },
+        "tools": "grep×10, view×7, report_intent×1",
+        "answer": "Based on my thorough search, there are no functions in this codebase that directly call both `solve_dependencies` and `get_request_handler`. Here's the actual call graph:  - `solve_dependencies` is called by: the inner `app` closure inside `get_request_handler` (line 453), the inner `app` closure in…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 51,
+          "uniqueFilesRead": 7,
+          "wallTimeMs": 331332,
+          "tokensUsed": 20856,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 12,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_snippet",
+            "lore_lookup",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 2,
+            "lore_snippet": 4,
+            "grep": 4,
+            "view": 16,
+            "lore_lookup": 3,
+            "bash": 17,
+            "task": 1,
+            "lore_graph": 3
+          }
+        },
+        "tools": "bash×17, view×16, lore_snippet×4, grep×4, lore_lookup×3, lore_graph×3, lore_dependents×2, report_intent×1, task×1",
+        "loreToolArgs": "lore_dependents(query=solve_dependencies, kind=symbol, compact=true), lore_dependents(query=get_request_handler, kind=symbol, compact=true), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, symbol=get_request_handler), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, symbol=get_route_handler), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, symbol=APIRoute.__init__), lore_lookup(kind=symbol, query=APIRoute, path_prefix=fastapi/routing.py), lore_graph(kind=call, target_id=2848, compact=true), lore_graph(kind=call, target_id=2581, compact=true), lore_lookup(kind=symbol, query=__init__, path_prefix=fastapi/routing.py), lore_lookup(kind=symbol, query=__init__, path_prefix=fastapi/routing.py, match_mode=exact, symbol_kind=property), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, start_line=1, end_line=60), lore_graph(compact=true, kind=call, source_id=2554)",
+        "answer": "Based on my thorough analysis of the call graph and source code, there is only one function whose call chain reaches both targets:  APIRoute.get_route_handler — calls get_request_handler() to build the ASGI request handler (which internally defines an app closure), and that closure calls solve_depen…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 11331,
+        "tokensPct": 118.96062992125984,
+        "wallTimeMs": 162433,
+        "wallTimePct": 96.17167656410044
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "fastapi-1.5-solve_dependencies",
+      "family": "localization",
+      "iteration": 4,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 20,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 210589,
+          "tokensUsed": 11379,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 10,
+            "view": 8,
+            "bash": 1
+          }
+        },
+        "tools": "grep×10, view×8, report_intent×1, bash×1",
+        "answer": "No function in this codebase calls both `solve_dependencies` and `get_request_handler`. They are connected through a chain: `APIRoute.get_route_handler` calls `get_request_handler`, which returns a closure (`app`) that later calls `solve_dependencies` at request time. No single function invokes both…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.6666666666666666,
+          "firstPassAccurate": false,
+          "toolCallCount": 21,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 282809,
+          "tokensUsed": 16169,
+          "answerCoverage": 0.6666666666666666,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 10,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_snippet",
+            "lore_lookup",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 2,
+            "lore_snippet": 3,
+            "lore_lookup": 1,
+            "lore_graph": 4,
+            "bash": 9,
+            "view": 1
+          }
+        },
+        "tools": "bash×9, lore_graph×4, lore_snippet×3, lore_dependents×2, report_intent×1, lore_lookup×1, view×1",
+        "loreToolArgs": "lore_dependents(query=solve_dependencies, kind=symbol, compact=true), lore_dependents(query=get_request_handler, kind=symbol, compact=true), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, symbol=get_request_handler), lore_lookup(kind=symbol, query=get_route_handler, path_prefix=fastapi/routing.py), lore_graph(kind=call, target_id=2848, compact=true), lore_graph(kind=call, target_id=2581, compact=true), lore_graph(compact=true, kind=call, source_id=2554), lore_graph(compact=true, kind=call, source_id=2650), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, symbol=get_route_handler), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, start_line=807, end_line=975)",
+        "answer": "APIRoute.get_route_handler — calls get_request_handler() to build the ASGI request handler closure, which internally calls solve_dependencies() at request time to resolve the dependency-injection tree; returns the handler as the route's callable GzipRoute.get_route_handler — calls super().get_route_…",
+        "missedParts": [
+          "app"
+        ],
+        "missedAnswerLines": [
+          "app"
+        ]
+      },
+      "delta": {
+        "correctness": -0.33333333333333337,
+        "tokens": 4790,
+        "tokensPct": 42.095087441778716,
+        "wallTimeMs": 72220,
+        "wallTimePct": 34.294288875487325
+      },
+      "warnings": [
+        "lore worse on correctness — missed: [app]"
+      ]
+    },
+    {
+      "taskId": "fastapi-1.5-solve_dependencies",
+      "family": "localization",
+      "iteration": 5,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.6666666666666666,
+          "firstPassAccurate": false,
+          "toolCallCount": 24,
+          "uniqueFilesRead": 3,
+          "wallTimeMs": 246073,
+          "tokensUsed": 13483,
+          "answerCoverage": 0.6666666666666666,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 12,
+            "view": 11
+          }
+        },
+        "tools": "grep×12, view×11, report_intent×1",
+        "answer": "Based on my thorough search, here is the answer:  get_request_handler — calls solve_dependencies to resolve all route dependencies (path/query/body params, dependency injection) into a SolvedDependency, then uses solved_result.values to invoke the endpoint function, solved_result.errors to raise Req…",
+        "missedParts": [
+          "app"
+        ],
+        "missedAnswerLines": [
+          "app"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.6666666666666666,
+          "firstPassAccurate": false,
+          "toolCallCount": 19,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 162488,
+          "tokensUsed": 9268,
+          "answerCoverage": 0.6666666666666666,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 13,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_snippet",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 2,
+            "lore_snippet": 6,
+            "lore_graph": 5,
+            "bash": 5
+          }
+        },
+        "tools": "lore_snippet×6, lore_graph×5, bash×5, lore_dependents×2, report_intent×1",
+        "loreToolArgs": "lore_dependents(query=solve_dependencies, kind=symbol, compact=true), lore_dependents(query=get_request_handler, kind=symbol, compact=true), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, symbol=get_route_handler), lore_graph(kind=call, source_id=2582, compact=true), lore_graph(kind=call, source_id=2649, compact=true), lore_graph(compact=true, kind=call, source_id=2650), lore_graph(compact=true, kind=call, source_id=2581), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, symbol=get_request_handler), lore_graph(compact=true, kind=call, source_id=2554), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, start_line=726, end_line=972), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/docs_src/custom_request_and_route/tutorial002_an_py310.py, symbol=get_route_handler), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/docs_src/custom_request_and_route/tutorial003_py310.py, symbol=get_route_handler), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/docs_src/custom_request_and_route/tutorial001_an_py310.py, symbol=get_route_handler)",
+        "answer": "APIRoute.get_route_handler — calls get_request_handler() with the route's dependant and response config to build a request handler; that handler calls solve_dependencies() at request time to resolve injected parameters before running the endpoint GzipRoute.get_route_handler — calls super().get_route…",
+        "missedParts": [
+          "app"
+        ],
+        "missedAnswerLines": [
+          "app"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -4215,
+        "tokensPct": -31.26158866721056,
+        "wallTimeMs": -83585,
+        "wallTimePct": -33.96756247129917
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "fastapi-1.7-add_api_route",
+      "family": "explanation",
+      "iteration": 1,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 37,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 122281,
+          "tokensUsed": 7461,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 6,
+            "glob": 1,
+            "view": 20,
+            "bash": 8,
+            "task": 1
+          }
+        },
+        "tools": "view×20, bash×8, grep×6, report_intent×1, glob×1, task×1",
+        "answer": "Now I have the full picture verified from source. Here's the chain:  1. `add_api_route` — creates an `APIRoute` instance with the endpoint and all route configuration 2. `APIRoute.__init__` — initializes the route, builds the dependency model, and wires up the ASGI app 3. `get_route_handler` — retur…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 11,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 53622,
+          "tokensUsed": 1810,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 10,
+          "loreToolsUsed": [
+            "lore_trace",
+            "lore_lookup",
+            "lore_graph",
+            "lore_dependents",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_trace": 2,
+            "lore_lookup": 3,
+            "lore_graph": 1,
+            "lore_dependents": 1,
+            "lore_snippet": 3
+          }
+        },
+        "tools": "lore_lookup×3, lore_snippet×3, lore_trace×2, report_intent×1, lore_graph×1, lore_dependents×1",
+        "loreToolArgs": "lore_trace(from_name=add_api_route, to_name=solve_dependencies, depth=10), lore_lookup(kind=symbol, query=add_api_route), lore_lookup(kind=symbol, query=solve_dependencies), lore_trace(depth=10, from=2669, to=2848), lore_graph(kind=call, source_id=2669, compact=true), lore_dependents(query=solve_dependencies, kind=symbol, compact=true), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, start_line=1331, end_line=1412), lore_lookup(kind=symbol, query=APIRoute, symbol_kind=class, path_prefix=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, start_line=806, end_line=997), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, symbol=get_request_handler)",
+        "answer": "Now I have the full chain. Inside `get_request_handler`, the actual call to `solve_dependencies` happens in the inner `app` closure. Here's the chain:  1. `add_api_route` — registers an endpoint by constructing an `APIRoute` and appending it to the router 2. `APIRoute.__init__` — initializes the rou…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -5651,
+        "tokensPct": -75.74051735692267,
+        "wallTimeMs": -68659,
+        "wallTimePct": -56.148543109722695
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "fastapi-1.7-add_api_route",
+      "family": "explanation",
+      "iteration": 2,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 26,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 116292,
+          "tokensUsed": 9879,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "glob": 2,
+            "grep": 3,
+            "view": 12,
+            "bash": 7,
+            "task": 1
+          }
+        },
+        "tools": "view×12, bash×7, grep×3, glob×2, report_intent×1, task×1",
+        "answer": "1. `add_api_route` — registers a new API route by instantiating an `APIRoute` and appending it to the routes list 2. `APIRoute.__init__` — initializes route metadata, builds the dependency tree, and generates the request handler 3. `APIRoute.get_route_handler` — packages route configuration and dele…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 18,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 72745,
+          "tokensUsed": 2892,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 9,
+          "loreToolsUsed": [
+            "lore_trace",
+            "lore_lookup"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_trace": 4,
+            "lore_lookup": 5,
+            "grep": 2,
+            "view": 6
+          }
+        },
+        "tools": "view×6, lore_lookup×5, lore_trace×4, grep×2, report_intent×1",
+        "loreToolArgs": "lore_trace(from_name=add_api_route, to_name=solve_dependencies, depth=10), lore_lookup(kind=symbol, query=add_api_route), lore_lookup(kind=symbol, query=solve_dependencies), lore_trace(from=2669, to=2848, depth=10, max_source_lines=15), lore_trace(depth=10, from=2669, max_source_lines=10), lore_lookup(kind=symbol, query=APIRoute.__init__), lore_lookup(kind=symbol, query=get_request_handler), lore_trace(depth=5, from=2581, to=2848, max_source_lines=10), lore_lookup(kind=symbol, query=__init__, path_prefix=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, match_mode=exact)",
+        "answer": "Good. Line 972 confirms `APIRoute.__init__` calls `self.get_route_handler()`, and line 975 confirms `get_route_handler` calls `get_request_handler`, which defines the inner `app` function that calls `solve_dependencies`.  Here is the call chain:  1. `add_api_route` — registers a new API endpoint by …",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -6987,
+        "tokensPct": -70.72578196173703,
+        "wallTimeMs": -43547,
+        "wallTimePct": -37.44625597633543
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "fastapi-1.7-add_api_route",
+      "family": "explanation",
+      "iteration": 3,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 45,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 153899,
+          "tokensUsed": 11802,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "glob": 3,
+            "grep": 8,
+            "view": 21,
+            "bash": 10,
+            "task": 2
+          }
+        },
+        "tools": "view×21, bash×10, grep×8, glob×3, task×2, report_intent×1",
+        "answer": "Here is the call chain:  1. `add_api_route` — registers a new API route by instantiating an `APIRoute` and appending it to the router 2. `APIRoute.__init__` — initializes the route, builds the dependency model, and wires up the request handler 3. `APIRoute.get_route_handler` — returns the request-ha…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 16,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 63621,
+          "tokensUsed": 2580,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 13,
+          "loreToolsUsed": [
+            "lore_trace",
+            "lore_lookup",
+            "lore_graph",
+            "lore_dependents",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_trace": 3,
+            "lore_lookup": 5,
+            "lore_graph": 1,
+            "lore_dependents": 1,
+            "lore_snippet": 3,
+            "grep": 1,
+            "view": 1
+          }
+        },
+        "tools": "lore_lookup×5, lore_trace×3, lore_snippet×3, report_intent×1, lore_graph×1, lore_dependents×1, grep×1, view×1",
+        "loreToolArgs": "lore_trace(from_name=add_api_route, to_name=solve_dependencies, depth=10), lore_lookup(kind=symbol, query=add_api_route), lore_lookup(kind=symbol, query=solve_dependencies), lore_trace(from=2669, to=2848, depth=10, max_source_lines=15), lore_graph(kind=call, source_id=2669, compact=true), lore_dependents(query=solve_dependencies, kind=symbol, compact=true), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, start_line=1331, end_line=1412), lore_trace(depth=10, from=2554, max_source_lines=10, to=2848), lore_lookup(kind=symbol, query=APIRoute, symbol_kind=class, path_prefix=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py), lore_lookup(kind=symbol, query=get_request_handler), lore_lookup(kind=symbol, query=get_route_handler, path_prefix=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py), lore_snippet(end_line=997, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, start_line=806), lore_snippet(end_line=420, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, start_line=346)",
+        "answer": "Now I have the full chain. Here it is:  1. `add_api_route` — registers an endpoint by constructing an `APIRoute` instance and adding it to the router 2. `APIRoute.__init__` — initializes the route, builds the dependency model, and wires up the request handler 3. `get_route_handler` — returns the ASG…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -9222,
+        "tokensPct": -78.13929842399592,
+        "wallTimeMs": -90278,
+        "wallTimePct": -58.660550101040286
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "fastapi-1.7-add_api_route",
+      "family": "explanation",
+      "iteration": 4,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 39,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 139375,
+          "tokensUsed": 9409,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "glob": 1,
+            "grep": 7,
+            "view": 18,
+            "bash": 11,
+            "task": 1
+          }
+        },
+        "tools": "view×18, bash×11, grep×7, report_intent×1, glob×1, task×1",
+        "answer": "Now I have the complete verified chain. Here it is:  1. `add_api_route` — registers an API route by constructing an `APIRoute` and appending it to the router 2. `APIRoute.__init__` — initializes the route, builds the dependency model, and wraps the handler as an ASGI app 3. `APIRoute.get_route_handl…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 12,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 51017,
+          "tokensUsed": 1831,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 11,
+          "loreToolsUsed": [
+            "lore_trace",
+            "lore_lookup",
+            "lore_graph",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_trace": 2,
+            "lore_lookup": 5,
+            "lore_graph": 1,
+            "lore_snippet": 3
+          }
+        },
+        "tools": "lore_lookup×5, lore_snippet×3, lore_trace×2, report_intent×1, lore_graph×1",
+        "loreToolArgs": "lore_trace(from_name=add_api_route, to_name=solve_dependencies, depth=10), lore_lookup(kind=symbol, query=add_api_route), lore_lookup(kind=symbol, query=solve_dependencies), lore_trace(from=2669, to=2848, depth=10, max_source_lines=15), lore_graph(kind=call, source_id=2669, compact=true), lore_lookup(kind=symbol, query=APIRoute.__init__), lore_lookup(kind=symbol, query=get_request_handler), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, start_line=1331, end_line=1412), lore_lookup(kind=symbol, query=APIRoute, symbol_kind=class), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, start_line=806, end_line=997), lore_snippet(end_line=724, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, start_line=346)",
+        "answer": "Now I have the full chain. Let me verify by reading the key connection points:  1. `add_api_route` (line 1331) creates `route = route_class(...)` which is `APIRoute(...)` 2. `APIRoute.__init__` (line 808) at the end calls `self.get_route_handler()` 3. `get_route_handler` (line 990) returns `get_requ…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -7578,
+        "tokensPct": -80.53990859815072,
+        "wallTimeMs": -88358,
+        "wallTimePct": -63.395874439461885
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "fastapi-1.7-add_api_route",
+      "family": "explanation",
+      "iteration": 5,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 30,
+          "uniqueFilesRead": 3,
+          "wallTimeMs": 131044,
+          "tokensUsed": 9412,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 3,
+            "view": 15,
+            "bash": 10,
+            "task": 1
+          }
+        },
+        "tools": "view×15, bash×10, grep×3, report_intent×1, task×1",
+        "answer": "1. `FastAPI.add_api_route` — delegates route registration to the application's APIRouter 2. `APIRouter.add_api_route` — instantiates an APIRoute and appends it to the routes list 3. `APIRoute.__init__` — initializes the route, analyzes dependencies, and builds the request handler 4. `APIRoute.get_ro…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 11,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 49466,
+          "tokensUsed": 1774,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 10,
+          "loreToolsUsed": [
+            "lore_trace",
+            "lore_lookup",
+            "lore_graph",
+            "lore_dependents",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_trace": 2,
+            "lore_lookup": 3,
+            "lore_graph": 1,
+            "lore_dependents": 1,
+            "lore_snippet": 3
+          }
+        },
+        "tools": "lore_lookup×3, lore_snippet×3, lore_trace×2, report_intent×1, lore_graph×1, lore_dependents×1",
+        "loreToolArgs": "lore_trace(from_name=add_api_route, to_name=solve_dependencies, depth=10), lore_lookup(kind=symbol, query=add_api_route), lore_lookup(kind=symbol, query=solve_dependencies), lore_trace(from=2669, to=2848, depth=10, max_source_lines=15), lore_graph(kind=call, source_id=2669, compact=true), lore_dependents(query=solve_dependencies, kind=symbol, compact=true), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, symbol=add_api_route), lore_lookup(kind=symbol, query=APIRoute, symbol_kind=class, path_prefix=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, start_line=806, end_line=997), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, symbol=get_request_handler)",
+        "answer": "Now I have the full chain. Here it is:  1. `add_api_route` — registers a new route by constructing an `APIRoute` instance with the given path and endpoint 2. `APIRoute.__init__` — initializes the route, builds the dependency graph, and wires up the request handler 3. `APIRoute.get_route_handler` — d…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -7638,
+        "tokensPct": -81.15172120696982,
+        "wallTimeMs": -81578,
+        "wallTimePct": -62.25237324867984
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "fastapi-1.8-solve_dependencies",
+      "family": "modification",
+      "iteration": 1,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 12,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 107426,
+          "tokensUsed": 5305,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 3,
+            "view": 8
+          }
+        },
+        "tools": "view×8, grep×3, report_intent×1",
+        "answer": "Here are the three direct callers of `solve_dependencies` and how they handle its errors:  - **`solve_dependencies`** (recursive call, `fastapi/dependencies/utils.py:646`): Checks `solved_result.errors`, extends its own `errors` list, and returns them in its own `SolvedDependency` — propagating erro…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 8,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 67609,
+          "tokensUsed": 3307,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 3,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_lookup",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "lore_lookup": 1,
+            "lore_snippet": 1,
+            "grep": 1,
+            "view": 3
+          }
+        },
+        "tools": "view×3, report_intent×1, lore_dependents×1, lore_lookup×1, lore_snippet×1, grep×1",
+        "loreToolArgs": "lore_dependents(query=solve_dependencies, kind=symbol, compact=true), lore_lookup(kind=symbol, query=solve_dependencies), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/dependencies/utils.py, symbol=solve_dependencies)",
+        "answer": "`solve_dependencies` returns errors via a `SolvedDependency.errors` field (not exceptions). It has three direct callers:  - **`app` in `get_request_handler`** (routing.py:453) — checks `if errors:` and raises `RequestValidationError` - **`app` in `get_websocket_app`** (routing.py:747) — checks `if s…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -1998,
+        "tokensPct": -37.66258246936852,
+        "wallTimeMs": -39817,
+        "wallTimePct": -37.064583992701955
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "fastapi-1.8-solve_dependencies",
+      "family": "modification",
+      "iteration": 2,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 10,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 50287,
+          "tokensUsed": 2267,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 7
+          }
+        },
+        "tools": "view×7, grep×2, report_intent×1",
+        "answer": "Now I have the full picture. There are three direct callers of `solve_dependencies`:  1. **`solve_dependencies` itself** (recursive, `utils.py:646`) — checks `solved_result.errors`, extends its own errors list, and continues. It handles error return values but does not catch exceptions.  2. **`app` …",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 14,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 100199,
+          "tokensUsed": 5355,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 2,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_lookup"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "lore_lookup": 1,
+            "grep": 3,
+            "view": 8
+          }
+        },
+        "tools": "view×8, grep×3, report_intent×1, lore_dependents×1, lore_lookup×1",
+        "loreToolArgs": "lore_dependents(query=solve_dependencies, kind=symbol, compact=true), lore_lookup(kind=symbol, query=solve_dependencies)",
+        "answer": "`solve_dependencies` returns errors via `SolvedDependency.errors` (not exceptions). Here are its 3 direct callers:  Handle: app (in get_request_handler) app (in get_websocket_app)  Propagate: solve_dependencies  **Details:** - **`app` in `get_request_handler`** (routing.py:453) — checks `solved_resu…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 3088,
+        "tokensPct": 136.21526246140274,
+        "wallTimeMs": 49912,
+        "wallTimePct": 99.25428043032991
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "fastapi-1.8-solve_dependencies",
+      "family": "modification",
+      "iteration": 3,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 12,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 65571,
+          "tokensUsed": 3232,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 9
+          }
+        },
+        "tools": "view×9, grep×2, report_intent×1",
+        "answer": "Here are the three direct callers of `solve_dependencies`:  **Handle:** get_request_handler get_websocket_app  **Propagate:** solve_dependencies  - `get_request_handler` (inner `app`): checks `solved_result.errors` and raises `RequestValidationError` (routing.py:715-719). - `get_websocket_app` (inne…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 31,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 208210,
+          "tokensUsed": 12578,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 5,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_lookup",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "lore_lookup": 1,
+            "lore_snippet": 3,
+            "grep": 2,
+            "bash": 10,
+            "view": 12,
+            "task": 1
+          }
+        },
+        "tools": "view×12, bash×10, lore_snippet×3, grep×2, report_intent×1, lore_dependents×1, lore_lookup×1, task×1",
+        "loreToolArgs": "lore_dependents(query=solve_dependencies, kind=symbol, compact=true), lore_lookup(kind=symbol, query=solve_dependencies), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/dependencies/utils.py, symbol=solve_dependencies), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, symbol=get_request_handler), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, symbol=get_websocket_app)",
+        "answer": "Based on my analysis, here are the three direct callers and their error-handling behavior:  1. **`app` (in `get_request_handler`)** — checks `solved_result.errors`, raises `RequestValidationError` → **handles** 2. **`app` (in `get_websocket_app`)** — checks `solved_result.errors`, raises `WebSocketR…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 9346,
+        "tokensPct": 289.1707920792079,
+        "wallTimeMs": 142639,
+        "wallTimePct": 217.53366579737997
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "fastapi-1.8-solve_dependencies",
+      "family": "modification",
+      "iteration": 4,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 14,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 85817,
+          "tokensUsed": 4352,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 4,
+            "view": 9
+          }
+        },
+        "tools": "view×9, grep×4, report_intent×1",
+        "answer": "There are three direct callers of `solve_dependencies`. Here's the breakdown:  Handle: get_request_handler get_websocket_app  Propagate: solve_dependencies  **Details:** - **`get_request_handler`** (`routing.py:453`): Checks `solved_result.errors`, and if present, raises `RequestValidationError` (li…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 15,
+          "uniqueFilesRead": 6,
+          "wallTimeMs": 135759,
+          "tokensUsed": 8058,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 5,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_lookup",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "lore_lookup": 1,
+            "lore_snippet": 3,
+            "view": 6,
+            "grep": 2,
+            "task": 1
+          }
+        },
+        "tools": "view×6, lore_snippet×3, grep×2, report_intent×1, lore_dependents×1, lore_lookup×1, task×1",
+        "loreToolArgs": "lore_dependents(query=solve_dependencies, kind=symbol, compact=true), lore_lookup(kind=symbol, query=solve_dependencies), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/dependencies/utils.py, symbol=solve_dependencies), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, symbol=get_request_handler), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, symbol=get_websocket_app)",
+        "answer": "There are exactly **3 direct callers** of `solve_dependencies` (all other lore hits are indirect/enclosing):  1. **`app` (nested in `get_request_handler`)** — `routing.py:453`: No try/catch, but checks `solved_result.errors` and raises `RequestValidationError` → **handles** 2. **`app` (nested in `ge…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 3706,
+        "tokensPct": 85.15625,
+        "wallTimeMs": 49942,
+        "wallTimePct": 58.19592854562616
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "fastapi-1.8-solve_dependencies",
+      "family": "modification",
+      "iteration": 5,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 10,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 48061,
+          "tokensUsed": 1837,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 3,
+            "view": 6
+          }
+        },
+        "tools": "view×6, grep×3, report_intent×1",
+        "answer": "Now I have the full picture. There are three direct callers of `solve_dependencies`:  1. **`solve_dependencies` itself** (recursive call, line 646 in `utils.py`) — checks `solved_result.errors` and collects them but does **not** use try/catch; exceptions propagate. The error *return value* is handle…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 11,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 66361,
+          "tokensUsed": 3350,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 3,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_lookup",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "lore_lookup": 1,
+            "lore_snippet": 1,
+            "grep": 2,
+            "view": 5
+          }
+        },
+        "tools": "view×5, grep×2, report_intent×1, lore_dependents×1, lore_lookup×1, lore_snippet×1",
+        "loreToolArgs": "lore_dependents(query=solve_dependencies, kind=symbol, compact=true), lore_lookup(kind=symbol, query=solve_dependencies), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/dependencies/utils.py, symbol=solve_dependencies)",
+        "answer": "`solve_dependencies` doesn't raise exceptions for validation errors — it returns them in `SolvedDependency.errors`. It has 3 direct callers (excluding docs_src examples):  **In `routing.py`:** - **`app` (inside `get_request_handler`)** — checks `solved_result.errors`, raises `RequestValidationError`…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 1513,
+        "tokensPct": 82.36254763200871,
+        "wallTimeMs": 18300,
+        "wallTimePct": 38.076610973554445
+      },
+      "warnings": [
+        "lore 50%+ more tokens"
+      ]
+    },
+    {
+      "taskId": "fastapi-7.2-solve_dependencies",
+      "family": "localization",
+      "iteration": 1,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 8,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 44026,
+          "tokensUsed": 1436,
+          "answerCoverage": 0.75,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 3,
+            "view": 4
+          }
+        },
+        "tools": "view×4, grep×3, report_intent×1",
+        "answer": "get_request_handler → fastapi/routing.py — stores the result in `solved_result`, checks `.errors` for validation failures, unpacks `.values` as kwargs to call the endpoint, and reads `.background_tasks`/`.response` to build the HTTP response get_websocket_app → fastapi/routing.py — stores the result…",
+        "missedParts": [
+          "solve_dependencies"
+        ],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 8,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 70843,
+          "tokensUsed": 3171,
+          "answerCoverage": 0.75,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "grep": 2,
+            "view": 4
+          }
+        },
+        "tools": "view×4, grep×2, report_intent×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=solve_dependencies, kind=symbol, compact=true)",
+        "answer": "app (in get_request_handler) → fastapi/routing.py — stores result in `solved_result`, checks `.errors` to raise `RequestValidationError`, then unpacks `.values` as kwargs to call the endpoint and uses `.background_tasks`/`.response` to build the HTTP response app (in get_websocket_app) → fastapi/rou…",
+        "missedParts": [
+          "solve_dependencies"
+        ],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 1735,
+        "tokensPct": 120.82172701949861,
+        "wallTimeMs": 26817,
+        "wallTimePct": 60.91173397537819
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "fastapi-7.2-solve_dependencies",
+      "family": "localization",
+      "iteration": 2,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 8,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 36999,
+          "tokensUsed": 1166,
+          "answerCoverage": 0.75,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 5
+          }
+        },
+        "tools": "view×5, grep×2, report_intent×1",
+        "answer": "get_request_handler → fastapi/routing.py — stores the result in `solved_result`, extracts `.errors` to check for validation failures and `.values` to call the endpoint function get_websocket_app → fastapi/routing.py — stores the result in `solved_result`, checks `.errors` to raise `WebSocketRequestV…",
+        "missedParts": [
+          "solve_dependencies"
+        ],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 7,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 46576,
+          "tokensUsed": 1925,
+          "answerCoverage": 0.75,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "grep": 3,
+            "view": 2
+          }
+        },
+        "tools": "grep×3, view×2, report_intent×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=solve_dependencies, kind=symbol, compact=true)",
+        "answer": "Only two files have actual calls: `fastapi/routing.py` (the two call sites above) and the self-recursive call in `fastapi/dependencies/utils.py`. Here's the answer:  app (in get_request_handler) → fastapi/routing.py — awaits the result into `solved_result`, reads `.errors` for validation, unpacks `.…",
+        "missedParts": [
+          "solve_dependencies"
+        ],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 759,
+        "tokensPct": 65.09433962264151,
+        "wallTimeMs": 9577,
+        "wallTimePct": 25.884483364415257
+      },
+      "warnings": [
+        "lore 50%+ more tokens"
+      ]
+    },
+    {
+      "taskId": "fastapi-7.2-solve_dependencies",
+      "family": "localization",
+      "iteration": 3,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 6,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 35414,
+          "tokensUsed": 1014,
+          "answerCoverage": 0.75,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 3
+          }
+        },
+        "tools": "view×3, grep×2, report_intent×1",
+        "answer": "The two callers are the inner `app` closures inside `get_request_handler` and `get_websocket_app`. But the user asked for the **function** that calls it — which is these outer functions (since the inner `app` is a local closure). Let me provide the precise answer:  get_request_handler → fastapi/rout…",
+        "missedParts": [
+          "solve_dependencies"
+        ],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 10,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 68666,
+          "tokensUsed": 2458,
+          "answerCoverage": 0.75,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "grep": 2,
+            "view": 6
+          }
+        },
+        "tools": "view×6, grep×2, report_intent×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=solve_dependencies, kind=symbol, compact=true)",
+        "answer": "app (inside get_request_handler) → fastapi/routing.py — assigns to `solved_result`, extracts `.errors` for request validation and `.values` as kwargs to invoke the endpoint, and reads `.response` to build HTTP response headers and status code app (inside get_websocket_app) → fastapi/routing.py — ass…",
+        "missedParts": [
+          "solve_dependencies"
+        ],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 1444,
+        "tokensPct": 142.40631163708088,
+        "wallTimeMs": 33252,
+        "wallTimePct": 93.89506974642796
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "fastapi-7.2-solve_dependencies",
+      "family": "localization",
+      "iteration": 4,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 5,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 45093,
+          "tokensUsed": 1493,
+          "answerCoverage": 0.75,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 2
+          }
+        },
+        "tools": "grep×2, view×2, report_intent×1",
+        "answer": "get_request_handler → fastapi/routing.py — stores the result in `solved_result`, reads `.errors` to short-circuit with a validation error response, passes `.values` to `run_endpoint_function`, and feeds the object to `_build_response_args` for response headers/status get_websocket_app → fastapi/rout…",
+        "missedParts": [
+          "solve_dependencies"
+        ],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 9,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 51827,
+          "tokensUsed": 1829,
+          "answerCoverage": 0.75,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "grep": 5,
+            "view": 2
+          }
+        },
+        "tools": "grep×5, view×2, report_intent×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=solve_dependencies, kind=symbol, compact=true)",
+        "answer": "There are exactly two call sites, both in `fastapi/routing.py`:  1. **Line 453** — inside nested `async def app(request)` (line 378) within `get_request_handler` (line 347) 2. **Line 747** — inside nested `async def app(websocket)` (line 733) within `get_websocket_app` (line 728)  get_request_handle…",
+        "missedParts": [
+          "solve_dependencies"
+        ],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 336,
+        "tokensPct": 22.505023442732753,
+        "wallTimeMs": 6734,
+        "wallTimePct": 14.93358170891269
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "fastapi-7.2-solve_dependencies",
+      "family": "localization",
+      "iteration": 5,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 7,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 49653,
+          "tokensUsed": 1757,
+          "answerCoverage": 0.75,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 3,
+            "view": 3
+          }
+        },
+        "tools": "grep×3, view×3, report_intent×1",
+        "answer": "get_request_handler → fastapi/routing.py — stores the result in `solved_result`, reads `.errors` to check for validation failures, then on success passes `solved_result.values` as kwargs to the endpoint function and uses `solved_result.background_tasks`, `solved_result.response`, and `solved_result.…",
+        "missedParts": [
+          "solve_dependencies"
+        ],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 6,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 48925,
+          "tokensUsed": 2030,
+          "answerCoverage": 0.75,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 3,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "lore_snippet": 2,
+            "grep": 2
+          }
+        },
+        "tools": "lore_snippet×2, grep×2, report_intent×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=solve_dependencies, kind=symbol, compact=true), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, symbol=get_request_handler), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, symbol=get_websocket_app)",
+        "answer": "app (nested in get_request_handler) → fastapi/routing.py — assigns result to `solved_result`, extracts `.errors` to raise `RequestValidationError`, unpacks `.values` as kwargs to the endpoint function, and uses `.background_tasks` and `.response.headers` to build the HTTP response app (nested in get…",
+        "missedParts": [
+          "solve_dependencies"
+        ],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 273,
+        "tokensPct": 15.53784860557769,
+        "wallTimeMs": -728,
+        "wallTimePct": -1.4661752562785733
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "fastapi-7.3-add_api_route",
+      "family": "localization",
+      "iteration": 1,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.6666666666666666,
+          "firstPassAccurate": false,
+          "toolCallCount": 8,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 36576,
+          "tokensUsed": 1227,
+          "answerCoverage": 0.75,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 4,
+            "view": 3
+          }
+        },
+        "tools": "grep×4, view×3, report_intent×1",
+        "answer": "`FastAPI.add_api_route` delegates to `APIRouter.add_api_route`, which calls `APIRoute.__init__` and `get_value_or_default`:  ``` FastAPI.add_api_route → fastapi/applications.py APIRouter.add_api_route → fastapi/routing.py APIRoute.__init__ → fastapi/routing.py get_value_or_default → fastapi/utils.py…",
+        "missedParts": [
+          "generate_unique_id"
+        ],
+        "missedAnswerLines": [
+          "generate_unique_id → fastapi/utils.py"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 9,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 41795,
+          "tokensUsed": 1100,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 6,
+          "loreToolsUsed": [
+            "lore_trace",
+            "lore_dependents",
+            "lore_lookup",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_trace": 3,
+            "lore_dependents": 1,
+            "lore_lookup": 1,
+            "lore_graph": 1,
+            "view": 2
+          }
+        },
+        "tools": "lore_trace×3, view×2, report_intent×1, lore_dependents×1, lore_lookup×1, lore_graph×1",
+        "loreToolArgs": "lore_trace(from_name=add_api_route, depth=3), lore_dependents(query=add_api_route, kind=symbol, compact=true), lore_trace(from=2399, depth=3), lore_trace(from=2669, depth=3), lore_lookup(kind=symbol, query=add_api_route), lore_graph(kind=call, source_id=2669, compact=true)",
+        "answer": "Here's the full delegation chain:  `FastAPI.add_api_route` → `APIRouter.add_api_route` → helpers + route construction:  APIRouter.add_api_route → fastapi/routing.py FastAPI.add_api_route → fastapi/applications.py get_value_or_default → fastapi/utils.py generate_unique_id → fastapi/utils.py Default →…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0.33333333333333337,
+        "tokens": -127,
+        "tokensPct": -10.350448247758761,
+        "wallTimeMs": 5219,
+        "wallTimePct": 14.268919510061243
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "fastapi-7.3-add_api_route",
+      "family": "localization",
+      "iteration": 2,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.6666666666666666,
+          "firstPassAccurate": false,
+          "toolCallCount": 8,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 39484,
+          "tokensUsed": 1213,
+          "answerCoverage": 0.75,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 4,
+            "view": 3
+          }
+        },
+        "tools": "grep×4, view×3, report_intent×1",
+        "answer": "`FastAPI.add_api_route` delegates to `APIRouter.add_api_route`, which calls `APIRoute.__init__` and `get_value_or_default`:  ``` FastAPI.add_api_route → fastapi/applications.py APIRouter.add_api_route → fastapi/routing.py APIRoute.__init__ → fastapi/routing.py get_value_or_default → fastapi/utils.py…",
+        "missedParts": [
+          "generate_unique_id"
+        ],
+        "missedAnswerLines": [
+          "generate_unique_id → fastapi/utils.py"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.6666666666666666,
+          "firstPassAccurate": true,
+          "toolCallCount": 6,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 33721,
+          "tokensUsed": 796,
+          "answerCoverage": 0.75,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 5,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_graph",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 1,
+            "lore_graph": 2,
+            "lore_snippet": 2
+          }
+        },
+        "tools": "lore_graph×2, lore_snippet×2, report_intent×1, lore_lookup×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=add_api_route), lore_graph(kind=call, source_id=2399, compact=true), lore_graph(kind=call, source_id=2669, compact=true), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, start_line=1331, end_line=1412), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/applications.py, start_line=1161, end_line=1216)",
+        "answer": "`FastAPI.add_api_route` delegates to `APIRouter.add_api_route`, which calls:  ``` APIRouter.add_api_route → fastapi/routing.py get_value_or_default → fastapi/utils.py APIRoute.__init__ → fastapi/routing.py ```",
+        "missedParts": [
+          "generate_unique_id"
+        ],
+        "missedAnswerLines": [
+          "generate_unique_id → fastapi/utils.py"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -417,
+        "tokensPct": -34.37757625721352,
+        "wallTimeMs": -5763,
+        "wallTimePct": -14.59578563468747
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "fastapi-7.3-add_api_route",
+      "family": "localization",
+      "iteration": 3,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.6666666666666666,
+          "firstPassAccurate": false,
+          "toolCallCount": 8,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 40607,
+          "tokensUsed": 1342,
+          "answerCoverage": 0.75,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 4,
+            "view": 3
+          }
+        },
+        "tools": "grep×4, view×3, report_intent×1",
+        "answer": "Here is the call chain:  `FastAPI.add_api_route` → `fastapi/applications.py` `APIRouter.add_api_route` → `fastapi/routing.py` `APIRoute.__init__` → `fastapi/routing.py` `get_value_or_default` → `fastapi/utils.py`  `FastAPI.add_api_route` is a wrapper that delegates to `self.router.add_api_route` (an…",
+        "missedParts": [
+          "generate_unique_id"
+        ],
+        "missedAnswerLines": [
+          "generate_unique_id → fastapi/utils.py"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 7,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 36945,
+          "tokensUsed": 1035,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 5,
+          "loreToolsUsed": [
+            "lore_trace",
+            "lore_lookup",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_trace": 3,
+            "lore_lookup": 1,
+            "lore_snippet": 1,
+            "view": 1
+          }
+        },
+        "tools": "lore_trace×3, report_intent×1, lore_lookup×1, lore_snippet×1, view×1",
+        "loreToolArgs": "lore_trace(from_name=add_api_route, depth=3), lore_lookup(kind=symbol, query=add_api_route), lore_trace(depth=3, from=2399), lore_trace(depth=3, from=2669), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, start_line=1380, end_line=1412)",
+        "answer": "Now I have the full picture. Here's the call chain:  `FastAPI.add_api_route` (applications.py) delegates to `APIRouter.add_api_route` (routing.py), which calls:  ``` APIRouter.add_api_route → fastapi/routing.py FastAPI.add_api_route → fastapi/applications.py get_value_or_default → fastapi/utils.py g…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0.33333333333333337,
+        "tokens": -307,
+        "tokensPct": -22.876304023845005,
+        "wallTimeMs": -3662,
+        "wallTimePct": -9.018149580121653
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "fastapi-7.3-add_api_route",
+      "family": "localization",
+      "iteration": 4,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.6666666666666666,
+          "firstPassAccurate": false,
+          "toolCallCount": 9,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 58347,
+          "tokensUsed": 2142,
+          "answerCoverage": 0.75,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 5,
+            "view": 3
+          }
+        },
+        "tools": "grep×5, view×3, report_intent×1",
+        "answer": "`FastAPI.add_api_route` → `fastapi/applications.py` `APIRouter.add_api_route` → `fastapi/routing.py` `get_value_or_default` → `fastapi/utils.py` `APIRoute.__init__` → `fastapi/routing.py`",
+        "missedParts": [
+          "generate_unique_id"
+        ],
+        "missedAnswerLines": [
+          "generate_unique_id → fastapi/utils.py"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 7,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 32375,
+          "tokensUsed": 825,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 6,
+          "loreToolsUsed": [
+            "lore_trace",
+            "lore_dependents",
+            "lore_lookup",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_trace": 3,
+            "lore_dependents": 1,
+            "lore_lookup": 1,
+            "lore_snippet": 1
+          }
+        },
+        "tools": "lore_trace×3, report_intent×1, lore_dependents×1, lore_lookup×1, lore_snippet×1",
+        "loreToolArgs": "lore_trace(from_name=add_api_route, depth=3), lore_dependents(query=add_api_route, kind=symbol, compact=true), lore_trace(from=2399, depth=3), lore_trace(from=2669, depth=3), lore_lookup(kind=symbol, query=add_api_route), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, start_line=1380, end_line=1412)",
+        "answer": "`FastAPI.add_api_route` is a wrapper that delegates to `APIRouter.add_api_route`, which in turn constructs an `APIRoute` and calls helper functions. Here's the full delegation chain:  ``` FastAPI.add_api_route → fastapi/applications.py APIRouter.add_api_route → fastapi/routing.py APIRoute.__init__ →…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0.33333333333333337,
+        "tokens": -1317,
+        "tokensPct": -61.484593837535016,
+        "wallTimeMs": -25972,
+        "wallTimePct": -44.51299981147274
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "fastapi-7.3-add_api_route",
+      "family": "localization",
+      "iteration": 5,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 12,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 49354,
+          "tokensUsed": 2045,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 6,
+            "view": 5
+          }
+        },
+        "tools": "grep×6, view×5, report_intent×1",
+        "answer": "Here is the call chain when `add_api_route` is invoked:  ``` FastAPI.add_api_route → fastapi/applications.py APIRouter.add_api_route → fastapi/routing.py get_value_or_default → fastapi/utils.py APIRoute.__init__ → fastapi/routing.py generate_unique_id → fastapi/utils.py get_typed_return_annotation →…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 14,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 76335,
+          "tokensUsed": 2651,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 11,
+          "loreToolsUsed": [
+            "lore_trace",
+            "lore_dependents",
+            "lore_lookup",
+            "lore_snippet",
+            "lore_graph",
+            "lore_search"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_trace": 3,
+            "lore_dependents": 1,
+            "lore_lookup": 3,
+            "lore_snippet": 2,
+            "lore_graph": 1,
+            "lore_search": 1,
+            "grep": 1,
+            "view": 1
+          }
+        },
+        "tools": "lore_trace×3, lore_lookup×3, lore_snippet×2, report_intent×1, lore_dependents×1, lore_graph×1, lore_search×1, grep×1, view×1",
+        "loreToolArgs": "lore_trace(from_name=add_api_route, depth=3), lore_dependents(query=add_api_route, kind=symbol, compact=true), lore_trace(from=2399, depth=3), lore_trace(from=2669, depth=3), lore_lookup(kind=symbol, query=add_api_route), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, start_line=1380, end_line=1412), lore_graph(kind=call, source_id=2669, compact=true), lore_snippet(end_line=1416, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, start_line=1410), lore_lookup(kind=symbol, query=APIRoute, path_prefix=fastapi/fastapi/routing.py, match_mode=exact), lore_lookup(kind=symbol, match_mode=exact, path_prefix=fastapi/fastapi/routing.py, query=__init__), lore_search(kind=class, mode=structural, path_prefix=fastapi/fastapi/routing.py, query=APIRoute)",
+        "answer": "Now I have the complete picture. Here's the call chain:  `FastAPI.add_api_route` (applications.py) delegates to `APIRouter.add_api_route` (routing.py), which in turn calls helper functions and constructs an `APIRoute`.  ``` APIRouter.add_api_route → fastapi/routing.py get_value_or_default → fastapi/…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 606,
+        "tokensPct": 29.633251833740832,
+        "wallTimeMs": 26981,
+        "wallTimePct": 54.668314624954405
+      },
+      "warnings": [
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "fastapi-10.1-solve_dependencies",
+      "family": "explanation",
+      "iteration": 1,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 9,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 70253,
+          "tokensUsed": 3441,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 5,
+            "bash": 1
+          }
+        },
+        "tools": "view×5, grep×2, report_intent×1, bash×1",
+        "answer": "2 solve_dependencies → fastapi/dependencies/utils.py get_request_handler → fastapi/routing.py get_websocket_app → fastapi/routing.py",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 12,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 79519,
+          "tokensUsed": 4008,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "grep": 3,
+            "view": 7
+          }
+        },
+        "tools": "view×7, grep×3, report_intent×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=solve_dependencies, kind=symbol, compact=true)",
+        "answer": "2 app → fastapi/routing.py app → fastapi/routing.py solve_dependencies → fastapi/dependencies/utils.py  There are **2** distinct source files. In `fastapi/routing.py`, two different nested `app` functions call it — one inside `get_request_handler` (line 453) and one inside `get_websocket_app` (line …",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 567,
+        "tokensPct": 16.477768090671315,
+        "wallTimeMs": 9266,
+        "wallTimePct": 13.189472335700966
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "fastapi-10.1-solve_dependencies",
+      "family": "explanation",
+      "iteration": 2,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 11,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 50134,
+          "tokensUsed": 1923,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 8
+          }
+        },
+        "tools": "view×8, grep×2, report_intent×1",
+        "answer": "Now I have the full picture. The callers of `solve_dependencies` in non-test source files:  1. **`fastapi/routing.py`** line 453: inside inner function `app` (defined at line 378) within `get_request_handler` 2. **`fastapi/routing.py`** line 747: inside inner function `app` (defined at line 733) wit…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.3333333333333333,
+          "firstPassAccurate": false,
+          "toolCallCount": 10,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 110864,
+          "tokensUsed": 5389,
+          "answerCoverage": 0.6666666666666666,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "grep": 4,
+            "view": 4
+          }
+        },
+        "tools": "grep×4, view×4, report_intent×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=solve_dependencies, kind=symbol, compact=true)",
+        "answer": "1 app → fastapi/routing.py app → fastapi/routing.py",
+        "missedParts": [
+          "solve_dependencies"
+        ],
+        "missedAnswerLines": [
+          "get_websocket_app → routing.py",
+          "solve_dependencies → dependencies/utils.py"
+        ]
+      },
+      "delta": {
+        "correctness": -0.6666666666666667,
+        "tokens": 3466,
+        "tokensPct": 180.23920956838273,
+        "wallTimeMs": 60730,
+        "wallTimePct": 121.13535724258986
+      },
+      "warnings": [
+        "lore worse on correctness — missed: [get_websocket_app → routing.py, solve_dependencies → dependencies/utils.py]",
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "fastapi-10.1-solve_dependencies",
+      "family": "explanation",
+      "iteration": 3,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 12,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 54368,
+          "tokensUsed": 2271,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 3,
+            "view": 8
+          }
+        },
+        "tools": "view×8, grep×3, report_intent×1",
+        "answer": "Now I have all the information. The calling functions are:  1. **`app`** (nested inside `get_request_handler`, line 378) in `fastapi/routing.py` — calls at line 453 2. **`app`** (nested inside `get_websocket_app`, line 733) in `fastapi/routing.py` — calls at line 747 3. **`solve_dependencies`** itse…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 7,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 64876,
+          "tokensUsed": 3084,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "grep": 2,
+            "view": 3
+          }
+        },
+        "tools": "view×3, grep×2, report_intent×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=solve_dependencies, kind=symbol, compact=true)",
+        "answer": "2 app → fastapi/routing.py app → fastapi/routing.py solve_dependencies → fastapi/dependencies/utils.py  Wait, the two `app` functions are distinct closures. Let me clarify:  2 app (in get_request_handler) → fastapi/routing.py app (in get_websocket_app) → fastapi/routing.py solve_dependencies → fasta…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 813,
+        "tokensPct": 35.79920739762219,
+        "wallTimeMs": 10508,
+        "wallTimePct": 19.327545615067688
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "fastapi-10.1-solve_dependencies",
+      "family": "explanation",
+      "iteration": 4,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.6666666666666666,
+          "firstPassAccurate": false,
+          "toolCallCount": 9,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 178944,
+          "tokensUsed": 5284,
+          "answerCoverage": 0.6666666666666666,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 6
+          }
+        },
+        "tools": "view×6, grep×2, report_intent×1",
+        "answer": "1 get_request_handler → fastapi/routing.py get_websocket_app → fastapi/routing.py",
+        "missedParts": [
+          "solve_dependencies"
+        ],
+        "missedAnswerLines": [
+          "solve_dependencies → dependencies/utils.py"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.6666666666666666,
+          "firstPassAccurate": false,
+          "toolCallCount": 11,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 89813,
+          "tokensUsed": 4565,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "grep": 5,
+            "view": 4
+          }
+        },
+        "tools": "grep×5, view×4, report_intent×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=solve_dependencies, kind=symbol, compact=true)",
+        "answer": "2 app → fastapi/routing.py app → fastapi/routing.py solve_dependencies → fastapi/dependencies/utils.py",
+        "missedParts": [],
+        "missedAnswerLines": [
+          "get_websocket_app → routing.py"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -719,
+        "tokensPct": -13.607115821347465,
+        "wallTimeMs": -89131,
+        "wallTimePct": -49.80943758941345
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "fastapi-10.1-solve_dependencies",
+      "family": "explanation",
+      "iteration": 5,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 9,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 42329,
+          "tokensUsed": 1642,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 6
+          }
+        },
+        "tools": "view×6, grep×2, report_intent×1",
+        "answer": "Now I have the full picture:  - **`fastapi/routing.py` line 453**: inside nested `app` within `get_request_handler` - **`fastapi/routing.py` line 747**: inside nested `app` within `get_websocket_app` - **`fastapi/dependencies/utils.py` line 646**: recursive self-call within `solve_dependencies` itse…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 13,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 83637,
+          "tokensUsed": 4200,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "grep": 3,
+            "view": 3,
+            "bash": 5
+          }
+        },
+        "tools": "bash×5, grep×3, view×3, report_intent×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=solve_dependencies, kind=symbol, compact=true)",
+        "answer": "2 get_request_handler → fastapi/routing.py get_websocket_app → fastapi/routing.py solve_dependencies → fastapi/dependencies/utils.py",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 2558,
+        "tokensPct": 155.78562728380027,
+        "wallTimeMs": 41308,
+        "wallTimePct": 97.5879420728106
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "fastapi-10.3-solve_dependencies",
+      "family": "explanation",
+      "iteration": 1,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 5,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 27599,
+          "tokensUsed": 791,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 3
+          }
+        },
+        "tools": "view×3, report_intent×1, grep×1",
+        "answer": "Here are the callers of `solve_dependencies` grouped by calling pattern:  **One-shot, HTTP request with body:**   `get_request_handler.<locals>.app` in `fastapi/routing.py:453` — passes `body=body`, checks `solved_result.errors` to decide whether to proceed with the endpoint call.  **One-shot, WebSo…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.75,
+          "firstPassAccurate": false,
+          "toolCallCount": 10,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 56234,
+          "tokensUsed": 2486,
+          "answerCoverage": 0.75,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "grep": 4,
+            "view": 4
+          }
+        },
+        "tools": "grep×4, view×4, report_intent×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=solve_dependencies, kind=symbol, compact=true)",
+        "answer": "Here are the three direct callers of `solve_dependencies`, grouped by calling pattern:  **One-shot in HTTP handler, errors raise `RequestValidationError`:**   `app` (closure) in `fastapi/routing.py:453` — passes `request`, `dependant`, `body`, `dependency_overrides_provider`, `async_exit_stack`, `em…",
+        "missedParts": [
+          "get_websocket_app"
+        ],
+        "missedAnswerLines": [
+          "get_websocket_app"
+        ]
+      },
+      "delta": {
+        "correctness": -0.25,
+        "tokens": 1695,
+        "tokensPct": 214.28571428571428,
+        "wallTimeMs": 28635,
+        "wallTimePct": 103.75375919417371
+      },
+      "warnings": [
+        "lore worse on correctness — missed: [get_websocket_app]",
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "fastapi-10.3-solve_dependencies",
+      "family": "explanation",
+      "iteration": 2,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 5,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 27538,
+          "tokensUsed": 811,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 3
+          }
+        },
+        "tools": "view×3, report_intent×1, grep×1",
+        "answer": "Here are the callers of `solve_dependencies` grouped by calling pattern:  **One-shot, HTTP request with body, errors collected into local list:** - `get_request_handler.<locals>.app` in `fastapi/routing.py` (line 453) — passes `body=body`, checks `solved_result.errors` then conditionally proceeds to…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 9,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 60312,
+          "tokensUsed": 3133,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 2,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "lore_snippet": 1,
+            "grep": 3,
+            "view": 3
+          }
+        },
+        "tools": "grep×3, view×3, report_intent×1, lore_dependents×1, lore_snippet×1",
+        "loreToolArgs": "lore_dependents(query=solve_dependencies, kind=symbol, compact=true), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/dependencies/utils.py, symbol=solve_dependencies)",
+        "answer": "Here are the three distinct calling patterns:  **One-shot with body, raises RequestValidationError on errors:**   `app` (inner function) in `get_request_handler` in fastapi/routing.py (line 453) — passes `body=body` from the parsed request; omits `background_tasks`, `response`, `dependency_cache` (l…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 2322,
+        "tokensPct": 286.31319358816273,
+        "wallTimeMs": 32774,
+        "wallTimePct": 119.0137264870361
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "fastapi-10.3-solve_dependencies",
+      "family": "explanation",
+      "iteration": 3,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 5,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 29295,
+          "tokensUsed": 828,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 3
+          }
+        },
+        "tools": "view×3, report_intent×1, grep×1",
+        "answer": "Here are the callers of `solve_dependencies` grouped by calling pattern:  **One-shot, HTTP request with body, errors collected into a list:**   `get_request_handler.<locals>.app` in `fastapi/routing.py:453` — passes `body=body`, checks `solved_result.errors` to decide whether to proceed with the end…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 9,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 57151,
+          "tokensUsed": 2698,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 5,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "lore_snippet": 4,
+            "grep": 3
+          }
+        },
+        "tools": "lore_snippet×4, grep×3, report_intent×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=solve_dependencies, kind=symbol, compact=true), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/dependencies/utils.py, symbol=solve_dependencies), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, symbol=get_request_handler), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, symbol=get_websocket_app), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/dependencies/utils.py, start_line=648, end_line=665)",
+        "answer": "Here are the calling patterns:  **One-shot with body, errors raise RequestValidationError:**   `app` (inner closure) in `fastapi/routing.py` (inside `get_request_handler`)  **One-shot without body, errors raise WebSocketRequestValidationError:**   `app` (inner closure) in `fastapi/routing.py` (insid…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 1870,
+        "tokensPct": 225.8454106280193,
+        "wallTimeMs": 27856,
+        "wallTimePct": 95.0878989588667
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "fastapi-10.3-solve_dependencies",
+      "family": "explanation",
+      "iteration": 4,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.75,
+          "firstPassAccurate": false,
+          "toolCallCount": 5,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 28755,
+          "tokensUsed": 817,
+          "answerCoverage": 0.75,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 3
+          }
+        },
+        "tools": "view×3, report_intent×1, grep×1",
+        "answer": "Here are the callers of `solve_dependencies`, grouped by calling pattern:  **One-shot with `body`, errors collected into a list (HTTP request path):**   `request_app` closure in `fastapi/routing.py:453` — passes `body=body`, collects `solved_result.errors` into a local `errors` list, then conditiona…",
+        "missedParts": [
+          "get_websocket_app"
+        ],
+        "missedAnswerLines": [
+          "get_websocket_app"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.75,
+          "firstPassAccurate": false,
+          "toolCallCount": 13,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 56549,
+          "tokensUsed": 2653,
+          "answerCoverage": 0.75,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 10,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "lore_snippet": 9,
+            "bash": 2
+          }
+        },
+        "tools": "lore_snippet×9, bash×2, report_intent×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=solve_dependencies, kind=symbol, compact=false), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/dependencies/utils.py, start_line=630, end_line=670), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, start_line=40, end_line=60), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, start_line=440, end_line=470), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, start_line=720, end_line=800), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, start_line=960, end_line=990), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/dependencies/utils.py, start_line=594, end_line=618), lore_snippet(end_line=470, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, start_line=430), lore_snippet(end_line=770, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, start_line=733), lore_snippet(end_line=665, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/dependencies/utils.py, start_line=620)",
+        "answer": "There are exactly three direct call sites. Here are the callers grouped by calling pattern:  **Recursive in a loop, passing all optional arguments (sub-dependency resolution):**   `solve_dependencies` in `fastapi/dependencies/utils.py` (line 646) — called inside a `for sub_dependant in dependant.dep…",
+        "missedParts": [
+          "get_websocket_app"
+        ],
+        "missedAnswerLines": [
+          "get_websocket_app"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 1836,
+        "tokensPct": 224.72460220318234,
+        "wallTimeMs": 27794,
+        "wallTimePct": 96.65797252651713
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "fastapi-10.3-solve_dependencies",
+      "family": "explanation",
+      "iteration": 5,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 5,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 28589,
+          "tokensUsed": 812,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 3
+          }
+        },
+        "tools": "view×3, report_intent×1, grep×1",
+        "answer": "Here are the three call sites grouped by pattern:  **One-shot, HTTP request path (passes `body`, errors collected into list):**   `get_request_handler` closure in `fastapi/routing.py:453` — passes `body=body`, checks `solved_result.errors` later via a collected `errors` list, then conditionally runs…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 14,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 54311,
+          "tokensUsed": 2532,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 8,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "lore_snippet": 7,
+            "grep": 2,
+            "view": 3
+          }
+        },
+        "tools": "lore_snippet×7, view×3, grep×2, report_intent×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=solve_dependencies, kind=symbol, compact=true), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/dependencies/utils.py, symbol=solve_dependencies), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, symbol=get_request_handler), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, symbol=get_websocket_app), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/routing.py, symbol=APIRoute, start_line=764, end_line=900), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/docs_src/custom_request_and_route/tutorial001_an_py310.py, symbol=get_route_handler), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/docs_src/custom_request_and_route/tutorial002_an_py310.py, symbol=get_route_handler), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/docs_src/custom_request_and_route/tutorial003_py310.py, symbol=get_route_handler)",
+        "answer": "Here are the callers grouped by calling pattern:  **One-shot with body, errors collected then raised as RequestValidationError:**   `app` (inside `get_request_handler`) in `fastapi/routing.py` — passes `body=body`, checks `solved_result.errors` and raises `RequestValidationError` after the full resp…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 1720,
+        "tokensPct": 211.82266009852216,
+        "wallTimeMs": 25722,
+        "wallTimePct": 89.9716674245339
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "fastapi-11.2-solve_dependencies",
+      "family": "modification",
+      "iteration": 1,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 7,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 32630,
+          "tokensUsed": 976,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 4,
+            "bash": 1
+          }
+        },
+        "tools": "view×4, report_intent×1, grep×1, bash×1",
+        "answer": "Line 453 is inside `get_request_handler` and line 747 is inside `get_websocket_app`. Both are in `fastapi/routing.py`.  get_request_handler in fastapi/routing.py — solved_result = await solve_dependencies( get_websocket_app in fastapi/routing.py — solved_result = await solve_dependencies(",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 7,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 56660,
+          "tokensUsed": 2213,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "grep": 3,
+            "view": 2
+          }
+        },
+        "tools": "grep×3, view×2, report_intent×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=solve_dependencies, kind=symbol, compact=true)",
+        "answer": "app in fastapi/routing.py — solved_result = await solve_dependencies( app in fastapi/routing.py — solved_result = await solve_dependencies(",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 1237,
+        "tokensPct": 126.74180327868851,
+        "wallTimeMs": 24030,
+        "wallTimePct": 73.64388599448361
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "fastapi-11.2-solve_dependencies",
+      "family": "modification",
+      "iteration": 2,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 9,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 38239,
+          "tokensUsed": 1285,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 6
+          }
+        },
+        "tools": "view×6, grep×2, report_intent×1",
+        "answer": "The call at line 453 is inside the inner `app` function of `get_request_handler`, and the call at line 747 is inside the inner `app` function of `get_websocket_app`.  app in fastapi/routing.py — solved_result = await solve_dependencies( app in fastapi/routing.py — solved_result = await solve_depende…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 12,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 53297,
+          "tokensUsed": 1836,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "grep": 3,
+            "view": 7
+          }
+        },
+        "tools": "view×7, grep×3, report_intent×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=solve_dependencies, kind=symbol, compact=true)",
+        "answer": "The call at line 453 is inside the nested `app` function within `get_request_handler`, and the call at line 747 is inside the nested `app` function within `get_websocket_app`. Both are in `fastapi/routing.py`.  app in fastapi/routing.py — solved_result = await solve_dependencies( app in fastapi/rout…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 551,
+        "tokensPct": 42.87937743190661,
+        "wallTimeMs": 15058,
+        "wallTimePct": 39.37864483903868
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "fastapi-11.2-solve_dependencies",
+      "family": "modification",
+      "iteration": 3,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 6,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 36382,
+          "tokensUsed": 1219,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 3,
+            "view": 2
+          }
+        },
+        "tools": "grep×3, view×2, report_intent×1",
+        "answer": "app in fastapi/routing.py — solved_result = await solve_dependencies( app in fastapi/routing.py — solved_result = await solve_dependencies(",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 7,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 41588,
+          "tokensUsed": 1684,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "grep": 3,
+            "view": 2
+          }
+        },
+        "tools": "grep×3, view×2, report_intent×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=solve_dependencies, kind=symbol, compact=true)",
+        "answer": "get_request_handler in fastapi/routing.py — solved_result = await solve_dependencies( get_websocket_app in fastapi/routing.py — solved_result = await solve_dependencies(",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 465,
+        "tokensPct": 38.14602132895816,
+        "wallTimeMs": 5206,
+        "wallTimePct": 14.309273816722555
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "fastapi-11.2-solve_dependencies",
+      "family": "modification",
+      "iteration": 4,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 5,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 28126,
+          "tokensUsed": 706,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 2,
+            "bash": 1
+          }
+        },
+        "tools": "view×2, report_intent×1, grep×1, bash×1",
+        "answer": "get_request_handler (line 347) contains line 453, and get_websocket_app (line 728) contains line 747.  get_request_handler in fastapi/routing.py — solved_result = await solve_dependencies( get_websocket_app in fastapi/routing.py — solved_result = await solve_dependencies(",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 9,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 43743,
+          "tokensUsed": 1627,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "grep": 4,
+            "view": 2,
+            "bash": 1
+          }
+        },
+        "tools": "grep×4, view×2, report_intent×1, lore_dependents×1, bash×1",
+        "loreToolArgs": "lore_dependents(query=solve_dependencies, kind=symbol, compact=true)",
+        "answer": "The two call sites are: - Line 453: inside `async def app` (line 378), which is nested inside `get_request_handler` (line 347) - Line 747: inside `async def app` (line 733), which is nested inside `get_websocket_app` (line 728)  app in fastapi/routing.py — solved_result = await solve_dependencies( a…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 921,
+        "tokensPct": 130.45325779036827,
+        "wallTimeMs": 15617,
+        "wallTimePct": 55.5251368840219
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "fastapi-11.2-solve_dependencies",
+      "family": "modification",
+      "iteration": 5,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 10,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 48816,
+          "tokensUsed": 1881,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 3,
+            "view": 6
+          }
+        },
+        "tools": "view×6, grep×3, report_intent×1",
+        "answer": "The call at line 453 is inside the nested `app` function within `get_request_handler`, and the call at line 747 is inside the nested `app` function within `get_websocket_app`. The actual callers are these inner `app` closures, but the meaningful enclosing function names are `app` (inside `get_reques…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 7,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 34075,
+          "tokensUsed": 1099,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "grep": 3,
+            "view": 2
+          }
+        },
+        "tools": "grep×3, view×2, report_intent×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=solve_dependencies, kind=symbol, compact=true)",
+        "answer": "Line 453 is inside `get_request_handler` (starts line 347), and line 747 is inside `get_websocket_app` (starts line 728).  get_request_handler in fastapi/routing.py — solved_result = await solve_dependencies( get_websocket_app in fastapi/routing.py — solved_result = await solve_dependencies(",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -782,
+        "tokensPct": -41.57363104731526,
+        "wallTimeMs": -14741,
+        "wallTimePct": -30.19706653556211
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "fastapi-11.3-solve_dependencies",
+      "family": "refactoring",
+      "iteration": 1,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 8,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 37117,
+          "tokensUsed": 1171,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 5
+          }
+        },
+        "tools": "view×5, grep×2, report_intent×1",
+        "answer": "**Callers:** 3 (2 external + 1 recursive self-call)  **Verdict:** No — function is 138 lines (595–732) with complex recursive logic (calls itself at line 646 to resolve sub-dependencies), manages exit stacks, caches, generators, and threadpool dispatch. Inlining into the two external callers would d…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 9,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 43531,
+          "tokensUsed": 1530,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 3,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_lookup",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "lore_lookup": 1,
+            "lore_snippet": 1,
+            "grep": 3,
+            "view": 2
+          }
+        },
+        "tools": "grep×3, view×2, report_intent×1, lore_dependents×1, lore_lookup×1, lore_snippet×1",
+        "loreToolArgs": "lore_dependents(query=solve_dependencies, kind=symbol, compact=true), lore_lookup(kind=symbol, query=solve_dependencies), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/dependencies/utils.py, symbol=solve_dependencies)",
+        "answer": "Now I have the full picture:  **Callers: 3** (2 external + 1 recursive self-call)  **Verdict: No** — `solve_dependencies` is 138 lines, is **recursive** (calls itself to resolve sub-dependencies at line 646), has side effects (mutates `response`, `dependency_cache`, `background_tasks`; enters async …",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 359,
+        "tokensPct": 30.657557643040136,
+        "wallTimeMs": 6414,
+        "wallTimePct": 17.280491419026323
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "fastapi-11.3-solve_dependencies",
+      "family": "refactoring",
+      "iteration": 2,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 8,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 33624,
+          "tokensUsed": 1180,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 5
+          }
+        },
+        "tools": "view×5, grep×2, report_intent×1",
+        "answer": "**Callers:** 3 (2 external + 1 recursive self-call)  **Verdict:** No — the function is 138 lines (595–732) with complex recursive logic (it calls itself at line 646 to resolve sub-dependencies), manages `AsyncExitStack` state, mutates shared caches, and resolves generators/coroutines. Inlining would…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 8,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 35187,
+          "tokensUsed": 1190,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 3,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_lookup",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "lore_lookup": 1,
+            "lore_snippet": 1,
+            "grep": 2,
+            "view": 2
+          }
+        },
+        "tools": "grep×2, view×2, report_intent×1, lore_dependents×1, lore_lookup×1, lore_snippet×1",
+        "loreToolArgs": "lore_dependents(query=solve_dependencies, kind=symbol, compact=true), lore_lookup(kind=symbol, query=solve_dependencies), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/dependencies/utils.py, symbol=solve_dependencies)",
+        "answer": "**Callers: 3** (2 external in `routing.py` + 1 recursive self-call)  **Verdict: No** — the function is 138 lines of complex async logic with a recursive self-call (line 646, to resolve sub-dependencies). Inlining would duplicate ~138 lines into two call sites *and* break the recursion, requiring a f…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 10,
+        "tokensPct": 0.847457627118644,
+        "wallTimeMs": 1563,
+        "wallTimePct": 4.648465381870093
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "fastapi-11.3-solve_dependencies",
+      "family": "refactoring",
+      "iteration": 3,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 8,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 34281,
+          "tokensUsed": 1195,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 5
+          }
+        },
+        "tools": "view×5, grep×2, report_intent×1",
+        "answer": "**Callers:** 3 (2 external in `routing.py`, 1 recursive self-call)  **Verdict:** No — the function is 138 lines (595–732), is **recursive** (calls itself at line 646 to resolve sub-dependencies), and contains complex logic (dependency override resolution, generator handling, caching, parameter extra…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 10,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 46007,
+          "tokensUsed": 1849,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 3,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_lookup",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "lore_lookup": 1,
+            "lore_snippet": 1,
+            "grep": 4,
+            "view": 2
+          }
+        },
+        "tools": "grep×4, view×2, report_intent×1, lore_dependents×1, lore_lookup×1, lore_snippet×1",
+        "loreToolArgs": "lore_dependents(query=solve_dependencies, kind=symbol, compact=true), lore_lookup(kind=symbol, query=solve_dependencies), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/dependencies/utils.py, start_line=594, end_line=731)",
+        "answer": "Now I have the complete picture. Here's the analysis:  **Callers: 3** (2 external + 1 recursive self-call)  **Verdict: No** — the function is 138 lines of complex async logic with recursive self-calls (line 646, to resolve sub-dependencies), side effects (mutates `AsyncExitStack`, `dependency_cache`…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 654,
+        "tokensPct": 54.72803347280335,
+        "wallTimeMs": 11726,
+        "wallTimePct": 34.2055365946151
+      },
+      "warnings": [
+        "lore 50%+ more tokens"
+      ]
+    },
+    {
+      "taskId": "fastapi-11.3-solve_dependencies",
+      "family": "refactoring",
+      "iteration": 4,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 7,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 31170,
+          "tokensUsed": 966,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 4
+          }
+        },
+        "tools": "view×4, grep×2, report_intent×1",
+        "answer": "**Callers:** 3 **Verdict:** No — function is ~140 lines with recursive self-call, manages shared mutable state (dependency cache, exit stacks, response), and inlining would triplicate complex dependency-resolution logic.  **Call sites:**  - `run_endpoint_function` (HTTP) in `fastapi/routing.py:453` …",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 9,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 41530,
+          "tokensUsed": 1635,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 3,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_lookup",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "lore_lookup": 1,
+            "lore_snippet": 1,
+            "grep": 3,
+            "view": 2
+          }
+        },
+        "tools": "grep×3, view×2, report_intent×1, lore_dependents×1, lore_lookup×1, lore_snippet×1",
+        "loreToolArgs": "lore_dependents(query=solve_dependencies, kind=symbol, compact=true), lore_lookup(kind=symbol, query=solve_dependencies), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/dependencies/utils.py, start_line=594, end_line=731)",
+        "answer": "Here's the analysis:  **Callers: 3** (2 external call sites in `fastapi/routing.py` + 1 recursive self-call)  **Verdict: No** — the function is 138 lines of complex async logic with recursive self-invocation (it calls itself to resolve sub-dependencies). It has side effects (mutates `dependency_cach…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 669,
+        "tokensPct": 69.25465838509317,
+        "wallTimeMs": 10360,
+        "wallTimePct": 33.23708694257299
+      },
+      "warnings": [
+        "lore 50%+ more tokens"
+      ]
+    },
+    {
+      "taskId": "fastapi-11.3-solve_dependencies",
+      "family": "refactoring",
+      "iteration": 5,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 6,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 30334,
+          "tokensUsed": 934,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 3
+          }
+        },
+        "tools": "view×3, grep×2, report_intent×1",
+        "answer": "**Callers:** 3 (2 external + 1 recursive self-call)  **Verdict:** No — the function is ~120 lines, recursive (calls itself at line 646 to resolve sub-dependencies), has side effects (mutates `request.scope` exit stacks, modifies `response`, fills `dependency_cache`), and contains complex control flo…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 9,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 52749,
+          "tokensUsed": 2120,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 3,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_lookup",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "lore_lookup": 1,
+            "lore_snippet": 1,
+            "grep": 3,
+            "view": 2
+          }
+        },
+        "tools": "grep×3, view×2, report_intent×1, lore_dependents×1, lore_lookup×1, lore_snippet×1",
+        "loreToolArgs": "lore_dependents(query=solve_dependencies, kind=symbol, compact=true), lore_lookup(kind=symbol, query=solve_dependencies), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-3mhCk9/fastapi/fastapi/dependencies/utils.py, symbol=solve_dependencies)",
+        "answer": "**Callers: 2** (external; plus 1 recursive self-call)  **Verdict: No** — the function is 138 lines, recursive (calls itself to walk sub-dependencies), and has side effects (mutates `dependency_cache`, creates `Response`/`BackgroundTasks` objects, drives `AsyncExitStack` via `_solve_generator`, runs …",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 1186,
+        "tokensPct": 126.98072805139186,
+        "wallTimeMs": 22415,
+        "wallTimePct": 73.89398035208016
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    }
+  ],
+  "aggregate": {
+    "control": {
+      "arm": "control",
+      "totalRuns": 65,
+      "successRate": 0.9384615384615385,
+      "partialRate": 0.06153846153846154,
+      "failRate": 0,
+      "meanCorrectness": 0.9076923076923076,
+      "meanToolCalls": 14.246153846153845,
+      "meanUniqueFiles": 1.8307692307692307,
+      "meanWallTimeMs": 75764.6,
+      "meanTokens": 3923.8,
+      "meanAnswerCoverage": 0.8871794871794871,
+      "meanFileCoverage": 1,
+      "meanSymbolCoverage": 1,
+      "firstPassAccuracyRate": 0,
+      "meanLoreToolCalls": 0,
+      "loreToolUsageRate": 0,
+      "allLoreToolsUsed": [],
+      "toolCallCounts": {
+        "report_intent": 65,
+        "grep": 234,
+        "view": 437,
+        "bash": 172,
+        "task": 11,
+        "glob": 7
+      },
+      "stdCorrectness": 0.17989379879849618,
+      "stdToolCalls": 15.322604593816989,
+      "stdWallTimeMs": 67039.7780208698,
+      "stdTokens": 4535.156833699359,
+      "stdAnswerCoverage": 0.18365902015354615,
+      "stdFileCoverage": 0,
+      "stdSymbolCoverage": 0
+    },
+    "lore": {
+      "arm": "lore-enabled",
+      "totalRuns": 65,
+      "successRate": 0.9230769230769231,
+      "partialRate": 0.07692307692307693,
+      "failRate": 0,
+      "meanCorrectness": 0.8692307692307693,
+      "meanToolCalls": 9.8,
+      "meanUniqueFiles": 0.8461538461538461,
+      "meanWallTimeMs": 70236.01538461538,
+      "meanTokens": 3411.153846153846,
+      "meanAnswerCoverage": 0.8692307692307693,
+      "meanFileCoverage": 1,
+      "meanSymbolCoverage": 1,
+      "firstPassAccuracyRate": 0.46153846153846156,
+      "meanLoreToolCalls": 4.246153846153846,
+      "loreToolUsageRate": 1,
+      "allLoreToolsUsed": [
+        "lore_dependents",
+        "lore_graph",
+        "lore_lookup",
+        "lore_snippet",
+        "lore_trace",
+        "lore_search"
+      ],
+      "toolCallCounts": {
+        "report_intent": 67,
+        "lore_dependents": 56,
+        "lore_graph": 53,
+        "lore_lookup": 52,
+        "lore_snippet": 89,
+        "bash": 63,
+        "view": 136,
+        "grep": 92,
+        "task": 3,
+        "lore_trace": 25,
+        "lore_search": 1
+      },
+      "stdCorrectness": 0.20463871384742477,
+      "stdToolCalls": 7.74838692890333,
+      "stdWallTimeMs": 59659.4717316256,
+      "stdTokens": 3917.1046874204853,
+      "stdAnswerCoverage": 0.1755257669739542,
+      "stdFileCoverage": 0,
+      "stdSymbolCoverage": 0
+    },
+    "comparison": {
+      "successRateDelta": -0.01538461538461533,
+      "correctnessDelta": -0.038461538461538325,
+      "firstPassAccuracyDelta": 0.46153846153846156,
+      "answerCoverageDelta": -0.017948717948717885,
+      "toolCallsDelta": -4.446153846153845,
+      "tokensDelta": -512.646153846154,
+      "tokensPct": -13.065042913659052,
+      "wallTimeDelta": -5528.584615384621,
+      "wallTimePct": -7.297055109357959
+    },
+    "significance": {
+      "t": -1.138067211492234,
+      "df": 125.9312411313962,
+      "p": 0.25725296647292084,
+      "significant": false
+    }
+  }
+}
