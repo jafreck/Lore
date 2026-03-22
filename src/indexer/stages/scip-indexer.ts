@@ -1347,6 +1347,10 @@ function extractMethodDescriptor(scipSymbol: string): string | null {
  * that callers of interface methods are also recorded as callers of the
  * corresponding concrete implementations.
  *
+ * Uses a bulk SQL approach: builds a temp table of (interface_method_id →
+ * concrete_method_id) mappings, then does a single INSERT ... SELECT to
+ * copy all caller edges at once.
+ *
  * Returns the number of edges inserted.
  */
 function materializeVirtualDispatch(
@@ -1371,7 +1375,6 @@ function materializeVirtualDispatch(
   }
 
   // Step 2: Collect implements relationships from SCIP SymbolInformation
-  // Direction: symInfo.symbol (concrete type) has rel.isImplementation → rel.symbol (interface)
   const implementsPairs: Array<{ concreteTypeScip: string; interfaceTypeScip: string }> = [];
   for (const [scipSymbol, info] of symbolInfoMap) {
     for (const rel of info.relationships) {
@@ -1383,120 +1386,117 @@ function materializeVirtualDispatch(
 
   if (implementsPairs.length === 0) return 0;
 
-  // Step 3: For each implements pair, match methods by descriptor and
-  // copy call edges from interface method callers to concrete methods.
-  let edgesInserted = 0;
+  // Step 3: Build the method mapping in-memory: interface_method_id → (concrete_method_id, concrete_name, concrete_def)
+  type MethodMapping = {
+    interfaceMethodId: number;
+    concreteMethodId: number;
+    concreteName: string;
+    concreteDefUri: string | null;
+    concreteDefPath: string | null;
+    concreteDefLine: number | null;
+    concreteDefChar: number | null;
+  };
+  const mappings: MethodMapping[] = [];
 
-  // Prepared statement to find callers of a given callee
-  const findCallers = db.prepare(
-    `SELECT caller_id, file_id, callee_name, call_line, call_character,
-            resolved_type_signature, resolved_return_type,
-            definition_uri, definition_path, definition_line, definition_character
-       FROM symbol_refs
-      WHERE callee_id = ?`,
-  );
+  for (const { concreteTypeScip, interfaceTypeScip } of implementsPairs) {
+    const interfaceMethods = typeToMethods.get(interfaceTypeScip);
+    const concreteMethods = typeToMethods.get(concreteTypeScip);
+    if (!interfaceMethods || !concreteMethods) continue;
 
-  const findExistingCallSite = db.prepare(
-    `SELECT 1
-       FROM symbol_refs
-      WHERE caller_id = ?
-        AND callee_id = ?
-        AND call_line = ?
-        AND call_character IS ?
-      LIMIT 1`,
-  );
-
-  const insertVDispatch = db.prepare(
-    `INSERT INTO symbol_refs (caller_id, file_id, callee_id, callee_name, call_line, call_character, call_kind, resolution_method, resolved_type_signature, resolved_return_type, definition_uri, definition_path, definition_line, definition_character, layer, generation)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  );
-
-  const insertVirtualDispatch = db.transaction(() => {
-    for (const { concreteTypeScip, interfaceTypeScip } of implementsPairs) {
-      const interfaceMethods = typeToMethods.get(interfaceTypeScip);
-      const concreteMethods = typeToMethods.get(concreteTypeScip);
-      if (!interfaceMethods || !concreteMethods) continue;
-
-      // Build descriptor → concrete SCIP symbol map
-      const concreteByDescriptor = new Map<string, string>();
-      for (const cm of concreteMethods) {
-        const desc = extractMethodDescriptor(cm);
-        if (desc) concreteByDescriptor.set(desc, cm);
-      }
-
-      // Match interface methods to concrete methods by descriptor
-      for (const im of interfaceMethods) {
-        const desc = extractMethodDescriptor(im);
-        if (!desc) continue;
-        const concreteScip = concreteByDescriptor.get(desc);
-        if (!concreteScip) continue;
-
-        const interfaceMethodId = scipToLoreId.get(im);
-        const concreteMethodId = scipToLoreId.get(concreteScip);
-        if (!interfaceMethodId || !concreteMethodId) continue;
-
-        // Find all callers of the interface method
-        const callers = findCallers.all(interfaceMethodId) as Array<{
-          caller_id: number;
-          file_id: number;
-          callee_name: string;
-          call_line: number;
-          call_character: number | null;
-          resolved_type_signature: string | null;
-          resolved_return_type: string | null;
-          definition_uri: string | null;
-          definition_path: string | null;
-          definition_line: number | null;
-          definition_character: number | null;
-        }>;
-
-        for (const caller of callers) {
-          // Don't insert if the exact call site already resolves to this concrete callee.
-          const existing = findExistingCallSite.get(
-            caller.caller_id,
-            concreteMethodId,
-            caller.call_line,
-            caller.call_character,
-          );
-          if (existing) continue;
-
-          // Use the concrete method's name and definition info
-          const concreteName = extractNameFromScipSymbol(concreteScip);
-          const concreteDef = symbolDefinitions.get(concreteScip);
-          const concreteDefUri = concreteDef ? pathToFileURL(concreteDef.filePath).toString() : null;
-
-          try {
-            insertVDispatch.run(
-              caller.caller_id,
-              caller.file_id,
-              concreteMethodId,
-              concreteName,
-              caller.call_line,
-              caller.call_character,
-              'virtual_dispatch',
-              'scip_definition',
-              caller.resolved_type_signature,
-              caller.resolved_return_type,
-              concreteDefUri,
-              concreteDef?.filePath ?? null,
-              concreteDef?.line ?? null,
-              concreteDef?.character ?? null,
-              layer, generation,
-            );
-            edgesInserted++;
-          } catch {
-            // FK constraint or duplicate — skip
-          }
-        }
-      }
+    // Build descriptor → concrete SCIP symbol map
+    const concreteByDescriptor = new Map<string, string>();
+    for (const cm of concreteMethods) {
+      const desc = extractMethodDescriptor(cm);
+      if (desc) concreteByDescriptor.set(desc, cm);
     }
-  });
 
-  insertVirtualDispatch();
+    for (const im of interfaceMethods) {
+      const desc = extractMethodDescriptor(im);
+      if (!desc) continue;
+      const concreteScip = concreteByDescriptor.get(desc);
+      if (!concreteScip) continue;
+
+      const interfaceMethodId = scipToLoreId.get(im);
+      const concreteMethodId = scipToLoreId.get(concreteScip);
+      if (!interfaceMethodId || !concreteMethodId) continue;
+
+      const concreteName = extractNameFromScipSymbol(concreteScip);
+      const concreteDef = symbolDefinitions.get(concreteScip);
+
+      mappings.push({
+        interfaceMethodId,
+        concreteMethodId,
+        concreteName,
+        concreteDefUri: concreteDef ? pathToFileURL(concreteDef.filePath).toString() : null,
+        concreteDefPath: concreteDef?.filePath ?? null,
+        concreteDefLine: concreteDef?.line ?? null,
+        concreteDefChar: concreteDef?.character ?? null,
+      });
+    }
+  }
+
+  if (mappings.length === 0) return 0;
+
+  // Step 4: Bulk insert using a temp table + INSERT ... SELECT
+  const edgesInserted = db.transaction(() => {
+    // Create temp table with the interface→concrete method mappings
+    db.exec(`CREATE TEMP TABLE _vdispatch_map (
+      iface_method_id INTEGER NOT NULL,
+      concrete_method_id INTEGER NOT NULL,
+      concrete_name TEXT NOT NULL,
+      concrete_def_uri TEXT,
+      concrete_def_path TEXT,
+      concrete_def_line INTEGER,
+      concrete_def_char INTEGER
+    )`);
+
+    const insertMapping = db.prepare(
+      `INSERT INTO _vdispatch_map VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    );
+    for (const m of mappings) {
+      insertMapping.run(
+        m.interfaceMethodId, m.concreteMethodId, m.concreteName,
+        m.concreteDefUri, m.concreteDefPath, m.concreteDefLine, m.concreteDefChar,
+      );
+    }
+
+    // Single bulk INSERT: for each mapping, copy all callers of the
+    // interface method as new virtual_dispatch edges to the concrete method,
+    // skipping rows that already exist at the same call site.
+    const result = db.prepare(`
+      INSERT INTO symbol_refs (
+        caller_id, file_id, callee_id, callee_name,
+        call_line, call_character, call_kind, resolution_method,
+        resolved_type_signature, resolved_return_type,
+        definition_uri, definition_path, definition_line, definition_character,
+        layer, generation
+      )
+      SELECT
+        sr.caller_id, sr.file_id, m.concrete_method_id, m.concrete_name,
+        sr.call_line, sr.call_character, 'virtual_dispatch', 'scip_definition',
+        sr.resolved_type_signature, sr.resolved_return_type,
+        m.concrete_def_uri, m.concrete_def_path, m.concrete_def_line, m.concrete_def_char,
+        @layer, @gen
+      FROM _vdispatch_map m
+      JOIN symbol_refs sr ON sr.callee_id = m.iface_method_id
+      WHERE NOT EXISTS (
+        SELECT 1 FROM symbol_refs ex
+        WHERE ex.caller_id = sr.caller_id
+          AND ex.callee_id = m.concrete_method_id
+          AND ex.call_line = sr.call_line
+          AND ex.call_character IS sr.call_character
+      )
+    `).run({ layer, gen: generation });
+
+    db.exec(`DROP TABLE _vdispatch_map`);
+
+    return result.changes;
+  })();
 
   if (edgesInserted > 0) {
     log.indexing('scip-indexer: virtual dispatch edges materialized', {
       implementsPairs: implementsPairs.length,
+      methodMappings: mappings.length,
       edgesInserted,
     });
   }
