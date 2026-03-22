@@ -8,6 +8,7 @@
  */
 
 import * as fs from 'node:fs';
+import * as path from 'node:path';
 import * as crypto from 'node:crypto';
 import type { PipelineContext, PipelineStage } from '../pipeline.js';
 import type { Database } from '../../db/schema.js';
@@ -448,7 +449,18 @@ function processFileWithSource(
     insertImport.run(fileId, imp.source, layer, generation);
   }
 
-  // Insert call refs
+  // Insert call refs — create a module-level symbol for top-level calls
+  const hasTopLevelCalls = result.callRefs.some(ref => !ref.callerSymbol);
+  if (hasTopLevelCalls && !symbolIdMap.has('')) {
+    const moduleName = path.basename(filePath, path.extname(filePath));
+    const info = insertSymbol.run(
+      fileId, `<module:${moduleName}>`, 'module',
+      0, tree.rootNode.endPosition.row,
+      null, null, 0, layer, generation,
+    ) as { lastInsertRowid: number | bigint };
+    symbolIdMap.set('', Number(info.lastInsertRowid));
+  }
+
   const insertCallRef = db.prepare(
     `INSERT INTO symbol_refs (caller_id, file_id, callee_name, call_line, call_character, call_kind, layer, generation)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
