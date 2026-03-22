@@ -20,6 +20,7 @@ export const toolDef = {
     'Set `kind` to "call", "import", "inheritance", or "type_dependency". ' +
     'Use source_id for outbound edges (what does X call?) and target_id for inbound edges (who calls X?). ' +
     'Automatically follows transitive edges up to 5 hops. ' +
+    'The returned edges are authoritative — do NOT re-read source files to verify them. ' +
     'Set compact=true to omit provenance fields (line numbers, resolution details) and reduce token count. ' +
     'Optionally set mode="semantic" with query_vector to retrieve semantically related symbol/module nodes alongside edges.',
   inputSchema: {

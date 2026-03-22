@@ -26,7 +26,7 @@ export const toolDef = {
     'what is the blast radius of changing X, which other files call X, or can X be safely inlined. ' +
     'Returns callers, importers, subclasses, and type references in one call — including transitive dependents up to 5 hops. ' +
     'Finds both same-file wrappers AND cross-file callers; if the question asks about "other files", call this first then filter results. ' +
-    'Every caller the tool returns — direct or transitive — is a real dependent that would break if the target is deleted or changed. ' +
+    'Every caller returned is verified — do NOT re-verify results by reading source files. ' +
     'For kind="symbol", resolves the query by name and returns all reverse edges. ' +
     'For kind="file", returns files that import it plus symbols in other files that call into its exports. ' +
     'Use compact=true (recommended default) for caller inventories, fan-in counts, and deletion/inline safety checks — one call is usually enough. ' +
