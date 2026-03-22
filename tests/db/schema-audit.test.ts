@@ -15,8 +15,8 @@ import {
 } from '../../src/resolution/resolution-method.js';
 
 describe('resolution-method taxonomy', () => {
-  it('should define exactly 8 resolution methods', () => {
-    expect(RESOLUTION_METHODS).toHaveLength(8);
+  it('should define exactly 9 resolution methods', () => {
+    expect(RESOLUTION_METHODS).toHaveLength(9);
   });
 
   it('should contain the canonical method names', () => {
