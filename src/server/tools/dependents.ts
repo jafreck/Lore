@@ -371,10 +371,16 @@ function getSymbolIdsInFiles(
 
 // ─── Compact helpers ──────────────────────────────────────────────────────────
 
+function formatCallerName(row: RawCallerRow): string {
+  return row.enclosing_name
+    ? `${row.caller_name} (in ${row.enclosing_name})`
+    : row.caller_name;
+}
+
 function compactCaller(row: RawCallerRow): CompactCallerEntry {
   return {
     caller_id: row.caller_id,
-    caller_name: row.caller_name,
+    caller_name: formatCallerName(row),
     caller_kind: row.caller_kind,
     caller_file: row.caller_file,
     ...(row.enclosing_name ? { enclosing_name: row.enclosing_name } : {}),
@@ -384,7 +390,7 @@ function compactCaller(row: RawCallerRow): CompactCallerEntry {
 function fullCaller(row: RawCallerRow): CallerEntry {
   return {
     caller_id: row.caller_id,
-    caller_name: row.caller_name,
+    caller_name: formatCallerName(row),
     caller_kind: row.caller_kind,
     caller_file: row.caller_file,
     ...(row.enclosing_name ? { enclosing_name: row.enclosing_name } : {}),
