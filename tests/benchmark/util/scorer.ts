@@ -63,7 +63,12 @@ export function scoreRun(
   const correctness = computeCorrectness(task.expectedAnswer, trace.finalAnswer);
 
   // ── Task success: composite score ─────────────────────────────────────
-  const taskSuccess = computeTaskSuccess(answerCoverage, fileCoverage, symbolCoverage);
+  // Timeouts are always scored as failures — the agent did not produce a
+  // final answer within the allotted time, regardless of partial coverage
+  // from intermediate tool-call results.
+  const taskSuccess = trace.timedOut
+    ? 0
+    : computeTaskSuccess(answerCoverage, fileCoverage, symbolCoverage);
 
   // ── First-pass accuracy ───────────────────────────────────────────────
   const firstPassAccurate = computeFirstPassAccuracy(task, trace);

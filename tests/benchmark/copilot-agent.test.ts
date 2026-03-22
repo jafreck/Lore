@@ -40,9 +40,17 @@ const SKIP = !process.env['BENCHMARK_COPILOT'];
 const LORE_BUILD_ROOT = join(import.meta.dirname, '..', '..');
 const WORK_DIR = mkdtempSync(join(tmpdir(), 'lore-copilot-bench-'));
 
+// Per-repo timeout: large Java repos need more time for the agent to
+// work through deep inheritance hierarchies.
+const ARM_TIMEOUT_MS = (() => {
+  const repo = process.env['BENCHMARK_REPO'] ?? 'lore-self';
+  if (repo === 'jackson-databind') return 720_000; // 12 min — deep Java inheritance
+  return 360_000; // 6 min default
+})();
+
 const COPILOT_OPTIONS: CopilotAgentOptions = {
   model: process.env['BENCHMARK_MODEL'] ?? 'claude-opus-4.6',
-  timeoutMs: 360_000,
+  timeoutMs: ARM_TIMEOUT_MS,
 };
 
 // Number of times to run each task (for statistical significance)
@@ -111,7 +119,7 @@ describe.skipIf(SKIP)(`Copilot agent benchmark: ${TARGET_REPO}`, () => {
     expect(indexed.indexed).toBe(true);
     console.log(`\n${TARGET_REPO} cloned at ${repoSpec.sha.slice(0, 8)}, indexed in ${indexed.indexTimeMs}ms`);
     console.log(`DB: ${dbPath}\nModel: ${COPILOT_OPTIONS.model}\nIndex: ${INDEX_MODE} | Embeddings: ${EMBEDDING_MODEL || 'none'} | LSP: ${ENABLE_LSP}\nTasks: ${COPILOT_TASKS.length} | Iterations: ${ITERATIONS}\n`);
-  }, 600_000);
+  }, 1_800_000);
 
   afterAll(async () => {
     await repoManager.removeAll();
@@ -169,7 +177,7 @@ describe.skipIf(SKIP)(`Copilot agent benchmark: ${TARGET_REPO}`, () => {
         expect(loreScore.correctness).toBeGreaterThanOrEqual(0);
         expect(loreScore.correctness).toBeLessThanOrEqual(1);
         expect(loreScore.loreToolCallCount).toBeGreaterThan(0);
-      }, 600_000); // 10 min timeout: two 3-min arms run concurrently
+      }, ARM_TIMEOUT_MS * 2 + 60_000); // vitest timeout: both arms + 1 min buffer
     }
   }
 
