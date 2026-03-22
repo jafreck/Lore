@@ -196,6 +196,8 @@ export interface AgentTrace {
   loreToolsCalled: string[];
   /** Raw NDJSON output from the copilot CLI (only present for copilot runs). */
   rawOutput?: string;
+  /** True if the run was terminated by the process timeout. */
+  timedOut?: boolean;
 }
 
 /** Interface that agent implementations must satisfy. */

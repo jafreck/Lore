@@ -327,6 +327,9 @@ export async function runCopilotAgent(
       rawOutput: output,
     };
   } catch (e: any) {
+    // Detect if this was a timeout (Node child_process sets e.killed on SIGTERM from timeout)
+    const isTimeout = !!(e.killed || (e.code === null && e.signal === 'SIGTERM'));
+
     // If the process timed out or failed, still try to parse partial output
     const partialOutput = (e.stdout ?? '') + '\n' + (e.stderr ?? '');
     if (partialOutput.trim()) {
@@ -349,6 +352,7 @@ export async function runCopilotAgent(
           totalTokensEstimate: result.outputTokens,
           loreToolsCalled: extractLoreToolsCalled(result.toolCalls),
           rawOutput: partialOutput,
+          timedOut: isTimeout,
         };
       }
     }
