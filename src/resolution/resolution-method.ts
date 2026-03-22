@@ -17,6 +17,9 @@
  *   that was mapped to the narrowest enclosing indexed symbol.
  * - `name_same_file` — no LSP data was available; the callee/type name matched
  *   exactly one symbol *in the same file* as the reference.
+ * - `name_single_file` — no LSP data was available; the callee/type name matched
+ *   multiple symbols (e.g. overloads) but all reside in *the same target file*.
+ *   The first match is used (overloads are co-located, so the file is correct).
  * - `name_unique` — no LSP data was available; the callee/type name matched
  *   exactly one symbol *in the entire index*.
  * - `external_definition` — the LSP server returned a definition location whose
@@ -31,6 +34,7 @@ export const RESOLUTION_METHODS = [
   'scip_definition',
   'lsp_definition',
   'name_same_file',
+  'name_single_file',
   'name_unique',
   'external_definition',
   'ambiguous_definition',
@@ -49,6 +53,7 @@ export const RESOLVED_METHODS: ReadonlySet<ResolutionMethod> = new Set([
   'scip_definition',
   'lsp_definition',
   'name_same_file',
+  'name_single_file',
   'name_unique',
 ]);
 
