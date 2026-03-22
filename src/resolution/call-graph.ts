@@ -394,7 +394,18 @@ function resolveByNameFallback(
       continue;
     }
 
-    // Non-unique cross-file: leave as unresolved (option B)
+    // Tier 3: all candidates (after excluding macro/constant/enum_member) live
+    // in the same target file — e.g. Java method overloads in one class.
+    // Resolve to the first match (overloads are co-located; the file is correct).
+    if (crossFileEligible.length > 1) {
+      const targetFiles = new Set(crossFileEligible.map(c => c.file_id));
+      if (targetFiles.size === 1) {
+        updateResolved.run(crossFileEligible[0]!.id, 'name_single_file' satisfies ResolutionMethod, ref.id);
+        continue;
+      }
+    }
+
+    // Non-unique cross-file across multiple files: leave as unresolved
   }
 }
 
