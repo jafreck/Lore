@@ -1,0 +1,4888 @@
+{
+  "metadata": {
+    "model": "claude-opus-4.6",
+    "repo": "jackson-databind",
+    "indexMode": "scip",
+    "embeddingModel": "none",
+    "lsp": false,
+    "tasks": 13,
+    "iterations": 5,
+    "completedRuns": 65,
+    "totalExpectedRuns": 65,
+    "timestamp": "2026-03-22T20:51:12.221Z"
+  },
+  "tasks": [
+    {
+      "taskId": "jackson-databind-1.1-reportInputMismatch",
+      "family": "localization",
+      "iteration": 1,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.9090909090909091,
+          "firstPassAccurate": false,
+          "toolCallCount": 37,
+          "uniqueFilesRead": 21,
+          "wallTimeMs": 81441,
+          "tokensUsed": 9965,
+          "answerCoverage": 0.75,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 34,
+            "task": 1
+          }
+        },
+        "tools": "view×34, report_intent×1, grep×1, task×1",
+        "answer": "deserialize _parseQNameObject reportInstantiationException deserializationException reportUnresolvedObjectId _deserializeWithNativeTypeId deserializeWithView _deserializeEmbedded _deserializeFromEmptyString _initForReading _checkStringCoercion _verifyNullForPrimitive _reportFailedNullCoerce _verifyS…",
+        "missedParts": [
+          "_checkFromStringCoercion"
+        ],
+        "missedAnswerLines": [
+          "_checkFromStringCoercion"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 29,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 363403,
+          "tokensUsed": 19247,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 6,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_lookup",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "bash": 22,
+            "lore_lookup": 1,
+            "lore_graph": 4
+          }
+        },
+        "tools": "bash×22, lore_graph×4, report_intent×1, lore_dependents×1, lore_lookup×1",
+        "loreToolArgs": "lore_dependents(query=reportInputMismatch, kind=symbol, compact=true), lore_lookup(kind=symbol, query=reportInputMismatch), lore_graph(kind=call, target_id=29420, compact=true), lore_graph(kind=call, target_id=29422, compact=true), lore_graph(kind=call, target_id=29424, compact=true), lore_graph(kind=call, target_id=29426, compact=true)",
+        "answer": "Now let me compile the final verified list:  | Call site | Enclosing method | |---|---| | DeserializationContext.java:1426 | `handleMissingInstantiator` | | DeserializationContext.java:1588 | `handleUnexpectedToken` | | DeserializationContext.java:1775 | `reportUnresolvedObjectId` | | ObjectReader.j…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0.09090909090909094,
+        "tokens": 9282,
+        "tokensPct": 93.14601103863522,
+        "wallTimeMs": 281962,
+        "wallTimePct": 346.21627926965533
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "jackson-databind-1.1-reportInputMismatch",
+      "family": "localization",
+      "iteration": 2,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 5,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 52042,
+          "tokensUsed": 1633,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "bash": 2
+          }
+        },
+        "tools": "grep×2, bash×2, report_intent×1",
+        "answer": "_checkFromStringCoercion _deserializeAndSet _deserializeEmbedded _deserializeFromEmptyString _deserializeWithNativeTypeId _failDoubleToIntCoercion _findMissing _handleDuplicateField _initForReading _parseQNameObject _reportFailedNullCoerce _unpack _verifyNullForPrimitive _verifyNumberForScalarCoerci…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 43,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 400026,
+          "tokensUsed": 18104,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "bash": 41
+          }
+        },
+        "tools": "bash×41, report_intent×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=reportInputMismatch, kind=symbol, compact=true)",
+        "answer": "All three test call sites are in `deserialize` methods. Now I have the complete verified list. Let me also check the `_initForReading` method to make sure the ObjectReader one is correct:  The complete list of unique method names that directly call `reportInputMismatch`:  _checkFromStringCoercion _d…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 16471,
+        "tokensPct": 1008.6344151867728,
+        "wallTimeMs": 347984,
+        "wallTimePct": 668.659928519273
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "jackson-databind-1.1-reportInputMismatch",
+      "family": "localization",
+      "iteration": 3,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 73,
+          "uniqueFilesRead": 18,
+          "wallTimeMs": 345899,
+          "tokensUsed": 22645,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 3,
+            "bash": 6,
+            "view": 62,
+            "task": 1
+          }
+        },
+        "tools": "view×62, bash×6, grep×3, report_intent×1, task×1",
+        "answer": "_checkFromStringCoercion _deserializeAndSet _deserializeEmbedded _deserializeFromEmptyString _deserializeWithNativeTypeId _failDoubleToIntCoercion _findMissing _handleDuplicateField _initForReading _parseQNameObject _reportFailedNullCoerce _unpack _verifyNullForPrimitive _verifyNumberForScalarCoerci…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 10,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 68546,
+          "tokensUsed": 2293,
+          "answerCoverage": 1,
+          "fileCoverage": 0.3333333333333333,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 6,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_graph",
+            "lore_lookup"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "bash": 3,
+            "lore_graph": 4,
+            "lore_lookup": 1
+          }
+        },
+        "tools": "lore_graph×4, bash×3, report_intent×1, lore_dependents×1, lore_lookup×1",
+        "loreToolArgs": "lore_dependents(query=reportInputMismatch, kind=symbol, compact=true), lore_graph(kind=call, target_id=29420, compact=true), lore_lookup(kind=symbol, query=reportInputMismatch), lore_graph(compact=true, kind=call, target_id=29424), lore_graph(compact=true, kind=call, target_id=29422), lore_graph(compact=true, kind=call, target_id=29426)",
+        "answer": "_checkFromStringCoercion _deserializeAndSet _deserializeEmbedded _deserializeFromEmptyString _deserializeWithNativeTypeId _failDoubleToIntCoercion _findMissing _handleDuplicateField _initForReading _parseQNameObject _reportFailedNullCoerce _unpack _verifyNullForPrimitive _verifyNumberForScalarCoerci…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -20352,
+        "tokensPct": -89.87414440273791,
+        "wallTimeMs": -277353,
+        "wallTimePct": -80.18323267774697
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "jackson-databind-1.1-reportInputMismatch",
+      "family": "localization",
+      "iteration": 4,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 63,
+          "uniqueFilesRead": 18,
+          "wallTimeMs": 223916,
+          "tokensUsed": 18783,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 47,
+            "task": 1,
+            "bash": 13
+          }
+        },
+        "tools": "view×47, bash×13, report_intent×1, grep×1, task×1",
+        "answer": "_checkFromStringCoercion _deserializeAndSet _deserializeEmbedded _deserializeFromEmptyString _deserializeWithNativeTypeId _failDoubleToIntCoercion _findMissing _handleDuplicateField _initForReading _parseQNameObject _reportFailedNullCoerce _unpack _verifyNullForPrimitive _verifyNumberForScalarCoerci…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 3,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 35755,
+          "tokensUsed": 1522,
+          "answerCoverage": 1,
+          "fileCoverage": 0.3333333333333333,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "bash": 1
+          }
+        },
+        "tools": "report_intent×1, lore_dependents×1, bash×1",
+        "loreToolArgs": "lore_dependents(query=reportInputMismatch, kind=symbol, compact=true)",
+        "answer": "_bind _checkFromStringCoercion _checkTextualNull _coerceEmptyString _coerceNullToken _coerceTextualNull _convert _convertObjectId _deserialize _deserializeAndSet _deserializeBinaryVector _deserializeContainerNoRecursion _deserializeCustom _deserializeEmbedded _deserializeFromArray _deserializeFromEm…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -17261,
+        "tokensPct": -91.89692807325773,
+        "wallTimeMs": -188161,
+        "wallTimePct": -84.0319584129763
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "jackson-databind-1.1-reportInputMismatch",
+      "family": "localization",
+      "iteration": 5,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.8181818181818182,
+          "firstPassAccurate": false,
+          "toolCallCount": 32,
+          "uniqueFilesRead": 18,
+          "wallTimeMs": 76487,
+          "tokensUsed": 8728,
+          "answerCoverage": 0.75,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 29,
+            "task": 1
+          }
+        },
+        "tools": "view×29, report_intent×1, grep×1, task×1",
+        "answer": "_checkStringCoercion _deserializeAndSet _deserializeEmbedded _deserializeFromEmptyString _deserializeFromObject _deserializeIfDuplicate _deserializeWithNativeTypeId _failDoubleToIntCoercion _findMissing _initForReading _parseQNameObject _reportFailedNullCoerce _unpack _verifyNullForPrimitive _verify…",
+        "missedParts": [
+          "_checkFromStringCoercion"
+        ],
+        "missedAnswerLines": [
+          "_checkFromStringCoercion",
+          "_verifyNumberForScalarCoercion"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 31,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 251397,
+          "tokensUsed": 10942,
+          "answerCoverage": 1,
+          "fileCoverage": 0.3333333333333333,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 10,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_lookup",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "bash": 19,
+            "lore_lookup": 1,
+            "lore_graph": 8,
+            "view": 1
+          }
+        },
+        "tools": "bash×19, lore_graph×8, report_intent×1, lore_dependents×1, lore_lookup×1, view×1",
+        "loreToolArgs": "lore_dependents(query=reportInputMismatch, kind=symbol, compact=true), lore_lookup(kind=symbol, query=reportInputMismatch), lore_graph(kind=call, target_id=29420, compact=true), lore_graph(kind=call, target_id=29422, compact=true), lore_graph(kind=call, target_id=29424, compact=true), lore_graph(kind=call, target_id=29426, compact=true), lore_graph(compact=true, kind=call, source_id=29424), lore_graph(compact=true, kind=call, source_id=29420), lore_graph(compact=true, kind=call, source_id=29422), lore_graph(compact=true, kind=call, source_id=29426)",
+        "answer": "Good - line 1426 is inside `handleMissingInstantiator` (starts at 1382). Line 1588 is inside `handleUnexpectedToken`. Line 1775 is inside `reportUnresolvedObjectId`. These are already in my list. The results from the lore graph are complete. Let me compile the final answer:  _checkFromStringCoercion…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0.18181818181818177,
+        "tokens": 2214,
+        "tokensPct": 25.366636113657194,
+        "wallTimeMs": 174910,
+        "wallTimePct": 228.67938342463424
+      },
+      "warnings": [
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "jackson-databind-1.2-createCollectionDeserializer",
+      "family": "localization",
+      "iteration": 1,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 4,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 25101,
+          "tokensUsed": 572,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 1
+          }
+        },
+        "tools": "grep×2, report_intent×1, view×1",
+        "answer": "getContentType getValueHandler getConfig getTypeHandler findTypeDeserializer _findCustomCollectionDeserializer getRawClass isAssignableFrom isInterface isAbstract _mapAbstractCollectionType introspectForCreation findValueInstantiator canCreateUsingDefault hasRawClass findForCollection hasDeserialize…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 4,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 43216,
+          "tokensUsed": 1627,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 2,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 1,
+            "lore_graph": 1,
+            "bash": 1
+          }
+        },
+        "tools": "report_intent×1, lore_lookup×1, lore_graph×1, bash×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=createCollectionDeserializer), lore_graph(kind=call, source_id=32108, compact=true)",
+        "answer": "isAbstract _mapAbstractCollectionType mapAbstractType findSuperType concreteType.findSuperType type.getRawClass type.hasRawClass type.isAbstract type.isInterface type.getContentType baseType.getRawClass baseType.isAbstract defaultType.getRawClass defaultType.hasRawClass contentType.hasRawClass conte…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 1055,
+        "tokensPct": 184.44055944055944,
+        "wallTimeMs": 18115,
+        "wallTimePct": 72.16843950440222
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "jackson-databind-1.2-createCollectionDeserializer",
+      "family": "localization",
+      "iteration": 2,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 5,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 43487,
+          "tokensUsed": 1804,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 3,
+            "view": 1
+          }
+        },
+        "tools": "grep×3, report_intent×1, view×1",
+        "answer": "Based on the source at `BasicDeserializerFactory.java` lines 768–843, the direct callees are:  getContentType getValueHandler getConfig getTypeHandler findTypeDeserializer _findCustomCollectionDeserializer getRawClass isAssignableFrom isInterface isAbstract _mapAbstractCollectionType introspectForCr…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 5,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 51087,
+          "tokensUsed": 1886,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 2,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 1,
+            "lore_graph": 1,
+            "bash": 2
+          }
+        },
+        "tools": "bash×2, report_intent×1, lore_lookup×1, lore_graph×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=createCollectionDeserializer), lore_graph(kind=call, source_id=32108, compact=true)",
+        "answer": "<init> _findCustomCollectionDeserializer _mapAbstractCollectionType canCreateUsingDefault deserializerModifiers findForCollection findTypeDeserializer findValueInstantiator getConfig getContentType getRawClass getTypeHandler getValueHandler hasDeserializerModifiers hasRawClass introspectForCreation …",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 82,
+        "tokensPct": 4.545454545454546,
+        "wallTimeMs": 7600,
+        "wallTimePct": 17.47648722606756
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "jackson-databind-1.2-createCollectionDeserializer",
+      "family": "localization",
+      "iteration": 3,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 4,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 35347,
+          "tokensUsed": 1229,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 1
+          }
+        },
+        "tools": "grep×2, report_intent×1, view×1",
+        "answer": "getContentType getValueHandler getConfig getTypeHandler findTypeDeserializer _findCustomCollectionDeserializer getRawClass isAssignableFrom isInterface isAbstract _mapAbstractCollectionType introspectForCreation findValueInstantiator canCreateUsingDefault hasRawClass findForCollection hasDeserialize…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 7,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 59383,
+          "tokensUsed": 1855,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 2,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 1,
+            "lore_graph": 1,
+            "bash": 4
+          }
+        },
+        "tools": "bash×4, report_intent×1, lore_lookup×1, lore_graph×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=createCollectionDeserializer), lore_graph(kind=call, source_id=32108, compact=true)",
+        "answer": "<init> _findCustomCollectionDeserializer _mapAbstractCollectionType canCreateUsingDefault deserializerModifiers findForCollection findTypeDeserializer findValueInstantiator getConfig getContentType getRawClass getTypeHandler getValueHandler hasDeserializerModifiers hasRawClass introspectForCreation …",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 626,
+        "tokensPct": 50.935720097640356,
+        "wallTimeMs": 24036,
+        "wallTimePct": 68.00011316377628
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "jackson-databind-1.2-createCollectionDeserializer",
+      "family": "localization",
+      "iteration": 4,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 4,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 45367,
+          "tokensUsed": 2350,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 1
+          }
+        },
+        "tools": "grep×2, report_intent×1, view×1",
+        "answer": "getContentType getValueHandler getConfig getTypeHandler findTypeDeserializer _findCustomCollectionDeserializer getRawClass isAssignableFrom isInterface isAbstract _mapAbstractCollectionType introspectForCreation findValueInstantiator canCreateUsingDefault hasRawClass findForCollection hasDeserialize…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 5,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 39186,
+          "tokensUsed": 1168,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 2,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 1,
+            "lore_graph": 1,
+            "bash": 2
+          }
+        },
+        "tools": "bash×2, report_intent×1, lore_lookup×1, lore_graph×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=createCollectionDeserializer), lore_graph(kind=call, source_id=32108, compact=true)",
+        "answer": "<init> JavaUtilCollectionsDeserializers.findForCollection _factoryConfig.deserializerModifiers _factoryConfig.hasDeserializerModifiers _findCustomCollectionDeserializer _mapAbstractCollectionType canCreateUsingDefault config.introspectForCreation contentType.getTypeHandler contentType.getValueHandle…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -1182,
+        "tokensPct": -50.29787234042553,
+        "wallTimeMs": -6181,
+        "wallTimePct": -13.624440672735687
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "jackson-databind-1.2-createCollectionDeserializer",
+      "family": "localization",
+      "iteration": 5,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 4,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 37409,
+          "tokensUsed": 1554,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 1
+          }
+        },
+        "tools": "grep×2, report_intent×1, view×1",
+        "answer": "getContentType getValueHandler getConfig getTypeHandler findTypeDeserializer _findCustomCollectionDeserializer getRawClass isAssignableFrom isInterface isAbstract _mapAbstractCollectionType introspectForCreation findValueInstantiator canCreateUsingDefault hasRawClass findForCollection hasDeserialize…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 4,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 35987,
+          "tokensUsed": 1096,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 2,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 1,
+            "lore_graph": 1,
+            "bash": 1
+          }
+        },
+        "tools": "report_intent×1, lore_lookup×1, lore_graph×1, bash×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=createCollectionDeserializer), lore_graph(kind=call, source_id=32108, compact=true)",
+        "answer": "<init> JavaUtilCollectionsDeserializers.findForCollection _factoryConfig.deserializerModifiers _factoryConfig.hasDeserializerModifiers _findCustomCollectionDeserializer _mapAbstractCollectionType canCreateUsingDefault config.introspectForCreation contentType.getTypeHandler contentType.getValueHandle…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -458,
+        "tokensPct": -29.472329472329474,
+        "wallTimeMs": -1422,
+        "wallTimePct": -3.801224304311797
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "jackson-databind-1.4-reportInputMismatch",
+      "family": "modification",
+      "iteration": 1,
+      "control": {
+        "score": {
+          "taskSuccess": 0,
+          "correctness": 0.8333333333333334,
+          "firstPassAccurate": false,
+          "toolCallCount": 307,
+          "uniqueFilesRead": 46,
+          "wallTimeMs": 720020,
+          "tokensUsed": 123781,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "task": 7,
+            "report_intent": 2,
+            "grep": 29,
+            "view": 142,
+            "bash": 119,
+            "read_agent": 8
+          }
+        },
+        "tools": "view×142, bash×119, grep×29, read_agent×8, task×7, report_intent×2",
+        "answer": "Excellent! The verification confirms the accuracy. Now let me format the final comprehensive output with all 26 methods:  ## COMPREHENSIVE CALLERS REPORT  Here are ALL callers in `src/main/java` of the specified StdDeserializer methods:  ### 1. `_parseBooleanPrimitive` - src/main/java/com/fasterxml/…",
+        "missedParts": [],
+        "missedAnswerLines": [
+          "src/main/java/com/fasterxml/jackson/databind/deser/std/UUIDDeserializer.java"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 6,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 149035,
+          "tokensUsed": 11386,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "bash": 3,
+            "view": 1
+          }
+        },
+        "tools": "bash×3, report_intent×1, lore_dependents×1, view×1",
+        "loreToolArgs": "lore_dependents(query=reportInputMismatch, kind=symbol, compact=true)",
+        "answer": "src/main/java/com/fasterxml/jackson/databind/DeserializationContext.java:_readValue src/main/java/com/fasterxml/jackson/databind/DeserializationContext.java:handleMissingInstantiator src/main/java/com/fasterxml/jackson/databind/DeserializationContext.java:handleUnexpectedToken src/main/java/com/fast…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0.16666666666666663,
+        "tokens": -112395,
+        "tokensPct": -90.8014961908532,
+        "wallTimeMs": -570985,
+        "wallTimePct": -79.30126940918308
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "jackson-databind-1.4-reportInputMismatch",
+      "family": "modification",
+      "iteration": 2,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 349,
+          "uniqueFilesRead": 22,
+          "wallTimeMs": 653947,
+          "tokensUsed": 127581,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "task": 7,
+            "report_intent": 3,
+            "grep": 123,
+            "view": 117,
+            "bash": 90,
+            "read_agent": 9
+          }
+        },
+        "tools": "grep×123, view×117, bash×90, read_agent×9, task×7, report_intent×3",
+        "answer": "src/main/java/com/fasterxml/jackson/databind/DeserializationContext.java : handleMissingInstantiator src/main/java/com/fasterxml/jackson/databind/DeserializationContext.java : handleUnexpectedToken src/main/java/com/fasterxml/jackson/databind/DeserializationContext.java : reportUnresolvedObjectId sr…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 5,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 140216,
+          "tokensUsed": 11342,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "bash": 2,
+            "view": 1
+          }
+        },
+        "tools": "bash×2, report_intent×1, lore_dependents×1, view×1",
+        "loreToolArgs": "lore_dependents(query=reportInputMismatch, kind=symbol, compact=true)",
+        "answer": "src/main/java/com/fasterxml/jackson/databind/DeserializationContext.java: _readValue src/main/java/com/fasterxml/jackson/databind/DeserializationContext.java: handleMissingInstantiator src/main/java/com/fasterxml/jackson/databind/DeserializationContext.java: handleUnexpectedToken src/main/java/com/f…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -116239,
+        "tokensPct": -91.1099615146456,
+        "wallTimeMs": -513731,
+        "wallTimePct": -78.55850703497379
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "jackson-databind-1.4-reportInputMismatch",
+      "family": "modification",
+      "iteration": 3,
+      "control": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0,
+          "firstPassAccurate": false,
+          "toolCallCount": 46,
+          "uniqueFilesRead": 18,
+          "wallTimeMs": 72083,
+          "tokensUsed": 12209,
+          "answerCoverage": 0.5,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "task": 4,
+            "report_intent": 1,
+            "grep": 2,
+            "view": 36,
+            "bash": 1,
+            "read_agent": 2
+          }
+        },
+        "tools": "view×36, task×4, grep×2, read_agent×2, report_intent×1, bash×1",
+        "answer": "Perfect! I have all the information needed. Let me compile the results for each call site:  ## Enclosing Method Names for `reportInputMismatch` Call Sites  1. **TypeDeserializerBase.java:263** → `_deserializeWithNativeTypeId(JsonParser p, DeserializationContext ctxt, Object typeId)`  2. **JsonNodeDe…",
+        "missedParts": [
+          "NumberDeserializers",
+          "FromStringDeserializer"
+        ],
+        "missedAnswerLines": [
+          "src/main/java/com/fasterxml/jackson/databind/deser/std/StdDeserializer.java",
+          "src/main/java/com/fasterxml/jackson/databind/deser/std/NumberDeserializers.java",
+          "src/main/java/com/fasterxml/jackson/databind/deser/std/FromStringDeserializer.java",
+          "src/main/java/com/fasterxml/jackson/databind/deser/std/MapDeserializer.java",
+          "src/main/java/com/fasterxml/jackson/databind/deser/std/UUIDDeserializer.java",
+          "src/main/java/com/fasterxml/jackson/databind/ext/CoreXMLDeserializers.java"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 5,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 149830,
+          "tokensUsed": 11294,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "bash": 2,
+            "view": 1
+          }
+        },
+        "tools": "bash×2, report_intent×1, lore_dependents×1, view×1",
+        "loreToolArgs": "lore_dependents(query=reportInputMismatch, kind=symbol, compact=true)",
+        "answer": "src/main/java/com/fasterxml/jackson/databind/DeserializationContext.java:_readValue src/main/java/com/fasterxml/jackson/databind/DeserializationContext.java:handleMissingInstantiator src/main/java/com/fasterxml/jackson/databind/DeserializationContext.java:handleUnexpectedToken src/main/java/com/fast…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 1,
+        "tokens": -915,
+        "tokensPct": -7.494471291670079,
+        "wallTimeMs": 77747,
+        "wallTimePct": 107.85760859009753
+      },
+      "warnings": [
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "jackson-databind-1.4-reportInputMismatch",
+      "family": "modification",
+      "iteration": 4,
+      "control": {
+        "score": {
+          "taskSuccess": 0,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 472,
+          "uniqueFilesRead": 45,
+          "wallTimeMs": 720027,
+          "tokensUsed": 144866,
+          "answerCoverage": 0.5,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "task": 11,
+            "report_intent": 3,
+            "grep": 71,
+            "view": 243,
+            "bash": 130,
+            "read_agent": 14
+          }
+        },
+        "tools": "view×243, bash×130, grep×71, read_agent×14, task×11, report_intent×3",
+        "answer": "Perfect! Now I have enough context. Let me compile the complete results systematically:  ## Summary of Callers for StdDeserializer Parsing Methods  Based on my grep search through src/main/java, here are all the callers of the specified methods (excluding the definitions):  ### 1. **_parseBooleanPri…",
+        "missedParts": [
+          "FromStringDeserializer",
+          "MapDeserializer"
+        ],
+        "missedAnswerLines": [
+          "src/main/java/com/fasterxml/jackson/databind/deser/std/FromStringDeserializer.java",
+          "src/main/java/com/fasterxml/jackson/databind/deser/std/MapDeserializer.java",
+          "src/main/java/com/fasterxml/jackson/databind/deser/std/UUIDDeserializer.java"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 10,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 189972,
+          "tokensUsed": 12684,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "bash": 7,
+            "view": 1
+          }
+        },
+        "tools": "bash×7, report_intent×1, lore_dependents×1, view×1",
+        "loreToolArgs": "lore_dependents(query=reportInputMismatch, kind=symbol, compact=true)",
+        "answer": "src/main/java/com/fasterxml/jackson/databind/DeserializationContext.java:_readValue src/main/java/com/fasterxml/jackson/databind/DeserializationContext.java:handleMissingInstantiator src/main/java/com/fasterxml/jackson/databind/DeserializationContext.java:handleUnexpectedToken src/main/java/com/fast…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0.5,
+        "tokens": -132182,
+        "tokensPct": -91.24432233926525,
+        "wallTimeMs": -530055,
+        "wallTimePct": -73.61598940039748
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "jackson-databind-1.4-reportInputMismatch",
+      "family": "modification",
+      "iteration": 5,
+      "control": {
+        "score": {
+          "taskSuccess": 0,
+          "correctness": 0,
+          "firstPassAccurate": false,
+          "toolCallCount": 616,
+          "uniqueFilesRead": 53,
+          "wallTimeMs": 720036,
+          "tokensUsed": 164866,
+          "answerCoverage": 0,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "task": 10,
+            "report_intent": 3,
+            "grep": 102,
+            "view": 331,
+            "bash": 158,
+            "read_agent": 11,
+            "glob": 1
+          }
+        },
+        "tools": "view×331, bash×158, grep×102, read_agent×11, task×10, report_intent×3, glob×1",
+        "answer": "Now I have all the data across 3 hops. Let me compile the complete deduplicated list.",
+        "missedParts": [
+          "StdDeserializer",
+          "NumberDeserializers",
+          "FromStringDeserializer",
+          "MapDeserializer"
+        ],
+        "missedAnswerLines": [
+          "src/main/java/com/fasterxml/jackson/databind/deser/std/StdDeserializer.java",
+          "src/main/java/com/fasterxml/jackson/databind/deser/std/NumberDeserializers.java",
+          "src/main/java/com/fasterxml/jackson/databind/deser/std/FromStringDeserializer.java",
+          "src/main/java/com/fasterxml/jackson/databind/deser/std/MapDeserializer.java",
+          "src/main/java/com/fasterxml/jackson/databind/deser/std/UUIDDeserializer.java",
+          "src/main/java/com/fasterxml/jackson/databind/ext/CoreXMLDeserializers.java"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 5,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 145145,
+          "tokensUsed": 11323,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "bash": 2,
+            "view": 1
+          }
+        },
+        "tools": "bash×2, report_intent×1, lore_dependents×1, view×1",
+        "loreToolArgs": "lore_dependents(query=reportInputMismatch, kind=symbol, compact=true)",
+        "answer": "src/main/java/com/fasterxml/jackson/databind/DeserializationContext.java:_readValue src/main/java/com/fasterxml/jackson/databind/DeserializationContext.java:handleMissingInstantiator src/main/java/com/fasterxml/jackson/databind/DeserializationContext.java:handleUnexpectedToken src/main/java/com/fast…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 1,
+        "tokens": -153543,
+        "tokensPct": -93.13199810755401,
+        "wallTimeMs": -574891,
+        "wallTimePct": -79.84198012321606
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "jackson-databind-1.3-createCollectionDeserializer",
+      "family": "explanation",
+      "iteration": 1,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 4,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 57380,
+          "tokensUsed": 3482,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 1
+          }
+        },
+        "tools": "grep×2, report_intent×1, view×1",
+        "answer": "Here is every direct callee of `createCollectionDeserializer` and the argument expressions passed:  ``` getContentType() getValueHandler() getConfig() getTypeHandler() findTypeDeserializer(config, contentType) _findCustomCollectionDeserializer(type, config, beanDesc, contentTypeDeser, contentDeser) …",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 3,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 32588,
+          "tokensUsed": 1462,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 2,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 1,
+            "lore_snippet": 1
+          }
+        },
+        "tools": "report_intent×1, lore_lookup×1, lore_snippet×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=createCollectionDeserializer), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-VyIxsD/jackson-databind/src/main/java/com/fasterxml/jackson/databind/deser/BasicDeserializerFactory.java, start_line=767, end_line=842)",
+        "answer": "type.getContentType() contentType.getValueHandler() ctxt.getConfig() contentType.getTypeHandler() findTypeDeserializer(config, contentType) _findCustomCollectionDeserializer(type, config, beanDesc, contentTypeDeser, contentDeser) type.getRawClass() EnumSet.class.isAssignableFrom(collectionClass) Enu…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -2020,
+        "tokensPct": -58.01263641585296,
+        "wallTimeMs": -24792,
+        "wallTimePct": -43.20669222725688
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "jackson-databind-1.3-createCollectionDeserializer",
+      "family": "explanation",
+      "iteration": 2,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 4,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 51122,
+          "tokensUsed": 3106,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 1
+          }
+        },
+        "tools": "grep×2, report_intent×1, view×1",
+        "answer": "Here is the complete list of direct callees with their argument expressions:  ``` getContentType() getValueHandler() getConfig() getTypeHandler() findTypeDeserializer(config, contentType) _findCustomCollectionDeserializer(type, config, beanDesc, contentTypeDeser, contentDeser) getRawClass() isAssign…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 3,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 45912,
+          "tokensUsed": 2010,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 2,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 1,
+            "lore_snippet": 1
+          }
+        },
+        "tools": "report_intent×1, lore_lookup×1, lore_snippet×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=createCollectionDeserializer), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-VyIxsD/jackson-databind/src/main/java/com/fasterxml/jackson/databind/deser/BasicDeserializerFactory.java, start_line=767, end_line=842)",
+        "answer": "type.getContentType() contentType.getValueHandler() ctxt.getConfig() contentType.getTypeHandler() findTypeDeserializer(config, contentType) _findCustomCollectionDeserializer(type, config, beanDesc, contentTypeDeser, contentDeser) type.getRawClass() EnumSet.class.isAssignableFrom(collectionClass) Enu…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -1096,
+        "tokensPct": -35.28654217643271,
+        "wallTimeMs": -5210,
+        "wallTimePct": -10.191307069363484
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "jackson-databind-1.3-createCollectionDeserializer",
+      "family": "explanation",
+      "iteration": 3,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 4,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 61992,
+          "tokensUsed": 2309,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 1
+          }
+        },
+        "tools": "grep×2, report_intent×1, view×1",
+        "answer": "type.getContentType() contentType.getValueHandler() ctxt.getConfig() contentType.getTypeHandler() findTypeDeserializer(config, contentType) _findCustomCollectionDeserializer(type, config, beanDesc, contentTypeDeser, contentDeser) type.getRawClass() EnumSet.class.isAssignableFrom(collectionClass) Enu…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 3,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 38894,
+          "tokensUsed": 1633,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 2,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 1,
+            "lore_snippet": 1
+          }
+        },
+        "tools": "report_intent×1, lore_lookup×1, lore_snippet×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=createCollectionDeserializer), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-VyIxsD/jackson-databind/src/main/java/com/fasterxml/jackson/databind/deser/BasicDeserializerFactory.java, start_line=767, end_line=842)",
+        "answer": "``` type.getContentType() contentType.getValueHandler() ctxt.getConfig() contentType.getTypeHandler() findTypeDeserializer(config, contentType) _findCustomCollectionDeserializer(type, config, beanDesc, contentTypeDeser, contentDeser) type.getRawClass() EnumSet.class.isAssignableFrom(collectionClass)…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -676,
+        "tokensPct": -29.27674317886531,
+        "wallTimeMs": -23098,
+        "wallTimePct": -37.259646405987866
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "jackson-databind-1.3-createCollectionDeserializer",
+      "family": "explanation",
+      "iteration": 4,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 4,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 60105,
+          "tokensUsed": 3652,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 1
+          }
+        },
+        "tools": "grep×2, report_intent×1, view×1",
+        "answer": "Here is the method body for reference. Let me produce the list of all direct callees with their argument expressions:  getContentType() getValueHandler() getConfig() getTypeHandler() findTypeDeserializer(config, contentType) _findCustomCollectionDeserializer(type, config, beanDesc, contentTypeDeser,…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 3,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 31460,
+          "tokensUsed": 1381,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 2,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 1,
+            "lore_snippet": 1
+          }
+        },
+        "tools": "report_intent×1, lore_lookup×1, lore_snippet×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=createCollectionDeserializer), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-VyIxsD/jackson-databind/src/main/java/com/fasterxml/jackson/databind/deser/BasicDeserializerFactory.java, start_line=767, end_line=842)",
+        "answer": "``` getContentType() getValueHandler() getConfig() getTypeHandler() findTypeDeserializer(config, contentType) _findCustomCollectionDeserializer(type, config, beanDesc, contentTypeDeser, contentDeser) getRawClass() isAssignableFrom(collectionClass) EnumSetDeserializer(contentType, null) isInterface()…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -2271,
+        "tokensPct": -62.185104052573934,
+        "wallTimeMs": -28645,
+        "wallTimePct": -47.658264703435655
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "jackson-databind-1.3-createCollectionDeserializer",
+      "family": "explanation",
+      "iteration": 5,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 4,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 45488,
+          "tokensUsed": 2495,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 1
+          }
+        },
+        "tools": "grep×2, report_intent×1, view×1",
+        "answer": "type.getContentType() contentType.getValueHandler() ctxt.getConfig() contentType.getTypeHandler() findTypeDeserializer(config, contentType) _findCustomCollectionDeserializer(type, config, beanDesc, contentTypeDeser, contentDeser) type.getRawClass() EnumSet.class.isAssignableFrom(collectionClass) Enu…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 3,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 46168,
+          "tokensUsed": 2442,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 2,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 1,
+            "lore_snippet": 1
+          }
+        },
+        "tools": "report_intent×1, lore_lookup×1, lore_snippet×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=createCollectionDeserializer), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-VyIxsD/jackson-databind/src/main/java/com/fasterxml/jackson/databind/deser/BasicDeserializerFactory.java, start_line=767, end_line=842)",
+        "answer": "type.getContentType() contentType.getValueHandler() ctxt.getConfig() contentType.getTypeHandler() findTypeDeserializer(config, contentType) _findCustomCollectionDeserializer(type, config, beanDesc, contentTypeDeser, contentDeser) type.getRawClass() EnumSet.class.isAssignableFrom(collectionClass) Enu…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -53,
+        "tokensPct": -2.124248496993988,
+        "wallTimeMs": 680,
+        "wallTimePct": 1.494899753781217
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "jackson-databind-1.5-reportInputMismatch",
+      "family": "localization",
+      "iteration": 1,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 72,
+          "uniqueFilesRead": 12,
+          "wallTimeMs": 260299,
+          "tokensUsed": 22691,
+          "answerCoverage": 0.75,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 2,
+            "grep": 3,
+            "view": 24,
+            "bash": 42,
+            "task": 1
+          }
+        },
+        "tools": "bash×42, view×24, grep×3, report_intent×2, task×1",
+        "answer": "DeserializationContext.handleUnexpectedToken — delegates to DeserializationProblemHandler.handleUnexpectedToken() to let registered handlers attempt recovery, and if none succeed, falls back to reportInputMismatch() to throw a type-mismatch exception FactoryBasedEnumDeserializer.deserialize — return…",
+        "missedParts": [
+          "_deserializeFromEmptyString"
+        ],
+        "missedAnswerLines": [
+          "_deserializeFromEmptyString"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 85,
+          "uniqueFilesRead": 12,
+          "wallTimeMs": 368278,
+          "tokensUsed": 26769,
+          "answerCoverage": 0.75,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 7,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 2,
+            "lore_dependents": 3,
+            "bash": 41,
+            "lore_graph": 4,
+            "grep": 3,
+            "view": 31,
+            "task": 1
+          }
+        },
+        "tools": "bash×41, view×31, lore_graph×4, lore_dependents×3, grep×3, report_intent×2, task×1",
+        "loreToolArgs": "lore_dependents(query=handleUnexpectedToken, kind=symbol, compact=true), lore_dependents(query=reportInputMismatch, kind=symbol, compact=true), lore_dependents(compact=true, kind=symbol, query=DeserializationContext.handleUnexpectedToken), lore_graph(kind=call, target_id=29407, compact=true), lore_graph(kind=call, target_id=29408, compact=true), lore_graph(kind=call, target_id=29409, compact=true), lore_graph(kind=call, target_id=29410, compact=true)",
+        "answer": "FactoryBasedEnumDeserializer.deserialize — calls handleUnexpectedToken when extracting a scalar from a JSON Object yields null, and calls reportInputMismatch when a properties-based @JsonCreator receives a non-scalar token instead of the expected Object or String value MapEntryDeserializer.deseriali…",
+        "missedParts": [
+          "_deserializeFromEmptyString"
+        ],
+        "missedAnswerLines": [
+          "_deserializeFromEmptyString"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 4078,
+        "tokensPct": 17.971883125468246,
+        "wallTimeMs": 107979,
+        "wallTimePct": 41.48267953392061
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "jackson-databind-1.5-reportInputMismatch",
+      "family": "localization",
+      "iteration": 2,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 82,
+          "uniqueFilesRead": 12,
+          "wallTimeMs": 386094,
+          "tokensUsed": 30741,
+          "answerCoverage": 0.75,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 30,
+            "bash": 48,
+            "task": 1
+          }
+        },
+        "tools": "bash×48, view×30, grep×2, report_intent×1, task×1",
+        "answer": "FactoryBasedEnumDeserializer.deserialize — calls reportInputMismatch to throw when the token is not an Object/String expected by the @JsonCreator, and calls handleUnexpectedToken to attempt recovery when extractScalarFromObject returns null for an unrecognized START_OBJECT MapEntryDeserializer.deser…",
+        "missedParts": [
+          "_deserializeFromEmptyString"
+        ],
+        "missedAnswerLines": [
+          "_deserializeFromEmptyString"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 66,
+          "uniqueFilesRead": 7,
+          "wallTimeMs": 291119,
+          "tokensUsed": 22927,
+          "answerCoverage": 0.75,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 7,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 3,
+            "bash": 28,
+            "lore_graph": 4,
+            "grep": 12,
+            "view": 17,
+            "task": 1
+          }
+        },
+        "tools": "bash×28, view×17, grep×12, lore_graph×4, lore_dependents×3, report_intent×1, task×1",
+        "loreToolArgs": "lore_dependents(query=handleUnexpectedToken, kind=symbol, compact=true), lore_dependents(query=reportInputMismatch, kind=symbol, compact=true), lore_dependents(compact=true, kind=symbol, query=DeserializationContext.handleUnexpectedToken), lore_graph(kind=call, target_id=29407, compact=true), lore_graph(kind=call, target_id=29408, compact=true), lore_graph(kind=call, target_id=29409, compact=true), lore_graph(kind=call, target_id=29410, compact=true)",
+        "answer": "`PrimitiveArrayDeserializers.CharDeser.deserialize` — calls `handleUnexpectedToken` to coerce a non-string array element into a character, then calls `reportInputMismatch` if the coerced result string is not exactly one character long `MapEntryDeserializer.deserialize` — calls `handleUnexpectedToken…",
+        "missedParts": [
+          "_deserializeFromEmptyString"
+        ],
+        "missedAnswerLines": [
+          "_deserializeFromEmptyString"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -7814,
+        "tokensPct": -25.418821768973032,
+        "wallTimeMs": -94975,
+        "wallTimePct": -24.598931866333068
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "jackson-databind-1.5-reportInputMismatch",
+      "family": "localization",
+      "iteration": 3,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 70,
+          "uniqueFilesRead": 12,
+          "wallTimeMs": 267355,
+          "tokensUsed": 18746,
+          "answerCoverage": 0.75,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 2,
+            "grep": 11,
+            "view": 41,
+            "bash": 15,
+            "task": 1
+          }
+        },
+        "tools": "view×41, bash×15, grep×11, report_intent×2, task×1",
+        "answer": "DeserializationContext.handleUnexpectedToken — delegates to DeserializationProblemHandler.handleUnexpectedToken() to let registered handlers attempt recovery from an unexpected token; if none succeed, calls reportInputMismatch() to throw a terminal mismatch error FactoryBasedEnumDeserializer.deseria…",
+        "missedParts": [
+          "_deserializeFromEmptyString"
+        ],
+        "missedAnswerLines": [
+          "_deserializeFromEmptyString"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 101,
+          "uniqueFilesRead": 9,
+          "wallTimeMs": 379276,
+          "tokensUsed": 28288,
+          "answerCoverage": 0.75,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 7,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 3,
+            "lore_dependents": 3,
+            "bash": 37,
+            "lore_graph": 4,
+            "task": 1,
+            "grep": 27,
+            "view": 24,
+            "read_agent": 2
+          }
+        },
+        "tools": "bash×37, grep×27, view×24, lore_graph×4, report_intent×3, lore_dependents×3, read_agent×2, task×1",
+        "loreToolArgs": "lore_dependents(query=handleUnexpectedToken, kind=symbol, compact=true), lore_dependents(query=reportInputMismatch, kind=symbol, compact=true), lore_dependents(compact=true, kind=symbol, query=DeserializationContext.handleUnexpectedToken), lore_graph(kind=call, target_id=29408, compact=true), lore_graph(kind=call, target_id=29407, compact=true), lore_graph(kind=call, target_id=29409, compact=true), lore_graph(kind=call, target_id=29410, compact=true)",
+        "answer": "All confirmed. Here are the final results:  FactoryBasedEnumDeserializer.deserialize — calls handleUnexpectedToken to attempt recovery when extracting a scalar from an unexpected token yields null, and calls reportInputMismatch to throw when a non-scalar token is received for a properties-based or s…",
+        "missedParts": [
+          "_deserializeFromEmptyString"
+        ],
+        "missedAnswerLines": [
+          "_deserializeFromEmptyString"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 9542,
+        "tokensPct": 50.90152565880721,
+        "wallTimeMs": 111921,
+        "wallTimePct": 41.86231789194142
+      },
+      "warnings": [
+        "lore 50%+ more tokens"
+      ]
+    },
+    {
+      "taskId": "jackson-databind-1.5-reportInputMismatch",
+      "family": "localization",
+      "iteration": 4,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 31,
+          "uniqueFilesRead": 12,
+          "wallTimeMs": 133129,
+          "tokensUsed": 9072,
+          "answerCoverage": 0.75,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 3,
+            "task": 1,
+            "view": 19,
+            "bash": 6,
+            "read_agent": 1
+          }
+        },
+        "tools": "view×19, bash×6, grep×3, report_intent×1, task×1, read_agent×1",
+        "answer": "DeserializationContext.handleUnexpectedToken — calls handleUnexpectedToken on problem handlers first to attempt recovery; if no handler resolves it, calls reportInputMismatch to throw an error MapEntryDeserializer.deserialize — calls handleUnexpectedToken to return a fallback value for unexpected to…",
+        "missedParts": [
+          "_deserializeFromEmptyString"
+        ],
+        "missedAnswerLines": [
+          "_deserializeFromEmptyString"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 27,
+          "uniqueFilesRead": 4,
+          "wallTimeMs": 229182,
+          "tokensUsed": 13377,
+          "answerCoverage": 0.75,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 7,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 3,
+            "lore_dependents": 3,
+            "bash": 10,
+            "lore_graph": 4,
+            "grep": 2,
+            "view": 5
+          }
+        },
+        "tools": "bash×10, view×5, lore_graph×4, report_intent×3, lore_dependents×3, grep×2",
+        "loreToolArgs": "lore_dependents(query=handleUnexpectedToken, kind=symbol, compact=true), lore_dependents(query=reportInputMismatch, kind=symbol, compact=true), lore_dependents(compact=true, kind=symbol, query=DeserializationContext.handleUnexpectedToken), lore_graph(kind=call, target_id=29408, compact=true), lore_graph(kind=call, target_id=29407, compact=true), lore_graph(kind=call, target_id=29409, compact=true), lore_graph(kind=call, target_id=29410, compact=true)",
+        "answer": "I now have complete context. Here are the four functions that directly call both:  DeserializationContext#handleUnexpectedToken — delegates to each problem handler's handleUnexpectedToken() to attempt recovery, returning any non-NOT_HANDLED result; if all handlers decline, calls reportInputMismatch(…",
+        "missedParts": [
+          "_deserializeFromEmptyString"
+        ],
+        "missedAnswerLines": [
+          "_deserializeFromEmptyString"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 4305,
+        "tokensPct": 47.4537037037037,
+        "wallTimeMs": 96053,
+        "wallTimePct": 72.15032036596084
+      },
+      "warnings": [
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "jackson-databind-1.5-reportInputMismatch",
+      "family": "localization",
+      "iteration": 5,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 85,
+          "uniqueFilesRead": 11,
+          "wallTimeMs": 275032,
+          "tokensUsed": 22494,
+          "answerCoverage": 0.75,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 2,
+            "bash": 48,
+            "grep": 2,
+            "view": 32,
+            "task": 1
+          }
+        },
+        "tools": "bash×48, view×32, report_intent×2, grep×2, task×1",
+        "answer": "Now I have all the information needed. Here are the results:  CharDeser.deserialize — calls handleUnexpectedToken to coerce unexpected array-element tokens into a CharSequence, then calls reportInputMismatch to reject the resulting string if its length is not exactly 1 MapEntryDeserializer.deseriali…",
+        "missedParts": [
+          "_deserializeFromEmptyString"
+        ],
+        "missedAnswerLines": [
+          "_deserializeFromEmptyString"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.5,
+          "firstPassAccurate": true,
+          "toolCallCount": 33,
+          "uniqueFilesRead": 4,
+          "wallTimeMs": 309599,
+          "tokensUsed": 19167,
+          "answerCoverage": 0.75,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 12,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_graph",
+            "lore_lookup"
+          ],
+          "toolCallCounts": {
+            "report_intent": 2,
+            "lore_dependents": 3,
+            "bash": 12,
+            "lore_graph": 8,
+            "lore_lookup": 1,
+            "grep": 2,
+            "view": 5
+          }
+        },
+        "tools": "bash×12, lore_graph×8, view×5, lore_dependents×3, report_intent×2, grep×2, lore_lookup×1",
+        "loreToolArgs": "lore_dependents(query=handleUnexpectedToken, kind=symbol, compact=true), lore_dependents(query=reportInputMismatch, kind=symbol, compact=true), lore_dependents(compact=true, kind=symbol, query=DeserializationContext.handleUnexpectedToken), lore_graph(kind=call, target_id=29407, compact=true), lore_graph(kind=call, target_id=29408, compact=true), lore_graph(kind=call, target_id=29409, compact=true), lore_graph(kind=call, target_id=29410, compact=true), lore_lookup(kind=symbol, query=reportInputMismatch, match_mode=exact), lore_graph(compact=true, kind=call, target_id=29420), lore_graph(compact=true, kind=call, target_id=29422), lore_graph(compact=true, kind=call, target_id=29424), lore_graph(compact=true, kind=call, target_id=29426)",
+        "answer": "FactoryBasedEnumDeserializer.deserialize — calls handleUnexpectedToken to let problem handlers recover when extractScalarFromObject yields null, and calls reportInputMismatch to throw when the token type is wholly incompatible with the enum's @JsonCreator MapEntryDeserializer.deserialize — calls han…",
+        "missedParts": [
+          "_deserializeFromEmptyString"
+        ],
+        "missedAnswerLines": [
+          "_deserializeFromEmptyString"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -3327,
+        "tokensPct": -14.790610829554549,
+        "wallTimeMs": 34567,
+        "wallTimePct": 12.568355682247883
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "jackson-databind-1.7-createCollectionDeserializer",
+      "family": "explanation",
+      "iteration": 1,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 13,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 72993,
+          "tokensUsed": 4951,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 5,
+            "view": 4,
+            "bash": 2,
+            "task": 1
+          }
+        },
+        "tools": "grep×5, view×4, bash×2, report_intent×1, task×1",
+        "answer": "The call is **direct** — no intermediate functions exist between them. Both methods live in `BasicDeserializerFactory`.  1. `createCollectionDeserializer` — builds a deserializer for Collection types, resolving content type info and abstract-type mappings 2. `findValueInstantiator` — locates or cons…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 5,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 28169,
+          "tokensUsed": 748,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 4,
+          "loreToolsUsed": [
+            "lore_trace",
+            "lore_lookup"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_trace": 2,
+            "lore_lookup": 2
+          }
+        },
+        "tools": "lore_trace×2, lore_lookup×2, report_intent×1",
+        "loreToolArgs": "lore_trace(from_name=createCollectionDeserializer, to_name=findValueInstantiator, depth=10), lore_lookup(kind=symbol, query=createCollectionDeserializer), lore_lookup(kind=symbol, query=findValueInstantiator), lore_trace(from=32108, to=32096, depth=10)",
+        "answer": "The trace shows a **direct call** — `createCollectionDeserializer` calls `findValueInstantiator` with no intermediate functions.  1. `createCollectionDeserializer` — builds a deserializer for Collection types, resolving content type, type info, and instantiation 2. `findValueInstantiator` — creates …",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -4203,
+        "tokensPct": -84.89194102201574,
+        "wallTimeMs": -44824,
+        "wallTimePct": -61.40862822462429
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "jackson-databind-1.7-createCollectionDeserializer",
+      "family": "explanation",
+      "iteration": 2,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 16,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 68331,
+          "tokensUsed": 4313,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 3,
+            "bash": 5,
+            "view": 6,
+            "task": 1
+          }
+        },
+        "tools": "view×6, bash×5, grep×3, report_intent×1, task×1",
+        "answer": "The call is direct — `createCollectionDeserializer` calls `findValueInstantiator` on line 815 with no intermediate functions in between.  1. `createCollectionDeserializer` — builds a deserializer for Collection types, resolving content types and abstract mappings 2. `findValueInstantiator` — locates…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 5,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 26176,
+          "tokensUsed": 691,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 4,
+          "loreToolsUsed": [
+            "lore_trace",
+            "lore_lookup"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_trace": 2,
+            "lore_lookup": 2
+          }
+        },
+        "tools": "lore_trace×2, lore_lookup×2, report_intent×1",
+        "loreToolArgs": "lore_trace(from_name=createCollectionDeserializer, to_name=findValueInstantiator, depth=10), lore_lookup(kind=symbol, query=createCollectionDeserializer), lore_lookup(kind=symbol, query=findValueInstantiator), lore_trace(from=32108, to=32096, depth=10)",
+        "answer": "The trace shows a **direct call** — `createCollectionDeserializer` invokes `findValueInstantiator` with no intermediaries:  1. `createCollectionDeserializer` — builds a collection deserializer, resolving content type, type info, and custom deserializers 2. `findValueInstantiator` — locates or constr…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -3622,
+        "tokensPct": -83.97866913980988,
+        "wallTimeMs": -42155,
+        "wallTimePct": -61.692350470503875
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "jackson-databind-1.7-createCollectionDeserializer",
+      "family": "explanation",
+      "iteration": 3,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 21,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 89686,
+          "tokensUsed": 6142,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "bash": 9,
+            "grep": 2,
+            "view": 8,
+            "task": 1
+          }
+        },
+        "tools": "bash×9, view×8, grep×2, report_intent×1, task×1",
+        "answer": "1. `createCollectionDeserializer` — creates a JsonDeserializer for Collection types, resolving element types and delegating instantiation 2. `findValueInstantiator` — orchestrates the search for an appropriate ValueInstantiator via annotations, JDK defaults, or creator introspection",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 5,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 25422,
+          "tokensUsed": 623,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 4,
+          "loreToolsUsed": [
+            "lore_trace",
+            "lore_lookup"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_trace": 2,
+            "lore_lookup": 2
+          }
+        },
+        "tools": "lore_trace×2, lore_lookup×2, report_intent×1",
+        "loreToolArgs": "lore_trace(from_name=createCollectionDeserializer, to_name=findValueInstantiator, depth=10), lore_lookup(kind=symbol, query=createCollectionDeserializer), lore_lookup(kind=symbol, query=findValueInstantiator), lore_trace(from=32108, to=32096, depth=10)",
+        "answer": "The trace shows a direct call — `createCollectionDeserializer` calls `findValueInstantiator` directly at line 815 with no intermediaries.  1. `createCollectionDeserializer` — builds a deserializer for Collection types, resolving content type, custom deserializers, and abstract-type mappings 2. `find…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -5519,
+        "tokensPct": -89.85672419407359,
+        "wallTimeMs": -64264,
+        "wallTimePct": -71.6544388198827
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "jackson-databind-1.7-createCollectionDeserializer",
+      "family": "explanation",
+      "iteration": 4,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 20,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 92372,
+          "tokensUsed": 6222,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 7,
+            "view": 5,
+            "bash": 6,
+            "task": 1
+          }
+        },
+        "tools": "grep×7, bash×6, view×5, report_intent×1, task×1",
+        "answer": "The call is direct — line 815 of `BasicDeserializerFactory.java` shows `createCollectionDeserializer` calls `findValueInstantiator` with no intermediate methods.  1. `createCollectionDeserializer` — creates a `JsonDeserializer` for `Collection` types, resolving content types, abstract mappings, and …",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 5,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 26781,
+          "tokensUsed": 627,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 4,
+          "loreToolsUsed": [
+            "lore_trace",
+            "lore_lookup"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_trace": 2,
+            "lore_lookup": 2
+          }
+        },
+        "tools": "lore_trace×2, lore_lookup×2, report_intent×1",
+        "loreToolArgs": "lore_trace(from_name=createCollectionDeserializer, to_name=findValueInstantiator, depth=10), lore_lookup(kind=symbol, query=createCollectionDeserializer), lore_lookup(kind=symbol, query=findValueInstantiator), lore_trace(from=32108, to=32096, depth=10)",
+        "answer": "The trace shows a **direct call** — `createCollectionDeserializer` calls `findValueInstantiator` with no intermediaries:  1. `createCollectionDeserializer` — builds a deserializer for Collection types, resolving content type, custom deserializers, and abstract-type mappings 2. `findValueInstantiator…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -5595,
+        "tokensPct": -89.9228543876567,
+        "wallTimeMs": -65591,
+        "wallTimePct": -71.00744814445936
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "jackson-databind-1.7-createCollectionDeserializer",
+      "family": "explanation",
+      "iteration": 5,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 24,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 75937,
+          "tokensUsed": 7418,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "task": 1,
+            "report_intent": 1,
+            "grep": 8,
+            "view": 8,
+            "bash": 6
+          }
+        },
+        "tools": "grep×8, view×8, bash×6, task×1, report_intent×1",
+        "answer": "Perfect! Now let me create a clean summary with all the information about the call chain. Based on my analysis:  ## Call Chain Trace: `createCollectionDeserializer` → `findValueInstantiator`  The trace is **straightforward and direct** — there are only **2 methods** in the chain:  ---  ### **Step 1:…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 5,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 26821,
+          "tokensUsed": 727,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 4,
+          "loreToolsUsed": [
+            "lore_trace",
+            "lore_lookup"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_trace": 2,
+            "lore_lookup": 2
+          }
+        },
+        "tools": "lore_trace×2, lore_lookup×2, report_intent×1",
+        "loreToolArgs": "lore_trace(from_name=createCollectionDeserializer, to_name=findValueInstantiator, depth=10), lore_lookup(kind=symbol, query=createCollectionDeserializer), lore_lookup(kind=symbol, query=findValueInstantiator), lore_trace(from=32108, to=32096, depth=10)",
+        "answer": "The trace shows a **direct call** — `createCollectionDeserializer` calls `findValueInstantiator` at line 815 of `BasicDeserializerFactory.java` with no intermediaries.  1. `createCollectionDeserializer` — builds a `JsonDeserializer` for `Collection` types, resolving content deserializers and abstrac…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -6691,
+        "tokensPct": -90.1995146939876,
+        "wallTimeMs": -49116,
+        "wallTimePct": -64.67993204893531
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "jackson-databind-1.8-reportInputMismatch",
+      "family": "modification",
+      "iteration": 1,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 116,
+          "uniqueFilesRead": 20,
+          "wallTimeMs": 360923,
+          "tokensUsed": 32143,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 2,
+            "grep": 55,
+            "task": 1,
+            "view": 37,
+            "bash": 20,
+            "read_agent": 1
+          }
+        },
+        "tools": "grep×55, view×37, bash×20, report_intent×2, task×1, read_agent×1",
+        "answer": "All `reportInputMismatch` overloads always `throw MismatchedInputException` — they never return. I verified every call site across all 17 caller files. No caller wraps the call in a try/catch.  Handle: None Propagate: reportUnresolvedObjectId _parseQNameObject _deserializeWithNativeTypeId _initForRe…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 181,
+          "uniqueFilesRead": 29,
+          "wallTimeMs": 583464,
+          "tokensUsed": 59395,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 3,
+          "loreToolsUsed": [
+            "lore_search",
+            "lore_dependents",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 3,
+            "lore_search": 1,
+            "lore_dependents": 1,
+            "bash": 65,
+            "lore_snippet": 1,
+            "task": 3,
+            "view": 98,
+            "read_agent": 3,
+            "grep": 6
+          }
+        },
+        "tools": "view×98, bash×65, grep×6, report_intent×3, task×3, read_agent×3, lore_search×1, lore_dependents×1, lore_snippet×1",
+        "loreToolArgs": "lore_search(query=reportInputMismatch, mode=structural, limit=10), lore_dependents(query=reportInputMismatch, kind=symbol, compact=false), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-VyIxsD/jackson-databind/src/main/java/com/fasterxml/jackson/databind/DeserializationContext.java, start_line=1783, end_line=1836)",
+        "answer": "All analysis is complete. Every direct caller of `reportInputMismatch` propagates the exception — the `reportInputMismatch` methods always `throw MismatchedInputException`, and no direct call site wraps this in a try/catch that handles it.  Handle: None Propagate: handleMissingInstantiator handleUne…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 27252,
+        "tokensPct": 84.78362318389696,
+        "wallTimeMs": 222541,
+        "wallTimePct": 61.658857983558825
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "jackson-databind-1.8-reportInputMismatch",
+      "family": "modification",
+      "iteration": 2,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.875,
+          "firstPassAccurate": false,
+          "toolCallCount": 79,
+          "uniqueFilesRead": 18,
+          "wallTimeMs": 184454,
+          "tokensUsed": 21319,
+          "answerCoverage": 0.75,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 21,
+            "task": 1,
+            "bash": 23,
+            "view": 31,
+            "read_agent": 2
+          }
+        },
+        "tools": "view×31, bash×23, grep×21, read_agent×2, report_intent×1, task×1",
+        "answer": "Handle: None  Propagate: _deserializeWithNativeTypeId _initForReading deserialize _deserializeEmbedded _deserializeFromEmptyString _handleDuplicateField getNullValue _unpack vanillaDeserialize deserializeFromObject handleResolvedForwardReference getParameter getParameters _findMissing _deserializeAn…",
+        "missedParts": [
+          "_checkFromStringCoercion"
+        ],
+        "missedAnswerLines": [
+          "_checkFromStringCoercion"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 124,
+          "uniqueFilesRead": 18,
+          "wallTimeMs": 223050,
+          "tokensUsed": 30899,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 3,
+          "loreToolsUsed": [
+            "lore_search",
+            "lore_dependents",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 3,
+            "lore_search": 1,
+            "lore_dependents": 1,
+            "lore_snippet": 1,
+            "bash": 33,
+            "task": 5,
+            "grep": 5,
+            "view": 74,
+            "read_agent": 1
+          }
+        },
+        "tools": "view×74, bash×33, task×5, grep×5, report_intent×3, lore_search×1, lore_dependents×1, lore_snippet×1, read_agent×1",
+        "loreToolArgs": "lore_search(query=reportInputMismatch, mode=structural, limit=10), lore_dependents(query=reportInputMismatch, kind=symbol, compact=false), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-VyIxsD/jackson-databind/src/main/java/com/fasterxml/jackson/databind/DeserializationContext.java, start_line=1783, end_line=1836)",
+        "answer": "Handle: None Propagate: _checkFromStringCoercion _deserializeAndSet _deserializeEmbedded _deserializeFromEmptyString _deserializeWithNativeTypeId _failDoubleToIntCoercion _findMissing _handleDuplicateField _initForReading _parseQNameObject _reportFailedNullCoerce _unpack _verifyNullForPrimitive _ver…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0.125,
+        "tokens": 9580,
+        "tokensPct": 44.936441671748206,
+        "wallTimeMs": 38596,
+        "wallTimePct": 20.924458130482396
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "jackson-databind-1.8-reportInputMismatch",
+      "family": "modification",
+      "iteration": 3,
+      "control": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0,
+          "firstPassAccurate": false,
+          "toolCallCount": 140,
+          "uniqueFilesRead": 22,
+          "wallTimeMs": 158416,
+          "tokensUsed": 35479,
+          "answerCoverage": 0.25,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "task": 4,
+            "report_intent": 1,
+            "grep": 4,
+            "view": 109,
+            "bash": 17,
+            "glob": 1,
+            "read_agent": 4
+          }
+        },
+        "tools": "view×109, bash×17, task×4, grep×4, read_agent×4, report_intent×1, glob×1",
+        "answer": "The earlier agent has finished but the analysis is already complete — all callers propagate.",
+        "missedParts": [
+          "deserialize",
+          "_checkFromStringCoercion",
+          "_verifyNullForPrimitive"
+        ],
+        "missedAnswerLines": [
+          "Handle:",
+          "None",
+          "Propagate:",
+          "deserialize",
+          "_checkFromStringCoercion",
+          "_verifyNullForPrimitive",
+          "getNullValue",
+          "_deserializeFromEmptyString"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 206,
+          "uniqueFilesRead": 31,
+          "wallTimeMs": 655497,
+          "tokensUsed": 68074,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 3,
+          "loreToolsUsed": [
+            "lore_search",
+            "lore_dependents",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 3,
+            "lore_search": 1,
+            "lore_dependents": 1,
+            "lore_snippet": 1,
+            "bash": 95,
+            "task": 2,
+            "view": 82,
+            "grep": 19,
+            "read_agent": 2
+          }
+        },
+        "tools": "bash×95, view×82, grep×19, report_intent×3, task×2, read_agent×2, lore_search×1, lore_dependents×1, lore_snippet×1",
+        "loreToolArgs": "lore_search(query=reportInputMismatch, mode=structural, limit=5), lore_dependents(query=reportInputMismatch, kind=symbol, compact=false), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-VyIxsD/jackson-databind/src/main/java/com/fasterxml/jackson/databind/DeserializationContext.java, start_line=1783, end_line=1836)",
+        "answer": "All four `reportInputMismatch` overloads always **throw** `MismatchedInputException` (a `JsonMappingException`) and never return. I verified all 38 direct call sites across 20 files — none wrap the call in a try/catch block.  Handle: None Propagate: _checkFromStringCoercion _deserializeAndSet _deser…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 1,
+        "tokens": 32595,
+        "tokensPct": 91.87124778037713,
+        "wallTimeMs": 497081,
+        "wallTimePct": 313.7820674679325
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "jackson-databind-1.8-reportInputMismatch",
+      "family": "modification",
+      "iteration": 4,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 85,
+          "uniqueFilesRead": 18,
+          "wallTimeMs": 147033,
+          "tokensUsed": 17712,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 28,
+            "view": 39,
+            "task": 1,
+            "bash": 15,
+            "read_agent": 1
+          }
+        },
+        "tools": "view×39, grep×28, bash×15, report_intent×1, task×1, read_agent×1",
+        "answer": "  Based on the analysis, `reportInputMismatch` always throws `MismatchedInputException`. Every single direct caller propagates the exception — none catch it.  Handle: None Propagate: _deserializeWithNativeTypeId _initForReading deserialize _deserializeEmbedded _deserializeFromEmptyString _parseQName…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 83,
+          "uniqueFilesRead": 18,
+          "wallTimeMs": 338681,
+          "tokensUsed": 31735,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 3,
+          "loreToolsUsed": [
+            "lore_search",
+            "lore_dependents",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_search": 1,
+            "lore_dependents": 1,
+            "bash": 14,
+            "lore_snippet": 1,
+            "task": 2,
+            "view": 61,
+            "read_agent": 2
+          }
+        },
+        "tools": "view×61, bash×14, task×2, read_agent×2, report_intent×1, lore_search×1, lore_dependents×1, lore_snippet×1",
+        "loreToolArgs": "lore_search(query=reportInputMismatch, mode=structural, limit=10), lore_dependents(query=reportInputMismatch, kind=symbol, compact=true), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-VyIxsD/jackson-databind/src/main/java/com/fasterxml/jackson/databind/DeserializationContext.java, start_line=1783, end_line=1840)",
+        "answer": "All direct callers verified. Every single one propagates the thrown `MismatchedInputException` — none wrap the call in try/catch.  Handle: None Propagate: handleMissingInstantiator handleUnexpectedToken reportUnresolvedObjectId getParameter getParameters _findMissing _deserializeAndSet deserialize (…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 14023,
+        "tokensPct": 79.1723125564589,
+        "wallTimeMs": 191648,
+        "wallTimePct": 130.34352832357362
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "jackson-databind-1.8-reportInputMismatch",
+      "family": "modification",
+      "iteration": 5,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 102,
+          "uniqueFilesRead": 21,
+          "wallTimeMs": 355122,
+          "tokensUsed": 25859,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "task": 1,
+            "report_intent": 1,
+            "grep": 3,
+            "view": 67,
+            "bash": 29,
+            "read_agent": 1
+          }
+        },
+        "tools": "view×67, bash×29, grep×3, task×1, report_intent×1, read_agent×1",
+        "answer": "Based on my thorough analysis: `reportInputMismatch` **always throws** `MismatchedInputException` (never returns), and **no caller** wraps the call in a try/catch. All callers propagate.  Handle: None Propagate: handleMissingInstantiator handleUnexpectedToken reportUnresolvedObjectId _initForReading…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 108,
+          "uniqueFilesRead": 19,
+          "wallTimeMs": 223667,
+          "tokensUsed": 29148,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 3,
+          "loreToolsUsed": [
+            "lore_search",
+            "lore_dependents",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 5,
+            "lore_search": 1,
+            "lore_dependents": 1,
+            "bash": 3,
+            "lore_snippet": 1,
+            "grep": 1,
+            "task": 19,
+            "view": 58,
+            "read_agent": 19
+          }
+        },
+        "tools": "view×58, task×19, read_agent×19, report_intent×5, bash×3, lore_search×1, lore_dependents×1, lore_snippet×1, grep×1",
+        "loreToolArgs": "lore_search(query=reportInputMismatch, mode=structural, limit=10), lore_dependents(query=reportInputMismatch, kind=symbol, compact=true), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-VyIxsD/jackson-databind/src/main/java/com/fasterxml/jackson/databind/DeserializationContext.java, start_line=1783, end_line=1836)",
+        "answer": "Handle: None  Propagate: _parseQNameObject deserialize handleMissingInstantiator handleUnexpectedToken reportUnresolvedObjectId _deserializeWithNativeTypeId _initForReading _deserializeEmbedded _deserializeFromEmptyString _checkFromStringCoercion _verifyNullForPrimitive _reportFailedNullCoerce _veri…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 3289,
+        "tokensPct": 12.718975985150237,
+        "wallTimeMs": -131455,
+        "wallTimePct": -37.01685617900327
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "jackson-databind-7.2-reportInputMismatch",
+      "family": "localization",
+      "iteration": 1,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.6666666666666666,
+          "firstPassAccurate": false,
+          "toolCallCount": 33,
+          "uniqueFilesRead": 17,
+          "wallTimeMs": 87444,
+          "tokensUsed": 9390,
+          "answerCoverage": 0.8,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 29,
+            "task": 1
+          }
+        },
+        "tools": "view×29, grep×2, report_intent×1, task×1",
+        "answer": "_initForReading → src/main/java/com/fasterxml/jackson/databind/ObjectReader.java — discards the return value (relies on the method to always throw) _parseQNameObject → src/main/java/com/fasterxml/jackson/databind/ext/CoreXMLDeserializers.java — discards the return value (relies on the method to alwa…",
+        "missedParts": [
+          "_checkFromStringCoercion"
+        ],
+        "missedAnswerLines": [
+          "_checkFromStringCoercion → StdDeserializer.java"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 30,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 242170,
+          "tokensUsed": 11885,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "bash": 28
+          }
+        },
+        "tools": "bash×28, report_intent×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=reportInputMismatch, kind=symbol, compact=true)",
+        "answer": "_initForReading → src/main/java/com/fasterxml/jackson/databind/ObjectReader.java — discards the return value (called as a statement; always throws) deserializeUsingPropertyBasedWithUnwrapped → src/main/java/com/fasterxml/jackson/databind/deser/BeanDeserializer.java — returns the result directly (nev…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0.33333333333333337,
+        "tokens": 2495,
+        "tokensPct": 26.57082002129925,
+        "wallTimeMs": 154726,
+        "wallTimePct": 176.94295777869263
+      },
+      "warnings": [
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "jackson-databind-7.2-reportInputMismatch",
+      "family": "localization",
+      "iteration": 2,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 72,
+          "uniqueFilesRead": 21,
+          "wallTimeMs": 210623,
+          "tokensUsed": 18996,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 68,
+            "bash": 1,
+            "task": 1
+          }
+        },
+        "tools": "view×68, report_intent×1, grep×1, bash×1, task×1",
+        "answer": "Now I have all the data. Here's the complete list:  _deserializeWithNativeTypeId → src/main/java/com/fasterxml/jackson/databind/jsontype/impl/TypeDeserializerBase.java — returns the result directly as the method's return value deserializeWithView → src/main/java/com/fasterxml/jackson/databind/deser/…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 28,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 294510,
+          "tokensUsed": 17420,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 6,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_graph",
+            "lore_lookup"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "bash": 21,
+            "lore_graph": 4,
+            "lore_lookup": 1
+          }
+        },
+        "tools": "bash×21, lore_graph×4, report_intent×1, lore_dependents×1, lore_lookup×1",
+        "loreToolArgs": "lore_dependents(query=reportInputMismatch, kind=symbol, compact=true), lore_graph(kind=call, target_id=29420, compact=true), lore_lookup(kind=symbol, query=reportInputMismatch, match_mode=exact), lore_graph(compact=true, kind=call, target_id=29422), lore_graph(compact=true, kind=call, target_id=29426), lore_graph(compact=true, kind=call, target_id=29424)",
+        "answer": "_initForReading → src/main/java/com/fasterxml/jackson/databind/ObjectReader.java — discards the result (call always throws MismatchedInputException) deserializeUsingPropertyBasedWithUnwrapped → src/main/java/com/fasterxml/jackson/databind/deser/BeanDeserializer.java — returns the result (always thro…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -1576,
+        "tokensPct": -8.296483470204254,
+        "wallTimeMs": 83887,
+        "wallTimePct": 39.8280339753968
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "jackson-databind-7.2-reportInputMismatch",
+      "family": "localization",
+      "iteration": 3,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 62,
+          "uniqueFilesRead": 17,
+          "wallTimeMs": 121781,
+          "tokensUsed": 15116,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 58,
+            "task": 1,
+            "bash": 1
+          }
+        },
+        "tools": "view×58, report_intent×1, grep×1, task×1, bash×1",
+        "answer": "Now I have all the information needed. Here's the answer:  _deserializeWithNativeTypeId → src/main/java/com/fasterxml/jackson/databind/jsontype/impl/TypeDeserializerBase.java — returns the result directly from the method _parseQNameObject → src/main/java/com/fasterxml/jackson/databind/ext/CoreXMLDes…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 24,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 230936,
+          "tokensUsed": 12610,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "bash": 22
+          }
+        },
+        "tools": "bash×22, report_intent×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=reportInputMismatch, kind=symbol, compact=false)",
+        "answer": "Now I have everything. Let me compile the final deduplicated list.  getParameter → src/main/java/com/fasterxml/jackson/databind/deser/impl/PropertyValueBuffer.java — returns the result directly as the method's return value getParameters → src/main/java/com/fasterxml/jackson/databind/deser/impl/Prope…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -2506,
+        "tokensPct": -16.57845991002911,
+        "wallTimeMs": 109155,
+        "wallTimePct": 89.63220863681526
+      },
+      "warnings": [
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "jackson-databind-7.2-reportInputMismatch",
+      "family": "localization",
+      "iteration": 4,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 37,
+          "uniqueFilesRead": 10,
+          "wallTimeMs": 177323,
+          "tokensUsed": 14671,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 21,
+            "view": 15
+          }
+        },
+        "tools": "grep×21, view×15, report_intent×1",
+        "answer": "_deserializeWithNativeTypeId → src/main/java/com/fasterxml/jackson/databind/jsontype/impl/TypeDeserializerBase.java — returns the result directly as the method return value deserializeWithView → src/main/java/com/fasterxml/jackson/databind/deser/BeanDeserializer.java — discards the return value (rel…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 69,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 353535,
+          "tokensUsed": 22622,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "bash": 67
+          }
+        },
+        "tools": "bash×67, report_intent×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=reportInputMismatch, kind=symbol, compact=false)",
+        "answer": "Now I have all the data. Here's the complete answer:  _initForReading → src/main/java/com/fasterxml/jackson/databind/ObjectReader.java — discards the return value (call is a statement; method always throws) deserializeWithView → src/main/java/com/fasterxml/jackson/databind/deser/BeanDeserializer.jav…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 7951,
+        "tokensPct": 54.19535137345785,
+        "wallTimeMs": 176212,
+        "wallTimePct": 99.37345973167609
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "jackson-databind-7.2-reportInputMismatch",
+      "family": "localization",
+      "iteration": 5,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 50,
+          "uniqueFilesRead": 17,
+          "wallTimeMs": 129264,
+          "tokensUsed": 12832,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 3,
+            "view": 45,
+            "task": 1
+          }
+        },
+        "tools": "view×45, grep×3, report_intent×1, task×1",
+        "answer": "Now I have all the information. Here's the complete answer:  _parseQNameObject → src/main/java/com/fasterxml/jackson/databind/ext/CoreXMLDeserializers.java — return value is ignored (void context) _parseQNameObject → src/main/java/com/fasterxml/jackson/databind/ext/CoreXMLDeserializers.java — return…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 35,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 354309,
+          "tokensUsed": 17559,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "bash": 33
+          }
+        },
+        "tools": "bash×33, report_intent×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=reportInputMismatch, kind=symbol, compact=false)",
+        "answer": "Now I have verified all the data. Let me produce the final clean output, excluding test files (which are not \"other source files\" in the main codebase sense):  _initForReading → src/main/java/com/fasterxml/jackson/databind/ObjectReader.java — discards the result (method always throws before returnin…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 4727,
+        "tokensPct": 36.83759351620948,
+        "wallTimeMs": 225045,
+        "wallTimePct": 174.0971964352024
+      },
+      "warnings": [
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "jackson-databind-7.3-createCollectionDeserializer",
+      "family": "localization",
+      "iteration": 1,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 16,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 43812,
+          "tokensUsed": 2269,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 11,
+            "view": 4
+          }
+        },
+        "tools": "grep×11, view×4, report_intent×1",
+        "answer": "Here are the concrete functions/methods called when `createCollectionDeserializer` is invoked:  ``` findTypeDeserializer → src/main/java/com/fasterxml/jackson/databind/deser/BasicDeserializerFactory.java _findCustomCollectionDeserializer → src/main/java/com/fasterxml/jackson/databind/deser/BasicDese…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 5,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 52327,
+          "tokensUsed": 3263,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 3,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_snippet",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 1,
+            "lore_snippet": 1,
+            "lore_graph": 1,
+            "bash": 1
+          }
+        },
+        "tools": "report_intent×1, lore_lookup×1, lore_snippet×1, lore_graph×1, bash×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=createCollectionDeserializer), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-VyIxsD/jackson-databind/src/main/java/com/fasterxml/jackson/databind/deser/BasicDeserializerFactory.java, start_line=767, end_line=842), lore_graph(kind=call, source_id=32108, compact=true)",
+        "answer": "Based on the source code of `createCollectionDeserializer` in `BasicDeserializerFactory.java` (lines 767–842) and the indexed call graph:  `type.getContentType` → `src/main/java/com/fasterxml/jackson/databind/type/CollectionLikeType.java` `contentType.getValueHandler` → `src/main/java/com/fasterxml/…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 994,
+        "tokensPct": 43.80784486557955,
+        "wallTimeMs": 8515,
+        "wallTimePct": 19.435314525700722
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "jackson-databind-7.3-createCollectionDeserializer",
+      "family": "localization",
+      "iteration": 2,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 13,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 40585,
+          "tokensUsed": 1806,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 9,
+            "view": 3
+          }
+        },
+        "tools": "grep×9, view×3, report_intent×1",
+        "answer": "Now I have all the information needed. Here are the concrete functions/methods called by `createCollectionDeserializer`:  findTypeDeserializer → src/main/java/com/fasterxml/jackson/databind/deser/BasicDeserializerFactory.java _findCustomCollectionDeserializer → src/main/java/com/fasterxml/jackson/da…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 5,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 54315,
+          "tokensUsed": 3465,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 3,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_snippet",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 1,
+            "lore_snippet": 1,
+            "lore_graph": 1,
+            "bash": 1
+          }
+        },
+        "tools": "report_intent×1, lore_lookup×1, lore_snippet×1, lore_graph×1, bash×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=createCollectionDeserializer), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-VyIxsD/jackson-databind/src/main/java/com/fasterxml/jackson/databind/deser/BasicDeserializerFactory.java, start_line=767, end_line=842), lore_graph(kind=call, source_id=32108, compact=true)",
+        "answer": "Here are the direct calls from `BasicDeserializerFactory.createCollectionDeserializer`:  type.getContentType → src/main/java/com/fasterxml/jackson/databind/type/CollectionLikeType.java contentType.getValueHandler → src/main/java/com/fasterxml/jackson/databind/JavaType.java ctxt.getConfig → src/main/…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 1659,
+        "tokensPct": 91.86046511627907,
+        "wallTimeMs": 13730,
+        "wallTimePct": 33.830232844647036
+      },
+      "warnings": [
+        "lore 50%+ more tokens"
+      ]
+    },
+    {
+      "taskId": "jackson-databind-7.3-createCollectionDeserializer",
+      "family": "localization",
+      "iteration": 3,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 34,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 106509,
+          "tokensUsed": 8533,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 7,
+            "view": 10,
+            "bash": 15,
+            "task": 1
+          }
+        },
+        "tools": "bash×15, view×10, grep×7, report_intent×1, task×1",
+        "answer": "`createCollectionDeserializer` → `src/main/java/com/fasterxml/jackson/databind/deser/BasicDeserializerFactory.java` `findTypeDeserializer` → `src/main/java/com/fasterxml/jackson/databind/deser/BasicDeserializerFactory.java` `_findCustomCollectionDeserializer` → `src/main/java/com/fasterxml/jackson/d…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 8,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 105401,
+          "tokensUsed": 6702,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 4,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_snippet",
+            "lore_trace",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 1,
+            "lore_snippet": 1,
+            "lore_trace": 1,
+            "lore_graph": 1,
+            "bash": 3
+          }
+        },
+        "tools": "bash×3, report_intent×1, lore_lookup×1, lore_snippet×1, lore_trace×1, lore_graph×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=createCollectionDeserializer), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-VyIxsD/jackson-databind/src/main/java/com/fasterxml/jackson/databind/deser/BasicDeserializerFactory.java, start_line=767, end_line=842), lore_trace(from=32108, depth=2), lore_graph(kind=call, source_id=32108, compact=true)",
+        "answer": "`createCollectionDeserializer` is abstract in `DeserializerFactory`, with its concrete implementation in `BasicDeserializerFactory`. That implementation directly calls:  getContentType → src/main/java/com/fasterxml/jackson/databind/type/CollectionLikeType.java getValueHandler → src/main/java/com/fas…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -1831,
+        "tokensPct": -21.457869448025313,
+        "wallTimeMs": -1108,
+        "wallTimePct": -1.0402876752199344
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "jackson-databind-7.3-createCollectionDeserializer",
+      "family": "localization",
+      "iteration": 4,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 15,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 53298,
+          "tokensUsed": 2402,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 12,
+            "view": 2
+          }
+        },
+        "tools": "grep×12, view×2, report_intent×1",
+        "answer": "Here is the list of concrete functions/methods directly called by `createCollectionDeserializer`:  ``` findTypeDeserializer → src/main/java/com/fasterxml/jackson/databind/deser/BasicDeserializerFactory.java _findCustomCollectionDeserializer → src/main/java/com/fasterxml/jackson/databind/deser/BasicD…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 14,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 68759,
+          "tokensUsed": 4186,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 10,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_snippet",
+            "lore_trace"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 8,
+            "lore_snippet": 1,
+            "lore_trace": 1,
+            "bash": 3
+          }
+        },
+        "tools": "lore_lookup×8, bash×3, report_intent×1, lore_snippet×1, lore_trace×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=createCollectionDeserializer), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-VyIxsD/jackson-databind/src/main/java/com/fasterxml/jackson/databind/deser/BasicDeserializerFactory.java, start_line=767, end_line=842), lore_trace(from=32108, depth=2, max_source_lines=50), lore_lookup(kind=symbol, query=isAbstract, path_prefix=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-VyIxsD/jackson-databind/src/main/java/com/fasterxml/jackson/databind/JavaType.java), lore_lookup(kind=symbol, query=hasRawClass, path_prefix=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-VyIxsD/jackson-databind/src/main/java/com/fasterxml/jackson/databind/JavaType.java), lore_lookup(kind=symbol, query=ArrayBlockingQueueDeserializer, symbol_kind=class), lore_lookup(kind=symbol, query=StringCollectionDeserializer, symbol_kind=class), lore_lookup(kind=symbol, query=CollectionDeserializer, symbol_kind=class), lore_lookup(kind=symbol, query=getRawClass, path_prefix=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-VyIxsD/jackson-databind/src/main/java/com/fasterxml/jackson/databind/JavaType.java), lore_lookup(kind=symbol, query=StringCollectionDeserializer)",
+        "answer": "Now I have everything. Here's the complete list of functions/methods called by `createCollectionDeserializer`:  getContentType → src/main/java/com/fasterxml/jackson/databind/type/CollectionLikeType.java getValueHandler → src/main/java/com/fasterxml/jackson/databind/JavaType.java getConfig → src/main…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 1784,
+        "tokensPct": 74.27144046627811,
+        "wallTimeMs": 15461,
+        "wallTimePct": 29.008593192990357
+      },
+      "warnings": [
+        "lore 50%+ more tokens"
+      ]
+    },
+    {
+      "taskId": "jackson-databind-7.3-createCollectionDeserializer",
+      "family": "localization",
+      "iteration": 5,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 30,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 107913,
+          "tokensUsed": 9156,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 5,
+            "view": 9,
+            "bash": 14,
+            "task": 1
+          }
+        },
+        "tools": "bash×14, view×9, grep×5, report_intent×1, task×1",
+        "answer": "createCollectionDeserializer → src/main/java/com/fasterxml/jackson/databind/deser/BasicDeserializerFactory.java findTypeDeserializer → src/main/java/com/fasterxml/jackson/databind/deser/BasicDeserializerFactory.java _findCustomCollectionDeserializer → src/main/java/com/fasterxml/jackson/databind/des…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 6,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 41333,
+          "tokensUsed": 2353,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 4,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_trace",
+            "lore_snippet",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 1,
+            "lore_trace": 1,
+            "lore_snippet": 1,
+            "lore_graph": 1,
+            "bash": 1
+          }
+        },
+        "tools": "report_intent×1, lore_lookup×1, lore_trace×1, lore_snippet×1, lore_graph×1, bash×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=createCollectionDeserializer), lore_trace(from=32108, depth=2, max_source_lines=50), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-VyIxsD/jackson-databind/src/main/java/com/fasterxml/jackson/databind/deser/BasicDeserializerFactory.java, start_line=767, end_line=842), lore_graph(kind=call, source_id=32108, compact=true)",
+        "answer": "Here are the concrete functions/methods called by `BasicDeserializerFactory.createCollectionDeserializer`:  getContentType → src/main/java/com/fasterxml/jackson/databind/type/CollectionLikeType.java getValueHandler → src/main/java/com/fasterxml/jackson/databind/JavaType.java getConfig → src/main/jav…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -6803,
+        "tokensPct": -74.30100480559196,
+        "wallTimeMs": -66580,
+        "wallTimePct": -61.69784919333166
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "jackson-databind-10.1-reportInputMismatch",
+      "family": "explanation",
+      "iteration": 1,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 56,
+          "uniqueFilesRead": 18,
+          "wallTimeMs": 246084,
+          "tokensUsed": 21970,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 2,
+            "grep": 1,
+            "view": 50,
+            "task": 1,
+            "read_agent": 1,
+            "bash": 1
+          }
+        },
+        "tools": "view×50, report_intent×2, grep×1, task×1, read_agent×1, bash×1",
+        "answer": "Now I have all the information. Let me compile the final answer.  17 _deserializeWithNativeTypeId → src/main/java/com/fasterxml/jackson/databind/jsontype/impl/TypeDeserializerBase.java deserializeWithView → src/main/java/com/fasterxml/jackson/databind/deser/BuilderBasedDeserializer.java deserializeW…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 17,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 180390,
+          "tokensUsed": 10137,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 7,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_lookup",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 2,
+            "lore_dependents": 1,
+            "bash": 6,
+            "view": 1,
+            "grep": 1,
+            "lore_lookup": 2,
+            "lore_graph": 4
+          }
+        },
+        "tools": "bash×6, lore_graph×4, report_intent×2, lore_lookup×2, lore_dependents×1, view×1, grep×1",
+        "loreToolArgs": "lore_dependents(query=reportInputMismatch, kind=symbol, compact=true), lore_lookup(kind=symbol, query=reportInputMismatch, path_prefix=src/main/java/com/fasterxml/jackson/databind/DeserializationContext.java), lore_lookup(kind=symbol, query=reportInputMismatch), lore_graph(kind=call, target_id=29420, compact=true), lore_graph(kind=call, target_id=29422, compact=true), lore_graph(kind=call, target_id=29424, compact=true), lore_graph(kind=call, target_id=29426, compact=true)",
+        "answer": "17 _checkFromStringCoercion → src/main/java/com/fasterxml/jackson/databind/deser/std/StdDeserializer.java _deserializeAndSet → src/main/java/com/fasterxml/jackson/databind/deser/impl/ExternalTypeHandler.java _deserializeEmbedded → src/main/java/com/fasterxml/jackson/databind/deser/std/FromStringDese…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -11833,
+        "tokensPct": -53.85980883022303,
+        "wallTimeMs": -65694,
+        "wallTimePct": -26.69576242258741
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "jackson-databind-10.1-reportInputMismatch",
+      "family": "explanation",
+      "iteration": 2,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 95,
+          "uniqueFilesRead": 26,
+          "wallTimeMs": 322733,
+          "tokensUsed": 30415,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 90,
+            "bash": 2,
+            "task": 1
+          }
+        },
+        "tools": "view×90, bash×2, report_intent×1, grep×1, task×1",
+        "answer": "Now I have all the information needed. Let me compile the final answer.  18 _deserializeWithNativeTypeId → src/main/java/com/fasterxml/jackson/databind/jsontype/impl/TypeDeserializerBase.java handleMissingInstantiator → src/main/java/com/fasterxml/jackson/databind/DeserializationContext.java handleU…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 19,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 162099,
+          "tokensUsed": 8721,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 7,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_lookup",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 2,
+            "lore_dependents": 1,
+            "bash": 8,
+            "view": 2,
+            "lore_lookup": 2,
+            "lore_graph": 4
+          }
+        },
+        "tools": "bash×8, lore_graph×4, report_intent×2, view×2, lore_lookup×2, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=reportInputMismatch, kind=symbol, compact=true), lore_lookup(kind=symbol, query=reportInputMismatch, path_prefix=src/main/java/com/fasterxml/jackson/databind/DeserializationContext.java), lore_lookup(kind=symbol, query=reportInputMismatch, match_mode=exact), lore_graph(kind=call, target_id=29422, compact=true), lore_graph(kind=call, target_id=29420, compact=true), lore_graph(kind=call, target_id=29424, compact=true), lore_graph(kind=call, target_id=29426, compact=true)",
+        "answer": "17 _checkFromStringCoercion → src/main/java/com/fasterxml/jackson/databind/deser/std/StdDeserializer.java _deserializeAndSet → src/main/java/com/fasterxml/jackson/databind/deser/impl/ExternalTypeHandler.java _deserializeEmbedded → src/main/java/com/fasterxml/jackson/databind/deser/std/FromStringDese…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -21694,
+        "tokensPct": -71.3266480355088,
+        "wallTimeMs": -160634,
+        "wallTimePct": -49.77303219689341
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "jackson-databind-10.1-reportInputMismatch",
+      "family": "explanation",
+      "iteration": 3,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 63,
+          "uniqueFilesRead": 18,
+          "wallTimeMs": 121339,
+          "tokensUsed": 16227,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 60,
+            "task": 1
+          }
+        },
+        "tools": "view×60, report_intent×1, grep×1, task×1",
+        "answer": "18 _deserializeWithNativeTypeId → src/main/java/com/fasterxml/jackson/databind/jsontype/impl/TypeDeserializerBase.java deserialize → src/main/java/com/fasterxml/jackson/databind/deser/std/FactoryBasedEnumDeserializer.java _handleDuplicateField → src/main/java/com/fasterxml/jackson/databind/deser/std…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 6,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 129609,
+          "tokensUsed": 10866,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "bash": 3,
+            "view": 1
+          }
+        },
+        "tools": "bash×3, report_intent×1, lore_dependents×1, view×1",
+        "loreToolArgs": "lore_dependents(query=reportInputMismatch, kind=symbol, compact=true)",
+        "answer": "68 _readValue → src/main/java/com/fasterxml/jackson/databind/DeserializationContext.java handleMissingInstantiator → src/main/java/com/fasterxml/jackson/databind/DeserializationContext.java handleUnexpectedToken → src/main/java/com/fasterxml/jackson/databind/DeserializationContext.java readTree → sr…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -5361,
+        "tokensPct": -33.03753004252172,
+        "wallTimeMs": 8270,
+        "wallTimePct": 6.815615754209281
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "jackson-databind-10.1-reportInputMismatch",
+      "family": "explanation",
+      "iteration": 4,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 37,
+          "uniqueFilesRead": 17,
+          "wallTimeMs": 104455,
+          "tokensUsed": 8502,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 35
+          }
+        },
+        "tools": "view×35, report_intent×1, grep×1",
+        "answer": "17 _deserializeWithNativeTypeId → src/main/java/com/fasterxml/jackson/databind/jsontype/impl/TypeDeserializerBase.java _initForReading → src/main/java/com/fasterxml/jackson/databind/ObjectReader.java _parseQNameObject → src/main/java/com/fasterxml/jackson/databind/ext/CoreXMLDeserializers.java getPa…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 18,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 123219,
+          "tokensUsed": 6021,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 7,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_lookup",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "bash": 9,
+            "lore_lookup": 2,
+            "lore_graph": 4,
+            "grep": 1
+          }
+        },
+        "tools": "bash×9, lore_graph×4, lore_lookup×2, report_intent×1, lore_dependents×1, grep×1",
+        "loreToolArgs": "lore_dependents(query=reportInputMismatch, kind=symbol, compact=true), lore_lookup(kind=symbol, query=reportInputMismatch, path_prefix=src/main/java/com/fasterxml/jackson/databind/DeserializationContext.java), lore_lookup(kind=symbol, query=reportInputMismatch), lore_graph(kind=call, target_id=29422, compact=true), lore_graph(kind=call, target_id=29424, compact=true), lore_graph(kind=call, target_id=29426, compact=true), lore_graph(kind=call, target_id=29420, compact=true)",
+        "answer": "All verified. Here's the answer:  17 _initForReading → src/main/java/com/fasterxml/jackson/databind/ObjectReader.java deserializeUsingPropertyBasedWithUnwrapped → src/main/java/com/fasterxml/jackson/databind/deser/BeanDeserializer.java deserializeWithView → src/main/java/com/fasterxml/jackson/databi…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -2481,
+        "tokensPct": -29.18136908962597,
+        "wallTimeMs": 18764,
+        "wallTimePct": 17.963716432913696
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "jackson-databind-10.1-reportInputMismatch",
+      "family": "explanation",
+      "iteration": 5,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 82,
+          "uniqueFilesRead": 18,
+          "wallTimeMs": 302081,
+          "tokensUsed": 26859,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 79,
+            "task": 1
+          }
+        },
+        "tools": "view×79, report_intent×1, grep×1, task×1",
+        "answer": "Now I have all the verified data. Here's the complete answer:  18 _deserializeWithNativeTypeId → src/main/java/com/fasterxml/jackson/databind/jsontype/impl/TypeDeserializerBase.java handleMissingInstantiator → src/main/java/com/fasterxml/jackson/databind/DeserializationContext.java handleUnexpectedT…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 20,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 142651,
+          "tokensUsed": 7749,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 7,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_lookup",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 2,
+            "lore_dependents": 1,
+            "bash": 10,
+            "grep": 1,
+            "lore_lookup": 2,
+            "lore_graph": 4
+          }
+        },
+        "tools": "bash×10, lore_graph×4, report_intent×2, lore_lookup×2, lore_dependents×1, grep×1",
+        "loreToolArgs": "lore_dependents(query=reportInputMismatch, kind=symbol, compact=true), lore_lookup(kind=symbol, query=reportInputMismatch, path_prefix=src/main/java/com/fasterxml/jackson/databind/DeserializationContext.java), lore_lookup(kind=symbol, query=reportInputMismatch, match_mode=exact), lore_graph(kind=call, target_id=29420, compact=true), lore_graph(kind=call, target_id=29422, compact=true), lore_graph(kind=call, target_id=29424, compact=true), lore_graph(kind=call, target_id=29426, compact=true)",
+        "answer": "Grep confirms exactly 17 files. The lore graph results match perfectly.  17 _checkFromStringCoercion → src/main/java/com/fasterxml/jackson/databind/deser/std/StdDeserializer.java _deserializeAndSet → src/main/java/com/fasterxml/jackson/databind/deser/impl/ExternalTypeHandler.java _deserializeEmbedde…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -19110,
+        "tokensPct": -71.14933541829555,
+        "wallTimeMs": -159430,
+        "wallTimePct": -52.77723524485155
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "jackson-databind-10.3-reportInputMismatch",
+      "family": "explanation",
+      "iteration": 1,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 48,
+          "uniqueFilesRead": 4,
+          "wallTimeMs": 628279,
+          "tokensUsed": 62556,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 2,
+            "grep": 2,
+            "bash": 37,
+            "task": 1,
+            "view": 4,
+            "read_agent": 2
+          }
+        },
+        "tools": "bash×37, view×4, report_intent×2, grep×2, read_agent×2, task×1",
+        "answer": "Now I have all the information needed. Here are the results:  **Unconditional throw (always fires when the enclosing method is reached):** - `deserialize` in `FailingDeserializer` - `_deserializeEmbedded` in `FromStringDeserializer` - `_reportFailedNullCoerce` in `StdDeserializer` - `_failDoubleToIn…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 21,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 132755,
+          "tokensUsed": 5158,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 2,
+            "lore_dependents": 1,
+            "bash": 17,
+            "grep": 1
+          }
+        },
+        "tools": "bash×17, report_intent×2, lore_dependents×1, grep×1",
+        "loreToolArgs": "lore_dependents(query=reportInputMismatch, kind=symbol, compact=false)",
+        "answer": "Here is the analysis grouped by calling pattern:  ---  **Return-value (uses `return ctxt.reportInputMismatch(...)` to satisfy the method's return type):** - `getParameter` in PropertyValueBuffer.java:195 - `deserializeUsingPropertyBasedWithUnwrapped` in BeanDeserializer.java:941 - `_unpack` (float) …",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -57398,
+        "tokensPct": -91.75458788925123,
+        "wallTimeMs": -495524,
+        "wallTimePct": -78.87005613748033
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "jackson-databind-10.3-reportInputMismatch",
+      "family": "explanation",
+      "iteration": 2,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.8,
+          "firstPassAccurate": false,
+          "toolCallCount": 51,
+          "uniqueFilesRead": 21,
+          "wallTimeMs": 287630,
+          "tokensUsed": 28463,
+          "answerCoverage": 0.8,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "task": 1,
+            "report_intent": 1,
+            "grep": 1,
+            "view": 40,
+            "bash": 6,
+            "read_agent": 2
+          }
+        },
+        "tools": "view×40, bash×6, read_agent×2, task×1, report_intent×1, grep×1",
+        "answer": "  Here are the callers grouped by calling pattern:  **Feature-flag gated (guarded by `DeserializationFeature` check):**   `_verifyNullForPrimitive` in StdDeserializer.java   `_assignParameter` in PropertyValueBuffer.java   `_findMissing` in PropertyValueBuffer.java (FAIL_ON_MISSING_CREATOR_PROPERTIE…",
+        "missedParts": [
+          "_checkFromStringCoercion"
+        ],
+        "missedAnswerLines": [
+          "_checkFromStringCoercion"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 26,
+          "uniqueFilesRead": 6,
+          "wallTimeMs": 176491,
+          "tokensUsed": 7522,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "bash": 11,
+            "view": 13
+          }
+        },
+        "tools": "view×13, bash×11, report_intent×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=reportInputMismatch, kind=symbol, compact=true)",
+        "answer": "Now I have all the data I need to produce the grouped answer.  Here are the callers of `reportInputMismatch` grouped by calling pattern:  **Guarded by feature-flag check (call only fires when a DeserializationFeature/MapperFeature is enabled):** - `getParameter` in `.../deser/impl/PropertyValueBuffe…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0.19999999999999996,
+        "tokens": -20941,
+        "tokensPct": -73.5727084284861,
+        "wallTimeMs": -111139,
+        "wallTimePct": -38.63957167193964
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "jackson-databind-10.3-reportInputMismatch",
+      "family": "explanation",
+      "iteration": 3,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.8,
+          "firstPassAccurate": false,
+          "toolCallCount": 79,
+          "uniqueFilesRead": 21,
+          "wallTimeMs": 206862,
+          "tokensUsed": 23984,
+          "answerCoverage": 0.8,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "task": 1,
+            "report_intent": 1,
+            "grep": 19,
+            "bash": 21,
+            "view": 36,
+            "read_agent": 1
+          }
+        },
+        "tools": "view×36, bash×21, grep×19, task×1, report_intent×1, read_agent×1",
+        "answer": "  Now I have all the context I need. Let me organize the callers by pattern.  Here are the callers of `reportInputMismatch` grouped by calling pattern:  **Return value used (return ctxt.reportInputMismatch(...)):**   `_initForReading` in ObjectReader.java (line 359, unreachable — returns to satisfy …",
+        "missedParts": [
+          "_checkFromStringCoercion"
+        ],
+        "missedAnswerLines": [
+          "_checkFromStringCoercion"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.8,
+          "firstPassAccurate": false,
+          "toolCallCount": 63,
+          "uniqueFilesRead": 19,
+          "wallTimeMs": 200142,
+          "tokensUsed": 19983,
+          "answerCoverage": 0.8,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "bash": 22,
+            "task": 1,
+            "view": 37,
+            "read_agent": 1
+          }
+        },
+        "tools": "view×37, bash×22, report_intent×1, lore_dependents×1, task×1, read_agent×1",
+        "loreToolArgs": "lore_dependents(query=reportInputMismatch, kind=symbol, compact=false)",
+        "answer": "  Now let me synthesize the detailed analysis into the requested grouped format.  Here are the callers grouped by calling pattern:  **Unconditional (always fires when reached):** - `deserialize` in `FailingDeserializer.java` - `_reportFailedNullCoerce` in `StdDeserializer.java` - `_failDoubleToIntCo…",
+        "missedParts": [
+          "_checkFromStringCoercion"
+        ],
+        "missedAnswerLines": [
+          "_checkFromStringCoercion"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -4001,
+        "tokensPct": -16.681954636424283,
+        "wallTimeMs": -6720,
+        "wallTimePct": -3.248542506598602
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "jackson-databind-10.3-reportInputMismatch",
+      "family": "explanation",
+      "iteration": 4,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.8,
+          "firstPassAccurate": false,
+          "toolCallCount": 47,
+          "uniqueFilesRead": 22,
+          "wallTimeMs": 182053,
+          "tokensUsed": 21326,
+          "answerCoverage": 0.8,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "task": 1,
+            "view": 41,
+            "read_agent": 1,
+            "bash": 1
+          }
+        },
+        "tools": "view×41, grep×2, report_intent×1, task×1, read_agent×1, bash×1",
+        "answer": "Here are the callers grouped by calling pattern:  **Return value forwarded to caller (`return ctxt.reportInputMismatch(...)`):**   `_deserializeWithNativeTypeId` in src/main/java/.../jsontype/impl/TypeDeserializerBase.java   `deserialize` (line 170) in src/main/java/.../deser/std/FactoryBasedEnumDes…",
+        "missedParts": [
+          "_checkFromStringCoercion"
+        ],
+        "missedAnswerLines": [
+          "_checkFromStringCoercion"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 24,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 237307,
+          "tokensUsed": 11558,
+          "answerCoverage": 1,
+          "fileCoverage": 0.5,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "bash": 22
+          }
+        },
+        "tools": "bash×22, report_intent×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=reportInputMismatch, kind=symbol, compact=false)",
+        "answer": "Now I have all the data I need. Let me produce the final answer.  Here are the callers of `reportInputMismatch` grouped by calling pattern:  **`return` with cast — satisfying non-void return type (method already throws):** - _unpack in deser/std/PrimitiveArrayDeserializers.java (×2, casts to `float[…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0.19999999999999996,
+        "tokens": -9768,
+        "tokensPct": -45.803244865422485,
+        "wallTimeMs": 55254,
+        "wallTimePct": 30.350502326245653
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "jackson-databind-10.3-reportInputMismatch",
+      "family": "explanation",
+      "iteration": 5,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.8,
+          "firstPassAccurate": false,
+          "toolCallCount": 89,
+          "uniqueFilesRead": 35,
+          "wallTimeMs": 256197,
+          "tokensUsed": 28471,
+          "answerCoverage": 0.8,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "task": 1,
+            "view": 72,
+            "bash": 13,
+            "read_agent": 1
+          }
+        },
+        "tools": "view×72, bash×13, report_intent×1, grep×1, task×1, read_agent×1",
+        "answer": "  Here are the callers grouped by calling pattern:  **Unconditional throw (no guard, method's sole purpose is to fail):**   `deserialize` in deser/impl/FailingDeserializer.java   `_deserializeEmbedded` in deser/std/FromStringDeserializer.java   `_reportFailedNullCoerce` in deser/std/StdDeserializer.…",
+        "missedParts": [
+          "_checkFromStringCoercion"
+        ],
+        "missedAnswerLines": [
+          "_checkFromStringCoercion"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 21,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 222653,
+          "tokensUsed": 11618,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 2,
+            "lore_dependents": 1,
+            "bash": 17,
+            "grep": 1
+          }
+        },
+        "tools": "bash×17, report_intent×2, lore_dependents×1, grep×1",
+        "loreToolArgs": "lore_dependents(query=reportInputMismatch, kind=symbol, compact=true)",
+        "answer": "Here are the callers grouped by calling pattern:  **Return-value idiom (`return ctxt.reportInputMismatch(…)` to satisfy the compiler, since the method always throws):** - `getParameter` in PropertyValueBuffer.java:195 - `deserializeUsingPropertyBasedWithUnwrapped` in BeanDeserializer.java:941 - `des…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0.19999999999999996,
+        "tokens": -16853,
+        "tokensPct": -59.193565382318845,
+        "wallTimeMs": -33544,
+        "wallTimePct": -13.093049489260217
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "jackson-databind-11.2-reportInputMismatch",
+      "family": "modification",
+      "iteration": 1,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 74,
+          "uniqueFilesRead": 20,
+          "wallTimeMs": 127498,
+          "tokensUsed": 19142,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "task": 1,
+            "view": 31,
+            "bash": 39,
+            "read_agent": 1
+          }
+        },
+        "tools": "bash×39, view×31, report_intent×1, grep×1, task×1, read_agent×1",
+        "answer": "  _deserializeWithNativeTypeId in src/main/java/com/fasterxml/jackson/databind/jsontype/impl/TypeDeserializerBase.java — return ctxt.reportInputMismatch(baseType(), _initForReading in src/main/java/com/fasterxml/jackson/databind/ObjectReader.java — ctxt.reportInputMismatch(_valueType, deserializeWit…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 12,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 104984,
+          "tokensUsed": 5618,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "bash": 8,
+            "grep": 2
+          }
+        },
+        "tools": "bash×8, grep×2, report_intent×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=reportInputMismatch, kind=symbol, compact=true)",
+        "answer": "Here are all the functions in other files that would break:  _initForReading in src/main/java/com/fasterxml/jackson/databind/ObjectReader.java — ctxt.reportInputMismatch(_valueType, deserializeUsingPropertyBasedWithUnwrapped in src/main/java/com/fasterxml/jackson/databind/deser/BeanDeserializer.java…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -13524,
+        "tokensPct": -70.65092466826873,
+        "wallTimeMs": -22514,
+        "wallTimePct": -17.658316208881708
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "jackson-databind-11.2-reportInputMismatch",
+      "family": "modification",
+      "iteration": 2,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 42,
+          "uniqueFilesRead": 20,
+          "wallTimeMs": 169634,
+          "tokensUsed": 12281,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 40
+          }
+        },
+        "tools": "view×40, report_intent×1, grep×1",
+        "answer": "_deserializeWithNativeTypeId in src/main/java/com/fasterxml/jackson/databind/jsontype/impl/TypeDeserializerBase.java — return ctxt.reportInputMismatch(baseType(), _initForReading in src/main/java/com/fasterxml/jackson/databind/ObjectReader.java — ctxt.reportInputMismatch(_valueType, deserializeWithV…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 16,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 191155,
+          "tokensUsed": 11236,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "bash": 14
+          }
+        },
+        "tools": "bash×14, report_intent×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=reportInputMismatch, kind=symbol, compact=false)",
+        "answer": "_initForReading in src/main/java/com/fasterxml/jackson/databind/ObjectReader.java — ctxt.reportInputMismatch(_valueType, deserializeUsingPropertyBasedWithUnwrapped in src/main/java/com/fasterxml/jackson/databind/deser/BeanDeserializer.java — return ctxt.reportInputMismatch(creatorProp, deserializeWi…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -1045,
+        "tokensPct": -8.509079065222702,
+        "wallTimeMs": 21521,
+        "wallTimePct": 12.686725538512327
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "jackson-databind-11.2-reportInputMismatch",
+      "family": "modification",
+      "iteration": 3,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 31,
+          "uniqueFilesRead": 3,
+          "wallTimeMs": 105274,
+          "tokensUsed": 6857,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 21,
+            "view": 7,
+            "bash": 2
+          }
+        },
+        "tools": "grep×21, view×7, bash×2, report_intent×1",
+        "answer": "Now I have all the data. Here's the complete list:  _initForReading in src/main/java/com/fasterxml/jackson/databind/ObjectReader.java — ctxt.reportInputMismatch(_valueType, _deserializeWithNativeTypeId in src/main/java/com/fasterxml/jackson/databind/jsontype/impl/TypeDeserializerBase.java — return c…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 34,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 379076,
+          "tokensUsed": 19694,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "bash": 32
+          }
+        },
+        "tools": "bash×32, report_intent×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=reportInputMismatch, kind=symbol, compact=true)",
+        "answer": "Here is the result:  _checkFromStringCoercion in src/main/java/com/fasterxml/jackson/databind/deser/std/StdDeserializer.java — ctxt.reportInputMismatch(this, _deserializeAndSet in src/main/java/com/fasterxml/jackson/databind/deser/impl/ExternalTypeHandler.java — ctxt.reportInputMismatch(_beanType, \"…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 12837,
+        "tokensPct": 187.21015021146275,
+        "wallTimeMs": 273802,
+        "wallTimePct": 260.08511123354293
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "jackson-databind-11.2-reportInputMismatch",
+      "family": "modification",
+      "iteration": 4,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 74,
+          "uniqueFilesRead": 20,
+          "wallTimeMs": 189000,
+          "tokensUsed": 17230,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "task": 1,
+            "view": 70,
+            "read_agent": 1
+          }
+        },
+        "tools": "view×70, report_intent×1, grep×1, task×1, read_agent×1",
+        "answer": "Good. Now I have all the verified information. Here is the complete answer:  _deserializeWithNativeTypeId in src/main/java/com/fasterxml/jackson/databind/jsontype/impl/TypeDeserializerBase.java — return ctxt.reportInputMismatch(baseType(), _parseQNameObject in src/main/java/com/fasterxml/jackson/dat…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.6666666666666666,
+          "firstPassAccurate": false,
+          "toolCallCount": 8,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 101319,
+          "tokensUsed": 6421,
+          "answerCoverage": 0.8333333333333334,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "bash": 6
+          }
+        },
+        "tools": "bash×6, report_intent×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=reportInputMismatch, kind=symbol, compact=true)",
+        "answer": "getParameter in src/main/java/com/fasterxml/jackson/databind/deser/impl/PropertyValueBuffer.java — return _context.reportInputMismatch(prop, getParameters in src/main/java/com/fasterxml/jackson/databind/deser/impl/PropertyValueBuffer.java — _context.reportInputMismatch(prop, _findMissing in src/main…",
+        "missedParts": [
+          "_checkFromStringCoercion"
+        ],
+        "missedAnswerLines": [
+          "_checkFromStringCoercion → StdDeserializer.java"
+        ]
+      },
+      "delta": {
+        "correctness": -0.33333333333333337,
+        "tokens": -10809,
+        "tokensPct": -62.733604178757986,
+        "wallTimeMs": -87681,
+        "wallTimePct": -46.39206349206349
+      },
+      "warnings": [
+        "lore worse on correctness — missed: [_checkFromStringCoercion → StdDeserializer.java]"
+      ]
+    },
+    {
+      "taskId": "jackson-databind-11.2-reportInputMismatch",
+      "family": "modification",
+      "iteration": 5,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 35,
+          "uniqueFilesRead": 20,
+          "wallTimeMs": 97806,
+          "tokensUsed": 12003,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "task": 1,
+            "view": 31,
+            "read_agent": 1
+          }
+        },
+        "tools": "view×31, report_intent×1, grep×1, task×1, read_agent×1",
+        "answer": "  _deserializeWithNativeTypeId in src/main/java/com/fasterxml/jackson/databind/jsontype/impl/TypeDeserializerBase.java — return ctxt.reportInputMismatch(baseType(), _parseQNameObject in src/main/java/com/fasterxml/jackson/databind/ext/CoreXMLDeserializers.java — ctxt.reportInputMismatch(this, \"Objec…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 23,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 304607,
+          "tokensUsed": 19013,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "bash": 21
+          }
+        },
+        "tools": "bash×21, report_intent×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=reportInputMismatch, kind=symbol, compact=false)",
+        "answer": "getParameter in src/main/java/com/fasterxml/jackson/databind/deser/impl/PropertyValueBuffer.java — return _context.reportInputMismatch(prop, getParameters in src/main/java/com/fasterxml/jackson/databind/deser/impl/PropertyValueBuffer.java — _context.reportInputMismatch(prop, _findMissing in src/main…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 7010,
+        "tokensPct": 58.40206615012914,
+        "wallTimeMs": 206801,
+        "wallTimePct": 211.43999345643417
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "jackson-databind-11.3-reportInputMismatch",
+      "family": "refactoring",
+      "iteration": 1,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 42,
+          "uniqueFilesRead": 22,
+          "wallTimeMs": 143689,
+          "tokensUsed": 13530,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 34,
+            "task": 1,
+            "bash": 3,
+            "read_agent": 1
+          }
+        },
+        "tools": "view×34, bash×3, grep×2, report_intent×1, task×1, read_agent×1",
+        "answer": "  **Callers: 37 call sites across 34 distinct caller methods (4 overloads)**  **Verdict: No** — `reportInputMismatch` is a public API with 4 overloads, 37 call sites, and the `BeanProperty` overload (line 1823) contains non-trivial logic (null-checks, path prepending). Inlining would massively dupli…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 6,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 49638,
+          "tokensUsed": 2596,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 3,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_dependents",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 1,
+            "lore_dependents": 1,
+            "lore_snippet": 1,
+            "bash": 2
+          }
+        },
+        "tools": "bash×2, report_intent×1, lore_lookup×1, lore_dependents×1, lore_snippet×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=reportInputMismatch), lore_dependents(query=reportInputMismatch, kind=symbol, compact=true), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-VyIxsD/jackson-databind/src/main/java/com/fasterxml/jackson/databind/DeserializationContext.java, start_line=1783, end_line=1836)",
+        "answer": "**Callers:** 332  **Verdict:** No — `reportInputMismatch` has 4 overloads (by `JsonDeserializer`, `Class`, `JavaType`, `BeanProperty`), each throws a `MismatchedInputException`. The `BeanProperty` overload contains ~10 lines of non-trivial logic (null-safe path prepending via `prop.getMember()`). Wi…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -10934,
+        "tokensPct": -80.8130081300813,
+        "wallTimeMs": -94051,
+        "wallTimePct": -65.45455810813633
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "jackson-databind-11.3-reportInputMismatch",
+      "family": "refactoring",
+      "iteration": 2,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.8,
+          "firstPassAccurate": false,
+          "toolCallCount": 9,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 55130,
+          "tokensUsed": 2688,
+          "answerCoverage": 0.8,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 4,
+            "bash": 2
+          }
+        },
+        "tools": "view×4, grep×2, bash×2, report_intent×1",
+        "answer": "Here's the analysis:  **Callers: 37** (34 external call sites across the codebase + 3 internal delegations within `DeserializationContext` itself)  **Verdict: No** — `reportInputMismatch` is a **public API** with **4 overloads**, each only 2–5 lines long, but inlining is still unsafe because: 1. **3…",
+        "missedParts": [
+          "_checkFromStringCoercion"
+        ],
+        "missedAnswerLines": [
+          "_checkFromStringCoercion"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 8,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 55778,
+          "tokensUsed": 2349,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 3,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_dependents",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 1,
+            "lore_dependents": 1,
+            "lore_snippet": 1,
+            "bash": 3,
+            "grep": 1
+          }
+        },
+        "tools": "bash×3, report_intent×1, lore_lookup×1, lore_dependents×1, lore_snippet×1, grep×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=reportInputMismatch), lore_dependents(query=reportInputMismatch, kind=symbol, compact=true), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-VyIxsD/jackson-databind/src/main/java/com/fasterxml/jackson/databind/DeserializationContext.java, start_line=1783, end_line=1836)",
+        "answer": "Here's the complete analysis:  **Callers: 34** call sites across 17 files (4 overloads of `reportInputMismatch`)  **Verdict: No** — The method body is small (2–3 lines per overload), but inlining is still impractical because: 1. **34 call sites** across 17 files would require duplicating `_format()`…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0.19999999999999996,
+        "tokens": -339,
+        "tokensPct": -12.611607142857142,
+        "wallTimeMs": 648,
+        "wallTimePct": 1.1754035915109742
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "jackson-databind-11.3-reportInputMismatch",
+      "family": "refactoring",
+      "iteration": 3,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.8,
+          "firstPassAccurate": false,
+          "toolCallCount": 7,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 59005,
+          "tokensUsed": 2893,
+          "answerCoverage": 0.8,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 4
+          }
+        },
+        "tools": "view×4, grep×2, report_intent×1",
+        "answer": "Now I have all the information needed. Let me count the distinct external call sites (excluding the 3 self-calls within `DeserializationContext` that delegate to overloads).  **Callers: 4 overloads, 37 call sites (34 external + 3 internal delegations)**  Here's the full analysis:  ---  **`reportInpu…",
+        "missedParts": [
+          "_checkFromStringCoercion"
+        ],
+        "missedAnswerLines": [
+          "_checkFromStringCoercion"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 6,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 47031,
+          "tokensUsed": 1903,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 3,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_dependents",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 1,
+            "lore_dependents": 1,
+            "lore_snippet": 1,
+            "bash": 2
+          }
+        },
+        "tools": "bash×2, report_intent×1, lore_lookup×1, lore_dependents×1, lore_snippet×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=reportInputMismatch, mode=exact), lore_dependents(query=reportInputMismatch, kind=symbol, compact=false), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-VyIxsD/jackson-databind/src/main/java/com/fasterxml/jackson/databind/DeserializationContext.java, start_line=1783, end_line=1836)",
+        "answer": "Here's the analysis:  **Callers: 285** (unique call sites across 332 total call edges, spanning 4 overloads)  **Verdict: No** — `reportInputMismatch` has 4 overloads (2–15 lines each), is called from **285 distinct methods**, and is a **public API** on `DeserializationContext`. The `BeanProperty` ov…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0.19999999999999996,
+        "tokens": -990,
+        "tokensPct": -34.22053231939163,
+        "wallTimeMs": -11974,
+        "wallTimePct": -20.293195491907465
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "jackson-databind-11.3-reportInputMismatch",
+      "family": "refactoring",
+      "iteration": 4,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 81,
+          "uniqueFilesRead": 18,
+          "wallTimeMs": 129301,
+          "tokensUsed": 18648,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 19,
+            "view": 59,
+            "bash": 1,
+            "task": 1
+          }
+        },
+        "tools": "view×59, grep×19, report_intent×1, bash×1, task×1",
+        "answer": "**Callers:** 34 call sites (across 4 overloads of `reportInputMismatch`)  **Verdict:** No — each overload is only 2–6 lines, but the method is **public API** on `DeserializationContext` (used by downstream libraries), has **4 overloads** totaling 34 external call sites across 18 files, and the `Bean…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.6,
+          "firstPassAccurate": true,
+          "toolCallCount": 10,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 72912,
+          "tokensUsed": 3378,
+          "answerCoverage": 0.6,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 3,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_dependents",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 1,
+            "lore_dependents": 1,
+            "lore_snippet": 1,
+            "bash": 6
+          }
+        },
+        "tools": "bash×6, report_intent×1, lore_lookup×1, lore_dependents×1, lore_snippet×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=reportInputMismatch), lore_dependents(query=reportInputMismatch, kind=symbol, compact=true), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-VyIxsD/jackson-databind/src/main/java/com/fasterxml/jackson/databind/DeserializationContext.java, start_line=1783, end_line=1836)",
+        "answer": "Here's the analysis:  **Callers: 332**  **Verdict: No** — `reportInputMismatch` has 4 overloads (2–15 lines each) that format a message and throw `MismatchedInputException`. Although each overload is small and pure aside from throwing, **332 callers** makes inlining completely impractical. It would …",
+        "missedParts": [
+          "StdDeserializer",
+          "_checkFromStringCoercion"
+        ],
+        "missedAnswerLines": [
+          "StdDeserializer",
+          "_checkFromStringCoercion"
+        ]
+      },
+      "delta": {
+        "correctness": -0.4,
+        "tokens": -15270,
+        "tokensPct": -81.88545688545689,
+        "wallTimeMs": -56389,
+        "wallTimePct": -43.610644929273555
+      },
+      "warnings": [
+        "lore worse on correctness — missed: [StdDeserializer, _checkFromStringCoercion]"
+      ]
+    },
+    {
+      "taskId": "jackson-databind-11.3-reportInputMismatch",
+      "family": "refactoring",
+      "iteration": 5,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.8,
+          "firstPassAccurate": false,
+          "toolCallCount": 6,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 53092,
+          "tokensUsed": 2547,
+          "answerCoverage": 0.8,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 4
+          }
+        },
+        "tools": "view×4, report_intent×1, grep×1",
+        "answer": "Now I have the full picture. Here's the analysis:  **Callers: 34** (30 external call sites across 18 source files + 3 test files, plus 3 internal delegations within `DeserializationContext` itself)  **Verdict: No** — `reportInputMismatch` is a **public API** with **4 overloads** (accepting `JsonDese…",
+        "missedParts": [
+          "_checkFromStringCoercion"
+        ],
+        "missedAnswerLines": [
+          "_checkFromStringCoercion"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 6,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 43354,
+          "tokensUsed": 1758,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 3,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_dependents",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 1,
+            "lore_dependents": 1,
+            "lore_snippet": 1,
+            "bash": 2
+          }
+        },
+        "tools": "bash×2, report_intent×1, lore_lookup×1, lore_dependents×1, lore_snippet×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=reportInputMismatch), lore_dependents(query=reportInputMismatch, kind=symbol, compact=false), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-VyIxsD/jackson-databind/src/main/java/com/fasterxml/jackson/databind/DeserializationContext.java, start_line=1783, end_line=1836)",
+        "answer": "Here's the analysis:  **Callers: 332**  **Verdict: No** — `reportInputMismatch` is a public API with 4 overloads (accepting `JsonDeserializer`, `Class<?>`, `JavaType`, or `BeanProperty`), each only 2–5 lines, but with **332 call sites** across the codebase. Inlining would: - Massively duplicate `_fo…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0.19999999999999996,
+        "tokens": -789,
+        "tokensPct": -30.977620730270907,
+        "wallTimeMs": -9738,
+        "wallTimePct": -18.34174640247118
+      },
+      "warnings": []
+    }
+  ],
+  "aggregate": {
+    "control": {
+      "arm": "control",
+      "totalRuns": 65,
+      "successRate": 0.9230769230769231,
+      "partialRate": 0.03076923076923077,
+      "failRate": 0.046153846153846156,
+      "meanCorrectness": 0.8723426573426571,
+      "meanToolCalls": 67.8,
+      "meanUniqueFiles": 13.046153846153846,
+      "meanWallTimeMs": 183408.70769230768,
+      "meanTokens": 21456.53846153846,
+      "meanAnswerCoverage": 0.9023076923076919,
+      "meanFileCoverage": 1,
+      "meanSymbolCoverage": 1,
+      "firstPassAccuracyRate": 0,
+      "meanLoreToolCalls": 0,
+      "loreToolUsageRate": 0,
+      "allLoreToolsUsed": [],
+      "toolCallCounts": {
+        "report_intent": 78,
+        "grep": 666,
+        "view": 2545,
+        "task": 81,
+        "bash": 969,
+        "read_agent": 66,
+        "glob": 2
+      },
+      "stdCorrectness": 0.24737908628531144,
+      "stdToolCalls": 104.79462056804246,
+      "stdWallTimeMs": 174711.09289711356,
+      "stdTokens": 32885.05361011144,
+      "stdAnswerCoverage": 0.18800572822697134,
+      "stdFileCoverage": 0,
+      "stdSymbolCoverage": 0
+    },
+    "lore": {
+      "arm": "lore-enabled",
+      "totalRuns": 65,
+      "successRate": 1,
+      "partialRate": 0,
+      "failRate": 0,
+      "meanCorrectness": 0.9471794871794871,
+      "meanToolCalls": 27.907692307692308,
+      "meanUniqueFiles": 2.8461538461538463,
+      "meanWallTimeMs": 167802.35384615386,
+      "meanTokens": 11311.63076923077,
+      "meanAnswerCoverage": 0.968974358974359,
+      "meanFileCoverage": 0.9615384615384616,
+      "meanSymbolCoverage": 1,
+      "firstPassAccuracyRate": 0.5384615384615384,
+      "meanLoreToolCalls": 3.2615384615384615,
+      "loreToolUsageRate": 1,
+      "allLoreToolsUsed": [
+        "lore_dependents",
+        "lore_lookup",
+        "lore_graph",
+        "lore_snippet",
+        "lore_trace",
+        "lore_search"
+      ],
+      "toolCallCounts": {
+        "report_intent": 86,
+        "lore_dependents": 55,
+        "bash": 851,
+        "lore_lookup": 50,
+        "lore_graph": 69,
+        "view": 515,
+        "lore_snippet": 20,
+        "grep": 85,
+        "task": 35,
+        "read_agent": 30,
+        "lore_trace": 13,
+        "lore_search": 5
+      },
+      "stdCorrectness": 0.14682901853435076,
+      "stdToolCalls": 40.48522997531131,
+      "stdWallTimeMs": 140285.19806378262,
+      "stdTokens": 12756.287285062159,
+      "stdAnswerCoverage": 0.08639565615069668,
+      "stdFileCoverage": 0.15243746090505295,
+      "stdSymbolCoverage": 0
+    },
+    "comparison": {
+      "successRateDelta": 0.07692307692307687,
+      "correctnessDelta": 0.07483682983682993,
+      "firstPassAccuracyDelta": 0.5384615384615384,
+      "answerCoverageDelta": 0.0666666666666671,
+      "toolCallsDelta": -39.89230769230769,
+      "tokensDelta": -10144.907692307692,
+      "tokensPct": -47.28119454353165,
+      "wallTimeDelta": -15606.353846153826,
+      "wallTimePct": -8.509058289825337
+    },
+    "significance": {
+      "t": 2.097367262564259,
+      "df": 104.11439209331348,
+      "p": 0.03838259870833422,
+      "significant": true
+    }
+  }
+}

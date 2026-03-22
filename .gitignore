@@ -7,5 +7,5 @@ dist/
 coverage/
 .scip-indexes/
 .benchmark/
-benchmark-results/
-autoresearch/
+/.benchmark-results/
+.autoresearch/

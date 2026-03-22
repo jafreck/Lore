@@ -1,0 +1,4900 @@
+{
+  "metadata": {
+    "model": "claude-opus-4.6",
+    "repo": "postgres",
+    "indexMode": "scip",
+    "embeddingModel": "none",
+    "lsp": false,
+    "tasks": 13,
+    "iterations": 5,
+    "completedRuns": 65,
+    "totalExpectedRuns": 65,
+    "timestamp": "2026-03-22T04:06:32.240Z"
+  },
+  "tasks": [
+    {
+      "taskId": "postgres-1.1-parse_analyze_fixedparams",
+      "family": "localization",
+      "iteration": 1,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 4,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 23670,
+          "tokensUsed": 410,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "bash": 2
+          }
+        },
+        "tools": "bash×2, report_intent×1, grep×1",
+        "answer": "DefineView pg_analyze_and_rewrite_fixedparams",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 9,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 75105,
+          "tokensUsed": 1979,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 2,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "bash": 5,
+            "lore_graph": 1,
+            "grep": 1
+          }
+        },
+        "tools": "bash×5, report_intent×1, lore_dependents×1, lore_graph×1, grep×1",
+        "loreToolArgs": "lore_dependents(query=parse_analyze_fixedparams, kind=symbol, compact=true), lore_graph(kind=call, target_id=19073, compact=true)",
+        "answer": "Line 375 is in `DefineView` and line 682 is in `pg_analyze_and_rewrite_fixedparams`. Those are the two direct callers.  DefineView pg_analyze_and_rewrite_fixedparams",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 1569,
+        "tokensPct": 382.6829268292683,
+        "wallTimeMs": 51435,
+        "wallTimePct": 217.3003802281369
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "postgres-1.1-parse_analyze_fixedparams",
+      "family": "localization",
+      "iteration": 2,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 6,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 26703,
+          "tokensUsed": 708,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 4
+          }
+        },
+        "tools": "view×4, report_intent×1, grep×1",
+        "answer": "DefineView pg_analyze_and_rewrite_fixedparams",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 9,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 54124,
+          "tokensUsed": 1485,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "bash": 4,
+            "grep": 1,
+            "view": 2
+          }
+        },
+        "tools": "bash×4, view×2, report_intent×1, lore_dependents×1, grep×1",
+        "loreToolArgs": "lore_dependents(query=parse_analyze_fixedparams, kind=symbol, compact=true)",
+        "answer": "DefineView pg_analyze_and_rewrite_fixedparams",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 777,
+        "tokensPct": 109.7457627118644,
+        "wallTimeMs": 27421,
+        "wallTimePct": 102.6888364603228
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "postgres-1.1-parse_analyze_fixedparams",
+      "family": "localization",
+      "iteration": 3,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 5,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 32526,
+          "tokensUsed": 569,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 2
+          }
+        },
+        "tools": "grep×2, view×2, report_intent×1",
+        "answer": "DefineView pg_analyze_and_rewrite_fixedparams",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 9,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 55570,
+          "tokensUsed": 1827,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "bash": 4,
+            "grep": 1,
+            "view": 2
+          }
+        },
+        "tools": "bash×4, view×2, report_intent×1, lore_dependents×1, grep×1",
+        "loreToolArgs": "lore_dependents(query=parse_analyze_fixedparams, kind=symbol, compact=true)",
+        "answer": "DefineView pg_analyze_and_rewrite_fixedparams",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 1258,
+        "tokensPct": 221.0896309314587,
+        "wallTimeMs": 23044,
+        "wallTimePct": 70.8479370349874
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "postgres-1.1-parse_analyze_fixedparams",
+      "family": "localization",
+      "iteration": 4,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 6,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 29330,
+          "tokensUsed": 820,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 3,
+            "view": 2
+          }
+        },
+        "tools": "grep×3, view×2, report_intent×1",
+        "answer": "DefineView pg_analyze_and_rewrite_fixedparams",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 8,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 45989,
+          "tokensUsed": 1280,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "bash": 3,
+            "grep": 1,
+            "view": 2
+          }
+        },
+        "tools": "bash×3, view×2, report_intent×1, lore_dependents×1, grep×1",
+        "loreToolArgs": "lore_dependents(query=parse_analyze_fixedparams, kind=symbol, compact=true)",
+        "answer": "DefineView pg_analyze_and_rewrite_fixedparams",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 460,
+        "tokensPct": 56.09756097560976,
+        "wallTimeMs": 16659,
+        "wallTimePct": 56.79849982952609
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "postgres-1.1-parse_analyze_fixedparams",
+      "family": "localization",
+      "iteration": 5,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 6,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 29040,
+          "tokensUsed": 713,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 4
+          }
+        },
+        "tools": "view×4, report_intent×1, grep×1",
+        "answer": "DefineView pg_analyze_and_rewrite_fixedparams",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 7,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 45828,
+          "tokensUsed": 1154,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "bash": 4,
+            "grep": 1
+          }
+        },
+        "tools": "bash×4, report_intent×1, lore_dependents×1, grep×1",
+        "loreToolArgs": "lore_dependents(query=parse_analyze_fixedparams, kind=symbol, compact=true)",
+        "answer": "DefineView pg_analyze_and_rewrite_fixedparams",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 441,
+        "tokensPct": 61.85133239831697,
+        "wallTimeMs": 16788,
+        "wallTimePct": 57.8099173553719
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "postgres-1.2-pg_analyze_and_rewrite_fixedparams",
+      "family": "localization",
+      "iteration": 1,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 4,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 27212,
+          "tokensUsed": 467,
+          "answerCoverage": 1,
+          "fileCoverage": 0.5,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 1
+          }
+        },
+        "tools": "grep×2, report_intent×1, view×1",
+        "answer": "ResetUsage parse_analyze_fixedparams ShowUsage pg_rewrite_query",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 4,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 65932,
+          "tokensUsed": 522,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 2,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 1,
+            "lore_graph": 1,
+            "bash": 1
+          }
+        },
+        "tools": "report_intent×1, lore_lookup×1, lore_graph×1, bash×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=pg_analyze_and_rewrite_fixedparams), lore_graph(kind=call, source_id=24646, compact=true)",
+        "answer": "parse_analyze_fixedparams ShowUsage ResetUsage pg_rewrite_query",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 55,
+        "tokensPct": 11.777301927194861,
+        "wallTimeMs": 38720,
+        "wallTimePct": 142.29016610318976
+      },
+      "warnings": [
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "postgres-1.2-pg_analyze_and_rewrite_fixedparams",
+      "family": "localization",
+      "iteration": 2,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 4,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 26692,
+          "tokensUsed": 463,
+          "answerCoverage": 1,
+          "fileCoverage": 0.5,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 1
+          }
+        },
+        "tools": "grep×2, report_intent×1, view×1",
+        "answer": "ResetUsage parse_analyze_fixedparams ShowUsage pg_rewrite_query",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 4,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 66128,
+          "tokensUsed": 548,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 2,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 1,
+            "lore_graph": 1,
+            "bash": 1
+          }
+        },
+        "tools": "report_intent×1, lore_lookup×1, lore_graph×1, bash×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=pg_analyze_and_rewrite_fixedparams), lore_graph(kind=call, source_id=24646, compact=true)",
+        "answer": "ResetUsage ShowUsage parse_analyze_fixedparams pg_rewrite_query",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 85,
+        "tokensPct": 18.3585313174946,
+        "wallTimeMs": 39436,
+        "wallTimePct": 147.74464258953995
+      },
+      "warnings": [
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "postgres-1.2-pg_analyze_and_rewrite_fixedparams",
+      "family": "localization",
+      "iteration": 3,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 4,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 26205,
+          "tokensUsed": 467,
+          "answerCoverage": 1,
+          "fileCoverage": 0.5,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 1
+          }
+        },
+        "tools": "grep×2, report_intent×1, view×1",
+        "answer": "ResetUsage parse_analyze_fixedparams ShowUsage pg_rewrite_query",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 4,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 62018,
+          "tokensUsed": 509,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 2,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 1,
+            "lore_graph": 1,
+            "bash": 1
+          }
+        },
+        "tools": "report_intent×1, lore_lookup×1, lore_graph×1, bash×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=pg_analyze_and_rewrite_fixedparams), lore_graph(kind=call, source_id=24646, compact=true)",
+        "answer": "ResetUsage ShowUsage parse_analyze_fixedparams pg_rewrite_query",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 42,
+        "tokensPct": 8.993576017130621,
+        "wallTimeMs": 35813,
+        "wallTimePct": 136.6647586338485
+      },
+      "warnings": [
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "postgres-1.2-pg_analyze_and_rewrite_fixedparams",
+      "family": "localization",
+      "iteration": 4,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 4,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 25678,
+          "tokensUsed": 467,
+          "answerCoverage": 1,
+          "fileCoverage": 0.5,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 1
+          }
+        },
+        "tools": "grep×2, report_intent×1, view×1",
+        "answer": "ResetUsage parse_analyze_fixedparams ShowUsage pg_rewrite_query",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 4,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 64248,
+          "tokensUsed": 531,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 2,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 1,
+            "lore_graph": 1,
+            "bash": 1
+          }
+        },
+        "tools": "report_intent×1, lore_lookup×1, lore_graph×1, bash×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=pg_analyze_and_rewrite_fixedparams), lore_graph(kind=call, source_id=24646, compact=true)",
+        "answer": "ResetUsage ShowUsage parse_analyze_fixedparams pg_rewrite_query",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 64,
+        "tokensPct": 13.704496788008566,
+        "wallTimeMs": 38570,
+        "wallTimePct": 150.20640236778567
+      },
+      "warnings": [
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "postgres-1.2-pg_analyze_and_rewrite_fixedparams",
+      "family": "localization",
+      "iteration": 5,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 3,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 23327,
+          "tokensUsed": 367,
+          "answerCoverage": 1,
+          "fileCoverage": 0.5,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2
+          }
+        },
+        "tools": "grep×2, report_intent×1",
+        "answer": "From the function body (lines 670–696), the direct callees are:  ResetUsage parse_analyze_fixedparams ShowUsage pg_rewrite_query",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 4,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 54549,
+          "tokensUsed": 503,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 2,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 1,
+            "lore_graph": 1,
+            "bash": 1
+          }
+        },
+        "tools": "report_intent×1, lore_lookup×1, lore_graph×1, bash×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=pg_analyze_and_rewrite_fixedparams), lore_graph(kind=call, source_id=24646, compact=true)",
+        "answer": "parse_analyze_fixedparams pg_rewrite_query ResetUsage ShowUsage",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 136,
+        "tokensPct": 37.05722070844686,
+        "wallTimeMs": 31222,
+        "wallTimePct": 133.84490075877738
+      },
+      "warnings": [
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "postgres-1.4-pg_analyze_and_rewrite_fixedparams",
+      "family": "modification",
+      "iteration": 1,
+      "control": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0,
+          "firstPassAccurate": false,
+          "toolCallCount": 229,
+          "uniqueFilesRead": 14,
+          "wallTimeMs": 360007,
+          "tokensUsed": 44388,
+          "answerCoverage": 0,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 2,
+            "grep": 62,
+            "view": 37,
+            "bash": 126,
+            "task": 2
+          }
+        },
+        "tools": "bash×126, grep×62, view×37, report_intent×2, task×2",
+        "answer": "Now let me identify what function contains each of these callers:",
+        "missedParts": [
+          "src/backend/tcop/postgres.c",
+          "src/backend/commands/extension.c",
+          "src/backend/commands/copyto.c",
+          "src/backend/executor/spi.c",
+          "src/backend/utils/cache/plancache.c"
+        ],
+        "missedAnswerLines": [
+          "src/backend/tcop/postgres.c",
+          "src/backend/commands/extension.c",
+          "src/backend/commands/copyto.c",
+          "src/backend/executor/spi.c",
+          "src/backend/utils/cache/plancache.c"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 4,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 78779,
+          "tokensUsed": 5779,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "bash": 2
+          }
+        },
+        "tools": "bash×2, report_intent×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=pg_analyze_and_rewrite_fixedparams, kind=symbol, compact=true)",
+        "answer": "src/backend/tcop/postgres.c: exec_simple_query src/backend/tcop/postgres.c: exec_bind_message src/backend/tcop/postgres.c: exec_describe_statement_message src/backend/tcop/postgres.c: PostgresMain src/backend/tcop/postgres.c: PostgresSingleUserMain src/backend/tcop/pquery.c: FetchPortalTargetList sr…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 1,
+        "tokens": -38609,
+        "tokensPct": -86.98071550869605,
+        "wallTimeMs": -281228,
+        "wallTimePct": -78.11736994002895
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "postgres-1.4-pg_analyze_and_rewrite_fixedparams",
+      "family": "modification",
+      "iteration": 2,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 191,
+          "uniqueFilesRead": 23,
+          "wallTimeMs": 289628,
+          "tokensUsed": 37892,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 2,
+            "grep": 20,
+            "task": 7,
+            "view": 125,
+            "bash": 30,
+            "read_agent": 7
+          }
+        },
+        "tools": "view×125, bash×30, grep×20, task×7, read_agent×7, report_intent×2",
+        "answer": "Now I have all the data. Let me compile the complete deduplicated list.  src/backend/commands/copyto.c: BeginCopyTo src/backend/tcop/postgres.c: exec_simple_query src/backend/utils/cache/plancache.c: RevalidateCachedQuery src/backend/commands/extension.c: execute_sql_string src/backend/executor/spi.…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 8,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 95857,
+          "tokensUsed": 6900,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "bash": 6
+          }
+        },
+        "tools": "bash×6, report_intent×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=pg_analyze_and_rewrite_fixedparams, kind=symbol, compact=true)",
+        "answer": "src/backend/commands/copy.c DoCopy src/backend/commands/copyto.c BeginCopyTo src/backend/commands/createas.c ExecCreateTableAs src/backend/commands/explain.c ExplainOneQuery src/backend/commands/explain.c ExplainOneUtility src/backend/commands/extension.c ApplyExtensionUpdates src/backend/commands/e…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -30992,
+        "tokensPct": -81.79035152538795,
+        "wallTimeMs": -193771,
+        "wallTimePct": -66.90340712914498
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "postgres-1.4-pg_analyze_and_rewrite_fixedparams",
+      "family": "modification",
+      "iteration": 3,
+      "control": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0,
+          "firstPassAccurate": false,
+          "toolCallCount": 59,
+          "uniqueFilesRead": 6,
+          "wallTimeMs": 360005,
+          "tokensUsed": 22624,
+          "answerCoverage": 0,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "task": 1,
+            "view": 9,
+            "bash": 43,
+            "stop_bash": 2,
+            "read_agent": 1,
+            "read_bash": 1
+          }
+        },
+        "tools": "bash×43, view×9, stop_bash×2, report_intent×1, grep×1, task×1, read_agent×1, read_bash×1",
+        "answer": "Great! I have the data but the function name extraction has an issue (missing first character). Let me fix this and get the complete, correct list:",
+        "missedParts": [
+          "src/backend/tcop/postgres.c",
+          "src/backend/commands/extension.c",
+          "src/backend/commands/copyto.c",
+          "src/backend/executor/spi.c",
+          "src/backend/utils/cache/plancache.c"
+        ],
+        "missedAnswerLines": [
+          "src/backend/tcop/postgres.c",
+          "src/backend/commands/extension.c",
+          "src/backend/commands/copyto.c",
+          "src/backend/executor/spi.c",
+          "src/backend/utils/cache/plancache.c"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 4,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 74409,
+          "tokensUsed": 5421,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "bash": 2
+          }
+        },
+        "tools": "bash×2, report_intent×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=pg_analyze_and_rewrite_fixedparams, kind=symbol, compact=true)",
+        "answer": "src/backend/tcop/postgres.c exec_simple_query src/backend/tcop/postgres.c exec_bind_message src/backend/tcop/postgres.c exec_describe_statement_message src/backend/tcop/postgres.c PostgresMain src/backend/tcop/postgres.c PostgresSingleUserMain src/backend/tcop/backend_startup.c BackendMain src/backe…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 1,
+        "tokens": -17203,
+        "tokensPct": -76.03871994342292,
+        "wallTimeMs": -285596,
+        "wallTimePct": -79.33112040110554
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "postgres-1.4-pg_analyze_and_rewrite_fixedparams",
+      "family": "modification",
+      "iteration": 4,
+      "control": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0,
+          "firstPassAccurate": false,
+          "toolCallCount": 234,
+          "uniqueFilesRead": 10,
+          "wallTimeMs": 360018,
+          "tokensUsed": 39559,
+          "answerCoverage": 0,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 2,
+            "grep": 43,
+            "view": 50,
+            "bash": 138,
+            "task": 1
+          }
+        },
+        "tools": "bash×138, view×50, grep×43, report_intent×2, task×1",
+        "answer": "Perfect! Now let me verify all information with a summary table. Let me compile everything I've found:  Based on my searches, here's what I found for each question:  1. **Line 355 in copy.c - DoCopyTo call**: Within function `DoCopy` 2. **Line 62 in copy.c - DoCopy definition**: `DoCopy` is the func…",
+        "missedParts": [
+          "src/backend/tcop/postgres.c",
+          "src/backend/commands/extension.c",
+          "src/backend/commands/copyto.c",
+          "src/backend/executor/spi.c",
+          "src/backend/utils/cache/plancache.c"
+        ],
+        "missedAnswerLines": [
+          "src/backend/tcop/postgres.c",
+          "src/backend/commands/extension.c",
+          "src/backend/commands/copyto.c",
+          "src/backend/executor/spi.c",
+          "src/backend/utils/cache/plancache.c"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 5,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 96675,
+          "tokensUsed": 6167,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "bash": 3
+          }
+        },
+        "tools": "bash×3, report_intent×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=pg_analyze_and_rewrite_fixedparams, kind=symbol, compact=true)",
+        "answer": "src/backend/tcop/postgres.c\texec_simple_query src/backend/tcop/postgres.c\texec_bind_message src/backend/tcop/postgres.c\texec_describe_statement_message src/backend/tcop/postgres.c\tPostgresMain src/backend/tcop/postgres.c\tPostgresSingleUserMain src/backend/tcop/pquery.c\tFetchPortalTargetList src/back…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 1,
+        "tokens": -33392,
+        "tokensPct": -84.41062716448849,
+        "wallTimeMs": -263343,
+        "wallTimePct": -73.1471759745346
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "postgres-1.4-pg_analyze_and_rewrite_fixedparams",
+      "family": "modification",
+      "iteration": 5,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 99,
+          "uniqueFilesRead": 5,
+          "wallTimeMs": 170767,
+          "tokensUsed": 23190,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "task": 1,
+            "view": 6,
+            "bash": 89,
+            "read_agent": 1
+          }
+        },
+        "tools": "bash×89, view×6, report_intent×1, grep×1, task×1, read_agent×1",
+        "answer": "  src/backend/commands/copyto.c: BeginCopyTo src/backend/commands/extension.c: execute_sql_string src/backend/executor/spi.c: _SPI_prepare_plan src/backend/executor/spi.c: _SPI_execute_plan src/backend/utils/cache/plancache.c: RevalidateCachedQuery src/backend/tcop/postgres.c: exec_simple_query src/…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 5,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 79630,
+          "tokensUsed": 5739,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "bash": 3
+          }
+        },
+        "tools": "bash×3, report_intent×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=pg_analyze_and_rewrite_fixedparams, kind=symbol, compact=true)",
+        "answer": "contrib/dblink/dblink.c get_sql_insert contrib/dblink/dblink.c get_sql_update contrib/dblink/dblink.c get_tuple_of_interest contrib/pg_stat_statements/pg_stat_statements.c _PG_init contrib/pg_stat_statements/pg_stat_statements.c pg_finfo_pg_stat_statements_info contrib/pg_stat_statements/pg_stat_sta…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -17451,
+        "tokensPct": -75.2522639068564,
+        "wallTimeMs": -91137,
+        "wallTimePct": -53.36921067887824
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "postgres-1.3-pg_analyze_and_rewrite_fixedparams",
+      "family": "explanation",
+      "iteration": 1,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.8,
+          "firstPassAccurate": false,
+          "toolCallCount": 3,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 20868,
+          "tokensUsed": 448,
+          "answerCoverage": 0.8,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2
+          }
+        },
+        "tools": "grep×2, report_intent×1",
+        "answer": "From the function body (lines 670–696), the direct callees and their arguments are:  ``` TRACE_POSTGRESQL_QUERY_REWRITE_START(query_string) ResetUsage() parse_analyze_fixedparams(parsetree, query_string, paramTypes, numParams, queryEnv) ShowUsage(\"PARSE ANALYSIS STATISTICS\") pg_rewrite_query(query) …",
+        "missedParts": [
+          "pstate"
+        ],
+        "missedAnswerLines": [
+          "pstate"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.8,
+          "firstPassAccurate": true,
+          "toolCallCount": 3,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 19374,
+          "tokensUsed": 391,
+          "answerCoverage": 0.8,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 2,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 1,
+            "lore_snippet": 1
+          }
+        },
+        "tools": "report_intent×1, lore_lookup×1, lore_snippet×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=pg_analyze_and_rewrite_fixedparams), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-Ixl1lo/postgres/src/backend/tcop/postgres.c, start_line=664, end_line=702)",
+        "answer": "ResetUsage() parse_analyze_fixedparams(parsetree, query_string, paramTypes, numParams, queryEnv) ShowUsage(\"PARSE ANALYSIS STATISTICS\") pg_rewrite_query(query)",
+        "missedParts": [
+          "pstate"
+        ],
+        "missedAnswerLines": [
+          "pstate"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -57,
+        "tokensPct": -12.723214285714285,
+        "wallTimeMs": -1494,
+        "wallTimePct": -7.1592869465209885
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "postgres-1.3-pg_analyze_and_rewrite_fixedparams",
+      "family": "explanation",
+      "iteration": 2,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.8,
+          "firstPassAccurate": false,
+          "toolCallCount": 2,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 27067,
+          "tokensUsed": 1228,
+          "answerCoverage": 0.8,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1
+          }
+        },
+        "tools": "report_intent×1, grep×1",
+        "answer": "TRACE_POSTGRESQL_QUERY_REWRITE_START(query_string) ResetUsage() parse_analyze_fixedparams(parsetree, query_string, paramTypes, numParams, queryEnv) ShowUsage(\"PARSE ANALYSIS STATISTICS\") pg_rewrite_query(query) TRACE_POSTGRESQL_QUERY_REWRITE_DONE(query_string)",
+        "missedParts": [
+          "pstate"
+        ],
+        "missedAnswerLines": [
+          "pstate"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.8,
+          "firstPassAccurate": true,
+          "toolCallCount": 3,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 19336,
+          "tokensUsed": 434,
+          "answerCoverage": 0.8,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 2,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 1,
+            "lore_snippet": 1
+          }
+        },
+        "tools": "report_intent×1, lore_lookup×1, lore_snippet×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=pg_analyze_and_rewrite_fixedparams), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-Ixl1lo/postgres/src/backend/tcop/postgres.c, start_line=664, end_line=702)",
+        "answer": "TRACE_POSTGRESQL_QUERY_REWRITE_START(query_string) ResetUsage() parse_analyze_fixedparams(parsetree, query_string, paramTypes, numParams, queryEnv) ShowUsage(\"PARSE ANALYSIS STATISTICS\") pg_rewrite_query(query) TRACE_POSTGRESQL_QUERY_REWRITE_DONE(query_string)",
+        "missedParts": [
+          "pstate"
+        ],
+        "missedAnswerLines": [
+          "pstate"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -794,
+        "tokensPct": -64.65798045602605,
+        "wallTimeMs": -7731,
+        "wallTimePct": -28.56245612738759
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "postgres-1.3-pg_analyze_and_rewrite_fixedparams",
+      "family": "explanation",
+      "iteration": 3,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.8,
+          "firstPassAccurate": false,
+          "toolCallCount": 2,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 34902,
+          "tokensUsed": 1491,
+          "answerCoverage": 0.8,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1
+          }
+        },
+        "tools": "report_intent×1, grep×1",
+        "answer": "``` TRACE_POSTGRESQL_QUERY_REWRITE_START(query_string) ResetUsage() parse_analyze_fixedparams(parsetree, query_string, paramTypes, numParams, queryEnv) ShowUsage(\"PARSE ANALYSIS STATISTICS\") pg_rewrite_query(query) TRACE_POSTGRESQL_QUERY_REWRITE_DONE(query_string) ```",
+        "missedParts": [
+          "pstate"
+        ],
+        "missedAnswerLines": [
+          "pstate"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.8,
+          "firstPassAccurate": false,
+          "toolCallCount": 4,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 27003,
+          "tokensUsed": 501,
+          "answerCoverage": 0.8,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 1
+          }
+        },
+        "tools": "grep×2, report_intent×1, view×1",
+        "loreToolArgs": "(none)",
+        "answer": "parse_analyze_fixedparams(parsetree, query_string, paramTypes, numParams, queryEnv) ResetUsage() ShowUsage(\"PARSE ANALYSIS STATISTICS\") pg_rewrite_query(query)",
+        "missedParts": [
+          "pstate"
+        ],
+        "missedAnswerLines": [
+          "pstate"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -990,
+        "tokensPct": -66.39839034205231,
+        "wallTimeMs": -7899,
+        "wallTimePct": -22.631940862987797
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "postgres-1.3-pg_analyze_and_rewrite_fixedparams",
+      "family": "explanation",
+      "iteration": 4,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.8,
+          "firstPassAccurate": false,
+          "toolCallCount": 3,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 23767,
+          "tokensUsed": 531,
+          "answerCoverage": 0.8,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2
+          }
+        },
+        "tools": "grep×2, report_intent×1",
+        "answer": "From the function body (lines 670–696), the direct callees and their arguments are:  ``` ResetUsage() parse_analyze_fixedparams(parsetree, query_string, paramTypes, numParams, queryEnv) ShowUsage(\"PARSE ANALYSIS STATISTICS\") pg_rewrite_query(query) ```  Note: `TRACE_POSTGRESQL_QUERY_REWRITE_START` a…",
+        "missedParts": [
+          "pstate"
+        ],
+        "missedAnswerLines": [
+          "pstate"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.8,
+          "firstPassAccurate": false,
+          "toolCallCount": 3,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 26119,
+          "tokensUsed": 535,
+          "answerCoverage": 0.8,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2
+          }
+        },
+        "tools": "grep×2, report_intent×1",
+        "loreToolArgs": "(none)",
+        "answer": "From the function body (lines 670–696), the direct callees and their arguments are:  ``` ResetUsage() parse_analyze_fixedparams(parsetree, query_string, paramTypes, numParams, queryEnv) ShowUsage(\"PARSE ANALYSIS STATISTICS\") pg_rewrite_query(query) ```  Note: `TRACE_POSTGRESQL_QUERY_REWRITE_START` a…",
+        "missedParts": [
+          "pstate"
+        ],
+        "missedAnswerLines": [
+          "pstate"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 4,
+        "tokensPct": 0.7532956685499058,
+        "wallTimeMs": 2352,
+        "wallTimePct": 9.896074388858501
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "postgres-1.3-pg_analyze_and_rewrite_fixedparams",
+      "family": "explanation",
+      "iteration": 5,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.8,
+          "firstPassAccurate": false,
+          "toolCallCount": 3,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 21917,
+          "tokensUsed": 448,
+          "answerCoverage": 0.8,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2
+          }
+        },
+        "tools": "grep×2, report_intent×1",
+        "answer": "From the function body (lines 670–696), the direct callees and their arguments are:  ``` TRACE_POSTGRESQL_QUERY_REWRITE_START(query_string) ResetUsage() parse_analyze_fixedparams(parsetree, query_string, paramTypes, numParams, queryEnv) ShowUsage(\"PARSE ANALYSIS STATISTICS\") pg_rewrite_query(query) …",
+        "missedParts": [
+          "pstate"
+        ],
+        "missedAnswerLines": [
+          "pstate"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.8,
+          "firstPassAccurate": false,
+          "toolCallCount": 3,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 21557,
+          "tokensUsed": 532,
+          "answerCoverage": 0.8,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2
+          }
+        },
+        "tools": "grep×2, report_intent×1",
+        "loreToolArgs": "(none)",
+        "answer": "From the function body (lines 670–696), the direct callees and their arguments are:  ``` ResetUsage() parse_analyze_fixedparams(parsetree, query_string, paramTypes, numParams, queryEnv) ShowUsage(\"PARSE ANALYSIS STATISTICS\") pg_rewrite_query(query) ```  Note: `TRACE_POSTGRESQL_QUERY_REWRITE_START` a…",
+        "missedParts": [
+          "pstate"
+        ],
+        "missedAnswerLines": [
+          "pstate"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 84,
+        "tokensPct": 18.75,
+        "wallTimeMs": -360,
+        "wallTimePct": -1.6425605694209973
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "postgres-1.5-parse_analyze_fixedparams",
+      "family": "localization",
+      "iteration": 1,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 6,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 33545,
+          "tokensUsed": 1167,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 4,
+            "view": 1
+          }
+        },
+        "tools": "grep×4, report_intent×1, view×1",
+        "answer": "There's exactly one function that calls both. Let me confirm there are no other callers.  pg_analyze_and_rewrite_fixedparams — calls parse_analyze_fixedparams() to transform the raw parse tree into an analyzed Query, then passes that Query to pg_rewrite_query() to apply rewrite rules (e.g., view exp…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 13,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 72461,
+          "tokensUsed": 3047,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 2,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 2,
+            "bash": 8,
+            "view": 2
+          }
+        },
+        "tools": "bash×8, lore_dependents×2, view×2, report_intent×1",
+        "loreToolArgs": "lore_dependents(query=parse_analyze_fixedparams, kind=symbol, compact=true), lore_dependents(query=pg_rewrite_query, kind=symbol, compact=true)",
+        "answer": "Now I have the answer. Only one function **directly** calls both: `pg_analyze_and_rewrite_fixedparams`.  pg_analyze_and_rewrite_fixedparams — calls parse_analyze_fixedparams to transform a raw parse tree into an analyzed Query, then passes that Query to pg_rewrite_query to apply rewrite rules and pr…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 1880,
+        "tokensPct": 161.0968294772922,
+        "wallTimeMs": 38916,
+        "wallTimePct": 116.01132806677596
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "postgres-1.5-parse_analyze_fixedparams",
+      "family": "localization",
+      "iteration": 2,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 5,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 28455,
+          "tokensUsed": 595,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 3,
+            "view": 1
+          }
+        },
+        "tools": "grep×3, report_intent×1, view×1",
+        "answer": "Only one function — `pg_analyze_and_rewrite_fixedparams` — calls both. It's in `postgres.c`.  pg_analyze_and_rewrite_fixedparams — calls parse_analyze_fixedparams to transform the raw parse tree into an analyzed Query, then passes that Query to pg_rewrite_query to apply rewrite rules and produce the…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 12,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 87328,
+          "tokensUsed": 2786,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 5,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_graph",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 2,
+            "bash": 4,
+            "lore_graph": 2,
+            "lore_snippet": 1,
+            "grep": 1,
+            "view": 1
+          }
+        },
+        "tools": "bash×4, lore_dependents×2, lore_graph×2, report_intent×1, lore_snippet×1, grep×1, view×1",
+        "loreToolArgs": "lore_dependents(query=parse_analyze_fixedparams, kind=symbol, compact=true), lore_dependents(query=pg_rewrite_query, kind=symbol, compact=true), lore_graph(kind=call, target_id=19073, compact=true), lore_graph(kind=call, target_id=24687, compact=true), lore_snippet(path=/private/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-Ixl1lo/postgres/src/backend/tcop/postgres.c, symbol=pg_analyze_and_rewrite_fixedparams)",
+        "answer": "pg_analyze_and_rewrite_fixedparams — calls parse_analyze_fixedparams to transform a raw parse tree into an analyzed Query, then passes that Query to pg_rewrite_query to apply rewrite rules and produce the final list of rewritten query trees",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 2191,
+        "tokensPct": 368.235294117647,
+        "wallTimeMs": 58873,
+        "wallTimePct": 206.89861184326128
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "postgres-1.5-parse_analyze_fixedparams",
+      "family": "localization",
+      "iteration": 3,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 5,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 27401,
+          "tokensUsed": 591,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 3,
+            "view": 1
+          }
+        },
+        "tools": "grep×3, report_intent×1, view×1",
+        "answer": "pg_analyze_and_rewrite_fixedparams — calls parse_analyze_fixedparams to parse and analyze the raw parse tree into a Query, then passes that Query to pg_rewrite_query to apply rewrite rules, returning the rewritten query list",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 13,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 73467,
+          "tokensUsed": 3175,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 2,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 2,
+            "bash": 9,
+            "view": 1
+          }
+        },
+        "tools": "bash×9, lore_dependents×2, report_intent×1, view×1",
+        "loreToolArgs": "lore_dependents(query=parse_analyze_fixedparams, kind=symbol, compact=true), lore_dependents(query=pg_rewrite_query, kind=symbol, compact=true)",
+        "answer": "Only `pg_analyze_and_rewrite_fixedparams` directly calls both functions.  pg_analyze_and_rewrite_fixedparams — calls parse_analyze_fixedparams to transform a raw parse tree into an analyzed Query, then passes that Query to pg_rewrite_query to apply rewrite rules and produce the final rewritten query…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 2584,
+        "tokensPct": 437.22504230118443,
+        "wallTimeMs": 46066,
+        "wallTimePct": 168.1179518995657
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "postgres-1.5-parse_analyze_fixedparams",
+      "family": "localization",
+      "iteration": 4,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 10,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 45833,
+          "tokensUsed": 2387,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 4,
+            "view": 4,
+            "task": 1
+          }
+        },
+        "tools": "grep×4, view×4, report_intent×1, task×1",
+        "answer": "pg_analyze_and_rewrite_fixedparams — calls parse_analyze_fixedparams to transform a raw parse tree into an analyzed Query, then passes that Query to pg_rewrite_query to apply rewrite rules, and returns the resulting list of rewritten query trees",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 11,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 58169,
+          "tokensUsed": 2330,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 2,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 2,
+            "bash": 8
+          }
+        },
+        "tools": "bash×8, lore_dependents×2, report_intent×1",
+        "loreToolArgs": "lore_dependents(query=parse_analyze_fixedparams, kind=symbol, compact=true), lore_dependents(query=pg_rewrite_query, kind=symbol, compact=true)",
+        "answer": "Only one function directly calls both: `pg_analyze_and_rewrite_fixedparams` in `src/backend/tcop/postgres.c`.  pg_analyze_and_rewrite_fixedparams — calls parse_analyze_fixedparams() to transform a raw parse tree into an analyzed Query using fixed parameter types, then passes that Query to pg_rewrite…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -57,
+        "tokensPct": -2.387934645999162,
+        "wallTimeMs": 12336,
+        "wallTimePct": 26.915104837126087
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "postgres-1.5-parse_analyze_fixedparams",
+      "family": "localization",
+      "iteration": 5,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 4,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 32272,
+          "tokensUsed": 1169,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 1
+          }
+        },
+        "tools": "grep×2, report_intent×1, view×1",
+        "answer": "pg_analyze_and_rewrite_fixedparams — calls parse_analyze_fixedparams to transform raw parse tree into a Query, then passes that Query to pg_rewrite_query to apply rewrite rules and produce the final rewritten query list",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 16,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 121689,
+          "tokensUsed": 3713,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 6,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_lookup",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 2,
+            "bash": 8,
+            "lore_lookup": 2,
+            "lore_graph": 2,
+            "view": 1
+          }
+        },
+        "tools": "bash×8, lore_dependents×2, lore_lookup×2, lore_graph×2, report_intent×1, view×1",
+        "loreToolArgs": "lore_dependents(query=parse_analyze_fixedparams, kind=symbol, compact=true), lore_dependents(query=pg_rewrite_query, kind=symbol, compact=true), lore_lookup(kind=symbol, query=parse_analyze_fixedparams), lore_lookup(kind=symbol, query=pg_rewrite_query), lore_graph(kind=call, target_id=19073, compact=true), lore_graph(kind=call, target_id=24687, compact=true)",
+        "answer": "Only `pg_analyze_and_rewrite_fixedparams` calls both. It's a pipeline function.  pg_analyze_and_rewrite_fixedparams — calls parse_analyze_fixedparams to transform the raw parse tree into a Query node, then passes that Query to pg_rewrite_query to apply rewrite rules and produce the final rewritten q…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 2544,
+        "tokensPct": 217.6218990590248,
+        "wallTimeMs": 89417,
+        "wallTimePct": 277.0730044620724
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "postgres-1.7-pg_analyze_and_rewrite_fixedparams",
+      "family": "explanation",
+      "iteration": 1,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 19,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 83547,
+          "tokensUsed": 4423,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "bash": 10,
+            "grep": 1,
+            "view": 6,
+            "task": 1
+          }
+        },
+        "tools": "bash×10, view×6, report_intent×1, grep×1, task×1",
+        "answer": "1. pg_analyze_and_rewrite_fixedparams — analyzes and rewrites a raw parse tree using fixed parameter types 2. parse_analyze_fixedparams — transforms a raw parse tree into Query form with fixed parameter type info 3. transformTopLevelStmt — wraps top-level statement transformation and transfers RawSt…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 2,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 27964,
+          "tokensUsed": 346,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_trace"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_trace": 1
+          }
+        },
+        "tools": "report_intent×1, lore_trace×1",
+        "loreToolArgs": "lore_trace(from_name=pg_analyze_and_rewrite_fixedparams, to_name=transformStmt, depth=10)",
+        "answer": "1. `pg_analyze_and_rewrite_fixedparams` — performs parse analysis and rule rewriting on a raw parse tree 2. `parse_analyze_fixedparams` — transforms a raw parse tree into Query form with fixed parameter types 3. `transformTopLevelStmt` — transfers statement location data from RawStmt into the finish…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -4077,
+        "tokensPct": -92.17725525661315,
+        "wallTimeMs": -55583,
+        "wallTimePct": -66.52901959376159
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "postgres-1.7-pg_analyze_and_rewrite_fixedparams",
+      "family": "explanation",
+      "iteration": 2,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 16,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 55872,
+          "tokensUsed": 3417,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "bash": 4,
+            "view": 8,
+            "task": 1
+          }
+        },
+        "tools": "view×8, bash×4, grep×2, report_intent×1, task×1",
+        "answer": "1. `pg_analyze_and_rewrite_fixedparams` — analyzes and rewrites a raw statement using fixed parameter types 2. `parse_analyze_fixedparams` — sets up parse state and transforms a raw parse tree into Query form 3. `transformTopLevelStmt` — transfers statement location data and handles top-level SELECT…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 2,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 27684,
+          "tokensUsed": 344,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_trace"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_trace": 1
+          }
+        },
+        "tools": "report_intent×1, lore_trace×1",
+        "loreToolArgs": "lore_trace(from_name=pg_analyze_and_rewrite_fixedparams, to_name=transformStmt, depth=10)",
+        "answer": "1. `pg_analyze_and_rewrite_fixedparams` — performs parse analysis and rule rewriting on a raw parse tree 2. `parse_analyze_fixedparams` — transforms a raw parse tree into Query form with fixed parameter types 3. `transformTopLevelStmt` — wraps transformation and transfers statement location data int…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -3073,
+        "tokensPct": -89.93268949370793,
+        "wallTimeMs": -28188,
+        "wallTimePct": -50.45103092783505
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "postgres-1.7-pg_analyze_and_rewrite_fixedparams",
+      "family": "explanation",
+      "iteration": 3,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 16,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 64837,
+          "tokensUsed": 3619,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "bash": 5,
+            "grep": 4,
+            "view": 5,
+            "task": 1
+          }
+        },
+        "tools": "bash×5, view×5, grep×4, report_intent×1, task×1",
+        "answer": "1. `pg_analyze_and_rewrite_fixedparams` — analyzes a raw parse tree and rewrites the resulting query, using fixed parameter types 2. `parse_analyze_fixedparams` — transforms a raw parse tree into a Query with fixed external-parameter types 3. `transformTopLevelStmt` — entry point for transforming a …",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 2,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 28441,
+          "tokensUsed": 346,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_trace"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_trace": 1
+          }
+        },
+        "tools": "report_intent×1, lore_trace×1",
+        "loreToolArgs": "lore_trace(from_name=pg_analyze_and_rewrite_fixedparams, to_name=transformStmt, depth=10)",
+        "answer": "1. `pg_analyze_and_rewrite_fixedparams` — performs parse analysis and rule rewriting on a raw parse tree 2. `parse_analyze_fixedparams` — transforms a raw parse tree into Query form with fixed parameter types 3. `transformTopLevelStmt` — transfers statement location data from RawStmt into the finish…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -3273,
+        "tokensPct": -90.4393478861564,
+        "wallTimeMs": -36396,
+        "wallTimePct": -56.134614494810066
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "postgres-1.7-pg_analyze_and_rewrite_fixedparams",
+      "family": "explanation",
+      "iteration": 4,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 19,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 77774,
+          "tokensUsed": 4151,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "bash": 9,
+            "view": 8,
+            "task": 1
+          }
+        },
+        "tools": "bash×9, view×8, report_intent×1, task×1",
+        "answer": "1. pg_analyze_and_rewrite_fixedparams — performs parse analysis and rule rewriting on a raw parse tree with fixed parameter types 2. parse_analyze_fixedparams — analyzes a raw parse tree and transforms it into Query form with fixed parameter types 3. transformTopLevelStmt — transforms a top-level ra…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 2,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 29379,
+          "tokensUsed": 346,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_trace"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_trace": 1
+          }
+        },
+        "tools": "report_intent×1, lore_trace×1",
+        "loreToolArgs": "lore_trace(from_name=pg_analyze_and_rewrite_fixedparams, to_name=transformStmt, depth=10)",
+        "answer": "1. `pg_analyze_and_rewrite_fixedparams` — performs parse analysis and rule rewriting on a raw parse tree 2. `parse_analyze_fixedparams` — transforms a raw parse tree into Query form with fixed parameter types 3. `transformTopLevelStmt` — transfers statement location data from RawStmt into the finish…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -3805,
+        "tokensPct": -91.66465911828475,
+        "wallTimeMs": -48395,
+        "wallTimePct": -62.2251652223108
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "postgres-1.7-pg_analyze_and_rewrite_fixedparams",
+      "family": "explanation",
+      "iteration": 5,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 17,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 62418,
+          "tokensUsed": 3928,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "bash": 5,
+            "view": 8,
+            "task": 1
+          }
+        },
+        "tools": "view×8, bash×5, grep×2, report_intent×1, task×1",
+        "answer": "1. `pg_analyze_and_rewrite_fixedparams` — performs parse analysis and query rewriting on a raw statement with fixed parameter types 2. `parse_analyze_fixedparams` — sets up a parse state and invokes transformation of the raw parse tree into a Query 3. `transformTopLevelStmt` — transfers statement lo…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 2,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 25652,
+          "tokensUsed": 346,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_trace"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_trace": 1
+          }
+        },
+        "tools": "report_intent×1, lore_trace×1",
+        "loreToolArgs": "lore_trace(from_name=pg_analyze_and_rewrite_fixedparams, to_name=transformStmt, depth=10)",
+        "answer": "1. `pg_analyze_and_rewrite_fixedparams` — performs parse analysis and rule rewriting on a raw parse tree 2. `parse_analyze_fixedparams` — transforms a raw parse tree into Query form with fixed parameter types 3. `transformTopLevelStmt` — transfers statement location data from RawStmt into the finish…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -3582,
+        "tokensPct": -91.19144602851324,
+        "wallTimeMs": -36766,
+        "wallTimePct": -58.90288057932007
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "postgres-1.8-parse_analyze_fixedparams",
+      "family": "modification",
+      "iteration": 1,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.6666666666666666,
+          "firstPassAccurate": false,
+          "toolCallCount": 7,
+          "uniqueFilesRead": 3,
+          "wallTimeMs": 39228,
+          "tokensUsed": 1542,
+          "answerCoverage": 0.6666666666666666,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 3,
+            "view": 3
+          }
+        },
+        "tools": "grep×3, view×3, report_intent×1",
+        "answer": "Neither caller uses `PG_TRY`/`PG_CATCH`. `parse_analyze_fixedparams` reports errors via PostgreSQL's `ereport`/`elog` (longjmp-based), and both callers let those propagate.  Handle: None Propagate: DefineView pg_analyze_and_rewrite_fixedparams",
+        "missedParts": [
+          "exec_simple_query"
+        ],
+        "missedAnswerLines": [
+          "exec_simple_query",
+          "SPI_execute"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.6666666666666666,
+          "firstPassAccurate": false,
+          "toolCallCount": 8,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 55848,
+          "tokensUsed": 2045,
+          "answerCoverage": 0.6666666666666666,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 4,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "bash": 2,
+            "lore_snippet": 3,
+            "grep": 1
+          }
+        },
+        "tools": "lore_snippet×3, bash×2, report_intent×1, lore_dependents×1, grep×1",
+        "loreToolArgs": "lore_dependents(query=parse_analyze_fixedparams, kind=symbol, compact=true), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-Ixl1lo/postgres/src/backend/parser/analyze.c, symbol=parse_analyze_fixedparams), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-Ixl1lo/postgres/src/backend/commands/view.c, symbol=DefineView), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-Ixl1lo/postgres/src/backend/tcop/postgres.c, symbol=pg_analyze_and_rewrite_fixedparams)",
+        "answer": "Both callers are clear. In PostgreSQL, errors are thrown via `ereport`/`elog` (longjmp-based). Neither caller wraps `parse_analyze_fixedparams` in a `PG_TRY`/`PG_CATCH` block or checks its return value for errors — both simply assign the result and continue. Any error thrown propagates up.  Handle: …",
+        "missedParts": [
+          "exec_simple_query"
+        ],
+        "missedAnswerLines": [
+          "exec_simple_query",
+          "SPI_execute"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 503,
+        "tokensPct": 32.61997405966277,
+        "wallTimeMs": 16620,
+        "wallTimePct": 42.36769654328541
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "postgres-1.8-parse_analyze_fixedparams",
+      "family": "modification",
+      "iteration": 2,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.6666666666666666,
+          "firstPassAccurate": false,
+          "toolCallCount": 8,
+          "uniqueFilesRead": 3,
+          "wallTimeMs": 41557,
+          "tokensUsed": 2248,
+          "answerCoverage": 0.6666666666666666,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 5,
+            "task": 1
+          }
+        },
+        "tools": "view×5, report_intent×1, grep×1, task×1",
+        "answer": "Handle: None Propagate: DefineView pg_analyze_and_rewrite_fixedparams",
+        "missedParts": [
+          "exec_simple_query"
+        ],
+        "missedAnswerLines": [
+          "exec_simple_query",
+          "SPI_execute"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.6666666666666666,
+          "firstPassAccurate": false,
+          "toolCallCount": 7,
+          "uniqueFilesRead": 3,
+          "wallTimeMs": 38728,
+          "tokensUsed": 1420,
+          "answerCoverage": 0.6666666666666666,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "lore_dependents": 1,
+            "bash": 1,
+            "view": 3
+          }
+        },
+        "tools": "view×3, report_intent×1, grep×1, lore_dependents×1, bash×1",
+        "loreToolArgs": "lore_dependents(query=parse_analyze_fixedparams, kind=symbol, compact=true)",
+        "answer": "Both direct callers (`DefineView` and `pg_analyze_and_rewrite_fixedparams`) use the return value directly with no `PG_TRY`/`PG_CATCH` or error checks around the call. `parse_analyze_fixedparams` signals errors via `ereport`/`elog` (longjmp), and neither caller catches those.  Handle: None  Propagate…",
+        "missedParts": [
+          "exec_simple_query"
+        ],
+        "missedAnswerLines": [
+          "exec_simple_query",
+          "SPI_execute"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -828,
+        "tokensPct": -36.83274021352313,
+        "wallTimeMs": -2829,
+        "wallTimePct": -6.807517385759318
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "postgres-1.8-parse_analyze_fixedparams",
+      "family": "modification",
+      "iteration": 3,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.6666666666666666,
+          "firstPassAccurate": false,
+          "toolCallCount": 7,
+          "uniqueFilesRead": 3,
+          "wallTimeMs": 39699,
+          "tokensUsed": 1656,
+          "answerCoverage": 0.6666666666666666,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 3,
+            "bash": 1
+          }
+        },
+        "tools": "view×3, grep×2, report_intent×1, bash×1",
+        "answer": "Neither caller uses `PG_TRY`/`PG_CATCH` around the call. The function communicates errors via PostgreSQL's `ereport(ERROR)`/`elog(ERROR)` longjmp mechanism, and both direct callers let those errors propagate upward.  Handle: None  Propagate: DefineView pg_analyze_and_rewrite_fixedparams",
+        "missedParts": [
+          "exec_simple_query"
+        ],
+        "missedAnswerLines": [
+          "exec_simple_query",
+          "SPI_execute"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.6666666666666666,
+          "firstPassAccurate": false,
+          "toolCallCount": 9,
+          "uniqueFilesRead": 3,
+          "wallTimeMs": 47219,
+          "tokensUsed": 1954,
+          "answerCoverage": 0.6666666666666666,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "lore_dependents": 1,
+            "bash": 1,
+            "view": 5
+          }
+        },
+        "tools": "view×5, report_intent×1, grep×1, lore_dependents×1, bash×1",
+        "loreToolArgs": "lore_dependents(query=parse_analyze_fixedparams, kind=symbol, compact=true)",
+        "answer": "`parse_analyze_fixedparams` has two direct callers. It signals errors via PostgreSQL's `ereport`/`elog` (longjmp-based exceptions). Neither caller wraps the call in `PG_TRY`/`PG_CATCH` or checks a return code — both simply assign the result and continue, letting any thrown error propagate upward.  H…",
+        "missedParts": [
+          "exec_simple_query"
+        ],
+        "missedAnswerLines": [
+          "exec_simple_query",
+          "SPI_execute"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 298,
+        "tokensPct": 17.995169082125603,
+        "wallTimeMs": 7520,
+        "wallTimePct": 18.9425426333157
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "postgres-1.8-parse_analyze_fixedparams",
+      "family": "modification",
+      "iteration": 4,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.6666666666666666,
+          "firstPassAccurate": false,
+          "toolCallCount": 8,
+          "uniqueFilesRead": 3,
+          "wallTimeMs": 37758,
+          "tokensUsed": 1537,
+          "answerCoverage": 0.6666666666666666,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 3,
+            "view": 4
+          }
+        },
+        "tools": "view×4, grep×3, report_intent×1",
+        "answer": "Neither caller uses `PG_TRY`/`PG_CATCH`. Both callers (`DefineView` and `pg_analyze_and_rewrite_fixedparams`) simply use the return value and let any `ereport(ERROR)` / `elog(ERROR)` thrown inside `parse_analyze_fixedparams` propagate up via PostgreSQL's longjmp error mechanism.  Handle: None Propag…",
+        "missedParts": [
+          "exec_simple_query"
+        ],
+        "missedAnswerLines": [
+          "exec_simple_query",
+          "SPI_execute"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.6666666666666666,
+          "firstPassAccurate": false,
+          "toolCallCount": 7,
+          "uniqueFilesRead": 3,
+          "wallTimeMs": 41419,
+          "tokensUsed": 1526,
+          "answerCoverage": 0.6666666666666666,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "lore_dependents": 1,
+            "bash": 1,
+            "view": 3
+          }
+        },
+        "tools": "view×3, report_intent×1, grep×1, lore_dependents×1, bash×1",
+        "loreToolArgs": "lore_dependents(query=parse_analyze_fixedparams, kind=symbol, compact=true)",
+        "answer": "Now I have the full picture. The function `parse_analyze_fixedparams` is called directly in only two places (grep confirms: `view.c:375` and `postgres.c:682`). It signals errors via PostgreSQL's `ereport`/`elog` longjmp mechanism. Neither caller wraps the call in `PG_TRY`/`PG_CATCH`.  Handle: None  …",
+        "missedParts": [
+          "exec_simple_query"
+        ],
+        "missedAnswerLines": [
+          "exec_simple_query",
+          "SPI_execute"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -11,
+        "tokensPct": -0.715679895901106,
+        "wallTimeMs": 3661,
+        "wallTimePct": 9.695958472376715
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "postgres-1.8-parse_analyze_fixedparams",
+      "family": "modification",
+      "iteration": 5,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.6666666666666666,
+          "firstPassAccurate": false,
+          "toolCallCount": 13,
+          "uniqueFilesRead": 3,
+          "wallTimeMs": 58230,
+          "tokensUsed": 3648,
+          "answerCoverage": 0.6666666666666666,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 3,
+            "view": 6,
+            "bash": 2,
+            "task": 1
+          }
+        },
+        "tools": "view×6, grep×3, bash×2, report_intent×1, task×1",
+        "answer": "Both callers rely on PostgreSQL's `ereport(ERROR)` longjmp mechanism — neither wraps the call in `PG_TRY/PG_CATCH` or checks the return value for error conditions. Errors thrown inside `parse_analyze_fixedparams` propagate out through both callers.  Handle: None  Propagate: DefineView pg_analyze_and…",
+        "missedParts": [
+          "exec_simple_query"
+        ],
+        "missedAnswerLines": [
+          "exec_simple_query",
+          "SPI_execute"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.6666666666666666,
+          "firstPassAccurate": false,
+          "toolCallCount": 7,
+          "uniqueFilesRead": 3,
+          "wallTimeMs": 46098,
+          "tokensUsed": 1726,
+          "answerCoverage": 0.6666666666666666,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "lore_dependents": 1,
+            "bash": 1,
+            "view": 3
+          }
+        },
+        "tools": "view×3, report_intent×1, grep×1, lore_dependents×1, bash×1",
+        "loreToolArgs": "lore_dependents(query=parse_analyze_fixedparams, kind=symbol, compact=true)",
+        "answer": "Looking at `parse_analyze_fixedparams`: it signals errors via PostgreSQL's `ereport`/`elog` (longjmp-based exceptions) — it never returns an error value. There are exactly **two direct callers**, and neither wraps the call in `PG_TRY`/`PG_CATCH` or checks the return for errors:  - **`DefineView`** —…",
+        "missedParts": [
+          "exec_simple_query"
+        ],
+        "missedAnswerLines": [
+          "exec_simple_query",
+          "SPI_execute"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -1922,
+        "tokensPct": -52.68640350877193,
+        "wallTimeMs": -12132,
+        "wallTimePct": -20.834621329211746
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "postgres-7.2-parse_analyze_fixedparams",
+      "family": "localization",
+      "iteration": 1,
+      "control": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 4,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 26833,
+          "tokensUsed": 587,
+          "answerCoverage": 0.5,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 2
+          }
+        },
+        "tools": "view×2, report_intent×1, grep×1",
+        "answer": "DefineView → src/backend/commands/view.c — stores the result in `viewParse` and validates it is a SELECT Query, then passes it through to `DefineVirtualRelation` to create the view pg_analyze_and_rewrite_fixedparams → src/backend/tcop/postgres.c — stores the result in `query` and passes it to `pg_re…",
+        "missedParts": [
+          "exec_simple_query",
+          "parse_analyze_fixedparams"
+        ],
+        "missedAnswerLines": [
+          "exec_simple_query → postgres.c"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 6,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 34765,
+          "tokensUsed": 1101,
+          "answerCoverage": 0.5,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "lore_dependents": 1,
+            "view": 2,
+            "bash": 1
+          }
+        },
+        "tools": "view×2, report_intent×1, grep×1, lore_dependents×1, bash×1",
+        "loreToolArgs": "lore_dependents(query=parse_analyze_fixedparams, kind=symbol, compact=true)",
+        "answer": "The grep shows exactly two direct call sites in other files. Let me verify the context for both.  DefineView → src/backend/commands/view.c — stores the result in `viewParse`, then validates it is a single SELECT Query (not SELECT INTO) before using it to define the view pg_analyze_and_rewrite_fixedp…",
+        "missedParts": [
+          "exec_simple_query",
+          "parse_analyze_fixedparams"
+        ],
+        "missedAnswerLines": [
+          "exec_simple_query → postgres.c"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 514,
+        "tokensPct": 87.56388415672913,
+        "wallTimeMs": 7932,
+        "wallTimePct": 29.56061565982186
+      },
+      "warnings": [
+        "lore 50%+ more tokens"
+      ]
+    },
+    {
+      "taskId": "postgres-7.2-parse_analyze_fixedparams",
+      "family": "localization",
+      "iteration": 2,
+      "control": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 6,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 29932,
+          "tokensUsed": 940,
+          "answerCoverage": 0.5,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 3,
+            "view": 2
+          }
+        },
+        "tools": "grep×3, view×2, report_intent×1",
+        "answer": "DefineView → src/backend/commands/view.c — stores the result in `viewParse` and validates it is a single SELECT Query, then uses it to create the view's rewrite rules and catalog entries pg_analyze_and_rewrite_fixedparams → src/backend/tcop/postgres.c — stores the result in `query` and passes it to …",
+        "missedParts": [
+          "exec_simple_query",
+          "parse_analyze_fixedparams"
+        ],
+        "missedAnswerLines": [
+          "exec_simple_query → postgres.c"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 5,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 24012,
+          "tokensUsed": 650,
+          "answerCoverage": 0.5,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "lore_dependents": 1,
+            "view": 2
+          }
+        },
+        "tools": "view×2, report_intent×1, grep×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=parse_analyze_fixedparams, kind=symbol, compact=true)",
+        "answer": "DefineView → src/backend/commands/view.c — stores the result in `viewParse` and validates it is a single SELECT Query (not SELECT INTO, not a utility statement) pg_analyze_and_rewrite_fixedparams → src/backend/tcop/postgres.c — stores the result in `query` and passes it to `pg_rewrite_query()` to pr…",
+        "missedParts": [
+          "exec_simple_query",
+          "parse_analyze_fixedparams"
+        ],
+        "missedAnswerLines": [
+          "exec_simple_query → postgres.c"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -290,
+        "tokensPct": -30.851063829787233,
+        "wallTimeMs": -5920,
+        "wallTimePct": -19.778163838032874
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "postgres-7.2-parse_analyze_fixedparams",
+      "family": "localization",
+      "iteration": 3,
+      "control": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 4,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 25503,
+          "tokensUsed": 563,
+          "answerCoverage": 0.5,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 2
+          }
+        },
+        "tools": "view×2, report_intent×1, grep×1",
+        "answer": "DefineView → src/backend/commands/view.c — stores the result in `viewParse` and validates it is a SELECT Query before passing it to `DefineVirtualRelation()` pg_analyze_and_rewrite_fixedparams → src/backend/tcop/postgres.c — stores the result in `query` and passes it to `pg_rewrite_query()` for rule…",
+        "missedParts": [
+          "exec_simple_query",
+          "parse_analyze_fixedparams"
+        ],
+        "missedAnswerLines": [
+          "exec_simple_query → postgres.c"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 5,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 26446,
+          "tokensUsed": 656,
+          "answerCoverage": 0.5,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "lore_dependents": 1,
+            "view": 2
+          }
+        },
+        "tools": "view×2, report_intent×1, grep×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=parse_analyze_fixedparams, kind=symbol, compact=true)",
+        "answer": "DefineView → src/backend/commands/view.c — stores the result in `viewParse` and validates it is a single SELECT Query (not SELECT INTO) before using it to define the view pg_analyze_and_rewrite_fixedparams → src/backend/tcop/postgres.c — stores the result in `query` and passes it to `pg_rewrite_quer…",
+        "missedParts": [
+          "exec_simple_query",
+          "parse_analyze_fixedparams"
+        ],
+        "missedAnswerLines": [
+          "exec_simple_query → postgres.c"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 93,
+        "tokensPct": 16.518650088809945,
+        "wallTimeMs": 943,
+        "wallTimePct": 3.6976042034270478
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "postgres-7.2-parse_analyze_fixedparams",
+      "family": "localization",
+      "iteration": 4,
+      "control": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 6,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 30842,
+          "tokensUsed": 777,
+          "answerCoverage": 0.5,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 3,
+            "view": 2
+          }
+        },
+        "tools": "grep×3, view×2, report_intent×1",
+        "answer": "DefineView → src/backend/commands/view.c — stores the result in `viewParse` and validates it is a single SELECT Query (not SELECT INTO), then uses it to define the view pg_analyze_and_rewrite_fixedparams → src/backend/tcop/postgres.c — stores the result in `query` and passes it to `pg_rewrite_query(…",
+        "missedParts": [
+          "exec_simple_query",
+          "parse_analyze_fixedparams"
+        ],
+        "missedAnswerLines": [
+          "exec_simple_query → postgres.c"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 5,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 25383,
+          "tokensUsed": 636,
+          "answerCoverage": 0.5,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "lore_dependents": 1,
+            "view": 2
+          }
+        },
+        "tools": "view×2, report_intent×1, grep×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=parse_analyze_fixedparams, kind=symbol, compact=true)",
+        "answer": "DefineView → src/backend/commands/view.c — stores the result in `viewParse` and validates it is a single SELECT Query (not SELECT INTO) before using it to define the view pg_analyze_and_rewrite_fixedparams → src/backend/tcop/postgres.c — stores the result in `query`, then passes it to `pg_rewrite_qu…",
+        "missedParts": [
+          "exec_simple_query",
+          "parse_analyze_fixedparams"
+        ],
+        "missedAnswerLines": [
+          "exec_simple_query → postgres.c"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -141,
+        "tokensPct": -18.146718146718147,
+        "wallTimeMs": -5459,
+        "wallTimePct": -17.699889760715905
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "postgres-7.2-parse_analyze_fixedparams",
+      "family": "localization",
+      "iteration": 5,
+      "control": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 6,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 31190,
+          "tokensUsed": 810,
+          "answerCoverage": 0.5,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 4
+          }
+        },
+        "tools": "view×4, report_intent×1, grep×1",
+        "answer": "DefineView → src/backend/commands/view.c — stores the result in `viewParse` and validates it is a single SELECT Query (not SELECT INTO), then passes it to `DefineViewRules` pg_analyze_and_rewrite_fixedparams → src/backend/tcop/postgres.c — stores the result in `query` and passes it to `pg_rewrite_qu…",
+        "missedParts": [
+          "exec_simple_query",
+          "parse_analyze_fixedparams"
+        ],
+        "missedAnswerLines": [
+          "exec_simple_query → postgres.c"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 6,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 43994,
+          "tokensUsed": 1300,
+          "answerCoverage": 0.5,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "bash": 1,
+            "grep": 1,
+            "view": 2
+          }
+        },
+        "tools": "view×2, report_intent×1, lore_dependents×1, bash×1, grep×1",
+        "loreToolArgs": "lore_dependents(query=parse_analyze_fixedparams, kind=symbol, compact=false)",
+        "answer": "DefineView → src/backend/commands/view.c — stores the result in `viewParse` and validates it is a single SELECT Query, checking for disallowed SELECT INTO and data-modifying CTEs before proceeding to define the view pg_analyze_and_rewrite_fixedparams → src/backend/tcop/postgres.c — stores the result…",
+        "missedParts": [
+          "exec_simple_query",
+          "parse_analyze_fixedparams"
+        ],
+        "missedAnswerLines": [
+          "exec_simple_query → postgres.c"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 490,
+        "tokensPct": 60.49382716049383,
+        "wallTimeMs": 12804,
+        "wallTimePct": 41.05161910868868
+      },
+      "warnings": [
+        "lore 50%+ more tokens"
+      ]
+    },
+    {
+      "taskId": "postgres-7.3-pg_analyze_and_rewrite_fixedparams",
+      "family": "localization",
+      "iteration": 1,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 5,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 28275,
+          "tokensUsed": 581,
+          "answerCoverage": 0.75,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 3,
+            "view": 1
+          }
+        },
+        "tools": "grep×3, report_intent×1, view×1",
+        "answer": "parse_analyze_fixedparams → src/backend/parser/analyze.c pg_rewrite_query → src/backend/tcop/postgres.c",
+        "missedParts": [
+          "rewriteHandler.c"
+        ],
+        "missedAnswerLines": [
+          "pg_rewrite_query → src/backend/rewrite/rewriteHandler.c"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 2,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 20100,
+          "tokensUsed": 253,
+          "answerCoverage": 0.75,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_trace"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_trace": 1
+          }
+        },
+        "tools": "report_intent×1, lore_trace×1",
+        "loreToolArgs": "lore_trace(from_name=pg_analyze_and_rewrite_fixedparams, depth=1)",
+        "answer": "parse_analyze_fixedparams → src/backend/parser/analyze.c pg_rewrite_query → src/backend/tcop/postgres.c ResetUsage → src/backend/tcop/postgres.c ShowUsage → src/backend/tcop/postgres.c",
+        "missedParts": [
+          "rewriteHandler.c"
+        ],
+        "missedAnswerLines": [
+          "pg_rewrite_query → src/backend/rewrite/rewriteHandler.c"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -328,
+        "tokensPct": -56.454388984509464,
+        "wallTimeMs": -8175,
+        "wallTimePct": -28.912466843501328
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "postgres-7.3-pg_analyze_and_rewrite_fixedparams",
+      "family": "localization",
+      "iteration": 2,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 5,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 31541,
+          "tokensUsed": 578,
+          "answerCoverage": 0.75,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 3,
+            "view": 1
+          }
+        },
+        "tools": "grep×3, report_intent×1, view×1",
+        "answer": "parse_analyze_fixedparams → src/backend/parser/analyze.c pg_rewrite_query → src/backend/tcop/postgres.c",
+        "missedParts": [
+          "rewriteHandler.c"
+        ],
+        "missedAnswerLines": [
+          "pg_rewrite_query → src/backend/rewrite/rewriteHandler.c"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 2,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 23402,
+          "tokensUsed": 258,
+          "answerCoverage": 0.75,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_trace"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_trace": 1
+          }
+        },
+        "tools": "report_intent×1, lore_trace×1",
+        "loreToolArgs": "lore_trace(from_name=pg_analyze_and_rewrite_fixedparams, depth=1)",
+        "answer": "parse_analyze_fixedparams → src/backend/parser/analyze.c pg_rewrite_query → src/backend/tcop/postgres.c ResetUsage → src/backend/tcop/postgres.c ShowUsage → src/backend/tcop/postgres.c",
+        "missedParts": [
+          "rewriteHandler.c"
+        ],
+        "missedAnswerLines": [
+          "pg_rewrite_query → src/backend/rewrite/rewriteHandler.c"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -320,
+        "tokensPct": -55.36332179930796,
+        "wallTimeMs": -8139,
+        "wallTimePct": -25.804508417615168
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "postgres-7.3-pg_analyze_and_rewrite_fixedparams",
+      "family": "localization",
+      "iteration": 3,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 5,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 28745,
+          "tokensUsed": 602,
+          "answerCoverage": 0.75,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 3,
+            "view": 1
+          }
+        },
+        "tools": "grep×3, report_intent×1, view×1",
+        "answer": "parse_analyze_fixedparams → src/backend/parser/analyze.c pg_rewrite_query → src/backend/tcop/postgres.c",
+        "missedParts": [
+          "rewriteHandler.c"
+        ],
+        "missedAnswerLines": [
+          "pg_rewrite_query → src/backend/rewrite/rewriteHandler.c"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.5,
+          "firstPassAccurate": true,
+          "toolCallCount": 7,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 69244,
+          "tokensUsed": 1138,
+          "answerCoverage": 0.75,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 3,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_snippet",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 1,
+            "grep": 1,
+            "lore_snippet": 1,
+            "lore_graph": 1,
+            "bash": 2
+          }
+        },
+        "tools": "bash×2, report_intent×1, lore_lookup×1, grep×1, lore_snippet×1, lore_graph×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=pg_analyze_and_rewrite_fixedparams), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-Ixl1lo/postgres/src/backend/tcop/postgres.c, start_line=664, end_line=702), lore_graph(kind=call, source_id=24646, compact=false)",
+        "answer": "From the source code, `pg_analyze_and_rewrite_fixedparams` is a wrapper that delegates to:  ``` parse_analyze_fixedparams → src/backend/parser/analyze.c ResetUsage → src/backend/tcop/postgres.c ShowUsage → src/backend/tcop/postgres.c pg_rewrite_query → src/backend/tcop/postgres.c ```",
+        "missedParts": [
+          "rewriteHandler.c"
+        ],
+        "missedAnswerLines": [
+          "pg_rewrite_query → src/backend/rewrite/rewriteHandler.c"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 536,
+        "tokensPct": 89.03654485049833,
+        "wallTimeMs": 40499,
+        "wallTimePct": 140.8905896677683
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "postgres-7.3-pg_analyze_and_rewrite_fixedparams",
+      "family": "localization",
+      "iteration": 4,
+      "control": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0,
+          "firstPassAccurate": false,
+          "toolCallCount": 3,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 24737,
+          "tokensUsed": 376,
+          "answerCoverage": 0.5,
+          "fileCoverage": 0.5,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 1
+          }
+        },
+        "tools": "report_intent×1, grep×1, view×1",
+        "answer": "parse_analyze_fixedparams → src/backend/tcop/postgres.c pg_rewrite_query → src/backend/tcop/postgres.c",
+        "missedParts": [
+          "analyze.c",
+          "rewriteHandler.c"
+        ],
+        "missedAnswerLines": [
+          "parse_analyze_fixedparams → src/backend/parser/analyze.c",
+          "pg_rewrite_query → src/backend/rewrite/rewriteHandler.c"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 2,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 22092,
+          "tokensUsed": 257,
+          "answerCoverage": 0.75,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_trace"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_trace": 1
+          }
+        },
+        "tools": "report_intent×1, lore_trace×1",
+        "loreToolArgs": "lore_trace(from_name=pg_analyze_and_rewrite_fixedparams, depth=1)",
+        "answer": "parse_analyze_fixedparams → src/backend/parser/analyze.c pg_rewrite_query → src/backend/tcop/postgres.c ResetUsage → src/backend/tcop/postgres.c ShowUsage → src/backend/tcop/postgres.c",
+        "missedParts": [
+          "rewriteHandler.c"
+        ],
+        "missedAnswerLines": [
+          "pg_rewrite_query → src/backend/rewrite/rewriteHandler.c"
+        ]
+      },
+      "delta": {
+        "correctness": 0.5,
+        "tokens": -119,
+        "tokensPct": -31.648936170212767,
+        "wallTimeMs": -2645,
+        "wallTimePct": -10.69248494158548
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "postgres-7.3-pg_analyze_and_rewrite_fixedparams",
+      "family": "localization",
+      "iteration": 5,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 5,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 29287,
+          "tokensUsed": 581,
+          "answerCoverage": 0.75,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 3,
+            "view": 1
+          }
+        },
+        "tools": "grep×3, report_intent×1, view×1",
+        "answer": "parse_analyze_fixedparams → src/backend/parser/analyze.c pg_rewrite_query → src/backend/tcop/postgres.c",
+        "missedParts": [
+          "rewriteHandler.c"
+        ],
+        "missedAnswerLines": [
+          "pg_rewrite_query → src/backend/rewrite/rewriteHandler.c"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 3,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 21135,
+          "tokensUsed": 386,
+          "answerCoverage": 0.75,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_trace"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "lore_trace": 1
+          }
+        },
+        "tools": "report_intent×1, grep×1, lore_trace×1",
+        "loreToolArgs": "lore_trace(from_name=pg_analyze_and_rewrite_fixedparams, depth=1)",
+        "answer": "parse_analyze_fixedparams → src/backend/parser/analyze.c pg_rewrite_query → src/backend/tcop/postgres.c ResetUsage → src/backend/tcop/postgres.c ShowUsage → src/backend/tcop/postgres.c",
+        "missedParts": [
+          "rewriteHandler.c"
+        ],
+        "missedAnswerLines": [
+          "pg_rewrite_query → src/backend/rewrite/rewriteHandler.c"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -195,
+        "tokensPct": -33.56282271944922,
+        "wallTimeMs": -8152,
+        "wallTimePct": -27.834875542049375
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "postgres-10.1-pg_analyze_and_rewrite_fixedparams",
+      "family": "explanation",
+      "iteration": 1,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 14,
+          "uniqueFilesRead": 5,
+          "wallTimeMs": 69190,
+          "tokensUsed": 3280,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 6,
+            "bash": 6
+          }
+        },
+        "tools": "view×6, bash×6, report_intent×1, grep×1",
+        "answer": "5 BeginCopyTo → src/backend/commands/copyto.c execute_sql_string → src/backend/commands/extension.c _SPI_prepare_plan → src/backend/executor/spi.c _SPI_execute_plan → src/backend/executor/spi.c RevalidateCachedQuery → src/backend/utils/cache/plancache.c exec_simple_query → src/backend/tcop/postgres.…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 11,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 184757,
+          "tokensUsed": 4469,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 2,
+            "lore_dependents": 1,
+            "bash": 6,
+            "grep": 1,
+            "stop_bash": 1
+          }
+        },
+        "tools": "bash×6, report_intent×2, lore_dependents×1, grep×1, stop_bash×1",
+        "loreToolArgs": "lore_dependents(query=pg_analyze_and_rewrite_fixedparams, kind=symbol, compact=true)",
+        "answer": "Now excluding `src/backend/tcop/postgres.c` (the file where `pg_analyze_and_rewrite_fixedparams` is defined), the distinct **source files** that call it are 4, with 5 calling functions. But the user asked for \"distinct source files (not test files)\" that call it — the definition file still contains …",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 1189,
+        "tokensPct": 36.25,
+        "wallTimeMs": 115567,
+        "wallTimePct": 167.02847232258998
+      },
+      "warnings": [
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "postgres-10.1-pg_analyze_and_rewrite_fixedparams",
+      "family": "explanation",
+      "iteration": 2,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 10,
+          "uniqueFilesRead": 5,
+          "wallTimeMs": 80083,
+          "tokensUsed": 3317,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 6,
+            "bash": 2
+          }
+        },
+        "tools": "view×6, bash×2, report_intent×1, grep×1",
+        "answer": "5 BeginCopyTo → src/backend/commands/copyto.c execute_sql_string → src/backend/commands/extension.c _SPI_prepare_plan → src/backend/executor/spi.c _SPI_execute_plan → src/backend/executor/spi.c exec_simple_query → src/backend/tcop/postgres.c RevalidateCachedQuery → src/backend/utils/cache/plancache.…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 8,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 111621,
+          "tokensUsed": 2566,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 2,
+            "lore_dependents": 1,
+            "bash": 4,
+            "grep": 1
+          }
+        },
+        "tools": "bash×4, report_intent×2, lore_dependents×1, grep×1",
+        "loreToolArgs": "lore_dependents(query=pg_analyze_and_rewrite_fixedparams, kind=symbol, compact=true)",
+        "answer": "5 exec_simple_query → src/backend/tcop/postgres.c BeginCopyTo → src/backend/commands/copyto.c execute_sql_string → src/backend/commands/extension.c _SPI_prepare_plan → src/backend/executor/spi.c _SPI_execute_plan → src/backend/executor/spi.c RevalidateCachedQuery → src/backend/utils/cache/plancache.…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -751,
+        "tokensPct": -22.64094060898402,
+        "wallTimeMs": 31538,
+        "wallTimePct": 39.381641546895096
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "postgres-10.1-pg_analyze_and_rewrite_fixedparams",
+      "family": "explanation",
+      "iteration": 3,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 10,
+          "uniqueFilesRead": 5,
+          "wallTimeMs": 89356,
+          "tokensUsed": 3051,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 6,
+            "bash": 2
+          }
+        },
+        "tools": "view×6, bash×2, report_intent×1, grep×1",
+        "answer": "Now I have all the data. The call at `postgres.c:1189` is from `exec_simple_query` which is in the same file as the definition — the user asked for distinct source files that **call** it (not the definition file). That's still a caller. Let me also confirm these are not test files (none are in test …",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 6,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 109409,
+          "tokensUsed": 2179,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "bash": 3,
+            "grep": 1
+          }
+        },
+        "tools": "bash×3, report_intent×1, lore_dependents×1, grep×1",
+        "loreToolArgs": "lore_dependents(query=pg_analyze_and_rewrite_fixedparams, kind=symbol, compact=true)",
+        "answer": "Now excluding the call from `postgres.c` itself (since it's the defining file):  5 distinct **non-definition** source files call `pg_analyze_and_rewrite_fixedparams`. Including the call from `postgres.c` itself, there are 6 call sites in 5 external files + 1 in the defining file. The user asked for …",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -872,
+        "tokensPct": -28.580793182563095,
+        "wallTimeMs": 20053,
+        "wallTimePct": 22.44169389856305
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "postgres-10.1-pg_analyze_and_rewrite_fixedparams",
+      "family": "explanation",
+      "iteration": 4,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 13,
+          "uniqueFilesRead": 5,
+          "wallTimeMs": 81985,
+          "tokensUsed": 3320,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 6,
+            "bash": 5
+          }
+        },
+        "tools": "view×6, bash×5, report_intent×1, grep×1",
+        "answer": "5 BeginCopyTo → src/backend/commands/copyto.c execute_sql_string → src/backend/commands/extension.c _SPI_prepare_plan → src/backend/executor/spi.c _SPI_execute_plan → src/backend/executor/spi.c RevalidateCachedQuery → src/backend/utils/cache/plancache.c exec_simple_query → src/backend/tcop/postgres.…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 13,
+          "uniqueFilesRead": 5,
+          "wallTimeMs": 128294,
+          "tokensUsed": 3851,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 2,
+            "grep": 1,
+            "lore_dependents": 1,
+            "bash": 3,
+            "view": 6
+          }
+        },
+        "tools": "view×6, bash×3, report_intent×2, grep×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=pg_analyze_and_rewrite_fixedparams, kind=symbol, compact=true)",
+        "answer": "5 BeginCopyTo → src/backend/commands/copyto.c execute_sql_string → src/backend/commands/extension.c _SPI_prepare_plan → src/backend/executor/spi.c _SPI_execute_plan → src/backend/executor/spi.c RevalidateCachedQuery → src/backend/utils/cache/plancache.c exec_simple_query → src/backend/tcop/postgres.…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 531,
+        "tokensPct": 15.993975903614457,
+        "wallTimeMs": 46309,
+        "wallTimePct": 56.48472281514911
+      },
+      "warnings": [
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "postgres-10.1-pg_analyze_and_rewrite_fixedparams",
+      "family": "explanation",
+      "iteration": 5,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 13,
+          "uniqueFilesRead": 5,
+          "wallTimeMs": 109649,
+          "tokensUsed": 2863,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 6,
+            "bash": 5
+          }
+        },
+        "tools": "view×6, bash×5, report_intent×1, grep×1",
+        "answer": "5 BeginCopyTo → src/backend/commands/copyto.c execute_sql_string → src/backend/commands/extension.c _SPI_prepare_plan → src/backend/executor/spi.c _SPI_execute_plan → src/backend/executor/spi.c RevalidateCachedQuery → src/backend/utils/cache/plancache.c exec_simple_query → src/backend/tcop/postgres.…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 7,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 162110,
+          "tokensUsed": 2660,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 2,
+            "lore_dependents": 1,
+            "bash": 3,
+            "grep": 1
+          }
+        },
+        "tools": "bash×3, report_intent×2, lore_dependents×1, grep×1",
+        "loreToolArgs": "lore_dependents(query=pg_analyze_and_rewrite_fixedparams, kind=symbol, compact=true)",
+        "answer": "Now I have the precise answer. There are 5 distinct source files (excluding the definition file? Let me re-check — postgres.c both defines AND calls it from `exec_simple_query`). The user asked for files that \"call\" it, and postgres.c does call it from `exec_simple_query`, so it counts.  5 BeginCopy…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -203,
+        "tokensPct": -7.090464547677261,
+        "wallTimeMs": 52461,
+        "wallTimePct": 47.844485585823854
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "postgres-10.3-pg_analyze_and_rewrite_fixedparams",
+      "family": "explanation",
+      "iteration": 1,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 10,
+          "uniqueFilesRead": 5,
+          "wallTimeMs": 129870,
+          "tokensUsed": 1840,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 3,
+            "view": 6
+          }
+        },
+        "tools": "view×6, grep×3, report_intent×1",
+        "answer": "Here are the callers grouped by pattern:  **In a loop over parsed statements, no params, no queryEnv (analyze→plan→execute pipeline):** - `exec_simple_query` in `src/backend/tcop/postgres.c` - `execute_sql_string` in `src/backend/commands/extension.c`  **One-shot call with result validation (post-ca…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 13,
+          "uniqueFilesRead": 5,
+          "wallTimeMs": 173227,
+          "tokensUsed": 4995,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 2,
+            "lore_dependents": 1,
+            "bash": 1,
+            "grep": 1,
+            "task": 1,
+            "view": 6,
+            "read_agent": 1
+          }
+        },
+        "tools": "view×6, report_intent×2, lore_dependents×1, bash×1, grep×1, task×1, read_agent×1",
+        "loreToolArgs": "lore_dependents(query=pg_analyze_and_rewrite_fixedparams, kind=symbol, compact=false)",
+        "answer": "  Here are the 6 direct callers grouped by calling pattern:  **No-param, inside a statement-processing loop (parse → analyze → plan → execute pipeline):** - `exec_simple_query` in src/backend/tcop/postgres.c - `execute_sql_string` in src/backend/commands/extension.c  **Parameterized, inside a loop, …",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 3155,
+        "tokensPct": 171.4673913043478,
+        "wallTimeMs": 43357,
+        "wallTimePct": 33.38492338492339
+      },
+      "warnings": [
+        "lore 50%+ more tokens"
+      ]
+    },
+    {
+      "taskId": "postgres-10.3-pg_analyze_and_rewrite_fixedparams",
+      "family": "explanation",
+      "iteration": 2,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.875,
+          "firstPassAccurate": false,
+          "toolCallCount": 8,
+          "uniqueFilesRead": 5,
+          "wallTimeMs": 115330,
+          "tokensUsed": 2468,
+          "answerCoverage": 0.875,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 6
+          }
+        },
+        "tools": "view×6, report_intent×1, grep×1",
+        "answer": "**No parameters (NULL/0/NULL), inside a loop over parsed statements:**   `exec_simple_query` in src/backend/tcop/postgres.c   `execute_sql_string` in src/backend/commands/extension.c  **No parameters (NULL/0/NULL), one-shot with post-call result validation:**   `BeginCopyTo` in src/backend/commands/…",
+        "missedParts": [
+          "RevalidateCachedQuery"
+        ],
+        "missedAnswerLines": [
+          "RevalidateCachedQuery"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 40,
+          "uniqueFilesRead": 6,
+          "wallTimeMs": 238167,
+          "tokensUsed": 9713,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 2,
+            "lore_dependents": 1,
+            "bash": 28,
+            "grep": 1,
+            "task": 1,
+            "view": 6,
+            "read_agent": 1
+          }
+        },
+        "tools": "bash×28, view×6, report_intent×2, lore_dependents×1, grep×1, task×1, read_agent×1",
+        "loreToolArgs": "lore_dependents(query=pg_analyze_and_rewrite_fixedparams, kind=symbol, compact=false)",
+        "answer": "  Here are the callers grouped by calling pattern:  **No params, one-shot, result fed directly to pg_plan_query:** - `BeginCopyTo` in src/backend/commands/copyto.c — passes NULL/0/NULL, single call (not looped), extensive post-call validation of the rewritten list (checks for INSTEAD NOTHING, multip…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0.125,
+        "tokens": 7245,
+        "tokensPct": 293.5575364667747,
+        "wallTimeMs": 122837,
+        "wallTimePct": 106.50914766322725
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "postgres-10.3-pg_analyze_and_rewrite_fixedparams",
+      "family": "explanation",
+      "iteration": 3,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 11,
+          "uniqueFilesRead": 5,
+          "wallTimeMs": 118150,
+          "tokensUsed": 1758,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 9
+          }
+        },
+        "tools": "view×9, report_intent×1, grep×1",
+        "answer": "Here are the callers grouped by pattern:  **No params, no queryEnv (simple query, inside a loop over parsed statements):** - `exec_simple_query` in `src/backend/tcop/postgres.c` - `execute_sql_string` in `src/backend/commands/extension.c`  **No params, no queryEnv (one-shot, with post-call result va…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.875,
+          "firstPassAccurate": false,
+          "toolCallCount": 35,
+          "uniqueFilesRead": 5,
+          "wallTimeMs": 290354,
+          "tokensUsed": 8647,
+          "answerCoverage": 0.875,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 2,
+            "lore_dependents": 1,
+            "bash": 15,
+            "view": 16,
+            "task": 1
+          }
+        },
+        "tools": "view×16, bash×15, report_intent×2, lore_dependents×1, task×1",
+        "loreToolArgs": "lore_dependents(query=pg_analyze_and_rewrite_fixedparams, kind=symbol, compact=false)",
+        "answer": "**No parameters (NULL/0), inside a loop over parsed statements:** - `exec_simple_query` in src/backend/tcop/postgres.c - `execute_sql_string` in src/backend/commands/extension.c  **No parameters (NULL/0), single call with post-call result validation:** - `BeginCopyTo` in src/backend/commands/copyto.…",
+        "missedParts": [
+          "SPI_execute"
+        ],
+        "missedAnswerLines": [
+          "SPI_execute"
+        ]
+      },
+      "delta": {
+        "correctness": -0.125,
+        "tokens": 6889,
+        "tokensPct": 391.86575654152443,
+        "wallTimeMs": 172204,
+        "wallTimePct": 145.75031739314431
+      },
+      "warnings": [
+        "lore worse on correctness — missed: [SPI_execute]",
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "postgres-10.3-pg_analyze_and_rewrite_fixedparams",
+      "family": "explanation",
+      "iteration": 4,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 8,
+          "uniqueFilesRead": 5,
+          "wallTimeMs": 129090,
+          "tokensUsed": 2610,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 6
+          }
+        },
+        "tools": "view×6, report_intent×1, grep×1",
+        "answer": "**No params (NULL,0), inside a loop over raw parsetrees — batch statement execution:** - `exec_simple_query` in src/backend/tcop/postgres.c - `execute_sql_string` in src/backend/commands/extension.c  **No params (NULL,0), one-shot with post-call result validation:** - `BeginCopyTo` in src/backend/co…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 16,
+          "uniqueFilesRead": 5,
+          "wallTimeMs": 209557,
+          "tokensUsed": 3402,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "bash": 5,
+            "grep": 1,
+            "view": 8
+          }
+        },
+        "tools": "view×8, bash×5, report_intent×1, lore_dependents×1, grep×1",
+        "loreToolArgs": "lore_dependents(query=pg_analyze_and_rewrite_fixedparams, kind=symbol, compact=false)",
+        "answer": "Good. Now I have all the context I need. Here are the 6 direct call sites:  **Inside a loop over multiple parsed statements, with no params (NULL/0) and no QueryEnvironment:** - `exec_simple_query` in `src/backend/tcop/postgres.c` - `execute_sql_string` in `src/backend/commands/extension.c`  **One-s…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 792,
+        "tokensPct": 30.344827586206897,
+        "wallTimeMs": 80467,
+        "wallTimePct": 62.3340305213417
+      },
+      "warnings": [
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "postgres-10.3-pg_analyze_and_rewrite_fixedparams",
+      "family": "explanation",
+      "iteration": 5,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.875,
+          "firstPassAccurate": false,
+          "toolCallCount": 7,
+          "uniqueFilesRead": 4,
+          "wallTimeMs": 116774,
+          "tokensUsed": 1997,
+          "answerCoverage": 0.875,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 5
+          }
+        },
+        "tools": "view×5, report_intent×1, grep×1",
+        "answer": "Here are the callers grouped by calling pattern:  **In a loop, no params (NULL/0/NULL), immediately piped to pg_plan_queries:** - `exec_simple_query` in src/backend/tcop/postgres.c - `execute_sql_string` in src/backend/commands/extension.c  **In a loop, else-branch of parserSetup check, with plan ar…",
+        "missedParts": [
+          "RevalidateCachedQuery"
+        ],
+        "missedAnswerLines": [
+          "RevalidateCachedQuery"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 21,
+          "uniqueFilesRead": 5,
+          "wallTimeMs": 179155,
+          "tokensUsed": 6932,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "bash": 3,
+            "grep": 1,
+            "view": 14,
+            "task": 1
+          }
+        },
+        "tools": "view×14, bash×3, report_intent×1, lore_dependents×1, grep×1, task×1",
+        "loreToolArgs": "lore_dependents(query=pg_analyze_and_rewrite_fixedparams, kind=symbol, compact=true)",
+        "answer": "Here are the callers grouped by calling pattern:  **No-params one-shot (NULL/0 args, no queryEnv, no withcb branch):** - `exec_simple_query` in src/backend/tcop/postgres.c — inside foreach over parsed statements, result fed to `pg_plan_queries` - `BeginCopyTo` in src/backend/commands/copyto.c — sing…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0.125,
+        "tokens": 4935,
+        "tokensPct": 247.12068102153228,
+        "wallTimeMs": 62381,
+        "wallTimePct": 53.42028191206947
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "postgres-11.2-pg_analyze_and_rewrite_fixedparams",
+      "family": "modification",
+      "iteration": 1,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.6666666666666666,
+          "firstPassAccurate": false,
+          "toolCallCount": 12,
+          "uniqueFilesRead": 4,
+          "wallTimeMs": 127644,
+          "tokensUsed": 2103,
+          "answerCoverage": 0.7142857142857143,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 6,
+            "view": 5
+          }
+        },
+        "tools": "grep×6, view×5, report_intent×1",
+        "answer": "Now I have all the information needed. Here are the callers:  BeginCopyTo in src/backend/commands/copyto.c — rewritten = pg_analyze_and_rewrite_fixedparams(raw_query, execute_sql_string in src/backend/commands/extension.c — stmt_list = pg_analyze_and_rewrite_fixedparams(parsetree, _SPI_prepare_plan …",
+        "missedParts": [
+          "exec_simple_query",
+          "postgres.c"
+        ],
+        "missedAnswerLines": [
+          "exec_simple_query → postgres.c"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.6666666666666666,
+          "firstPassAccurate": false,
+          "toolCallCount": 12,
+          "uniqueFilesRead": 4,
+          "wallTimeMs": 121899,
+          "tokensUsed": 1935,
+          "answerCoverage": 0.7142857142857143,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 5,
+            "lore_dependents": 1,
+            "view": 5
+          }
+        },
+        "tools": "grep×5, view×5, report_intent×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=pg_analyze_and_rewrite_fixedparams, kind=symbol, compact=true)",
+        "answer": "Now I have all the information. The callers in other files are:  - `BeginCopyTo` in `src/backend/commands/copyto.c` line 730 - `execute_sql_string` in `src/backend/commands/extension.c` line 1105 - `RevalidateCachedQuery` in `src/backend/utils/cache/plancache.c` line 810 - `_SPI_prepare_plan` in `sr…",
+        "missedParts": [
+          "exec_simple_query",
+          "postgres.c"
+        ],
+        "missedAnswerLines": [
+          "exec_simple_query → postgres.c"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -168,
+        "tokensPct": -7.988587731811697,
+        "wallTimeMs": -5745,
+        "wallTimePct": -4.500799097489894
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "postgres-11.2-pg_analyze_and_rewrite_fixedparams",
+      "family": "modification",
+      "iteration": 2,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.6666666666666666,
+          "firstPassAccurate": false,
+          "toolCallCount": 12,
+          "uniqueFilesRead": 4,
+          "wallTimeMs": 98001,
+          "tokensUsed": 2040,
+          "answerCoverage": 0.7142857142857143,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 5,
+            "bash": 4
+          }
+        },
+        "tools": "view×5, bash×4, grep×2, report_intent×1",
+        "answer": "BeginCopyTo in src/backend/commands/copyto.c — rewritten = pg_analyze_and_rewrite_fixedparams(raw_query, execute_sql_string in src/backend/commands/extension.c — stmt_list = pg_analyze_and_rewrite_fixedparams(parsetree, _SPI_prepare_plan in src/backend/executor/spi.c — stmt_list = pg_analyze_and_rew…",
+        "missedParts": [
+          "exec_simple_query",
+          "postgres.c"
+        ],
+        "missedAnswerLines": [
+          "exec_simple_query → postgres.c"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.6666666666666666,
+          "firstPassAccurate": false,
+          "toolCallCount": 5,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 116743,
+          "tokensUsed": 1071,
+          "answerCoverage": 0.7142857142857143,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "lore_dependents": 1,
+            "bash": 2
+          }
+        },
+        "tools": "bash×2, report_intent×1, grep×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=pg_analyze_and_rewrite_fixedparams, kind=symbol, compact=true)",
+        "answer": "BeginCopyTo in src/backend/commands/copyto.c — rewritten = pg_analyze_and_rewrite_fixedparams(raw_query, execute_sql_string in src/backend/commands/extension.c — stmt_list = pg_analyze_and_rewrite_fixedparams(parsetree, _SPI_prepare_plan in src/backend/executor/spi.c — stmt_list = pg_analyze_and_rew…",
+        "missedParts": [
+          "exec_simple_query",
+          "postgres.c"
+        ],
+        "missedAnswerLines": [
+          "exec_simple_query → postgres.c"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -969,
+        "tokensPct": -47.5,
+        "wallTimeMs": 18742,
+        "wallTimePct": 19.12429465005459
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "postgres-11.2-pg_analyze_and_rewrite_fixedparams",
+      "family": "modification",
+      "iteration": 3,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.6666666666666666,
+          "firstPassAccurate": false,
+          "toolCallCount": 8,
+          "uniqueFilesRead": 4,
+          "wallTimeMs": 106027,
+          "tokensUsed": 1514,
+          "answerCoverage": 0.7142857142857143,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 5,
+            "bash": 1
+          }
+        },
+        "tools": "view×5, report_intent×1, grep×1, bash×1",
+        "answer": "BeginCopyTo in src/backend/commands/copyto.c — rewritten = pg_analyze_and_rewrite_fixedparams(raw_query, execute_sql_string in src/backend/commands/extension.c — stmt_list = pg_analyze_and_rewrite_fixedparams(parsetree, _SPI_prepare_plan in src/backend/executor/spi.c — stmt_list = pg_analyze_and_rew…",
+        "missedParts": [
+          "exec_simple_query",
+          "postgres.c"
+        ],
+        "missedAnswerLines": [
+          "exec_simple_query → postgres.c"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.6666666666666666,
+          "firstPassAccurate": false,
+          "toolCallCount": 5,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 118906,
+          "tokensUsed": 1167,
+          "answerCoverage": 0.7142857142857143,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "lore_dependents": 1,
+            "bash": 2
+          }
+        },
+        "tools": "bash×2, report_intent×1, grep×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=pg_analyze_and_rewrite_fixedparams, kind=symbol, compact=true)",
+        "answer": "BeginCopyTo in src/backend/commands/copyto.c — rewritten = pg_analyze_and_rewrite_fixedparams(raw_query, execute_sql_string in src/backend/commands/extension.c — stmt_list = pg_analyze_and_rewrite_fixedparams(parsetree, _SPI_prepare_plan in src/backend/executor/spi.c — stmt_list = pg_analyze_and_rew…",
+        "missedParts": [
+          "exec_simple_query",
+          "postgres.c"
+        ],
+        "missedAnswerLines": [
+          "exec_simple_query → postgres.c"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -347,
+        "tokensPct": -22.919418758256274,
+        "wallTimeMs": 12879,
+        "wallTimePct": 12.1469059767795
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "postgres-11.2-pg_analyze_and_rewrite_fixedparams",
+      "family": "modification",
+      "iteration": 4,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.6666666666666666,
+          "firstPassAccurate": false,
+          "toolCallCount": 15,
+          "uniqueFilesRead": 4,
+          "wallTimeMs": 121543,
+          "tokensUsed": 2373,
+          "answerCoverage": 0.7142857142857143,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 5,
+            "bash": 4,
+            "view": 5
+          }
+        },
+        "tools": "grep×5, view×5, bash×4, report_intent×1",
+        "answer": "BeginCopyTo in src/backend/commands/copyto.c — rewritten = pg_analyze_and_rewrite_fixedparams(raw_query, execute_sql_string in src/backend/commands/extension.c — stmt_list = pg_analyze_and_rewrite_fixedparams(parsetree, RevalidateCachedQuery in src/backend/utils/cache/plancache.c — tlist = pg_analyz…",
+        "missedParts": [
+          "exec_simple_query",
+          "postgres.c"
+        ],
+        "missedAnswerLines": [
+          "exec_simple_query → postgres.c"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.6666666666666666,
+          "firstPassAccurate": false,
+          "toolCallCount": 13,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 131145,
+          "tokensUsed": 2359,
+          "answerCoverage": 0.7142857142857143,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 5,
+            "lore_dependents": 1,
+            "bash": 6
+          }
+        },
+        "tools": "bash×6, grep×5, report_intent×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=pg_analyze_and_rewrite_fixedparams, kind=symbol, compact=true)",
+        "answer": "BeginCopyTo in src/backend/commands/copyto.c — rewritten = pg_analyze_and_rewrite_fixedparams(raw_query, execute_sql_string in src/backend/commands/extension.c — stmt_list = pg_analyze_and_rewrite_fixedparams(parsetree, _SPI_prepare_plan in src/backend/executor/spi.c — stmt_list = pg_analyze_and_rew…",
+        "missedParts": [
+          "exec_simple_query",
+          "postgres.c"
+        ],
+        "missedAnswerLines": [
+          "exec_simple_query → postgres.c"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -14,
+        "tokensPct": -0.5899705014749262,
+        "wallTimeMs": 9602,
+        "wallTimePct": 7.900084743670964
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "postgres-11.2-pg_analyze_and_rewrite_fixedparams",
+      "family": "modification",
+      "iteration": 5,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.6666666666666666,
+          "firstPassAccurate": false,
+          "toolCallCount": 12,
+          "uniqueFilesRead": 4,
+          "wallTimeMs": 144848,
+          "tokensUsed": 2260,
+          "answerCoverage": 0.7142857142857143,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 6,
+            "view": 5
+          }
+        },
+        "tools": "grep×6, view×5, report_intent×1",
+        "answer": "BeginCopyTo in src/backend/commands/copyto.c — rewritten = pg_analyze_and_rewrite_fixedparams(raw_query, execute_sql_string in src/backend/commands/extension.c — stmt_list = pg_analyze_and_rewrite_fixedparams(parsetree, _SPI_prepare_plan in src/backend/executor/spi.c — stmt_list = pg_analyze_and_rew…",
+        "missedParts": [
+          "exec_simple_query",
+          "postgres.c"
+        ],
+        "missedAnswerLines": [
+          "exec_simple_query → postgres.c"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.6666666666666666,
+          "firstPassAccurate": false,
+          "toolCallCount": 7,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 155749,
+          "tokensUsed": 2359,
+          "answerCoverage": 0.7142857142857143,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "lore_dependents": 1,
+            "bash": 4
+          }
+        },
+        "tools": "bash×4, report_intent×1, grep×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=pg_analyze_and_rewrite_fixedparams, kind=symbol, compact=true)",
+        "answer": "execute_sql_string in src/backend/commands/extension.c — stmt_list = pg_analyze_and_rewrite_fixedparams(parsetree, _SPI_prepare_plan in src/backend/executor/spi.c — stmt_list = pg_analyze_and_rewrite_fixedparams(parsetree, _SPI_execute_plan in src/backend/executor/spi.c — querytree_list = pg_analyze…",
+        "missedParts": [
+          "exec_simple_query",
+          "postgres.c"
+        ],
+        "missedAnswerLines": [
+          "exec_simple_query → postgres.c"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 99,
+        "tokensPct": 4.380530973451328,
+        "wallTimeMs": 10901,
+        "wallTimePct": 7.5258201701093554
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "postgres-11.3-pg_analyze_and_rewrite_fixedparams",
+      "family": "refactoring",
+      "iteration": 1,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 3,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 111874,
+          "tokensUsed": 1000,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 1
+          }
+        },
+        "tools": "report_intent×1, grep×1, view×1",
+        "answer": "Now I have the full picture. The function body (lines 670–696) is ~25 lines, with 5 callers. Let me verify each call site briefly.  **Callers: 5**  **Verdict: No** — The function is 26 lines with side effects (TRACE/DTrace probes, conditional `ResetUsage()`/`ShowUsage()` stats logging, query rewriti…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.8333333333333334,
+          "firstPassAccurate": true,
+          "toolCallCount": 10,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 170778,
+          "tokensUsed": 2563,
+          "answerCoverage": 0.8333333333333334,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 3,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_dependents",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 1,
+            "lore_dependents": 1,
+            "lore_snippet": 1,
+            "bash": 4,
+            "grep": 2
+          }
+        },
+        "tools": "bash×4, grep×2, report_intent×1, lore_lookup×1, lore_dependents×1, lore_snippet×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=pg_analyze_and_rewrite_fixedparams), lore_dependents(query=pg_analyze_and_rewrite_fixedparams, kind=symbol, compact=true), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-Ixl1lo/postgres/src/backend/tcop/postgres.c, symbol=pg_analyze_and_rewrite_fixedparams)",
+        "answer": "**Callers: 6** **Verdict: No** — the function is only ~15 lines (cyclomatic complexity 1), but it has **6 callers across 5 files** (with `_SPI_execute_plan` and `_SPI_prepare_plan` both calling it in spi.c). Inlining would duplicate the `TRACE_POSTGRESQL_QUERY_REWRITE_START/DONE` DTrace probes, the …",
+        "missedParts": [
+          "pg_analyze_and_rewrite_fixedparams"
+        ],
+        "missedAnswerLines": [
+          "pg_analyze_and_rewrite_fixedparams"
+        ]
+      },
+      "delta": {
+        "correctness": -0.16666666666666663,
+        "tokens": 1563,
+        "tokensPct": 156.29999999999998,
+        "wallTimeMs": 58904,
+        "wallTimePct": 52.6520907449452
+      },
+      "warnings": [
+        "lore worse on correctness — missed: [pg_analyze_and_rewrite_fixedparams]",
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "postgres-11.3-pg_analyze_and_rewrite_fixedparams",
+      "family": "refactoring",
+      "iteration": 2,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 3,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 78880,
+          "tokensUsed": 765,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 1
+          }
+        },
+        "tools": "report_intent×1, grep×1, view×1",
+        "answer": "Now I have all the information needed.  **Callers: 5**  **Verdict: No** — while the function is only ~30 lines, it has observable side effects (DTrace tracepoints via `TRACE_POSTGRESQL_QUERY_REWRITE_START/DONE`, conditional stats logging via `log_parser_stats`/`ResetUsage`/`ShowUsage`). Inlining wou…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 9,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 156543,
+          "tokensUsed": 2243,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 3,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_dependents",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 1,
+            "lore_dependents": 1,
+            "lore_snippet": 1,
+            "bash": 3,
+            "grep": 1,
+            "view": 1
+          }
+        },
+        "tools": "bash×3, report_intent×1, lore_lookup×1, lore_dependents×1, lore_snippet×1, grep×1, view×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=pg_analyze_and_rewrite_fixedparams), lore_dependents(query=pg_analyze_and_rewrite_fixedparams, kind=symbol, compact=true), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-Ixl1lo/postgres/src/backend/tcop/postgres.c, start_line=664, end_line=702)",
+        "answer": "**Callers: 6** (across 5 files; `spi.c` has 2 distinct callers)  **Verdict: No** — The function is only ~20 lines and has low cyclomatic complexity (1), but inlining is still inadvisable. It has **6 call sites in 5 files**, so inlining would duplicate the `TRACE_POSTGRESQL_QUERY_REWRITE_START/DONE` …",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 1478,
+        "tokensPct": 193.20261437908496,
+        "wallTimeMs": 77663,
+        "wallTimePct": 98.45715010141987
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "postgres-11.3-pg_analyze_and_rewrite_fixedparams",
+      "family": "refactoring",
+      "iteration": 3,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 3,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 81022,
+          "tokensUsed": 834,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 1
+          }
+        },
+        "tools": "report_intent×1, grep×1, view×1",
+        "answer": "**Callers:** 6 **Verdict:** No — the function is 30 lines with side effects (DTrace tracing, conditional stats logging via `ResetUsage`/`ShowUsage`), and inlining into 6 callers would duplicate non-trivial orchestration logic across multiple subsystems.  **Call sites:** - `DoCopyTo` in `src/backend/…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 12,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 143449,
+          "tokensUsed": 2577,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 3,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_dependents",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 1,
+            "lore_dependents": 1,
+            "lore_snippet": 1,
+            "bash": 2,
+            "grep": 6
+          }
+        },
+        "tools": "grep×6, bash×2, report_intent×1, lore_lookup×1, lore_dependents×1, lore_snippet×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=pg_analyze_and_rewrite_fixedparams), lore_dependents(query=pg_analyze_and_rewrite_fixedparams, kind=symbol, compact=true), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-Ixl1lo/postgres/src/backend/tcop/postgres.c, symbol=pg_analyze_and_rewrite_fixedparams)",
+        "answer": "**Callers: 6** (across 5 files; `spi.c` calls it twice)  **Verdict: No** — although the function body is only ~20 lines with cyclomatic complexity 1, inlining is unsafe for several reasons: (1) 6 call sites across 5 files means 6× duplication of the DTRACE tracepoint macros (`TRACE_POSTGRESQL_QUERY_…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 1743,
+        "tokensPct": 208.99280575539566,
+        "wallTimeMs": 62427,
+        "wallTimePct": 77.04944336106243
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "postgres-11.3-pg_analyze_and_rewrite_fixedparams",
+      "family": "refactoring",
+      "iteration": 4,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 6,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 122925,
+          "tokensUsed": 1970,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 1,
+            "bash": 2
+          }
+        },
+        "tools": "grep×2, bash×2, report_intent×1, view×1",
+        "answer": "Wait — line 2279 is inside `_SPI_execute_plan` (starts at 2399)? Let me recheck — 2279 < 2329 < 2399. So 2279 is in `_SPI_prepare_plan` (starts at 2221). And 2532 is in `_SPI_execute_plan` (starts at 2399).  Here's the analysis:  **Callers: 5** **Verdict: No** — the function is 30 lines with side ef…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.8333333333333334,
+          "firstPassAccurate": true,
+          "toolCallCount": 12,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 152467,
+          "tokensUsed": 2610,
+          "answerCoverage": 0.8333333333333334,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 3,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_dependents",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 1,
+            "lore_dependents": 1,
+            "lore_snippet": 1,
+            "bash": 2,
+            "grep": 6
+          }
+        },
+        "tools": "grep×6, bash×2, report_intent×1, lore_lookup×1, lore_dependents×1, lore_snippet×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=pg_analyze_and_rewrite_fixedparams), lore_dependents(query=pg_analyze_and_rewrite_fixedparams, kind=symbol, compact=true), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-Ixl1lo/postgres/src/backend/tcop/postgres.c, symbol=pg_analyze_and_rewrite_fixedparams)",
+        "answer": "**Callers: 5** **Verdict: No** — the function is only 15 lines and has low cyclomatic complexity (1), but it has 5 callers across 4 different files, and it contains DTrace tracepoint macros (`TRACE_POSTGRESQL_QUERY_REWRITE_START/DONE`) plus conditional `log_parser_stats` instrumentation. Inlining wo…",
+        "missedParts": [
+          "extension.c"
+        ],
+        "missedAnswerLines": [
+          "extension.c"
+        ]
+      },
+      "delta": {
+        "correctness": -0.16666666666666663,
+        "tokens": 640,
+        "tokensPct": 32.48730964467005,
+        "wallTimeMs": 29542,
+        "wallTimePct": 24.032540166768353
+      },
+      "warnings": [
+        "lore worse on correctness — missed: [extension.c]"
+      ]
+    },
+    {
+      "taskId": "postgres-11.3-pg_analyze_and_rewrite_fixedparams",
+      "family": "refactoring",
+      "iteration": 5,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 3,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 99651,
+          "tokensUsed": 929,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 1
+          }
+        },
+        "tools": "report_intent×1, grep×1, view×1",
+        "answer": "Here's the analysis:  **Callers: 5**  **Verdict: No** — The function is 27 lines with side effects (DTrace tracepoints, conditional stats logging via `ResetUsage`/`ShowUsage`, parse analysis, and query rewriting). Inlining would duplicate this non-trivial orchestration logic across 5 call sites, mak…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 14,
+          "uniqueFilesRead": 5,
+          "wallTimeMs": 151935,
+          "tokensUsed": 2903,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 3,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_dependents",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 1,
+            "lore_dependents": 1,
+            "lore_snippet": 1,
+            "bash": 3,
+            "grep": 1,
+            "view": 6
+          }
+        },
+        "tools": "view×6, bash×3, report_intent×1, lore_lookup×1, lore_dependents×1, lore_snippet×1, grep×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=pg_analyze_and_rewrite_fixedparams), lore_dependents(query=pg_analyze_and_rewrite_fixedparams, kind=symbol, compact=true), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-Ixl1lo/postgres/src/backend/tcop/postgres.c, symbol=pg_analyze_and_rewrite_fixedparams)",
+        "answer": "**Callers:** 6 **Verdict:** No — the function is only 15 lines but has **6 callers across 5 files** (with `spi.c` calling it twice). It contains DTRACE tracepoints (`TRACE_POSTGRESQL_QUERY_REWRITE_START/DONE`), conditional stats logging (`log_parser_stats`), and orchestrates two non-trivial calls (`…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 1974,
+        "tokensPct": 212.48654467168996,
+        "wallTimeMs": 52284,
+        "wallTimePct": 52.467110214649125
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    }
+  ],
+  "aggregate": {
+    "control": {
+      "arm": "control",
+      "totalRuns": 65,
+      "successRate": 0.8615384615384616,
+      "partialRate": 0.13846153846153847,
+      "failRate": 0,
+      "meanCorrectness": 0.7987179487179487,
+      "meanToolCalls": 19.4,
+      "meanUniqueFiles": 2.9076923076923076,
+      "meanWallTimeMs": 78254.33846153846,
+      "meanTokens": 4031,
+      "meanAnswerCoverage": 0.8254578754578756,
+      "meanFileCoverage": 0.9538461538461539,
+      "meanSymbolCoverage": 1,
+      "firstPassAccuracyRate": 0,
+      "meanLoreToolCalls": 0,
+      "loreToolUsageRate": 0,
+      "allLoreToolsUsed": [],
+      "toolCallCounts": {
+        "report_intent": 68,
+        "grep": 250,
+        "bash": 495,
+        "view": 416,
+        "task": 20,
+        "read_agent": 9,
+        "stop_bash": 2,
+        "read_bash": 1
+      },
+      "stdCorrectness": 0.27835793448394974,
+      "stdToolCalls": 46.274925715769626,
+      "stdWallTimeMs": 78883.13809488156,
+      "stdTokens": 9005.75031924048,
+      "stdAnswerCoverage": 0.24889590131602257,
+      "stdFileCoverage": 0.14585622530950954,
+      "stdSymbolCoverage": 0
+    },
+    "lore": {
+      "arm": "lore-enabled",
+      "totalRuns": 65,
+      "successRate": 0.9230769230769231,
+      "partialRate": 0.07692307692307693,
+      "failRate": 0,
+      "meanCorrectness": 0.8493589743589745,
+      "meanToolCalls": 8.138461538461538,
+      "meanUniqueFiles": 1.1384615384615384,
+      "meanWallTimeMs": 83486.36923076923,
+      "meanTokens": 2246.507692307692,
+      "meanAnswerCoverage": 0.8722527472527476,
+      "meanFileCoverage": 1,
+      "meanSymbolCoverage": 1,
+      "firstPassAccuracyRate": 0.2153846153846154,
+      "meanLoreToolCalls": 1.4923076923076923,
+      "loreToolUsageRate": 0.9538461538461539,
+      "allLoreToolsUsed": [
+        "lore_dependents",
+        "lore_graph",
+        "lore_lookup",
+        "lore_snippet",
+        "lore_trace"
+      ],
+      "toolCallCounts": {
+        "report_intent": 72,
+        "lore_dependents": 50,
+        "bash": 187,
+        "lore_graph": 11,
+        "grep": 62,
+        "view": 104,
+        "lore_lookup": 15,
+        "lore_snippet": 12,
+        "lore_trace": 9,
+        "stop_bash": 1,
+        "task": 4,
+        "read_agent": 2
+      },
+      "stdCorrectness": 0.19394204020084177,
+      "stdToolCalls": 6.7589684010323525,
+      "stdWallTimeMs": 60921.42006243813,
+      "stdTokens": 2143.6850800889933,
+      "stdAnswerCoverage": 0.16472709146620798,
+      "stdFileCoverage": 0,
+      "stdSymbolCoverage": 0
+    },
+    "comparison": {
+      "successRateDelta": 0.06153846153846154,
+      "correctnessDelta": 0.050641025641025794,
+      "firstPassAccuracyDelta": 0.2153846153846154,
+      "answerCoverageDelta": 0.04679487179487196,
+      "toolCallsDelta": -11.26153846153846,
+      "tokensDelta": -1784.4923076923078,
+      "tokensPct": -44.26922122779231,
+      "wallTimeDelta": 5232.030769230769,
+      "wallTimePct": 6.685930610482742
+    },
+    "significance": {
+      "t": 1.2034493615678603,
+      "df": 114.28634447807556,
+      "p": 0.23128938338924876,
+      "significant": false
+    }
+  }
+}

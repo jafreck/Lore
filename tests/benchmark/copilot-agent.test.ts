@@ -269,7 +269,7 @@ describe.skipIf(SKIP)(`Copilot agent benchmark: ${TARGET_REPO}`, () => {
         loreReport,
       );
 
-      const outDir = join(LORE_BUILD_ROOT, 'benchmark-results');
+      const outDir = join(LORE_BUILD_ROOT, '.benchmark-results');
       mkdirSync(outDir, { recursive: true });
       const jsonPath = join(outDir, `${TARGET_REPO}.json`);
       writeFileSync(jsonPath, JSON.stringify(structuredReport, null, 2) + '\n');
