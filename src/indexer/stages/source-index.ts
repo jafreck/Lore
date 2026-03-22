@@ -408,6 +408,7 @@ function processFileWithSource(
   );
 
   const symbolIdMap = new Map<string, number>();
+  const pendingParents: Array<{ symId: number; parentName: string }> = [];
 
   for (const sym of result.symbols) {
     // Guard: skip symbols with empty names (malformed AST nodes).
@@ -425,6 +426,20 @@ function processFileWithSource(
     ) as { lastInsertRowid: number | bigint };
     const symId = Number(info.lastInsertRowid);
     symbolIdMap.set(sym.name, symId);
+    if (sym.parentName) {
+      pendingParents.push({ symId, parentName: sym.parentName });
+    }
+  }
+
+  // Resolve parent_symbol_id for nested symbols (inner functions, class methods, etc.)
+  if (pendingParents.length > 0) {
+    const updateParent = db.prepare('UPDATE symbols SET parent_symbol_id = ? WHERE id = ?');
+    for (const { symId, parentName } of pendingParents) {
+      const parentId = symbolIdMap.get(parentName);
+      if (parentId !== undefined) {
+        updateParent.run(parentId, symId);
+      }
+    }
   }
 
   // Insert symbol metrics (cyclomatic complexity, line count, etc.)

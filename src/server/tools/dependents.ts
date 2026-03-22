@@ -80,6 +80,7 @@ interface CallerEntry {
   caller_name: string;
   caller_kind: string;
   caller_file: string;
+  enclosing_name?: string;
   line?: number;
   character?: number | null;
   resolution_method?: string;
@@ -90,6 +91,7 @@ interface CompactCallerEntry {
   caller_name: string;
   caller_kind: string;
   caller_file: string;
+  enclosing_name?: string;
 }
 
 interface ImporterEntry {
@@ -166,6 +168,7 @@ interface RawCallerRow {
   caller_name: string;
   caller_kind: string;
   caller_file: string;
+  enclosing_name: string | null;
   line: number;
   character: number | null;
   resolution_method: string;
@@ -223,12 +226,14 @@ function queryCallers(
               s.name AS caller_name,
               s.kind AS caller_kind,
               f.path AS caller_file,
+              sp.name AS enclosing_name,
               sr.call_line + 1 AS line,
               CASE WHEN sr.call_character IS NULL THEN NULL ELSE sr.call_character + 1 END AS character,
               sr.resolution_method
          FROM symbol_refs sr
          JOIN symbols s ON s.id = sr.caller_id
          JOIN files f ON f.id = s.file_id
+         LEFT JOIN symbols sp ON sp.id = s.parent_symbol_id
         WHERE ${conditions.join(' AND ')}
         LIMIT ?`,
     )
@@ -372,6 +377,20 @@ function compactCaller(row: RawCallerRow): CompactCallerEntry {
     caller_name: row.caller_name,
     caller_kind: row.caller_kind,
     caller_file: row.caller_file,
+    ...(row.enclosing_name ? { enclosing_name: row.enclosing_name } : {}),
+  };
+}
+
+function fullCaller(row: RawCallerRow): CallerEntry {
+  return {
+    caller_id: row.caller_id,
+    caller_name: row.caller_name,
+    caller_kind: row.caller_kind,
+    caller_file: row.caller_file,
+    ...(row.enclosing_name ? { enclosing_name: row.enclosing_name } : {}),
+    line: row.line,
+    character: row.character,
+    resolution_method: row.resolution_method,
   };
 }
 
@@ -595,7 +614,7 @@ function buildResult(
   compact: boolean,
   depth: number,
 ): DependentsResult {
-  const callers = compact ? callerRows.map(compactCaller) : callerRows;
+  const callers = compact ? callerRows.map(compactCaller) : callerRows.map(fullCaller);
   const importers = compact ? importerRows.map(compactImporter) : importerRows;
   const subclasses = compact ? subclassRows.map(compactSubclass) : subclassRows;
   const typeRefs = compact ? typeRefRows.map(compactTypeRef) : typeRefRows;

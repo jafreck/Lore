@@ -96,6 +96,7 @@ function extractNamedNode(node: Parser.SyntaxNode, kind: string): RawSymbol {
     startLine: node.startPosition.row,
     endLine: node.endPosition.row,
     signature: nodeSignature(node),
+    parentName: findEnclosingSymbolName(node, JAVA_SYMBOL_NODE_TYPES) || undefined,
   };
 }
 
@@ -107,6 +108,7 @@ function extractMethod(node: Parser.SyntaxNode): RawSymbol {
     startLine: node.startPosition.row,
     endLine: node.endPosition.row,
     signature: nodeSignature(node),
+    parentName: findEnclosingSymbolName(node, JAVA_SYMBOL_NODE_TYPES) || undefined,
   };
 }
 

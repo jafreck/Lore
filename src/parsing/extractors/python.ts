@@ -83,6 +83,7 @@ function extractFunction(node: Parser.SyntaxNode, async_: boolean): RawSymbol {
     startLine: node.startPosition.row,
     endLine: node.endPosition.row,
     signature: nodeSignature(node),
+    parentName: findEnclosingSymbolName(node, PY_SYMBOL_NODE_TYPES) || undefined,
   };
 }
 
@@ -94,6 +95,7 @@ function extractClass(node: Parser.SyntaxNode): RawSymbol {
     startLine: node.startPosition.row,
     endLine: node.endPosition.row,
     signature: nodeSignature(node),
+    parentName: findEnclosingSymbolName(node, PY_SYMBOL_NODE_TYPES) || undefined,
   };
 }
 
