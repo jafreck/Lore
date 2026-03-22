@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS symbols (
   definition_uri TEXT,
   definition_path TEXT,
   is_exported INTEGER NOT NULL DEFAULT 0,
+  parent_symbol_id INTEGER REFERENCES symbols(id) ON DELETE SET NULL,
   layer       TEXT    NOT NULL DEFAULT 'baseline',
   generation  INTEGER NOT NULL DEFAULT 0
 );
@@ -350,6 +351,7 @@ CREATE INDEX IF NOT EXISTS idx_symbols_file_id ON symbols(file_id);
 CREATE INDEX IF NOT EXISTS idx_symbols_name ON symbols(name);
 CREATE INDEX IF NOT EXISTS idx_symbols_definition_path ON symbols(definition_path);
 CREATE INDEX IF NOT EXISTS idx_symbols_exported ON symbols(is_exported) WHERE is_exported = 1;
+CREATE INDEX IF NOT EXISTS idx_symbols_parent ON symbols(parent_symbol_id);
 CREATE INDEX IF NOT EXISTS idx_symbol_refs_definition_path ON symbol_refs(definition_path);
 CREATE INDEX IF NOT EXISTS idx_symbol_refs_file_id ON symbol_refs(file_id);
 CREATE INDEX IF NOT EXISTS idx_symbol_refs_resolution_method ON symbol_refs(resolution_method);
