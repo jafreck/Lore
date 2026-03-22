@@ -1,0 +1,1309 @@
+
+[1m[46m RUN [49m[22m [36mv4.0.18 [39m[90m/Users/jacobfreck/Source/Lore[39m
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind
+[22m[39m
+jackson-databind cloned at 331c4a8e, indexed in 6629ms
+DB: /var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-N961Lo/jackson-databind/.lore.db
+Model: claude-opus-4.6
+Index: tree-sitter | Embeddings: none | LSP: false
+Tasks: 13 | Iterations: 5
+
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-1.1-reportInputMismatch [iter 5]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-1.1-reportInputMismatch: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=9066 wall=72.4s
+  tools: view×33, report_intent×1, grep×1, task×1
+  answer: _checkFromStringCoercion _deserializeAndSet _deserializeEmbedded _deserializeFromEmptyString _deserializeWithNativeTypeId _failDoubleToIntCoercion _findMissing _handleDuplicateField _initForReading _parseQNameObject _reportFailedNullCoerce _unpack _verifyNullForPrimitive _verifyNumberForScalarCoerci…
+[lore]    jackson-databind-1.1-reportInputMismatch: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=1790 wall=46.5s
+  tools: bash×3, report_intent×1, lore_dependents×1, grep×1
+  lore calls: lore_dependents(query=reportInputMismatch, kind=symbol, compact=true)
+  answer: _checkFromStringCoercion _deserializeAndSet _deserializeEmbedded _deserializeFromEmptyString _deserializeWithNativeTypeId _failDoubleToIntCoercion _findMissing _handleDuplicateField _initForReading _parseQNameObject _reportFailedNullCoerce _unpack _verifyNullForPrimitive _verifyNumberForScalarCoerci…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-1.2-createCollectionDeserializer [iter 1]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-1.2-createCollectionDeserializer: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=569 wall=24.3s
+  tools: grep×2, report_intent×1, view×1
+  answer: getContentType getValueHandler getConfig getTypeHandler findTypeDeserializer _findCustomCollectionDeserializer getRawClass isAssignableFrom isInterface isAbstract _mapAbstractCollectionType introspectForCreation findValueInstantiator canCreateUsingDefault hasRawClass findForCollection hasDeserialize…
+[lore]    jackson-databind-1.2-createCollectionDeserializer: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=722 wall=24.2s
+  tools: report_intent×1, lore_lookup×1, lore_graph×1, bash×1
+  lore calls: lore_lookup(kind=symbol, query=createCollectionDeserializer), lore_graph(kind=call, source_id=2831, compact=true)
+  answer: EnumSet.class.isAssignableFrom JavaUtilCollectionsDeserializers.findForCollection _factoryConfig.deserializerModifiers _factoryConfig.hasDeserializerModifiers _findCustomCollectionDeserializer _mapAbstractCollectionType config.introspectForCreation contentType.getTypeHandler contentType.getValueHand…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-1.2-createCollectionDeserializer [iter 2]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-1.2-createCollectionDeserializer: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=592 wall=24.2s
+  tools: grep×2, report_intent×1, view×1
+  answer: Now I can identify all direct method calls in `createCollectionDeserializer`:  getContentType getValueHandler getConfig getTypeHandler findTypeDeserializer _findCustomCollectionDeserializer getRawClass isAssignableFrom isInterface isAbstract _mapAbstractCollectionType introspectForCreation findValue…
+[lore]    jackson-databind-1.2-createCollectionDeserializer: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=761 wall=24.7s
+  tools: report_intent×1, lore_lookup×1, lore_graph×1, bash×1
+  lore calls: lore_lookup(kind=symbol, query=createCollectionDeserializer), lore_graph(kind=call, source_id=2831, compact=true)
+  answer: type.getContentType contentType.getValueHandler ctxt.getConfig contentType.getTypeHandler findTypeDeserializer _findCustomCollectionDeserializer type.getRawClass EnumSet.class.isAssignableFrom new EnumSetDeserializer type.isInterface type.isAbstract _mapAbstractCollectionType config.introspectForCre…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-1.2-createCollectionDeserializer [iter 3]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-1.1-reportInputMismatch: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=6811 wall=137.5s
+  tools: bash×8, view×3, grep×2, report_intent×1
+  answer: _checkFromStringCoercion _deserializeAndSet _deserializeEmbedded _deserializeFromEmptyString _deserializeWithNativeTypeId _failDoubleToIntCoercion _findMissing _handleDuplicateField _initForReading _parseQNameObject _reportFailedNullCoerce _unpack _verifyNullForPrimitive _verifyNumberForScalarCoerci…
+[lore]    jackson-databind-1.1-reportInputMismatch: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=2618 wall=64.2s
+  tools: bash×4, report_intent×1, lore_dependents×1
+  lore calls: lore_dependents(query=reportInputMismatch, kind=symbol, compact=true)
+  answer: _checkFromStringCoercion _deserializeAndSet _deserializeEmbedded _deserializeFromEmptyString _deserializeWithNativeTypeId _failDoubleToIntCoercion _handleDuplicateField _initForReading _parseQNameObject _reportFailedNullCoerce _unpack _verifyNullForPrimitive _verifyNumberForScalarCoercion _verifyStr…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-1.2-createCollectionDeserializer [iter 4]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-1.2-createCollectionDeserializer: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=1818 wall=39.6s
+  tools: grep×2, report_intent×1, view×1
+  answer: getContentType getValueHandler getConfig getTypeHandler findTypeDeserializer _findCustomCollectionDeserializer getRawClass isAssignableFrom isInterface isAbstract _mapAbstractCollectionType introspectForCreation findValueInstantiator canCreateUsingDefault hasRawClass findForCollection hasRawClass ha…
+[lore]    jackson-databind-1.2-createCollectionDeserializer: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=711 wall=24.1s
+  tools: report_intent×1, lore_lookup×1, lore_graph×1, bash×1
+  lore calls: lore_lookup(kind=symbol, query=createCollectionDeserializer), lore_graph(kind=call, source_id=2831, compact=true)
+  answer: type.getContentType contentType.getValueHandler ctxt.getConfig contentType.getTypeHandler findTypeDeserializer _findCustomCollectionDeserializer type.getRawClass EnumSet.class.isAssignableFrom new EnumSetDeserializer type.isInterface type.isAbstract _mapAbstractCollectionType config.introspectForCre…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-1.2-createCollectionDeserializer [iter 5]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-1.2-createCollectionDeserializer: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=1414 wall=32.1s
+  tools: grep×2, report_intent×1, view×1
+  answer: getContentType getValueHandler getConfig getTypeHandler findTypeDeserializer _findCustomCollectionDeserializer getRawClass isAssignableFrom isInterface isAbstract _mapAbstractCollectionType introspectForCreation findValueInstantiator canCreateUsingDefault hasRawClass findForCollection hasDeserialize…
+[lore]    jackson-databind-1.2-createCollectionDeserializer: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=948 wall=30.8s
+  tools: bash×2, report_intent×1, lore_lookup×1, lore_graph×1
+  lore calls: lore_lookup(kind=symbol, query=createCollectionDeserializer), lore_graph(kind=call, source_id=2831, compact=true)
+  answer: isAssignableFrom findForCollection deserializerModifiers hasDeserializerModifiers _findCustomCollectionDeserializer _mapAbstractCollectionType introspectForCreation getTypeHandler getValueHandler hasRawClass getConfig findTypeDeserializer findValueInstantiator canCreateUsingDefault modifyCollectionD…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-1.4-reportInputMismatch [iter 1]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-1.2-createCollectionDeserializer: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=592 wall=23.9s
+  tools: grep×2, report_intent×1, view×1
+  answer: Now I can trace all direct method calls in `createCollectionDeserializer`:  getContentType getValueHandler getConfig getTypeHandler findTypeDeserializer _findCustomCollectionDeserializer getRawClass isAssignableFrom isInterface isAbstract _mapAbstractCollectionType introspectForCreation findValueIns…
+[lore]    jackson-databind-1.2-createCollectionDeserializer: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=806 wall=25.4s
+  tools: report_intent×1, lore_lookup×1, lore_graph×1, bash×1
+  lore calls: lore_lookup(kind=symbol, query=createCollectionDeserializer), lore_graph(kind=call, source_id=2831, compact=true)
+  answer: EnumSet.class.isAssignableFrom JavaUtilCollectionsDeserializers.findForCollection _factoryConfig.deserializerModifiers _factoryConfig.hasDeserializerModifiers _findCustomCollectionDeserializer _mapAbstractCollectionType config.introspectForCreation contentType.getTypeHandler contentType.getValueHand…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-1.4-reportInputMismatch [iter 2]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-1.1-reportInputMismatch: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=10950 wall=97.2s
+  tools: view×36, report_intent×1, grep×1, task×1
+  answer: _deserializeWithNativeTypeId _initForReading handleMissingInstantiator handleUnexpectedToken reportUnresolvedObjectId _parseQNameObject deserializeEnumUsingPropertyBased _handleDuplicateField _deserializeEmbedded _deserializeFromEmptyString getNullValue deserialize _deserializeFromArray _unpack dese…
+[lore]    jackson-databind-1.1-reportInputMismatch: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=19779 wall=281.0s
+  tools: view×38, bash×9, report_intent×1, lore_dependents×1, grep×1
+  lore calls: lore_dependents(query=reportInputMismatch, kind=symbol, compact=true)
+  answer: _checkFromStringCoercion _deserializeAndSet _deserializeEmbedded _deserializeFromEmptyString _deserializeWithNativeTypeId _failDoubleToIntCoercion _findMissing _handleDuplicateField _initForReading _parseQNameObject _reportFailedNullCoerce _unpack _verifyNullForPrimitive _verifyNumberForScalarCoerci…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-1.4-reportInputMismatch [iter 3]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-1.1-reportInputMismatch: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=7690 wall=68.6s
+  tools: view×31, report_intent×1, grep×1, task×1, read_agent×1
+  answer: _deserializeWithNativeTypeId handleUnexpectedInstantiator handleUnexpectedToken reportUnresolvedObjectId _parseQNameObject _initForReading deserialize _deserializeEmbedded _deserializeFromEmptyString getNullValue _handleDuplicateField _checkFromStringCoercion _verifyNullForPrimitive _reportFailedNul…
+[lore]    jackson-databind-1.1-reportInputMismatch: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=23523 wall=307.5s
+  tools: view×60, bash×21, report_intent×2, lore_dependents×1, grep×1, task×1, read_agent×1
+  lore calls: lore_dependents(query=reportInputMismatch, kind=symbol, compact=true)
+  answer: Now I have the complete verified list. Here are all the methods that directly call `reportInputMismatch`:  _checkFromStringCoercion _deserializeAndSet _deserializeEmbedded _deserializeFromEmptyString _deserializeWithNativeTypeId _failDoubleToIntCoercion _findMissing _handleDuplicateField _initForRea…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-1.4-reportInputMismatch [iter 4]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-1.1-reportInputMismatch: success=1 correctness=0.91 ans_cov=0.75 file_cov=1.00 sym_cov=1.00 tokens=13133 wall=114.0s
+  tools: view×41, bash×15, report_intent×1, grep×1, task×1
+  answer: _checkStringCoercion _deserializeAndSet _deserializeEmbedded _deserializeFromEmptyString _deserializeWithNativeTypeId _failDoubleToIntCoercion _findMissing _handleDuplicateField _initForReading _parseQNameObject _reportFailedNullCoerce _unpack _verifyNullForPrimitive _verifyNumberForScalarCoercion _…
+  MISSED parts: [_checkFromStringCoercion]
+  MISSED answer lines: [_checkFromStringCoercion]
+[lore]    jackson-databind-1.1-reportInputMismatch: success=0.5 correctness=0.00 ans_cov=0.00 file_cov=1.00 sym_cov=1.00 tokens=11609 wall=360.0s
+  tools: bash×9, read_bash×3, report_intent×2, lore_dependents×1, grep×1, task×1
+  lore calls: lore_dependents(query=reportInputMismatch, kind=symbol, compact=true)
+  answer:   Let me directly verify each unresolved and questionable call site.
+  MISSED parts: [deserialize, _checkFromStringCoercion, _verifyNullForPrimitive, getNullValue]
+  MISSED answer lines: [deserialize, _deserializeEmbedded, _deserializeFromEmptyString, handleUnresolvedReference, _parseQNameObject, getNullValue, _checkFromStringCoercion, _verifyNullForPrimitive, _reportFailedNullCoerce, _verifyStringForScalarCoercion, _verifyNumberForScalarCoercion]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-1.4-reportInputMismatch [iter 5]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-1.4-reportInputMismatch: success=0.5 correctness=0.33 ans_cov=0.50 file_cov=1.00 sym_cov=1.00 tokens=79436 wall=334.7s
+  tools: view×145, bash×97, grep×31, read_agent×8, task×5, report_intent×1
+  answer: Let me compile all the findings. Let me make sure I have all the information by looking at the grep output one more time and verifying the exact methods:  Based on my comprehensive search of the repository, here are the callers (excluding definitions and self-calls):  ## Results:  **1. BeanDeseriali…
+  MISSED parts: [StdDeserializer, FromStringDeserializer]
+  MISSED answer lines: [src/main/java/com/fasterxml/jackson/databind/deser/std/StdDeserializer.java, src/main/java/com/fasterxml/jackson/databind/deser/std/FromStringDeserializer.java, src/main/java/com/fasterxml/jackson/databind/deser/std/UUIDDeserializer.java, src/main/java/com/fasterxml/jackson/databind/ext/CoreXMLDeserializers.java]
+[lore]    jackson-databind-1.4-reportInputMismatch: success=1 correctness=0.83 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=16874 wall=281.0s
+  tools: bash×13, view×11, report_intent×1, lore_dependents×1, lore_lookup×1, grep×1
+  lore calls: lore_dependents(query=reportInputMismatch, kind=symbol, compact=true), lore_lookup(kind=symbol, query=reportInputMismatch, match_mode=exact)
+  answer: The 3-hop grep-based analysis produced ~882 entries but has significant noise at hops 2-3 due to common method name collisions (e.g., `toString`, `deserialize`, `format`). Let me provide the high-confidence core results: the **direct callers (hop 1)** are precise, plus the genuinely connected hop 2-…
+  MISSED answer lines: [src/main/java/com/fasterxml/jackson/databind/deser/std/UUIDDeserializer.java]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-1.3-createCollectionDeserializer [iter 1]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-1.4-reportInputMismatch: success=0.5 correctness=0.00 ans_cov=0.00 file_cov=1.00 sym_cov=1.00 tokens=28260 wall=360.0s
+  tools: bash×25, report_intent×2, task×1, grep×1, read_agent×1
+  answer:   
+  MISSED parts: [StdDeserializer, NumberDeserializers, FromStringDeserializer, MapDeserializer]
+  MISSED answer lines: [src/main/java/com/fasterxml/jackson/databind/deser/std/StdDeserializer.java, src/main/java/com/fasterxml/jackson/databind/deser/std/NumberDeserializers.java, src/main/java/com/fasterxml/jackson/databind/deser/std/FromStringDeserializer.java, src/main/java/com/fasterxml/jackson/databind/deser/std/MapDeserializer.java, src/main/java/com/fasterxml/jackson/databind/deser/std/UUIDDeserializer.java, src/main/java/com/fasterxml/jackson/databind/ext/CoreXMLDeserializers.java]
+[lore]    jackson-databind-1.4-reportInputMismatch: success=1 correctness=0.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=16790 wall=265.2s
+  tools: bash×12, lore_dependents×2, report_intent×1, lore_lookup×1, lore_graph×1, grep×1
+  lore calls: lore_dependents(query=reportInputMismatch, kind=symbol, compact=true), lore_lookup(kind=symbol, query=reportInputMismatch, match_mode=exact), lore_graph(kind=call, target_id=582, compact=true), lore_dependents(compact=true, kind=symbol, query=reportInputMismatch)
+  answer: com/fasterxml/jackson/databind/AnnotationIntrospector.java resolveSetterConflict com/fasterxml/jackson/databind/DeserializationContext.java _readValue com/fasterxml/jackson/databind/DeserializationContext.java readTree com/fasterxml/jackson/databind/MappingIterator.java nextValue com/fasterxml/jacks…
+  MISSED answer lines: [src/main/java/com/fasterxml/jackson/databind/deser/std/StdDeserializer.java, src/main/java/com/fasterxml/jackson/databind/deser/std/NumberDeserializers.java, src/main/java/com/fasterxml/jackson/databind/deser/std/FromStringDeserializer.java, src/main/java/com/fasterxml/jackson/databind/deser/std/MapDeserializer.java, src/main/java/com/fasterxml/jackson/databind/deser/std/UUIDDeserializer.java, src/main/java/com/fasterxml/jackson/databind/ext/CoreXMLDeserializers.java]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-1.3-createCollectionDeserializer [iter 2]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-1.3-createCollectionDeserializer: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=3564 wall=52.3s
+  tools: grep×2, report_intent×1, view×1
+  answer: type.getContentType() contentType.getValueHandler() ctxt.getConfig() contentType.getTypeHandler() findTypeDeserializer(config, contentType) _findCustomCollectionDeserializer(type, config, beanDesc, contentTypeDeser, contentDeser) type.getRawClass() EnumSet.class.isAssignableFrom(collectionClass) Enu…
+[lore]    jackson-databind-1.3-createCollectionDeserializer: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=1067 wall=43.4s
+  tools: lore_lookup×2, report_intent×1, lore_snippet×1, glob×1, grep×1, view×1
+  lore calls: lore_lookup(kind=symbol, query=createCollectionDeserializer), lore_snippet(path=src/main/java/tools/jackson/databind/deser/BasicDeserializerFactory.java, start_line=766, end_line=842), lore_lookup(kind=file, query=BasicDeserializerFactory)
+  answer: Here is the list of direct callees and their arguments:  ``` type.getContentType() contentType.getValueHandler() ctxt.getConfig() contentType.getTypeHandler() findTypeDeserializer(config, contentType) _findCustomCollectionDeserializer(type, config, beanDesc, contentTypeDeser, contentDeser) type.getR…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-1.3-createCollectionDeserializer [iter 3]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-1.3-createCollectionDeserializer: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=809 wall=33.6s
+  tools: grep×2, report_intent×1, view×1
+  answer: Here are the direct callees and their argument expressions:  ``` type.getContentType() contentType.getValueHandler() ctxt.getConfig() contentType.getTypeHandler() findTypeDeserializer(config, contentType) _findCustomCollectionDeserializer(type, config, beanDesc, contentTypeDeser, contentDeser) type.…
+[lore]    jackson-databind-1.3-createCollectionDeserializer: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=1043 wall=33.8s
+  tools: lore_lookup×2, report_intent×1, lore_snippet×1, glob×1, bash×1, view×1
+  lore calls: lore_lookup(kind=symbol, query=createCollectionDeserializer), lore_snippet(path=src/main/java/tools/jackson/databind/deser/BasicDeserializerFactory.java, start_line=766, end_line=842), lore_lookup(kind=file, query=BasicDeserializerFactory)
+  answer: Here is the list of callees and their arguments:  ``` type.getContentType() contentType.getValueHandler() ctxt.getConfig() contentType.getTypeHandler() findTypeDeserializer(config, contentType) _findCustomCollectionDeserializer(type, config, beanDesc, contentTypeDeser, contentDeser) type.getRawClass…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-1.3-createCollectionDeserializer [iter 4]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-1.3-createCollectionDeserializer: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=2401 wall=42.5s
+  tools: grep×2, report_intent×1, view×1
+  answer: type.getContentType() contentType.getValueHandler() ctxt.getConfig() contentType.getTypeHandler() findTypeDeserializer(config, contentType) _findCustomCollectionDeserializer(type, config, beanDesc, contentTypeDeser, contentDeser) type.getRawClass() EnumSet.class.isAssignableFrom(collectionClass) Enu…
+[lore]    jackson-databind-1.3-createCollectionDeserializer: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=1015 wall=33.6s
+  tools: lore_lookup×2, report_intent×1, lore_snippet×1, glob×1, grep×1, view×1
+  lore calls: lore_lookup(kind=symbol, query=createCollectionDeserializer), lore_snippet(path=src/main/java/tools/jackson/databind/deser/BasicDeserializerFactory.java, start_line=766, end_line=842), lore_lookup(kind=file, query=BasicDeserializerFactory)
+  answer: Here is the list of direct callees with the argument expressions passed:  ``` getContentType() getValueHandler() getConfig() getTypeHandler() findTypeDeserializer(config, contentType) _findCustomCollectionDeserializer(type, config, beanDesc, contentTypeDeser, contentDeser) getRawClass() isAssignable…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-1.3-createCollectionDeserializer [iter 5]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-1.3-createCollectionDeserializer: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=2261 wall=38.5s
+  tools: grep×2, report_intent×1, view×1
+  answer: type.getContentType() contentType.getValueHandler() ctxt.getConfig() contentType.getTypeHandler() findTypeDeserializer(config, contentType) _findCustomCollectionDeserializer(type, config, beanDesc, contentTypeDeser, contentDeser) type.getRawClass() EnumSet.class.isAssignableFrom(collectionClass) new…
+[lore]    jackson-databind-1.3-createCollectionDeserializer: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=2988 wall=54.8s
+  tools: bash×2, report_intent×1, lore_lookup×1, lore_snippet×1, grep×1, lore_graph×1
+  lore calls: lore_lookup(kind=symbol, query=createCollectionDeserializer), lore_snippet(path=src/main/java/tools/jackson/databind/deser/BasicDeserializerFactory.java, start_line=766, end_line=842), lore_graph(kind=call, source_id=2831, compact=true)
+  answer: Reading the source directly gives me all direct callees:  type.getContentType() contentType.getValueHandler() ctxt.getConfig() contentType.getTypeHandler() findTypeDeserializer(config, contentType) _findCustomCollectionDeserializer(type, config, beanDesc, contentTypeDeser, contentDeser) type.getRawC…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-1.5-reportInputMismatch [iter 1]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-1.4-reportInputMismatch: success=0.5 correctness=0.00 ans_cov=0.00 file_cov=1.00 sym_cov=1.00 tokens=29030 wall=360.0s
+  tools: view×69, grep×67, report_intent×2, task×1, read_agent×1
+  answer: Now I need to trace hop 2 callers for several more methods. Let me search in parallel.
+  MISSED parts: [StdDeserializer, NumberDeserializers, FromStringDeserializer, MapDeserializer]
+  MISSED answer lines: [src/main/java/com/fasterxml/jackson/databind/deser/std/StdDeserializer.java, src/main/java/com/fasterxml/jackson/databind/deser/std/NumberDeserializers.java, src/main/java/com/fasterxml/jackson/databind/deser/std/FromStringDeserializer.java, src/main/java/com/fasterxml/jackson/databind/deser/std/MapDeserializer.java, src/main/java/com/fasterxml/jackson/databind/deser/std/UUIDDeserializer.java, src/main/java/com/fasterxml/jackson/databind/ext/CoreXMLDeserializers.java]
+[lore]    jackson-databind-1.4-reportInputMismatch: success=0.5 correctness=0.00 ans_cov=0.00 file_cov=1.00 sym_cov=1.00 tokens=16799 wall=360.0s
+  tools: bash×14, lore_dependents×5, lore_graph×4, report_intent×1, lore_lookup×1
+  lore calls: lore_dependents(query=reportInputMismatch, kind=symbol, compact=true), lore_lookup(kind=symbol, query=reportInputMismatch, mode=exact), lore_dependents(compact=true, kind=symbol, query=reportInputMismatch), lore_graph(kind=call, target_id=582, compact=true), lore_graph(kind=call, target_id=583, compact=true), lore_graph(kind=call, target_id=584, compact=true), lore_graph(kind=call, target_id=585, compact=true), lore_dependents(compact=true, kind=symbol, query=_failDoubleToIntCoercion), lore_dependents(compact=true, kind=symbol, query=_deserializeWithNativeTypeId), lore_dependents(compact=true, kind=symbol, query=_findMissing)
+  answer: Now let me get the exact function names that contain these calls, and then trace their callers transitively.
+  MISSED parts: [StdDeserializer, NumberDeserializers, FromStringDeserializer, MapDeserializer]
+  MISSED answer lines: [src/main/java/com/fasterxml/jackson/databind/deser/std/StdDeserializer.java, src/main/java/com/fasterxml/jackson/databind/deser/std/NumberDeserializers.java, src/main/java/com/fasterxml/jackson/databind/deser/std/FromStringDeserializer.java, src/main/java/com/fasterxml/jackson/databind/deser/std/MapDeserializer.java, src/main/java/com/fasterxml/jackson/databind/deser/std/UUIDDeserializer.java, src/main/java/com/fasterxml/jackson/databind/ext/CoreXMLDeserializers.java]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-1.5-reportInputMismatch [iter 2]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-1.3-createCollectionDeserializer: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=2909 wall=46.2s
+  tools: grep×2, report_intent×1, view×1
+  answer: Here is every direct callee in `createCollectionDeserializer` with its arguments:  getContentType() getValueHandler() getConfig() getTypeHandler() findTypeDeserializer(config, contentType) _findCustomCollectionDeserializer(type, config, beanDesc, contentTypeDeser, contentDeser) getRawClass() isAssig…
+[lore]    jackson-databind-1.3-createCollectionDeserializer: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=1630 wall=37.6s
+  tools: lore_snippet×2, report_intent×1, lore_lookup×1, glob×1, view×1
+  lore calls: lore_lookup(kind=symbol, query=createCollectionDeserializer), lore_snippet(path=src/main/java/tools/jackson/databind/deser/BasicDeserializerFactory.java, start_line=766, end_line=842), lore_snippet(symbol=createCollectionDeserializer)
+  answer: Here is the list:  ``` type.getContentType() contentType.getValueHandler() ctxt.getConfig() contentType.getTypeHandler() findTypeDeserializer(config, contentType) _findCustomCollectionDeserializer(type, config, beanDesc, contentTypeDeser, contentDeser) type.getRawClass() EnumSet.class.isAssignableFr…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-1.5-reportInputMismatch [iter 3]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-1.4-reportInputMismatch: success=0.5 correctness=0.00 ans_cov=0.00 file_cov=1.00 sym_cov=1.00 tokens=75501 wall=360.0s
+  tools: view×168, bash×84, grep×24, read_agent×7, task×5, report_intent×2
+  answer:   
+  MISSED parts: [StdDeserializer, NumberDeserializers, FromStringDeserializer, MapDeserializer]
+  MISSED answer lines: [src/main/java/com/fasterxml/jackson/databind/deser/std/StdDeserializer.java, src/main/java/com/fasterxml/jackson/databind/deser/std/NumberDeserializers.java, src/main/java/com/fasterxml/jackson/databind/deser/std/FromStringDeserializer.java, src/main/java/com/fasterxml/jackson/databind/deser/std/MapDeserializer.java, src/main/java/com/fasterxml/jackson/databind/deser/std/UUIDDeserializer.java, src/main/java/com/fasterxml/jackson/databind/ext/CoreXMLDeserializers.java]
+[lore]    jackson-databind-1.4-reportInputMismatch: success=1 correctness=0.83 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=14674 wall=300.3s
+  tools: bash×25, lore_graph×4, report_intent×1, lore_dependents×1, lore_lookup×1
+  lore calls: lore_dependents(query=reportInputMismatch, kind=symbol, compact=true), lore_lookup(kind=symbol, query=reportInputMismatch), lore_graph(kind=call, target_id=582, compact=true), lore_graph(kind=call, target_id=583, compact=true), lore_graph(kind=call, target_id=584, compact=true), lore_graph(kind=call, target_id=585, compact=true)
+  answer: src/main/java/com/fasterxml/jackson/databind/DeserializationContext.java: _readValue src/main/java/com/fasterxml/jackson/databind/DeserializationContext.java: readPropertyValue src/main/java/com/fasterxml/jackson/databind/DeserializationContext.java: readTree src/main/java/com/fasterxml/jackson/data…
+  MISSED answer lines: [src/main/java/com/fasterxml/jackson/databind/ext/CoreXMLDeserializers.java]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-1.5-reportInputMismatch [iter 4]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-1.4-reportInputMismatch: success=0.5 correctness=0.00 ans_cov=0.00 file_cov=1.00 sym_cov=1.00 tokens=114933 wall=360.0s
+  tools: bash×136, view×91, grep×51, task×6, read_agent×5, report_intent×1, glob×1
+  answer: Perfect. Now let me create the final definitive report by carefully filtering callers. The key insight is: - PropertyValueBuffer methods `getParameter`, `getParameters`, `_findMissing` are only called when we have actual PropertyValueBuffer references - Most other "getParameter" calls are on Annotat…
+  MISSED parts: [StdDeserializer, NumberDeserializers, FromStringDeserializer, MapDeserializer]
+  MISSED answer lines: [src/main/java/com/fasterxml/jackson/databind/deser/std/StdDeserializer.java, src/main/java/com/fasterxml/jackson/databind/deser/std/NumberDeserializers.java, src/main/java/com/fasterxml/jackson/databind/deser/std/FromStringDeserializer.java, src/main/java/com/fasterxml/jackson/databind/deser/std/MapDeserializer.java, src/main/java/com/fasterxml/jackson/databind/deser/std/UUIDDeserializer.java, src/main/java/com/fasterxml/jackson/databind/ext/CoreXMLDeserializers.java]
+[lore]    jackson-databind-1.4-reportInputMismatch: success=0.5 correctness=0.00 ans_cov=0.00 file_cov=1.00 sym_cov=1.00 tokens=10424 wall=360.0s
+  tools: bash×20, report_intent×1, lore_dependents×1, view×1
+  lore calls: lore_dependents(query=reportInputMismatch, kind=symbol, compact=true)
+  answer:   
+  MISSED parts: [StdDeserializer, NumberDeserializers, FromStringDeserializer, MapDeserializer]
+  MISSED answer lines: [src/main/java/com/fasterxml/jackson/databind/deser/std/StdDeserializer.java, src/main/java/com/fasterxml/jackson/databind/deser/std/NumberDeserializers.java, src/main/java/com/fasterxml/jackson/databind/deser/std/FromStringDeserializer.java, src/main/java/com/fasterxml/jackson/databind/deser/std/MapDeserializer.java, src/main/java/com/fasterxml/jackson/databind/deser/std/UUIDDeserializer.java, src/main/java/com/fasterxml/jackson/databind/ext/CoreXMLDeserializers.java]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-1.5-reportInputMismatch [iter 5]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-1.5-reportInputMismatch: success=1 correctness=0.50 ans_cov=0.75 file_cov=1.00 sym_cov=1.00 tokens=11498 wall=204.8s
+  tools: view×13, bash×5, grep×2, report_intent×1
+  answer: Good, now I have all the information. Here are the three methods:  FactoryBasedEnumDeserializer.deserialize — calls reportInputMismatch to throw when token type is wrong for the @JsonCreator (e.g. expected Object or String), and calls handleUnexpectedToken to attempt recovery when extractScalarFromO…
+  MISSED parts: [_deserializeFromEmptyString]
+  MISSED answer lines: [_deserializeFromEmptyString]
+[lore]    jackson-databind-1.5-reportInputMismatch: success=1 correctness=0.50 ans_cov=0.75 file_cov=1.00 sym_cov=1.00 tokens=17544 wall=228.4s
+  tools: view×31, grep×17, bash×16, report_intent×2, lore_dependents×2, task×1, read_agent×1
+  lore calls: lore_dependents(query=handleUnexpectedToken, kind=symbol, compact=true), lore_dependents(query=reportInputMismatch, kind=symbol, compact=true)
+  answer: All three are confirmed. Here's the answer:  FactoryBasedEnumDeserializer.deserialize — calls reportInputMismatch to throw when a non-string/non-scalar token arrives for a string-based enum creator, and calls handleUnexpectedToken to attempt recovery when extractScalarFromObject returns null for a S…
+  MISSED parts: [_deserializeFromEmptyString]
+  MISSED answer lines: [_deserializeFromEmptyString]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-1.7-createCollectionDeserializer [iter 1]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-1.5-reportInputMismatch: success=1 correctness=0.50 ans_cov=0.75 file_cov=1.00 sym_cov=1.00 tokens=16985 wall=203.4s
+  tools: view×29, grep×15, bash×14, report_intent×1, task×1
+  answer: FactoryBasedEnumDeserializer.deserialize — calls reportInputMismatch when the token type fundamentally mismatches what the enum factory creator expects (e.g., String input for properties-based creator, or non-scalar token), and calls handleUnexpectedToken when a null scalar is unexpectedly extracted…
+  MISSED parts: [_deserializeFromEmptyString]
+  MISSED answer lines: [_deserializeFromEmptyString]
+[lore]    jackson-databind-1.5-reportInputMismatch: success=1 correctness=0.50 ans_cov=0.75 file_cov=1.00 sym_cov=1.00 tokens=22512 wall=276.1s
+  tools: bash×19, view×19, grep×5, lore_dependents×2, read_agent×2, report_intent×1, task×1
+  lore calls: lore_dependents(query=handleUnexpectedToken, kind=symbol, compact=true), lore_dependents(query=reportInputMismatch, kind=symbol, compact=true)
+  answer: FactoryBasedEnumDeserializer.deserialize — calls reportInputMismatch to throw on wrong token types for property-based creators, and calls handleUnexpectedToken as a fallback when extractScalarFromObject returns null MapEntryDeserializer.deserialize — calls handleUnexpectedToken to reject non-object/…
+  MISSED parts: [_deserializeFromEmptyString]
+  MISSED answer lines: [_deserializeFromEmptyString]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-1.7-createCollectionDeserializer [iter 2]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-1.7-createCollectionDeserializer: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=7607 wall=88.4s
+  tools: view×8, grep×4, bash×4, report_intent×1, task×1
+  answer: 1. `createCollectionDeserializer` — creates a deserializer for Collection types (List, Set, etc.) 2. `findValueInstantiator` — finds or constructs a ValueInstantiator by checking annotations, JDK defaults, and custom modifiers  The call is **direct** — `createCollectionDeserializer` in `BasicDeseria…
+[lore]    jackson-databind-1.7-createCollectionDeserializer: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=700 wall=25.1s
+  tools: lore_trace×2, lore_lookup×2, report_intent×1
+  lore calls: lore_trace(from_name=createCollectionDeserializer, to_name=findValueInstantiator, depth=10), lore_lookup(kind=symbol, query=createCollectionDeserializer), lore_lookup(kind=symbol, query=findValueInstantiator), lore_trace(from=2831, to=2819, depth=10)
+  answer: 1. `createCollectionDeserializer` — builds a collection deserializer, resolving content type, type info, and instantiation strategy 2. `findValueInstantiator` — locates or constructs the ValueInstantiator for a given bean, checking annotations, JDK defaults, and registered modifiers  The call is **d…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-1.7-createCollectionDeserializer [iter 3]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-1.5-reportInputMismatch: success=1 correctness=0.50 ans_cov=0.75 file_cov=1.00 sym_cov=1.00 tokens=18806 wall=217.3s
+  tools: view×24, bash×22, grep×11, report_intent×1, task×1
+  answer: FactoryBasedEnumDeserializer.deserialize — calls reportInputMismatch to throw when input format is incompatible with the expected creator type, and calls handleUnexpectedToken to attempt recovery when scalar extraction from a JSON Object unexpectedly yields null PrimitiveArrayDeserializers.CharDeser…
+  MISSED parts: [_deserializeFromEmptyString]
+  MISSED answer lines: [_deserializeFromEmptyString]
+[lore]    jackson-databind-1.5-reportInputMismatch: success=1 correctness=0.50 ans_cov=0.75 file_cov=1.00 sym_cov=1.00 tokens=25282 wall=360.0s
+  tools: bash×67, view×10, lore_dependents×3, report_intent×2, grep×2, task×1
+  lore calls: lore_dependents(query=handleUnexpectedToken, kind=symbol, compact=true), lore_dependents(query=reportInputMismatch, kind=symbol, compact=true), lore_dependents(compact=true, kind=symbol, query=DeserializationContext.handleUnexpectedToken)
+  answer: So in FromStringDeserializer, the calls are in different methods - no method has both. Now let me verify my final findings are correct. Let me compile the final answer based on what I've discovered:  ## Summary  After systematically analyzing all 12 files, I found **exactly 4 methods** that call BOT…
+  MISSED parts: [_deserializeFromEmptyString]
+  MISSED answer lines: [_deserializeFromEmptyString]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-1.7-createCollectionDeserializer [iter 4]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-1.5-reportInputMismatch: success=1 correctness=0.50 ans_cov=0.75 file_cov=1.00 sym_cov=1.00 tokens=14541 wall=225.5s
+  tools: view×22, bash×20, grep×4, report_intent×2, read_agent×2, task×1
+  answer: Now I have all four confirmed methods. Here's the answer:  DeserializationContext.handleUnexpectedToken — delegates to registered DeserializationProblemHandlers via handleUnexpectedToken; if none handle the token, falls through to reportInputMismatch to throw the mismatch as an error FactoryBasedEnu…
+  MISSED parts: [_deserializeFromEmptyString]
+  MISSED answer lines: [_deserializeFromEmptyString]
+[lore]    jackson-databind-1.5-reportInputMismatch: success=0.5 correctness=0.00 ans_cov=0.50 file_cov=1.00 sym_cov=1.00 tokens=41178 wall=360.0s
+  tools: view×68, bash×59, grep×18, lore_dependents×4, task×4, read_agent×4, report_intent×1, stop_bash×1
+  lore calls: lore_dependents(query=handleUnexpectedToken, kind=symbol, compact=true), lore_dependents(query=reportInputMismatch, kind=symbol, compact=true), lore_dependents(compact=true, kind=symbol, query=DeserializationContext.handleUnexpectedToken), lore_dependents(compact=true, kind=symbol, query=handleUnexpectedToken)
+  answer: Perfect! This confirms line 1694 is in `_checkFromStringCoercion` method. Now let me create a definitive verification by checking for any methods that span both a `reportInputMismatch` and `handleUnexpectedToken`:
+  MISSED parts: [_deserializeFromEmptyString, deserialize]
+  MISSED answer lines: [_deserializeFromEmptyString, deserialize]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-1.7-createCollectionDeserializer [iter 5]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-1.7-createCollectionDeserializer: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=7156 wall=83.7s
+  tools: view×7, grep×4, bash×3, report_intent×1, task×1
+  answer: The call is **direct** — `createCollectionDeserializer` calls `findValueInstantiator` with no intermediaries. Both live in `BasicDeserializerFactory`.  1. `createCollectionDeserializer` — builds a deserializer for Collection types, resolving content type info and abstract-type mappings 2. `findValue…
+[lore]    jackson-databind-1.7-createCollectionDeserializer: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=711 wall=26.3s
+  tools: lore_trace×2, lore_lookup×2, report_intent×1
+  lore calls: lore_trace(from_name=createCollectionDeserializer, to_name=findValueInstantiator, depth=10), lore_lookup(kind=symbol, query=createCollectionDeserializer), lore_lookup(kind=symbol, query=findValueInstantiator), lore_trace(from=2831, to=2819, depth=10)
+  answer: The trace shows a **direct call** — there are no intermediate functions between them.  1. `createCollectionDeserializer` — builds a deserializer for Collection types, resolving content type, type info, and instantiation strategy 2. `findValueInstantiator` — locates or constructs the ValueInstantiato…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-1.8-reportInputMismatch [iter 1]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-1.7-createCollectionDeserializer: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=6542 wall=81.8s
+  tools: view×7, bash×6, grep×4, report_intent×1, task×1
+  answer: 1. `createCollectionDeserializer` — creates a deserializer for Java Collection types (List, Set, etc.) 2. `findValueInstantiator` — finds or constructs the instantiation strategy for the target type  Both live in `BasicDeserializerFactory`. The call is direct — `createCollectionDeserializer` invokes…
+[lore]    jackson-databind-1.7-createCollectionDeserializer: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=686 wall=24.7s
+  tools: lore_trace×2, lore_lookup×2, report_intent×1
+  lore calls: lore_trace(from_name=createCollectionDeserializer, to_name=findValueInstantiator, depth=10), lore_lookup(kind=symbol, query=createCollectionDeserializer), lore_lookup(kind=symbol, query=findValueInstantiator), lore_trace(depth=10, from=2831, to=2819)
+  answer: 1. `createCollectionDeserializer` — builds a deserializer for Collection types, resolving content type, type info, and abstract-type mappings 2. `findValueInstantiator` — locates or constructs a ValueInstantiator for the target type using annotations, JDK defaults, and registered modifiers  The call…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-1.8-reportInputMismatch [iter 2]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-1.5-reportInputMismatch: success=1 correctness=0.50 ans_cov=0.75 file_cov=1.00 sym_cov=1.00 tokens=17776 wall=190.6s
+  tools: view×19, bash×14, grep×2, read_agent×2, report_intent×1, task×1
+  answer:   `DeserializationContext.handleUnexpectedToken` — delegates to each registered `DeserializationProblemHandler.handleUnexpectedToken()` in a loop, returning the result if a handler accepts it; falls back to `reportInputMismatch` to throw an exception if no handler resolves the unexpected token `Fact…
+  MISSED parts: [_deserializeFromEmptyString]
+  MISSED answer lines: [_deserializeFromEmptyString]
+[lore]    jackson-databind-1.5-reportInputMismatch: success=0.5 correctness=0.00 ans_cov=0.00 file_cov=1.00 sym_cov=1.00 tokens=26733 wall=360.0s
+  tools: view×40, bash×20, grep×6, lore_dependents×3, report_intent×1, read_bash×1, stop_bash×1, task×1
+  lore calls: lore_dependents(query=handleUnexpectedToken, kind=symbol, compact=true), lore_dependents(query=reportInputMismatch, kind=symbol, compact=true), lore_dependents(compact=true, kind=symbol, query=DeserializationContext.handleUnexpectedToken)
+  answer: Let me verify method boundaries for the candidates:
+  MISSED parts: [_deserializeFromEmptyString, deserialize, reportInputMismatch, handleUnexpectedToken]
+  MISSED answer lines: [_deserializeFromEmptyString, deserialize]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-1.8-reportInputMismatch [iter 3]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-1.7-createCollectionDeserializer: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=5570 wall=96.0s
+  tools: view×9, bash×8, grep×4, report_intent×1, task×1
+  answer: The call is direct — `createCollectionDeserializer` calls `findValueInstantiator` at line 815 with no intermediary methods.  1. `createCollectionDeserializer` — builds a deserializer for Collection types, resolving content types, abstract mappings, and special cases like EnumSet 2. `findValueInstant…
+[lore]    jackson-databind-1.7-createCollectionDeserializer: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=701 wall=24.9s
+  tools: lore_trace×2, lore_lookup×2, report_intent×1
+  lore calls: lore_trace(from_name=createCollectionDeserializer, to_name=findValueInstantiator, depth=10), lore_lookup(kind=symbol, query=createCollectionDeserializer), lore_lookup(kind=symbol, query=findValueInstantiator), lore_trace(depth=10, from=2831, to=2819)
+  answer: 1. `createCollectionDeserializer` — builds a collection deserializer, resolving content type, type info, and abstract-type mapping 2. `findValueInstantiator` — locates or constructs the ValueInstantiator for a bean, consulting annotations, JDK defaults, and registered ValueInstantiators  The call is…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-1.8-reportInputMismatch [iter 4]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-1.7-createCollectionDeserializer: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=7973 wall=102.3s
+  tools: grep×9, view×8, bash×4, report_intent×1, task×1
+  answer: The call chain is direct — `createCollectionDeserializer` calls `findValueInstantiator` on line 815 with no intermediate functions. Both live in `BasicDeserializerFactory`.  1. `createCollectionDeserializer` — builds a JsonDeserializer for Collection types, resolving content type, abstract-type mapp…
+[lore]    jackson-databind-1.7-createCollectionDeserializer: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=726 wall=25.2s
+  tools: lore_trace×2, lore_lookup×2, report_intent×1
+  lore calls: lore_trace(from_name=createCollectionDeserializer, to_name=findValueInstantiator, depth=10), lore_lookup(kind=symbol, query=createCollectionDeserializer), lore_lookup(kind=symbol, query=findValueInstantiator), lore_trace(from=2831, to=2819, depth=10)
+  answer: The trace shows a **direct call** — `createCollectionDeserializer` calls `findValueInstantiator` with no intermediaries (line 815 of `BasicDeserializerFactory.java`).  1. `createCollectionDeserializer` — builds a deserializer for Collection types, resolving content type, type info, and instantiation…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-1.8-reportInputMismatch [iter 5]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-1.8-reportInputMismatch: success=1 correctness=0.50 ans_cov=0.75 file_cov=1.00 sym_cov=1.00 tokens=15358 wall=139.7s
+  tools: view×29, bash×26, grep×6, task×2, read_agent×2, report_intent×1
+  answer: Excellent. Now let me compile all my findings into a comprehensive report. Based on my analysis of all the files, here's the complete inventory of all `reportInputMismatch` call sites:  ## Complete Summary of All `reportInputMismatch` Call Sites  Based on exhaustive search of all specified files und…
+  MISSED parts: [_checkFromStringCoercion]
+  MISSED answer lines: [Handle:, None, Propagate:, _checkFromStringCoercion]
+[lore]    jackson-databind-1.8-reportInputMismatch: success=1 correctness=0.88 ans_cov=0.75 file_cov=1.00 sym_cov=1.00 tokens=14158 wall=185.9s
+  tools: view×39, bash×9, report_intent×1, lore_dependents×1, grep×1, task×1
+  lore calls: lore_dependents(query=reportInputMismatch, kind=symbol, compact=true)
+  answer: Handle: None  Propagate: _deserializeWithNativeTypeId _parseQNameObject deserializeWithView _initForReading getParameter getParameters _findMissing _deserializeAndSet deserialize deserializeWithCreator handleResolvedForwardReference _deserializeCharArrayContents _unpack _handleDuplicateField getNull…
+  MISSED parts: [_checkFromStringCoercion]
+  MISSED answer lines: [_checkFromStringCoercion]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-7.2-reportInputMismatch [iter 1]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-1.8-reportInputMismatch: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=24214 wall=217.4s
+  tools: view×78, bash×9, grep×2, read_agent×2, task×1, report_intent×1
+  answer: Now I have complete information. All overloads of `reportInputMismatch` always `throw MismatchedInputException` (a `JsonMappingException` subclass) — they never return normally. Every single caller lets this exception propagate; none wrap the call in try/catch.  Handle: None Propagate: handleMissing…
+[lore]    jackson-databind-1.8-reportInputMismatch: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=30713 wall=211.1s
+  tools: view×85, bash×18, task×4, read_agent×4, report_intent×3, lore_lookup×1, lore_dependents×1, grep×1
+  lore calls: lore_lookup(kind=symbol, query=reportInputMismatch), lore_dependents(query=reportInputMismatch, kind=symbol, compact=true)
+  answer: Handle: None  Propagate: _deserializeWithNativeTypeId deserializeWithView deserializeUsingPropertyBasedWithUnwrapped BeanReferring.handleResolvedForwardReference deserialize _initForReading _deserializeAndSet _deserializeEmbedded _deserializeFromEmptyString getParameter getParameters _findMissing ge…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-7.2-reportInputMismatch [iter 2]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-1.8-reportInputMismatch: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=32486 wall=210.2s
+  tools: view×76, bash×23, grep×16, report_intent×2, task×2, read_agent×2
+  answer: Good — line 941 is inside `deserializeUsingPropertyBasedWithUnwrapped`. Now I have the complete picture. All callers propagate.  Handle: None Propagate: handleMissingInstantiator handleUnexpectedToken reportUnresolvedObjectId _initForReading _deserializeWithNativeTypeId deserializeWithView deseriali…
+[lore]    jackson-databind-1.8-reportInputMismatch: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=22584 wall=233.8s
+  tools: view×60, bash×18, report_intent×2, lore_lookup×1, lore_dependents×1, grep×1, task×1, read_agent×1
+  lore calls: lore_lookup(kind=symbol, query=reportInputMismatch), lore_dependents(query=reportInputMismatch, kind=symbol, compact=true)
+  answer: All confirmed — none of the callers wrap `reportInputMismatch` in try/catch. Here's the answer:  Handle: None  Propagate: handleMissingInstantiator handleUnexpectedToken reportUnresolvedObjectId _deserializeWithNativeTypeId _initForReading deserializeWithView deserializeWithUnwrapped handleResolvedF…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-7.2-reportInputMismatch [iter 3]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-1.8-reportInputMismatch: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=28495 wall=323.3s
+  tools: view×76, bash×41, grep×3, report_intent×2, task×1, read_agent×1
+  answer: All 4 overloads of `reportInputMismatch` always `throw MismatchedInputException` — they never return. Every direct caller simply lets that exception propagate; none wrap the call in try/catch.  Handle: None  Propagate: handleMissingInstantiator handleUnexpectedToken reportUnresolvedObjectId getParam…
+[lore]    jackson-databind-1.8-reportInputMismatch: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=30300 wall=154.4s
+  tools: view×74, bash×13, task×4, read_agent×4, report_intent×1, lore_dependents×1, lore_lookup×1, grep×1
+  lore calls: lore_dependents(query=reportInputMismatch, kind=symbol, compact=true), lore_lookup(kind=symbol, query=reportInputMismatch, match_mode=exact)
+  answer:   All agents have completed. Every direct caller propagates the exception — none handle it with try/catch.  Handle: None  Propagate: _initForReading _deserializeWithNativeTypeId _parseQNameObject deserializeWithView _deserializeAndSet getParameter getParameters _findMissing deserialize _handleDuplic…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-7.2-reportInputMismatch [iter 4]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-1.8-reportInputMismatch: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=25557 wall=353.4s
+  tools: view×37, bash×27, grep×23, report_intent×2, read_agent×2, task×1
+  answer: All overloads of `reportInputMismatch` always throw `MismatchedInputException` — they never return. No caller wraps the call in a try/catch.  Handle: None Propagate: handleMissingInstantiator handleUnexpectedToken reportUnresolvedObjectId _deserializeWithNativeTypeId _initForReading _parseQNameObjec…
+[lore]    jackson-databind-1.8-reportInputMismatch: success=1 correctness=0.88 ans_cov=0.75 file_cov=1.00 sym_cov=1.00 tokens=16030 wall=135.0s
+  tools: view×75, report_intent×2, lore_lookup×1, lore_dependents×1, bash×1, grep×1, task×1, read_agent×1
+  lore calls: lore_lookup(kind=symbol, query=reportInputMismatch), lore_dependents(query=reportInputMismatch, kind=symbol, compact=true)
+  answer: All confirmed. Now let me compile the complete unique caller method names. Every single caller propagates the exception — none wrap the call in a try/catch.  Handle: None Propagate: handleMissingInstantiator handleUnexpectedToken reportUnresolvedObjectId _deserializeWithNativeTypeId _initForReading …
+  MISSED parts: [_checkFromStringCoercion]
+  MISSED answer lines: [_checkFromStringCoercion]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-7.2-reportInputMismatch [iter 5]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-7.2-reportInputMismatch: success=1 correctness=0.67 ans_cov=0.80 file_cov=1.00 sym_cov=1.00 tokens=14487 wall=97.1s
+  tools: view×57, report_intent×2, grep×1, task×1, read_agent×1
+  answer:   _deserializeWithNativeTypeId → src/main/java/com/fasterxml/jackson/databind/jsontype/impl/TypeDeserializerBase.java — returns the result directly from the method _initForReading → src/main/java/com/fasterxml/jackson/databind/ObjectReader.java — discards the return value (call is a standalone state…
+  MISSED parts: [_checkFromStringCoercion]
+  MISSED answer lines: [_checkFromStringCoercion → StdDeserializer.java]
+[lore]    jackson-databind-7.2-reportInputMismatch: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=18090 wall=159.8s
+  tools: view×65, bash×14, report_intent×1, lore_dependents×1, grep×1, task×1, read_agent×1
+  lore calls: lore_dependents(query=reportInputMismatch, kind=symbol, compact=true)
+  answer: All verified. Here's the complete answer:  _deserializeWithNativeTypeId → src/main/java/com/fasterxml/jackson/databind/jsontype/impl/TypeDeserializerBase.java — returns the result directly from the method _parseQNameObject → src/main/java/com/fasterxml/jackson/databind/ext/CoreXMLDeserializers.java …
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-7.3-createCollectionDeserializer [iter 1]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-7.3-createCollectionDeserializer: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=2105 wall=45.5s
+  tools: grep×11, view×3, report_intent×1
+  answer: Now I have all the information needed. Here's the answer:  `BasicDeserializerFactory.createCollectionDeserializer` → `src/main/java/com/fasterxml/jackson/databind/deser/BasicDeserializerFactory.java`  It delegates to:  ``` findTypeDeserializer → src/main/java/com/fasterxml/jackson/databind/deser/Bas…
+[lore]    jackson-databind-7.3-createCollectionDeserializer: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=2265 wall=58.4s
+  tools: bash×7, report_intent×1, lore_lookup×1, lore_snippet×1, lore_trace×1, lore_graph×1, view×1
+  lore calls: lore_lookup(kind=symbol, query=createCollectionDeserializer), lore_snippet(path=src/main/java/tools/jackson/databind/deser/BasicDeserializerFactory.java, start_line=766, end_line=842), lore_trace(from=2831, depth=2), lore_graph(kind=call, source_id=2831, compact=true)
+  answer: findTypeDeserializer → src/main/java/com/fasterxml/jackson/databind/deser/BasicDeserializerFactory.java _findCustomCollectionDeserializer → src/main/java/com/fasterxml/jackson/databind/deser/BasicDeserializerFactory.java _mapAbstractCollectionType → src/main/java/com/fasterxml/jackson/databind/deser…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-7.3-createCollectionDeserializer [iter 2]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-7.2-reportInputMismatch: success=1 correctness=0.67 ans_cov=0.80 file_cov=1.00 sym_cov=1.00 tokens=10160 wall=83.6s
+  tools: view×32, report_intent×1, grep×1, task×1, read_agent×1
+  answer:   _deserializeWithNativeTypeId → src/main/java/com/fasterxml/jackson/databind/jsontype/impl/TypeDeserializerBase.java — returns the result directly from the enclosing method _initForReading → src/main/java/com/fasterxml/jackson/databind/ObjectReader.java — discards the return value (statement-only c…
+  MISSED parts: [_checkFromStringCoercion]
+  MISSED answer lines: [_checkFromStringCoercion → StdDeserializer.java]
+[lore]    jackson-databind-7.2-reportInputMismatch: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=12723 wall=170.7s
+  tools: view×34, bash×6, report_intent×1, lore_dependents×1
+  lore calls: lore_dependents(query=reportInputMismatch, kind=symbol, compact=true)
+  answer: _initForReading → src/main/java/com/fasterxml/jackson/databind/ObjectReader.java — discards the return value; relies on the thrown exception to halt on end-of-input deserializeWithView → src/main/java/com/fasterxml/jackson/databind/deser/BeanDeserializer.java — discards the return value; relies on t…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-7.3-createCollectionDeserializer [iter 3]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-7.2-reportInputMismatch: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=15172 wall=137.8s
+  tools: view×57, report_intent×1, grep×1, task×1
+  answer: Now I have all the verified data. Here's the complete answer:  _deserializeWithNativeTypeId → src/main/java/com/fasterxml/jackson/databind/jsontype/impl/TypeDeserializerBase.java — returns the result directly from the method _parseQNameObject → src/main/java/com/fasterxml/jackson/databind/ext/CoreXM…
+[lore]    jackson-databind-7.2-reportInputMismatch: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=12393 wall=146.5s
+  tools: bash×44, report_intent×2, lore_dependents×1, grep×1
+  lore calls: lore_dependents(query=reportInputMismatch, kind=symbol, compact=true)
+  answer: Now I have all the information. Let me compile the full answer.  _deserializeWithNativeTypeId → src/main/java/com/fasterxml/jackson/databind/jsontype/impl/TypeDeserializerBase.java — returns the result directly as the method's return value deserializeWithView → src/main/java/com/fasterxml/jackson/da…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-7.3-createCollectionDeserializer [iter 4]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-7.2-reportInputMismatch: success=1 correctness=1.00 ans_cov=1.00 file_cov=0.67 sym_cov=1.00 tokens=15957 wall=114.7s
+  tools: view×62, report_intent×1, grep×1, task×1
+  answer: _deserializeWithNativeTypeId → src/main/java/com/fasterxml/jackson/databind/jsontype/impl/TypeDeserializerBase.java — returns the result directly _parseQNameObject → src/main/java/com/fasterxml/jackson/databind/ext/CoreXMLDeserializers.java — discards the return value (method always throws, so contr…
+[lore]    jackson-databind-7.2-reportInputMismatch: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=15588 wall=153.2s
+  tools: view×64, bash×3, report_intent×1, lore_dependents×1, grep×1, task×1, read_agent×1
+  lore calls: lore_dependents(query=reportInputMismatch, kind=symbol, compact=true)
+  answer: Good — so line 303 is inside `deserialize` of the char[] inner class, not `_unpack`. Now I have all the information I need.  _deserializeWithNativeTypeId → src/main/java/com/fasterxml/jackson/databind/jsontype/impl/TypeDeserializerBase.java — returns the result directly from the method deserializeWi…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-7.3-createCollectionDeserializer [iter 5]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-7.3-createCollectionDeserializer: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=1625 wall=36.9s
+  tools: grep×10, view×2, report_intent×1
+  answer: Here is the list of concrete functions/methods called when `createCollectionDeserializer` is invoked:  ``` _findCustomCollectionDeserializer → src/main/java/com/fasterxml/jackson/databind/deser/BasicDeserializerFactory.java findTypeDeserializer → src/main/java/com/fasterxml/jackson/databind/deser/Ba…
+[lore]    jackson-databind-7.3-createCollectionDeserializer: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=3433 wall=78.0s
+  tools: lore_lookup×12, report_intent×1, lore_dependents×1, lore_snippet×1, lore_graph×1, glob×1
+  lore calls: lore_dependents(query=createCollectionDeserializer, kind=symbol, compact=true), lore_lookup(kind=symbol, query=createCollectionDeserializer), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-N961Lo/jackson-databind/src/main/java/com/fasterxml/jackson/databind/deser/BasicDeserializerFactory.java, start_line=766, end_line=842), lore_graph(kind=call, source_id=2831, compact=true), lore_lookup(kind=symbol, query=_findCustomCollectionDeserializer), lore_lookup(kind=symbol, query=findTypeDeserializer), lore_lookup(kind=symbol, query=_mapAbstractCollectionType), lore_lookup(kind=symbol, query=findValueInstantiator), lore_lookup(kind=symbol, query=findForCollection), lore_lookup(kind=symbol, query=modifyCollectionDeserializer), lore_lookup(kind=file, query=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-N961Lo/jackson-databind/src/main/java/com/fasterxml/jackson/databind/deser/BasicDeserializerFactory.java), lore_lookup(kind=file, query=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-N961Lo/jackson-databind/src/main/java/com/fasterxml/jackson/databind/deser/std/EnumSetDeserializer.java), lore_lookup(kind=file, query=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-N961Lo/jackson-databind/src/main/java/com/fasterxml/jackson/databind/deser/std/ArrayBlockingQueueDeserializer.java), lore_lookup(kind=file, query=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-N961Lo/jackson-databind/src/main/java/com/fasterxml/jackson/databind/deser/std/StringCollectionDeserializer.java), lore_lookup(kind=file, query=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-N961Lo/jackson-databind/src/main/java/com/fasterxml/jackson/databind/deser/std/CollectionDeserializer.java)
+  answer: Here are the concrete functions/methods that `createCollectionDeserializer` (in `BasicDeserializerFactory.java`) delegates to:  findTypeDeserializer → src/main/java/com/fasterxml/jackson/databind/deser/BasicDeserializerFactory.java _findCustomCollectionDeserializer → src/main/java/com/fasterxml/jack…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-10.1-reportInputMismatch [iter 1]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-7.3-createCollectionDeserializer: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=1989 wall=42.9s
+  tools: grep×11, view×3, report_intent×1
+  answer: Here is the list:  ``` _findCustomCollectionDeserializer → src/main/java/com/fasterxml/jackson/databind/deser/BasicDeserializerFactory.java findTypeDeserializer → src/main/java/com/fasterxml/jackson/databind/deser/BasicDeserializerFactory.java _mapAbstractCollectionType → src/main/java/com/fasterxml…
+[lore]    jackson-databind-7.3-createCollectionDeserializer: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=2649 wall=61.2s
+  tools: bash×6, lore_lookup×2, report_intent×1, lore_snippet×1, lore_graph×1, view×1
+  lore calls: lore_lookup(kind=symbol, query=createCollectionDeserializer), lore_snippet(path=src/main/java/tools/jackson/databind/deser/BasicDeserializerFactory.java, start_line=766, end_line=842), lore_graph(kind=call, source_id=2831, compact=true), lore_lookup(kind=file, query=BasicDeserializerFactory.java)
+  answer: Here are the concrete functions/methods called directly by `createCollectionDeserializer`:  ``` findTypeDeserializer → src/main/java/com/fasterxml/jackson/databind/deser/BasicDeserializerFactory.java _findCustomCollectionDeserializer → src/main/java/com/fasterxml/jackson/databind/deser/BasicDeserial…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-10.1-reportInputMismatch [iter 2]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-7.3-createCollectionDeserializer: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=10441 wall=106.9s
+  tools: bash×23, grep×19, view×8, report_intent×1, task×1
+  answer: _findCustomCollectionDeserializer → src/main/java/com/fasterxml/jackson/databind/deser/BasicDeserializerFactory.java findTypeDeserializer → src/main/java/com/fasterxml/jackson/databind/deser/BasicDeserializerFactory.java _mapAbstractCollectionType → src/main/java/com/fasterxml/jackson/databind/deser…
+[lore]    jackson-databind-7.3-createCollectionDeserializer: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=4402 wall=74.3s
+  tools: bash×11, lore_lookup×2, view×2, report_intent×1, lore_snippet×1, lore_graph×1, glob×1, task×1
+  lore calls: lore_lookup(kind=symbol, query=createCollectionDeserializer), lore_snippet(path=src/main/java/tools/jackson/databind/deser/BasicDeserializerFactory.java, start_line=766, end_line=842), lore_graph(kind=call, source_id=2831, compact=true), lore_lookup(kind=file, query=BasicDeserializerFactory.java)
+  answer: findTypeDeserializer → src/main/java/com/fasterxml/jackson/databind/deser/BasicDeserializerFactory.java _findCustomCollectionDeserializer → src/main/java/com/fasterxml/jackson/databind/deser/BasicDeserializerFactory.java _mapAbstractCollectionType → src/main/java/com/fasterxml/jackson/databind/deser…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-10.1-reportInputMismatch [iter 3]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-7.2-reportInputMismatch: success=1 correctness=0.67 ans_cov=0.80 file_cov=1.00 sym_cov=1.00 tokens=15429 wall=107.6s
+  tools: view×58, report_intent×1, grep×1, bash×1, task×1
+  answer: _deserializeWithNativeTypeId → src/main/java/com/fasterxml/jackson/databind/jsontype/impl/TypeDeserializerBase.java — returns the result directly from the method deserializeWithView → src/main/java/com/fasterxml/jackson/databind/deser/BuilderBasedDeserializer.java — discards the return value (bare s…
+  MISSED parts: [_checkFromStringCoercion]
+  MISSED answer lines: [_checkFromStringCoercion → StdDeserializer.java]
+[lore]    jackson-databind-7.2-reportInputMismatch: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=12707 wall=280.5s
+  tools: bash×43, report_intent×1, lore_dependents×1
+  lore calls: lore_dependents(query=reportInputMismatch, kind=symbol, compact=true)
+  answer: Good — line 566 is in `deserializeWithView` for `BuilderBasedDeserializer`.  Now I have all the data. Let me compile the final answer with unique function→file pairs, deduplicating where the same function in the same file has multiple call sites.  _initForReading → src/main/java/com/fasterxml/jackso…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-10.1-reportInputMismatch [iter 4]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-7.3-createCollectionDeserializer: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=2276 wall=47.5s
+  tools: grep×12, view×4, report_intent×1
+  answer: Here is the complete call tree from `createCollectionDeserializer`:  ``` _findCustomCollectionDeserializer → src/main/java/com/fasterxml/jackson/databind/deser/BasicDeserializerFactory.java findTypeDeserializer → src/main/java/com/fasterxml/jackson/databind/deser/BasicDeserializerFactory.java _mapAb…
+[lore]    jackson-databind-7.3-createCollectionDeserializer: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=5795 wall=73.0s
+  tools: grep×13, bash×4, lore_lookup×2, report_intent×1, lore_snippet×1, lore_graph×1, glob×1, view×1, task×1
+  lore calls: lore_lookup(kind=symbol, query=createCollectionDeserializer), lore_snippet(path=src/main/java/tools/jackson/databind/deser/BasicDeserializerFactory.java, start_line=766, end_line=842), lore_graph(kind=call, source_id=2831, compact=true), lore_lookup(kind=file, query=BasicDeserializerFactory.java)
+  answer: Here is the list of concrete functions/methods directly called by `createCollectionDeserializer`:  findTypeDeserializer → src/main/java/com/fasterxml/jackson/databind/deser/BasicDeserializerFactory.java _findCustomCollectionDeserializer → src/main/java/com/fasterxml/jackson/databind/deser/BasicDeser…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-10.1-reportInputMismatch [iter 5]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-10.1-reportInputMismatch: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=19539 wall=184.1s
+  tools: view×68, bash×6, report_intent×1, grep×1, task×1
+  answer: Good, all verified. Now let me count unique function→file pairs and format the answer:  17 _deserializeWithNativeTypeId → src/main/java/com/fasterxml/jackson/databind/jsontype/impl/TypeDeserializerBase.java _initForReading → src/main/java/com/fasterxml/jackson/databind/ObjectReader.java _parseQNameO…
+[lore]    jackson-databind-10.1-reportInputMismatch: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=16523 wall=236.9s
+  tools: view×38, bash×9, report_intent×1, lore_dependents×1, grep×1
+  lore calls: lore_dependents(query=reportInputMismatch, kind=symbol, compact=true)
+  answer: Now I have all the data. Let me compile the final answer:  17 _initForReading → src/main/java/com/fasterxml/jackson/databind/ObjectReader.java deserializeWithView → src/main/java/com/fasterxml/jackson/databind/deser/BeanDeserializer.java deserializeUsingPropertyBasedWithUnwrapped → src/main/java/com…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-10.3-reportInputMismatch [iter 1]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-10.1-reportInputMismatch: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=12336 wall=107.7s
+  tools: view×33, report_intent×1, grep×1, task×1, read_agent×1
+  answer: The results are verified. Here's the answer:  17 _deserializeWithNativeTypeId → src/main/java/com/fasterxml/jackson/databind/jsontype/impl/TypeDeserializerBase.java _initForReading → src/main/java/com/fasterxml/jackson/databind/ObjectReader.java deserialize → src/main/java/com/fasterxml/jackson/data…
+[lore]    jackson-databind-10.1-reportInputMismatch: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=15790 wall=268.2s
+  tools: bash×16, report_intent×1, lore_dependents×1, grep×1
+  lore calls: lore_dependents(query=reportInputMismatch, kind=symbol, compact=true)
+  answer: 17 _initForReading → src/main/java/com/fasterxml/jackson/databind/ObjectReader.java deserializeWithView → src/main/java/com/fasterxml/jackson/databind/deser/BeanDeserializer.java deserializeUsingPropertyBasedWithUnwrapped → src/main/java/com/fasterxml/jackson/databind/deser/BeanDeserializer.java han…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-10.3-reportInputMismatch [iter 2]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-10.1-reportInputMismatch: success=1 correctness=0.80 ans_cov=0.75 file_cov=1.00 sym_cov=1.00 tokens=16042 wall=176.1s
+  tools: view×50, report_intent×1, grep×1, task×1, bash×1
+  answer: Now I have all the information needed. Let me compile the final answer.  17 _deserializeWithNativeTypeId → src/main/java/com/fasterxml/jackson/databind/jsontype/impl/TypeDeserializerBase.java deserializeWithView → src/main/java/com/fasterxml/jackson/databind/deser/BeanDeserializer.java deserializeUs…
+  MISSED parts: [_checkFromStringCoercion]
+  MISSED answer lines: [_checkFromStringCoercion → StdDeserializer.java]
+[lore]    jackson-databind-10.1-reportInputMismatch: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=15727 wall=300.3s
+  tools: bash×20, view×12, report_intent×1, lore_dependents×1, grep×1
+  lore calls: lore_dependents(query=reportInputMismatch, kind=symbol, compact=true)
+  answer: All verified. The results are accurate. Here's the final answer:  17 _initForReading → src/main/java/com/fasterxml/jackson/databind/ObjectReader.java deserializeWithView → src/main/java/com/fasterxml/jackson/databind/deser/BeanDeserializer.java deserializeUsingPropertyBasedWithUnwrapped → src/main/j…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-10.3-reportInputMismatch [iter 3]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-10.1-reportInputMismatch: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=23193 wall=268.6s
+  tools: view×87, bash×6, report_intent×1, grep×1, task×1
+  answer: 17 _deserializeWithNativeTypeId → src/main/java/com/fasterxml/jackson/databind/jsontype/impl/TypeDeserializerBase.java _parseQNameObject → src/main/java/com/fasterxml/jackson/databind/ext/CoreXMLDeserializers.java _initForReading → src/main/java/com/fasterxml/jackson/databind/ObjectReader.java deser…
+[lore]    jackson-databind-10.1-reportInputMismatch: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=11137 wall=198.1s
+  tools: bash×16, report_intent×1, lore_dependents×1, grep×1
+  lore calls: lore_dependents(query=reportInputMismatch, kind=symbol, compact=true)
+  answer: All three `reportInputMismatch` calls in `MapEntryDeserializer` (lines 192, 224, 229) are in the `deserialize` method starting at line 177. The results are correct.  17 _initForReading → src/main/java/com/fasterxml/jackson/databind/ObjectReader.java deserializeUsingPropertyBasedWithUnwrapped → src/m…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-10.3-reportInputMismatch [iter 4]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-10.1-reportInputMismatch: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=17197 wall=140.0s
+  tools: view×66, report_intent×1, grep×1, task×1
+  answer: All verified. Now let me compile the final answer. The distinct source files (excluding `DeserializationContext.java` itself) are 17, with 26 unique (function, file) pairs.  Let me count:  1. TypeDeserializerBase.java - 1 function 2. BuilderBasedDeserializer.java - 1 function 3. FactoryBasedEnumDese…
+[lore]    jackson-databind-10.1-reportInputMismatch: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=17572 wall=285.2s
+  tools: bash×19, view×11, report_intent×1, lore_dependents×1, grep×1
+  lore calls: lore_dependents(query=reportInputMismatch, kind=symbol, compact=true)
+  answer: Now I have all the data. Let me compile the verified answer:  17 _initForReading → src/main/java/com/fasterxml/jackson/databind/ObjectReader.java deserializeWithView → src/main/java/com/fasterxml/jackson/databind/deser/BeanDeserializer.java deserializeUsingPropertyBasedWithUnwrapped → src/main/java/…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-10.3-reportInputMismatch [iter 5]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-10.3-reportInputMismatch: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=14699 wall=110.7s
+  tools: view×35, grep×2, report_intent×1, task×1, read_agent×1
+  answer:   Here are the callers grouped by pattern:  **Fire-and-forget in a guard clause (return value discarded, inside an if-check):** - `_parseQNameObject` in `src/main/java/com/fasterxml/jackson/databind/ext/CoreXMLDeserializers.java` (×2) - `_deserializeFromEmptyString` in `src/main/java/com/fasterxml/j…
+[lore]    jackson-databind-10.3-reportInputMismatch: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=11775 wall=180.0s
+  tools: view×31, report_intent×3, bash×2, grep×2, lore_dependents×1, task×1, read_agent×1
+  lore calls: lore_dependents(query=reportInputMismatch, kind=symbol, compact=true)
+  answer:   Here are the callers grouped by calling pattern:  **Internal delegation (one overload forwarding to another):**   `handleMissingInstantiator` in DeserializationContext.java   `handleUnexpectedToken` in DeserializationContext.java   `reportUnresolvedObjectId` in DeserializationContext.java  **Sole-…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-11.2-reportInputMismatch [iter 1]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-10.3-reportInputMismatch: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=32352 wall=272.5s
+  tools: view×33, bash×15, grep×7, report_intent×1, task×1, read_agent×1
+  answer: Here are the callers grouped by calling pattern:  **Return-propagated (`return ctxt.reportInputMismatch(...)` — value used as method return):**   `_deserializeWithNativeTypeId` in TypeDeserializerBase.java   `deserialize` in FactoryBasedEnumDeserializer.java (line 170, properties-based creator)   `d…
+[lore]    jackson-databind-10.3-reportInputMismatch: success=1 correctness=0.80 ans_cov=0.80 file_cov=1.00 sym_cov=1.00 tokens=15444 wall=150.0s
+  tools: view×34, bash×3, report_intent×1, lore_lookup×1, lore_dependents×1, grep×1, task×1, read_agent×1
+  lore calls: lore_lookup(kind=symbol, query=reportInputMismatch), lore_dependents(query=reportInputMismatch, kind=symbol, compact=false)
+  answer:   Here are the callers grouped by calling pattern:  **Returned directly (`return ctxt.reportInputMismatch(...)`):**   `instantiationException` in DeserializationContext.java   `reportUnresolvedObjectId` in DeserializationContext.java   `deserializeWithUnwrapped` in BeanDeserializer.java   `_unpack` …
+  MISSED parts: [_checkFromStringCoercion]
+  MISSED answer lines: [_checkFromStringCoercion]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-11.2-reportInputMismatch [iter 2]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-10.3-reportInputMismatch: success=1 correctness=0.80 ans_cov=0.80 file_cov=1.00 sym_cov=1.00 tokens=30524 wall=273.1s
+  tools: view×33, bash×26, grep×2, read_agent×2, task×1, report_intent×1
+  answer:   Here are the callers grouped by calling pattern:  **Unconditional throw (always fires, no guard):**   `FailingDeserializer.deserialize` in `src/main/java/tools/jackson/databind/deser/FailingDeserializer.java`  **Feature-flag guarded, one-shot (gated by `FAIL_ON_*` / coercion config):**   `BeanAsAr…
+  MISSED parts: [_checkFromStringCoercion]
+  MISSED answer lines: [_checkFromStringCoercion]
+[lore]    jackson-databind-10.3-reportInputMismatch: success=1 correctness=0.60 ans_cov=0.60 file_cov=1.00 sym_cov=1.00 tokens=14294 wall=125.9s
+  tools: view×34, bash×2, report_intent×1, lore_dependents×1, grep×1, task×1, read_agent×1
+  lore calls: lore_dependents(query=reportInputMismatch, kind=symbol, compact=false)
+  answer:   Here are the callers of `reportInputMismatch` grouped by calling pattern:  **Conditional guard, return value discarded (fire-and-forget after if-check):**   `ObjectReader._initForReading` in ObjectReader.java   `BeanDeserializer._deserializeOther` in BeanDeserializer.java:713   `BeanDeserializer.B…
+  MISSED parts: [_checkFromStringCoercion, _verifyNullForPrimitive]
+  MISSED answer lines: [_checkFromStringCoercion, _verifyNullForPrimitive]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-11.2-reportInputMismatch [iter 3]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-10.3-reportInputMismatch: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=26967 wall=247.2s
+  tools: view×58, bash×9, report_intent×1, grep×1, task×1, read_agent×1
+  answer:   Here are the callers grouped by calling pattern (excluding the four overload definitions and three self-calls inside `DeserializationContext` itself):  **Returned as expression (uses `return ctxt.reportInputMismatch(...)` to satisfy method return type):**   `deserializeTypedFromAny` in TypeDeseria…
+[lore]    jackson-databind-10.3-reportInputMismatch: success=1 correctness=0.80 ans_cov=0.80 file_cov=1.00 sym_cov=1.00 tokens=19027 wall=150.0s
+  tools: view×41, bash×5, report_intent×1, lore_dependents×1, grep×1, task×1, read_agent×1
+  lore calls: lore_dependents(query=reportInputMismatch, kind=symbol, compact=false)
+  answer:   Here are the callers grouped by calling pattern:  **Returned directly (`return ctxt.reportInputMismatch(...)`):**   `_deserializeNonVanilla` in BeanDeserializer.java   `_handleMissing` in PropertyValueBuffer.java   `deserialize` in FactoryBasedEnumDeserializer.java (×2 — lines 170 & 201)   `_deser…
+  MISSED parts: [_verifyNullForPrimitive]
+  MISSED answer lines: [_verifyNullForPrimitive]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-11.2-reportInputMismatch [iter 4]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-10.3-reportInputMismatch: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=15893 wall=141.0s
+  tools: view×40, bash×5, report_intent×1, grep×1, task×1, read_agent×1
+  answer:   Now let me synthesize the detailed analysis into grouped calling patterns.  Here are the callers of `reportInputMismatch` grouped by calling pattern:  **Return value used (`return ctxt.reportInputMismatch(...)`):**   `_deserializeWithNativeTypeId` in TypeDeserializerBase.java   `deserializeEnumUsi…
+[lore]    jackson-databind-10.3-reportInputMismatch: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=27611 wall=326.1s
+  tools: view×58, bash×5, report_intent×1, lore_lookup×1, lore_dependents×1, grep×1, task×1, read_agent×1
+  lore calls: lore_lookup(kind=symbol, query=reportInputMismatch), lore_dependents(query=reportInputMismatch, kind=symbol, compact=true)
+  answer: Here are the callers grouped by calling pattern (34 call sites, excluding the 4 overload definitions and 3 internal self-calls within `DeserializationContext`):  **Return value used (`return ctxt.reportInputMismatch(...)`) — leverages the `<T>` generic return to satisfy the enclosing method's return…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-11.2-reportInputMismatch [iter 5]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-11.2-reportInputMismatch: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=14014 wall=90.9s
+  tools: view×62, report_intent×1, grep×1, task×1, read_agent×1
+  answer:   _parseQNameObject in src/main/java/com/fasterxml/jackson/databind/ext/CoreXMLDeserializers.java — ctxt.reportInputMismatch(this, _parseQNameObject in src/main/java/com/fasterxml/jackson/databind/ext/CoreXMLDeserializers.java — ctxt.reportInputMismatch(this, deserialize in src/main/java/com/fasterx…
+[lore]    jackson-databind-11.2-reportInputMismatch: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=3383 wall=59.4s
+  tools: bash×3, report_intent×1, lore_dependents×1, grep×1
+  lore calls: lore_dependents(query=reportInputMismatch, kind=symbol, compact=true)
+  answer: _initForReading in src/main/java/com/fasterxml/jackson/databind/ObjectReader.java — ctxt.reportInputMismatch(_valueType, deserializeWithView in src/main/java/com/fasterxml/jackson/databind/deser/BeanDeserializer.java — ctxt.reportInputMismatch(handledType(), deserializeUsingPropertyBasedWithUnwrappe…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-11.3-reportInputMismatch [iter 1]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-11.2-reportInputMismatch: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=11351 wall=96.0s
+  tools: view×31, bash×2, report_intent×1, grep×1, task×1
+  answer: _deserializeWithNativeTypeId in src/main/java/com/fasterxml/jackson/databind/jsontype/impl/TypeDeserializerBase.java — return ctxt.reportInputMismatch(baseType(), _parseQNameObject in src/main/java/com/fasterxml/jackson/databind/ext/CoreXMLDeserializers.java — ctxt.reportInputMismatch(this, _initFor…
+[lore]    jackson-databind-11.2-reportInputMismatch: success=1 correctness=0.67 ans_cov=0.83 file_cov=1.00 sym_cov=1.00 tokens=11584 wall=147.9s
+  tools: bash×5, view×4, report_intent×1, grep×1, lore_dependents×1
+  lore calls: lore_dependents(query=reportInputMismatch, kind=symbol, compact=true)
+  answer: _deserializeWithNativeTypeId in src/main/java/com/fasterxml/jackson/databind/jsontype/impl/TypeDeserializerBase.java — return ctxt.reportInputMismatch(baseType(), _initForReading in src/main/java/com/fasterxml/jackson/databind/ObjectReader.java — ctxt.reportInputMismatch(_valueType, deserializeWithV…
+  MISSED parts: [_checkFromStringCoercion]
+  MISSED answer lines: [_checkFromStringCoercion → StdDeserializer.java]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-11.3-reportInputMismatch [iter 2]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-11.2-reportInputMismatch: success=1 correctness=0.67 ans_cov=0.83 file_cov=1.00 sym_cov=1.00 tokens=9674 wall=85.6s
+  tools: view×31, report_intent×1, grep×1, task×1
+  answer: Good, the method names are confirmed. Now I have all the data. Here's the answer:  _deserializeWithNativeTypeId in src/main/java/com/fasterxml/jackson/databind/jsontype/impl/TypeDeserializerBase.java — return ctxt.reportInputMismatch(baseType(), _parseQNameObject in src/main/java/com/fasterxml/jacks…
+  MISSED parts: [_checkFromStringCoercion]
+  MISSED answer lines: [_checkFromStringCoercion → StdDeserializer.java]
+[lore]    jackson-databind-11.2-reportInputMismatch: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=12470 wall=167.8s
+  tools: view×42, report_intent×2, bash×2, grep×1, lore_dependents×1
+  lore calls: lore_dependents(query=reportInputMismatch, kind=symbol, compact=true)
+  answer: Lines 170 and 201 are both inside `deserialize` (which starts at line 142 and `deserializeEnumUsingPropertyBased` starts at line 254). Now let me also verify the `_deserializeFromArray` in MapEntryDeserializer:  The line 192 `return ctxt.reportInputMismatch(this, ...)` - looking at the context, this…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-11.3-reportInputMismatch [iter 3]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-11.2-reportInputMismatch: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=11638 wall=91.9s
+  tools: view×30, report_intent×1, grep×1, task×1, read_agent×1
+  answer:   _deserializeWithNativeTypeId in src/main/java/com/fasterxml/jackson/databind/jsontype/impl/TypeDeserializerBase.java — return ctxt.reportInputMismatch(baseType(), _parseQNameObject in src/main/java/com/fasterxml/jackson/databind/ext/CoreXMLDeserializers.java — ctxt.reportInputMismatch(this, _parse…
+[lore]    jackson-databind-11.2-reportInputMismatch: success=1 correctness=0.67 ans_cov=0.83 file_cov=1.00 sym_cov=1.00 tokens=5670 wall=77.5s
+  tools: bash×3, report_intent×1, lore_dependents×1, grep×1
+  lore calls: lore_dependents(query=reportInputMismatch, kind=symbol, compact=true)
+  answer: getParameter in src/main/java/com/fasterxml/jackson/databind/deser/impl/PropertyValueBuffer.java — return _context.reportInputMismatch(prop, getParameters in src/main/java/com/fasterxml/jackson/databind/deser/impl/PropertyValueBuffer.java — _context.reportInputMismatch(prop, _findMissing in src/main…
+  MISSED parts: [_checkFromStringCoercion]
+  MISSED answer lines: [_checkFromStringCoercion → StdDeserializer.java]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-11.3-reportInputMismatch [iter 4]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-11.3-reportInputMismatch: success=1 correctness=0.80 ans_cov=0.80 file_cov=1.00 sym_cov=1.00 tokens=12301 wall=100.6s
+  tools: view×38, grep×2, report_intent×1, task×1, read_agent×1
+  answer:   **Callers: 37** (production) + 4 (test) = **41 total call sites** across 4 overloads  **Verdict: No** — `reportInputMismatch` is a public API on `DeserializationContext` with 4 overloads and 41 call sites across 20+ files. The `BeanProperty` overload contains non-trivial logic (null-guarded path p…
+  MISSED parts: [_checkFromStringCoercion]
+  MISSED answer lines: [_checkFromStringCoercion]
+[lore]    jackson-databind-11.3-reportInputMismatch: success=1 correctness=0.80 ans_cov=0.80 file_cov=1.00 sym_cov=1.00 tokens=4639 wall=85.5s
+  tools: bash×3, grep×3, report_intent×1, lore_lookup×1, lore_dependents×1, lore_snippet×1
+  lore calls: lore_lookup(kind=symbol, query=reportInputMismatch, mode=exact), lore_dependents(query=reportInputMismatch, kind=symbol, compact=true), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-N961Lo/jackson-databind/src/main/java/com/fasterxml/jackson/databind/DeserializationContext.java, start_line=1783, end_line=1836)
+  answer: **Callers:** 37 call sites (34 external + 3 internal to `DeserializationContext`) across 20 files, using 4 overloads.  **Verdict:** No — `reportInputMismatch` is a public API with 4 overloads (3 are 2-line throw-helpers, 1 is ~12 lines with conditional path-prepending). It always throws `MismatchedI…
+  MISSED parts: [_checkFromStringCoercion]
+  MISSED answer lines: [_checkFromStringCoercion]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2mjackson-databind-11.3-reportInputMismatch [iter 5]: control + lore-enabled arms
+[22m[39m[control] jackson-databind-11.2-reportInputMismatch: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=56065 wall=241.4s
+  tools: view×60, bash×6, read_agent×3, grep×2, task×2, report_intent×1
+  answer: Now let me combine and deduplicate all results including test files:  _deserializeWithNativeTypeId in src/main/java/com/fasterxml/jackson/databind/jsontype/impl/TypeDeserializerBase.java — return ctxt.reportInputMismatch(baseType(), deserialize in src/main/java/com/fasterxml/jackson/databind/deser/s…
+[lore]    jackson-databind-11.2-reportInputMismatch: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=4905 wall=86.9s
+  tools: bash×6, report_intent×1, lore_dependents×1, grep×1
+  lore calls: lore_dependents(query=reportInputMismatch, kind=symbol, compact=true)
+  answer: getParameter in src/main/java/com/fasterxml/jackson/databind/deser/impl/PropertyValueBuffer.java — return _context.reportInputMismatch(prop, getParameters in src/main/java/com/fasterxml/jackson/databind/deser/impl/PropertyValueBuffer.java — _context.reportInputMismatch(prop, _findMissing in src/main…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind
+[22m[39m[control] jackson-databind-11.3-reportInputMismatch: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=2194 wall=45.0s
+  tools: grep×3, report_intent×1, view×1
+  answer: Now I have the full picture. There are **4 overloads** of `reportInputMismatch` on `DeserializationContext`, and **34 call sites** across the codebase. Here's the analysis:  **Callers: 34** (across 4 overloads)  **Verdict: No** — `reportInputMismatch` is a public API method on `DeserializationContex…
+[lore]    jackson-databind-11.3-reportInputMismatch: success=1 correctness=0.80 ans_cov=0.80 file_cov=1.00 sym_cov=1.00 tokens=3955 wall=73.6s
+  tools: bash×4, report_intent×1, lore_lookup×1, lore_dependents×1, lore_snippet×1, grep×1
+  lore calls: lore_lookup(kind=symbol, query=reportInputMismatch), lore_dependents(query=reportInputMismatch, kind=symbol, compact=true), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-N961Lo/jackson-databind/src/main/java/com/fasterxml/jackson/databind/DeserializationContext.java, start_line=1783, end_line=1836)
+  answer: **Callers: 34** call sites across 17 files (4 overloads of `reportInputMismatch`)  **Verdict: No** — `reportInputMismatch` is a public API on `DeserializationContext` with 4 overloads, 34 call sites across 17 files, and one overload (`BeanProperty` variant) has 15 lines of non-trivial path-prependin…
+  MISSED parts: [_checkFromStringCoercion]
+  MISSED answer lines: [_checkFromStringCoercion]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind
+[22m[39m[control] jackson-databind-11.3-reportInputMismatch: success=1 correctness=0.80 ans_cov=0.80 file_cov=1.00 sym_cov=1.00 tokens=2233 wall=51.8s
+  tools: grep×4, view×4, report_intent×1
+  answer: Here's the analysis:  **Callers: 37** (34 external call sites across `src/main` + 3 internal calls within `DeserializationContext` itself; plus 4 in tests)  **Verdict: No** — `reportInputMismatch` is a **public API** with 4 overloads (accepting `JsonDeserializer`, `Class<?>`, `JavaType`, `BeanProper…
+  MISSED parts: [_checkFromStringCoercion]
+  MISSED answer lines: [_checkFromStringCoercion]
+[lore]    jackson-databind-11.3-reportInputMismatch: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=6023 wall=102.5s
+  tools: bash×8, report_intent×1, lore_lookup×1, lore_dependents×1, lore_snippet×1, grep×1, view×1
+  lore calls: lore_lookup(kind=symbol, query=reportInputMismatch), lore_dependents(query=reportInputMismatch, kind=symbol, compact=true), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-N961Lo/jackson-databind/src/main/java/com/fasterxml/jackson/databind/DeserializationContext.java, start_line=1783, end_line=1836)
+  answer: Now I have all the data. Here's the analysis:  ---  **Callers: 34** (across 18 files, using 4 overloads)  **Verdict: No** — `reportInputMismatch` is a public API with 4 overloads, 34 call sites across 18 files. The `BeanProperty` overload has 15 lines of conditional path-prepending logic. All overlo…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind
+[22m[39m[control] jackson-databind-11.3-reportInputMismatch: success=1 correctness=0.80 ans_cov=0.80 file_cov=1.00 sym_cov=1.00 tokens=1695 wall=41.6s
+  tools: grep×3, report_intent×1, view×1
+  answer: Now I have the full picture. There are **4 overloads** of `reportInputMismatch` in `DeserializationContext`. Let me tally the callers:  **Callers: 34** (30 in `src/main/`, 4 in `src/test/`)  **Verdict: No** — `reportInputMismatch` is a public API method on `DeserializationContext` with 4 overloads, …
+  MISSED parts: [_checkFromStringCoercion]
+  MISSED answer lines: [_checkFromStringCoercion]
+[lore]    jackson-databind-11.3-reportInputMismatch: success=1 correctness=0.80 ans_cov=0.80 file_cov=1.00 sym_cov=1.00 tokens=7007 wall=108.1s
+  tools: bash×6, grep×2, report_intent×1, lore_lookup×1, lore_dependents×1, lore_snippet×1
+  lore calls: lore_lookup(kind=symbol, query=reportInputMismatch, mode=exact), lore_dependents(query=reportInputMismatch, kind=symbol, compact=true), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-N961Lo/jackson-databind/src/main/java/com/fasterxml/jackson/databind/DeserializationContext.java, start_line=1783, end_line=1836)
+  answer: **Callers:** 34 call sites across 28 distinct methods (in 16 files); plus 4 test call sites.  **Verdict: No** — `reportInputMismatch` is a public API with 4 overloads (each 2–15 lines). The `BeanProperty` overload contains non-trivial branching (null checks, path-prepend logic). The method is called…
+  MISSED parts: [_checkFromStringCoercion]
+  MISSED answer lines: [_checkFromStringCoercion]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind
+[22m[39m[control] jackson-databind-11.3-reportInputMismatch: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=23261 wall=206.6s
+  tools: view×50, bash×11, grep×2, read_agent×2, report_intent×1, task×1
+  answer:   **Callers: 37** (across 4 overloads, in 18 files)  **Verdict: No** — `reportInputMismatch` is a 2–3 line public API method (4 overloads) on `DeserializationContext`, called from 37 sites across 18 files. It is part of Jackson's public API surface (used by external deserializers). The `BeanProperty…
+[lore]    jackson-databind-11.3-reportInputMismatch: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=3352 wall=68.2s
+  tools: bash×4, report_intent×1, lore_lookup×1, lore_dependents×1, lore_snippet×1, grep×1
+  lore calls: lore_lookup(kind=symbol, query=reportInputMismatch, mode=exact), lore_dependents(query=reportInputMismatch, kind=symbol, compact=true), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-N961Lo/jackson-databind/src/main/java/com/fasterxml/jackson/databind/DeserializationContext.java, start_line=1783, end_line=1836)
+  answer: **Callers: 34** call sites across 19 files (4 overloads, each 2–15 lines; 3 internal self-calls within `DeserializationContext`)  **Verdict: No** — `reportInputMismatch` has 4 overloads (2–15 lines each). Every overload formats a message and throws `MismatchedInputException`—it is a **throw-only hel…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: jackson-databind[2m > [22m[2maggregate: full report — control vs lore-enabled
+[22m[39m
+── jackson-databind-1.1-reportInputMismatch [iter 1] (localization) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=9066 wall=72.4s
+    tools: view×33, report_intent×1, grep×1, task×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=1790 wall=46.5s
+    tools: bash×3, report_intent×1, lore_dependents×1, grep×1
+  DELTA:   correctness=+0.00  tokens=-7276 (-80%)  wall=-25.9s (-36%)
+
+── jackson-databind-1.1-reportInputMismatch [iter 2] (localization) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=7690 wall=68.6s
+    tools: view×31, report_intent×1, grep×1, task×1, read_agent×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=23523 wall=307.5s
+    tools: view×60, bash×21, report_intent×2, lore_dependents×1, grep×1, task×1, read_agent×1
+  DELTA:   correctness=+0.00  tokens=+15833 (+206%)  wall=+238.9s (+348%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── jackson-databind-1.1-reportInputMismatch [iter 3] (localization) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=10950 wall=97.2s
+    tools: view×36, report_intent×1, grep×1, task×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=19779 wall=281.0s
+    tools: view×38, bash×9, report_intent×1, lore_dependents×1, grep×1
+  DELTA:   correctness=+0.00  tokens=+8829 (+81%)  wall=+183.8s (+189%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── jackson-databind-1.1-reportInputMismatch [iter 4] (localization) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=6811 wall=137.5s
+    tools: bash×8, view×3, grep×2, report_intent×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=2618 wall=64.2s
+    tools: bash×4, report_intent×1, lore_dependents×1
+  DELTA:   correctness=+0.00  tokens=-4193 (-62%)  wall=-73.3s (-53%)
+
+── jackson-databind-1.1-reportInputMismatch [iter 5] (localization) ──
+  CONTROL: success=1 correctness=0.91 ans=0.75 file=1.00 sym=1.00 tokens=13133 wall=114.0s
+    tools: view×41, bash×15, report_intent×1, grep×1, task×1
+  LORE:    success=0.5 correctness=0.00 ans=0.00 file=1.00 sym=1.00 tokens=11609 wall=360.0s
+    tools: bash×9, read_bash×3, report_intent×2, lore_dependents×1, grep×1, task×1
+  DELTA:   correctness=-0.91  tokens=-1524 (-12%)  wall=+246.0s (+216%)
+  ⚠ LORE WORSE on correctness — missed: [deserialize, _deserializeEmbedded, _deserializeFromEmptyString, handleUnresolvedReference, _parseQNameObject, getNullValue, _checkFromStringCoercion, _verifyNullForPrimitive, _reportFailedNullCoerce, _verifyStringForScalarCoercion, _verifyNumberForScalarCoercion]
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── jackson-databind-1.2-createCollectionDeserializer [iter 1] (localization) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=569 wall=24.3s
+    tools: grep×2, report_intent×1, view×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=722 wall=24.2s
+    tools: report_intent×1, lore_lookup×1, lore_graph×1, bash×1
+  DELTA:   correctness=+0.00  tokens=+153 (+27%)  wall=-0.1s (-0%)
+
+── jackson-databind-1.2-createCollectionDeserializer [iter 2] (localization) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=592 wall=24.2s
+    tools: grep×2, report_intent×1, view×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=761 wall=24.7s
+    tools: report_intent×1, lore_lookup×1, lore_graph×1, bash×1
+  DELTA:   correctness=+0.00  tokens=+169 (+29%)  wall=+0.5s (+2%)
+
+── jackson-databind-1.2-createCollectionDeserializer [iter 3] (localization) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=1818 wall=39.6s
+    tools: grep×2, report_intent×1, view×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=711 wall=24.1s
+    tools: report_intent×1, lore_lookup×1, lore_graph×1, bash×1
+  DELTA:   correctness=+0.00  tokens=-1107 (-61%)  wall=-15.5s (-39%)
+
+── jackson-databind-1.2-createCollectionDeserializer [iter 4] (localization) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=1414 wall=32.1s
+    tools: grep×2, report_intent×1, view×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=948 wall=30.8s
+    tools: bash×2, report_intent×1, lore_lookup×1, lore_graph×1
+  DELTA:   correctness=+0.00  tokens=-466 (-33%)  wall=-1.4s (-4%)
+
+── jackson-databind-1.2-createCollectionDeserializer [iter 5] (localization) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=592 wall=23.9s
+    tools: grep×2, report_intent×1, view×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=806 wall=25.4s
+    tools: report_intent×1, lore_lookup×1, lore_graph×1, bash×1
+  DELTA:   correctness=+0.00  tokens=+214 (+36%)  wall=+1.5s (+6%)
+
+── jackson-databind-1.4-reportInputMismatch [iter 1] (modification) ──
+  CONTROL: success=0.5 correctness=0.33 ans=0.50 file=1.00 sym=1.00 tokens=79436 wall=334.7s
+    tools: view×145, bash×97, grep×31, read_agent×8, task×5, report_intent×1
+  LORE:    success=1 correctness=0.83 ans=1.00 file=1.00 sym=1.00 tokens=16874 wall=281.0s
+    tools: bash×13, view×11, report_intent×1, lore_dependents×1, lore_lookup×1, grep×1
+  DELTA:   correctness=+0.50  tokens=-62562 (-79%)  wall=-53.7s (-16%)
+
+── jackson-databind-1.4-reportInputMismatch [iter 2] (modification) ──
+  CONTROL: success=0.5 correctness=0.00 ans=0.00 file=1.00 sym=1.00 tokens=28260 wall=360.0s
+    tools: bash×25, report_intent×2, task×1, grep×1, read_agent×1
+  LORE:    success=1 correctness=0.00 ans=1.00 file=1.00 sym=1.00 tokens=16790 wall=265.2s
+    tools: bash×12, lore_dependents×2, report_intent×1, lore_lookup×1, lore_graph×1, grep×1
+  DELTA:   correctness=+0.00  tokens=-11470 (-41%)  wall=-94.9s (-26%)
+
+── jackson-databind-1.4-reportInputMismatch [iter 3] (modification) ──
+  CONTROL: success=0.5 correctness=0.00 ans=0.00 file=1.00 sym=1.00 tokens=29030 wall=360.0s
+    tools: view×69, grep×67, report_intent×2, task×1, read_agent×1
+  LORE:    success=0.5 correctness=0.00 ans=0.00 file=1.00 sym=1.00 tokens=16799 wall=360.0s
+    tools: bash×14, lore_dependents×5, lore_graph×4, report_intent×1, lore_lookup×1
+  DELTA:   correctness=+0.00  tokens=-12231 (-42%)  wall=+0.0s (+0%)
+
+── jackson-databind-1.4-reportInputMismatch [iter 4] (modification) ──
+  CONTROL: success=0.5 correctness=0.00 ans=0.00 file=1.00 sym=1.00 tokens=75501 wall=360.0s
+    tools: view×168, bash×84, grep×24, read_agent×7, task×5, report_intent×2
+  LORE:    success=1 correctness=0.83 ans=1.00 file=1.00 sym=1.00 tokens=14674 wall=300.3s
+    tools: bash×25, lore_graph×4, report_intent×1, lore_dependents×1, lore_lookup×1
+  DELTA:   correctness=+0.83  tokens=-60827 (-81%)  wall=-59.7s (-17%)
+
+── jackson-databind-1.4-reportInputMismatch [iter 5] (modification) ──
+  CONTROL: success=0.5 correctness=0.00 ans=0.00 file=1.00 sym=1.00 tokens=114933 wall=360.0s
+    tools: bash×136, view×91, grep×51, task×6, read_agent×5, report_intent×1, glob×1
+  LORE:    success=0.5 correctness=0.00 ans=0.00 file=1.00 sym=1.00 tokens=10424 wall=360.0s
+    tools: bash×20, report_intent×1, lore_dependents×1, view×1
+  DELTA:   correctness=+0.00  tokens=-104509 (-91%)  wall=+0.0s (+0%)
+
+── jackson-databind-1.3-createCollectionDeserializer [iter 1] (explanation) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=3564 wall=52.3s
+    tools: grep×2, report_intent×1, view×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=1067 wall=43.4s
+    tools: lore_lookup×2, report_intent×1, lore_snippet×1, glob×1, grep×1, view×1
+  DELTA:   correctness=+0.00  tokens=-2497 (-70%)  wall=-8.9s (-17%)
+
+── jackson-databind-1.3-createCollectionDeserializer [iter 2] (explanation) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=809 wall=33.6s
+    tools: grep×2, report_intent×1, view×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=1043 wall=33.8s
+    tools: lore_lookup×2, report_intent×1, lore_snippet×1, glob×1, bash×1, view×1
+  DELTA:   correctness=+0.00  tokens=+234 (+29%)  wall=+0.2s (+1%)
+
+── jackson-databind-1.3-createCollectionDeserializer [iter 3] (explanation) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=2401 wall=42.5s
+    tools: grep×2, report_intent×1, view×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=1015 wall=33.6s
+    tools: lore_lookup×2, report_intent×1, lore_snippet×1, glob×1, grep×1, view×1
+  DELTA:   correctness=+0.00  tokens=-1386 (-58%)  wall=-8.9s (-21%)
+
+── jackson-databind-1.3-createCollectionDeserializer [iter 4] (explanation) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=2261 wall=38.5s
+    tools: grep×2, report_intent×1, view×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=2988 wall=54.8s
+    tools: bash×2, report_intent×1, lore_lookup×1, lore_snippet×1, grep×1, lore_graph×1
+  DELTA:   correctness=+0.00  tokens=+727 (+32%)  wall=+16.3s (+42%)
+
+── jackson-databind-1.3-createCollectionDeserializer [iter 5] (explanation) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=2909 wall=46.2s
+    tools: grep×2, report_intent×1, view×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=1630 wall=37.6s
+    tools: lore_snippet×2, report_intent×1, lore_lookup×1, glob×1, view×1
+  DELTA:   correctness=+0.00  tokens=-1279 (-44%)  wall=-8.6s (-19%)
+
+── jackson-databind-1.5-reportInputMismatch [iter 1] (localization) ──
+  CONTROL: success=1 correctness=0.50 ans=0.75 file=1.00 sym=1.00 tokens=18806 wall=217.3s
+    tools: view×24, bash×22, grep×11, report_intent×1, task×1
+  LORE:    success=1 correctness=0.50 ans=0.75 file=1.00 sym=1.00 tokens=25282 wall=360.0s
+    tools: bash×67, view×10, lore_dependents×3, report_intent×2, grep×2, task×1
+  DELTA:   correctness=+0.00  tokens=+6476 (+34%)  wall=+142.8s (+66%)
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── jackson-databind-1.5-reportInputMismatch [iter 2] (localization) ──
+  CONTROL: success=1 correctness=0.50 ans=0.75 file=1.00 sym=1.00 tokens=14541 wall=225.5s
+    tools: view×22, bash×20, grep×4, report_intent×2, read_agent×2, task×1
+  LORE:    success=0.5 correctness=0.00 ans=0.50 file=1.00 sym=1.00 tokens=41178 wall=360.0s
+    tools: view×68, bash×59, grep×18, lore_dependents×4, task×4, read_agent×4, report_intent×1, stop_bash×1
+  DELTA:   correctness=-0.50  tokens=+26637 (+183%)  wall=+134.5s (+60%)
+  ⚠ LORE WORSE on correctness — missed: [_deserializeFromEmptyString, deserialize]
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── jackson-databind-1.5-reportInputMismatch [iter 3] (localization) ──
+  CONTROL: success=1 correctness=0.50 ans=0.75 file=1.00 sym=1.00 tokens=11498 wall=204.8s
+    tools: view×13, bash×5, grep×2, report_intent×1
+  LORE:    success=1 correctness=0.50 ans=0.75 file=1.00 sym=1.00 tokens=17544 wall=228.4s
+    tools: view×31, grep×17, bash×16, report_intent×2, lore_dependents×2, task×1, read_agent×1
+  DELTA:   correctness=+0.00  tokens=+6046 (+53%)  wall=+23.6s (+12%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+
+── jackson-databind-1.5-reportInputMismatch [iter 4] (localization) ──
+  CONTROL: success=1 correctness=0.50 ans=0.75 file=1.00 sym=1.00 tokens=16985 wall=203.4s
+    tools: view×29, grep×15, bash×14, report_intent×1, task×1
+  LORE:    success=1 correctness=0.50 ans=0.75 file=1.00 sym=1.00 tokens=22512 wall=276.1s
+    tools: bash×19, view×19, grep×5, lore_dependents×2, read_agent×2, report_intent×1, task×1
+  DELTA:   correctness=+0.00  tokens=+5527 (+33%)  wall=+72.8s (+36%)
+
+── jackson-databind-1.5-reportInputMismatch [iter 5] (localization) ──
+  CONTROL: success=1 correctness=0.50 ans=0.75 file=1.00 sym=1.00 tokens=17776 wall=190.6s
+    tools: view×19, bash×14, grep×2, read_agent×2, report_intent×1, task×1
+  LORE:    success=0.5 correctness=0.00 ans=0.00 file=1.00 sym=1.00 tokens=26733 wall=360.0s
+    tools: view×40, bash×20, grep×6, lore_dependents×3, report_intent×1, read_bash×1, stop_bash×1, task×1
+  DELTA:   correctness=-0.50  tokens=+8957 (+50%)  wall=+169.4s (+89%)
+  ⚠ LORE WORSE on correctness — missed: [_deserializeFromEmptyString, deserialize]
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── jackson-databind-1.7-createCollectionDeserializer [iter 1] (explanation) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=7607 wall=88.4s
+    tools: view×8, grep×4, bash×4, report_intent×1, task×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=700 wall=25.1s
+    tools: lore_trace×2, lore_lookup×2, report_intent×1
+  DELTA:   correctness=+0.00  tokens=-6907 (-91%)  wall=-63.3s (-72%)
+
+── jackson-databind-1.7-createCollectionDeserializer [iter 2] (explanation) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=7156 wall=83.7s
+    tools: view×7, grep×4, bash×3, report_intent×1, task×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=711 wall=26.3s
+    tools: lore_trace×2, lore_lookup×2, report_intent×1
+  DELTA:   correctness=+0.00  tokens=-6445 (-90%)  wall=-57.4s (-69%)
+
+── jackson-databind-1.7-createCollectionDeserializer [iter 3] (explanation) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=6542 wall=81.8s
+    tools: view×7, bash×6, grep×4, report_intent×1, task×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=686 wall=24.7s
+    tools: lore_trace×2, lore_lookup×2, report_intent×1
+  DELTA:   correctness=+0.00  tokens=-5856 (-90%)  wall=-57.1s (-70%)
+
+── jackson-databind-1.7-createCollectionDeserializer [iter 4] (explanation) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=5570 wall=96.0s
+    tools: view×9, bash×8, grep×4, report_intent×1, task×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=701 wall=24.9s
+    tools: lore_trace×2, lore_lookup×2, report_intent×1
+  DELTA:   correctness=+0.00  tokens=-4869 (-87%)  wall=-71.1s (-74%)
+
+── jackson-databind-1.7-createCollectionDeserializer [iter 5] (explanation) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=7973 wall=102.3s
+    tools: grep×9, view×8, bash×4, report_intent×1, task×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=726 wall=25.2s
+    tools: lore_trace×2, lore_lookup×2, report_intent×1
+  DELTA:   correctness=+0.00  tokens=-7247 (-91%)  wall=-77.2s (-75%)
+
+── jackson-databind-1.8-reportInputMismatch [iter 1] (modification) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=25557 wall=353.4s
+    tools: view×37, bash×27, grep×23, report_intent×2, read_agent×2, task×1
+  LORE:    success=1 correctness=0.88 ans=0.75 file=1.00 sym=1.00 tokens=16030 wall=135.0s
+    tools: view×75, report_intent×2, lore_lookup×1, lore_dependents×1, bash×1, grep×1, task×1, read_agent×1
+  DELTA:   correctness=-0.13  tokens=-9527 (-37%)  wall=-218.4s (-62%)
+  ⚠ LORE WORSE on correctness — missed: [_checkFromStringCoercion]
+
+── jackson-databind-1.8-reportInputMismatch [iter 2] (modification) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=28495 wall=323.3s
+    tools: view×76, bash×41, grep×3, report_intent×2, task×1, read_agent×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=30300 wall=154.4s
+    tools: view×74, bash×13, task×4, read_agent×4, report_intent×1, lore_dependents×1, lore_lookup×1, grep×1
+  DELTA:   correctness=+0.00  tokens=+1805 (+6%)  wall=-168.9s (-52%)
+
+── jackson-databind-1.8-reportInputMismatch [iter 3] (modification) ──
+  CONTROL: success=1 correctness=0.50 ans=0.75 file=1.00 sym=1.00 tokens=15358 wall=139.7s
+    tools: view×29, bash×26, grep×6, task×2, read_agent×2, report_intent×1
+  LORE:    success=1 correctness=0.88 ans=0.75 file=1.00 sym=1.00 tokens=14158 wall=185.9s
+    tools: view×39, bash×9, report_intent×1, lore_dependents×1, grep×1, task×1
+  DELTA:   correctness=+0.38  tokens=-1200 (-8%)  wall=+46.1s (+33%)
+
+── jackson-databind-1.8-reportInputMismatch [iter 4] (modification) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=32486 wall=210.2s
+    tools: view×76, bash×23, grep×16, report_intent×2, task×2, read_agent×2
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=22584 wall=233.8s
+    tools: view×60, bash×18, report_intent×2, lore_lookup×1, lore_dependents×1, grep×1, task×1, read_agent×1
+  DELTA:   correctness=+0.00  tokens=-9902 (-30%)  wall=+23.6s (+11%)
+
+── jackson-databind-1.8-reportInputMismatch [iter 5] (modification) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=24214 wall=217.4s
+    tools: view×78, bash×9, grep×2, read_agent×2, task×1, report_intent×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=30713 wall=211.1s
+    tools: view×85, bash×18, task×4, read_agent×4, report_intent×3, lore_lookup×1, lore_dependents×1, grep×1
+  DELTA:   correctness=+0.00  tokens=+6499 (+27%)  wall=-6.3s (-3%)
+
+── jackson-databind-7.2-reportInputMismatch [iter 1] (localization) ──
+  CONTROL: success=1 correctness=0.67 ans=0.80 file=1.00 sym=1.00 tokens=14487 wall=97.1s
+    tools: view×57, report_intent×2, grep×1, task×1, read_agent×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=18090 wall=159.8s
+    tools: view×65, bash×14, report_intent×1, lore_dependents×1, grep×1, task×1, read_agent×1
+  DELTA:   correctness=+0.33  tokens=+3603 (+25%)  wall=+62.6s (+64%)
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── jackson-databind-7.2-reportInputMismatch [iter 2] (localization) ──
+  CONTROL: success=1 correctness=0.67 ans=0.80 file=1.00 sym=1.00 tokens=15429 wall=107.6s
+    tools: view×58, report_intent×1, grep×1, bash×1, task×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=12707 wall=280.5s
+    tools: bash×43, report_intent×1, lore_dependents×1
+  DELTA:   correctness=+0.33  tokens=-2722 (-18%)  wall=+173.0s (+161%)
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── jackson-databind-7.2-reportInputMismatch [iter 3] (localization) ──
+  CONTROL: success=1 correctness=0.67 ans=0.80 file=1.00 sym=1.00 tokens=10160 wall=83.6s
+    tools: view×32, report_intent×1, grep×1, task×1, read_agent×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=12723 wall=170.7s
+    tools: view×34, bash×6, report_intent×1, lore_dependents×1
+  DELTA:   correctness=+0.33  tokens=+2563 (+25%)  wall=+87.1s (+104%)
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── jackson-databind-7.2-reportInputMismatch [iter 4] (localization) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=15172 wall=137.8s
+    tools: view×57, report_intent×1, grep×1, task×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=12393 wall=146.5s
+    tools: bash×44, report_intent×2, lore_dependents×1, grep×1
+  DELTA:   correctness=+0.00  tokens=-2779 (-18%)  wall=+8.7s (+6%)
+
+── jackson-databind-7.2-reportInputMismatch [iter 5] (localization) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=0.67 sym=1.00 tokens=15957 wall=114.7s
+    tools: view×62, report_intent×1, grep×1, task×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=15588 wall=153.2s
+    tools: view×64, bash×3, report_intent×1, lore_dependents×1, grep×1, task×1, read_agent×1
+  DELTA:   correctness=+0.00  tokens=-369 (-2%)  wall=+38.5s (+34%)
+
+── jackson-databind-7.3-createCollectionDeserializer [iter 1] (localization) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=2105 wall=45.5s
+    tools: grep×11, view×3, report_intent×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=2265 wall=58.4s
+    tools: bash×7, report_intent×1, lore_lookup×1, lore_snippet×1, lore_trace×1, lore_graph×1, view×1
+  DELTA:   correctness=+0.00  tokens=+160 (+8%)  wall=+12.9s (+28%)
+
+── jackson-databind-7.3-createCollectionDeserializer [iter 2] (localization) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=10441 wall=106.9s
+    tools: bash×23, grep×19, view×8, report_intent×1, task×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=4402 wall=74.3s
+    tools: bash×11, lore_lookup×2, view×2, report_intent×1, lore_snippet×1, lore_graph×1, glob×1, task×1
+  DELTA:   correctness=+0.00  tokens=-6039 (-58%)  wall=-32.6s (-30%)
+
+── jackson-databind-7.3-createCollectionDeserializer [iter 3] (localization) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=1625 wall=36.9s
+    tools: grep×10, view×2, report_intent×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=3433 wall=78.0s
+    tools: lore_lookup×12, report_intent×1, lore_dependents×1, lore_snippet×1, lore_graph×1, glob×1
+  DELTA:   correctness=+0.00  tokens=+1808 (+111%)  wall=+41.1s (+111%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── jackson-databind-7.3-createCollectionDeserializer [iter 4] (localization) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=1989 wall=42.9s
+    tools: grep×11, view×3, report_intent×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=2649 wall=61.2s
+    tools: bash×6, lore_lookup×2, report_intent×1, lore_snippet×1, lore_graph×1, view×1
+  DELTA:   correctness=+0.00  tokens=+660 (+33%)  wall=+18.3s (+43%)
+
+── jackson-databind-7.3-createCollectionDeserializer [iter 5] (localization) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=2276 wall=47.5s
+    tools: grep×12, view×4, report_intent×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=5795 wall=73.0s
+    tools: grep×13, bash×4, lore_lookup×2, report_intent×1, lore_snippet×1, lore_graph×1, glob×1, view×1, task×1
+  DELTA:   correctness=+0.00  tokens=+3519 (+155%)  wall=+25.5s (+54%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── jackson-databind-10.1-reportInputMismatch [iter 1] (explanation) ──
+  CONTROL: success=1 correctness=0.80 ans=0.75 file=1.00 sym=1.00 tokens=16042 wall=176.1s
+    tools: view×50, report_intent×1, grep×1, task×1, bash×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=15727 wall=300.3s
+    tools: bash×20, view×12, report_intent×1, lore_dependents×1, grep×1
+  DELTA:   correctness=+0.20  tokens=-315 (-2%)  wall=+124.2s (+70%)
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── jackson-databind-10.1-reportInputMismatch [iter 2] (explanation) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=12336 wall=107.7s
+    tools: view×33, report_intent×1, grep×1, task×1, read_agent×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=15790 wall=268.2s
+    tools: bash×16, report_intent×1, lore_dependents×1, grep×1
+  DELTA:   correctness=+0.00  tokens=+3454 (+28%)  wall=+160.5s (+149%)
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── jackson-databind-10.1-reportInputMismatch [iter 3] (explanation) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=17197 wall=140.0s
+    tools: view×66, report_intent×1, grep×1, task×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=17572 wall=285.2s
+    tools: bash×19, view×11, report_intent×1, lore_dependents×1, grep×1
+  DELTA:   correctness=+0.00  tokens=+375 (+2%)  wall=+145.2s (+104%)
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── jackson-databind-10.1-reportInputMismatch [iter 4] (explanation) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=19539 wall=184.1s
+    tools: view×68, bash×6, report_intent×1, grep×1, task×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=16523 wall=236.9s
+    tools: view×38, bash×9, report_intent×1, lore_dependents×1, grep×1
+  DELTA:   correctness=+0.00  tokens=-3016 (-15%)  wall=+52.8s (+29%)
+
+── jackson-databind-10.1-reportInputMismatch [iter 5] (explanation) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=23193 wall=268.6s
+    tools: view×87, bash×6, report_intent×1, grep×1, task×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=11137 wall=198.1s
+    tools: bash×16, report_intent×1, lore_dependents×1, grep×1
+  DELTA:   correctness=+0.00  tokens=-12056 (-52%)  wall=-70.5s (-26%)
+
+── jackson-databind-10.3-reportInputMismatch [iter 1] (explanation) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=32352 wall=272.5s
+    tools: view×33, bash×15, grep×7, report_intent×1, task×1, read_agent×1
+  LORE:    success=1 correctness=0.80 ans=0.80 file=1.00 sym=1.00 tokens=15444 wall=150.0s
+    tools: view×34, bash×3, report_intent×1, lore_lookup×1, lore_dependents×1, grep×1, task×1, read_agent×1
+  DELTA:   correctness=-0.20  tokens=-16908 (-52%)  wall=-122.5s (-45%)
+  ⚠ LORE WORSE on correctness — missed: [_checkFromStringCoercion]
+
+── jackson-databind-10.3-reportInputMismatch [iter 2] (explanation) ──
+  CONTROL: success=1 correctness=0.80 ans=0.80 file=1.00 sym=1.00 tokens=30524 wall=273.1s
+    tools: view×33, bash×26, grep×2, read_agent×2, task×1, report_intent×1
+  LORE:    success=1 correctness=0.60 ans=0.60 file=1.00 sym=1.00 tokens=14294 wall=125.9s
+    tools: view×34, bash×2, report_intent×1, lore_dependents×1, grep×1, task×1, read_agent×1
+  DELTA:   correctness=-0.20  tokens=-16230 (-53%)  wall=-147.2s (-54%)
+  ⚠ LORE WORSE on correctness — missed: [_checkFromStringCoercion, _verifyNullForPrimitive]
+
+── jackson-databind-10.3-reportInputMismatch [iter 3] (explanation) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=15893 wall=141.0s
+    tools: view×40, bash×5, report_intent×1, grep×1, task×1, read_agent×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=27611 wall=326.1s
+    tools: view×58, bash×5, report_intent×1, lore_lookup×1, lore_dependents×1, grep×1, task×1, read_agent×1
+  DELTA:   correctness=+0.00  tokens=+11718 (+74%)  wall=+185.1s (+131%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── jackson-databind-10.3-reportInputMismatch [iter 4] (explanation) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=26967 wall=247.2s
+    tools: view×58, bash×9, report_intent×1, grep×1, task×1, read_agent×1
+  LORE:    success=1 correctness=0.80 ans=0.80 file=1.00 sym=1.00 tokens=19027 wall=150.0s
+    tools: view×41, bash×5, report_intent×1, lore_dependents×1, grep×1, task×1, read_agent×1
+  DELTA:   correctness=-0.20  tokens=-7940 (-29%)  wall=-97.2s (-39%)
+  ⚠ LORE WORSE on correctness — missed: [_verifyNullForPrimitive]
+
+── jackson-databind-10.3-reportInputMismatch [iter 5] (explanation) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=14699 wall=110.7s
+    tools: view×35, grep×2, report_intent×1, task×1, read_agent×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=11775 wall=180.0s
+    tools: view×31, report_intent×3, bash×2, grep×2, lore_dependents×1, task×1, read_agent×1
+  DELTA:   correctness=+0.00  tokens=-2924 (-20%)  wall=+69.4s (+63%)
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── jackson-databind-11.2-reportInputMismatch [iter 1] (modification) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=11351 wall=96.0s
+    tools: view×31, bash×2, report_intent×1, grep×1, task×1
+  LORE:    success=1 correctness=0.67 ans=0.83 file=1.00 sym=1.00 tokens=11584 wall=147.9s
+    tools: bash×5, view×4, report_intent×1, grep×1, lore_dependents×1
+  DELTA:   correctness=-0.33  tokens=+233 (+2%)  wall=+52.0s (+54%)
+  ⚠ LORE WORSE on correctness — missed: [_checkFromStringCoercion → StdDeserializer.java]
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── jackson-databind-11.2-reportInputMismatch [iter 2] (modification) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=14014 wall=90.9s
+    tools: view×62, report_intent×1, grep×1, task×1, read_agent×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=3383 wall=59.4s
+    tools: bash×3, report_intent×1, lore_dependents×1, grep×1
+  DELTA:   correctness=+0.00  tokens=-10631 (-76%)  wall=-31.5s (-35%)
+
+── jackson-databind-11.2-reportInputMismatch [iter 3] (modification) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=56065 wall=241.4s
+    tools: view×60, bash×6, read_agent×3, grep×2, task×2, report_intent×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=4905 wall=86.9s
+    tools: bash×6, report_intent×1, lore_dependents×1, grep×1
+  DELTA:   correctness=+0.00  tokens=-51160 (-91%)  wall=-154.5s (-64%)
+
+── jackson-databind-11.2-reportInputMismatch [iter 4] (modification) ──
+  CONTROL: success=1 correctness=0.67 ans=0.83 file=1.00 sym=1.00 tokens=9674 wall=85.6s
+    tools: view×31, report_intent×1, grep×1, task×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=12470 wall=167.8s
+    tools: view×42, report_intent×2, bash×2, grep×1, lore_dependents×1
+  DELTA:   correctness=+0.33  tokens=+2796 (+29%)  wall=+82.2s (+96%)
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── jackson-databind-11.2-reportInputMismatch [iter 5] (modification) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=11638 wall=91.9s
+    tools: view×30, report_intent×1, grep×1, task×1, read_agent×1
+  LORE:    success=1 correctness=0.67 ans=0.83 file=1.00 sym=1.00 tokens=5670 wall=77.5s
+    tools: bash×3, report_intent×1, lore_dependents×1, grep×1
+  DELTA:   correctness=-0.33  tokens=-5968 (-51%)  wall=-14.4s (-16%)
+  ⚠ LORE WORSE on correctness — missed: [_checkFromStringCoercion → StdDeserializer.java]
+
+── jackson-databind-11.3-reportInputMismatch [iter 1] (refactoring) ──
+  CONTROL: success=1 correctness=0.80 ans=0.80 file=1.00 sym=1.00 tokens=12301 wall=100.6s
+    tools: view×38, grep×2, report_intent×1, task×1, read_agent×1
+  LORE:    success=1 correctness=0.80 ans=0.80 file=1.00 sym=1.00 tokens=4639 wall=85.5s
+    tools: bash×3, grep×3, report_intent×1, lore_lookup×1, lore_dependents×1, lore_snippet×1
+  DELTA:   correctness=+0.00  tokens=-7662 (-62%)  wall=-15.1s (-15%)
+
+── jackson-databind-11.3-reportInputMismatch [iter 2] (refactoring) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=23261 wall=206.6s
+    tools: view×50, bash×11, grep×2, read_agent×2, report_intent×1, task×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=3352 wall=68.2s
+    tools: bash×4, report_intent×1, lore_lookup×1, lore_dependents×1, lore_snippet×1, grep×1
+  DELTA:   correctness=+0.00  tokens=-19909 (-86%)  wall=-138.5s (-67%)
+
+── jackson-databind-11.3-reportInputMismatch [iter 3] (refactoring) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=2194 wall=45.0s
+    tools: grep×3, report_intent×1, view×1
+  LORE:    success=1 correctness=0.80 ans=0.80 file=1.00 sym=1.00 tokens=3955 wall=73.6s
+    tools: bash×4, report_intent×1, lore_lookup×1, lore_dependents×1, lore_snippet×1, grep×1
+  DELTA:   correctness=-0.20  tokens=+1761 (+80%)  wall=+28.6s (+64%)
+  ⚠ LORE WORSE on correctness — missed: [_checkFromStringCoercion]
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── jackson-databind-11.3-reportInputMismatch [iter 4] (refactoring) ──
+  CONTROL: success=1 correctness=0.80 ans=0.80 file=1.00 sym=1.00 tokens=2233 wall=51.8s
+    tools: grep×4, view×4, report_intent×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=6023 wall=102.5s
+    tools: bash×8, report_intent×1, lore_lookup×1, lore_dependents×1, lore_snippet×1, grep×1, view×1
+  DELTA:   correctness=+0.20  tokens=+3790 (+170%)  wall=+50.6s (+98%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── jackson-databind-11.3-reportInputMismatch [iter 5] (refactoring) ──
+  CONTROL: success=1 correctness=0.80 ans=0.80 file=1.00 sym=1.00 tokens=1695 wall=41.6s
+    tools: grep×3, report_intent×1, view×1
+  LORE:    success=1 correctness=0.80 ans=0.80 file=1.00 sym=1.00 tokens=7007 wall=108.1s
+    tools: bash×6, grep×2, report_intent×1, lore_lookup×1, lore_dependents×1, lore_snippet×1
+  DELTA:   correctness=+0.00  tokens=+5312 (+313%)  wall=+66.5s (+160%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+
+═══════════════════════════════════════
+         BENCHMARK RESULTS
+═══════════════════════════════════════
+
+Model: claude-opus-4.6
+Tasks: 13
+Iterations: 5
+Completed runs: 65/65
+
+Arm: control
+  Runs: 65
+  Success: 92.3%
+  Partial: 7.7%
+  Failed:  0.0%
+  Correctness: 84.5% (σ=28.0pp)
+  First-pass accuracy: 0.0%
+  Mean tool calls: 53.4 (σ=61.3)
+  Mean unique files: 12.0
+  Mean wall time: 140.8s (σ=100.5s)
+  Mean tokens: 16540 (σ=19705.6)
+  Answer coverage: 87.6% (σ=25.2pp)
+  File coverage: 99.5% (σ=4.1pp)
+  Symbol coverage: 100.0% (σ=0.0pp)
+  Lore tool calls: 0.0 (0% of runs)
+  Tool call counts: view×2166, bash×702, grep×415, report_intent×73, task×62, read_agent×53, glob×1
+
+Arm: lore-enabled
+  Runs: 65
+  Success: 92.3%
+  Partial: 7.7%
+  Failed:  0.0%
+  Correctness: 84.4% (σ=30.2pp)
+  First-pass accuracy: 53.8%
+  Mean tool calls: 33.2 (σ=32.9)
+  Mean unique files: 5.9
+  Mean wall time: 154.5s (σ=112.6s)
+  Mean tokens: 11001 (σ=9381.4)
+  Answer coverage: 88.5% (σ=25.4pp)
+  File coverage: 100.0% (σ=0.0pp)
+  Symbol coverage: 100.0% (σ=0.0pp)
+  Lore tool calls: 2.5 (100% of runs)
+  Lore tools used: lore_dependents, lore_lookup, lore_graph, lore_snippet, lore_trace
+  Tool call counts: view×1089, bash×658, grep×102, report_intent×77, lore_dependents×60, lore_lookup×57, task×30, read_agent×25, lore_graph×20, lore_snippet×16, lore_trace×11, glob×7, read_bash×4, stop_bash×2
+
+Comparison: lore-enabled vs control
+  Success rate: +0.0pp
+  Correctness: -0.1pp
+  First-pass accuracy: +53.8pp
+  Answer coverage: +0.9pp
+  Tool calls: -20.2 (33.2 vs 53.4)
+  Tokens: -5539 (-33.5%)
+  Wall time: +13.7s (+9.7%)
+
+  Statistical significance (correctness):
+    t=-0.018, df=127.3, p=0.9858
+    ✗ Not significant at p<0.05
+
+Structured report written to: /Users/jacobfreck/Source/Lore/benchmark-results/jackson-databind.json
+
+ [32m✓[39m tests/benchmark/copilot-agent.test.ts [2m([22m[2m66 tests[22m[2m)[22m[33m 2424841[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-1.1-reportInputMismatch [iter 1]: control + lore-enabled arms [33m 72423[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-1.1-reportInputMismatch [iter 2]: control + lore-enabled arms [33m 307483[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-1.1-reportInputMismatch [iter 3]: control + lore-enabled arms [33m 280967[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-1.1-reportInputMismatch [iter 4]: control + lore-enabled arms [33m 137501[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-1.1-reportInputMismatch [iter 5]: control + lore-enabled arms [33m 360018[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-1.2-createCollectionDeserializer [iter 1]: control + lore-enabled arms [33m 24261[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-1.2-createCollectionDeserializer [iter 2]: control + lore-enabled arms [33m 24728[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-1.2-createCollectionDeserializer [iter 3]: control + lore-enabled arms [33m 39564[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-1.2-createCollectionDeserializer [iter 4]: control + lore-enabled arms [33m 32150[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-1.2-createCollectionDeserializer [iter 5]: control + lore-enabled arms [33m 25409[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-1.4-reportInputMismatch [iter 1]: control + lore-enabled arms [33m 334697[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-1.4-reportInputMismatch [iter 2]: control + lore-enabled arms [33m 360006[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-1.4-reportInputMismatch [iter 3]: control + lore-enabled arms [33m 360014[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-1.4-reportInputMismatch [iter 4]: control + lore-enabled arms [33m 360012[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-1.4-reportInputMismatch [iter 5]: control + lore-enabled arms [33m 360021[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-1.3-createCollectionDeserializer [iter 1]: control + lore-enabled arms [33m 52336[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-1.3-createCollectionDeserializer [iter 2]: control + lore-enabled arms [33m 33791[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-1.3-createCollectionDeserializer [iter 3]: control + lore-enabled arms [33m 42524[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-1.3-createCollectionDeserializer [iter 4]: control + lore-enabled arms [33m 54799[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-1.3-createCollectionDeserializer [iter 5]: control + lore-enabled arms [33m 46214[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-1.5-reportInputMismatch [iter 1]: control + lore-enabled arms [33m 360008[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-1.5-reportInputMismatch [iter 2]: control + lore-enabled arms [33m 360017[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-1.5-reportInputMismatch [iter 3]: control + lore-enabled arms [33m 228434[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-1.5-reportInputMismatch [iter 4]: control + lore-enabled arms [33m 276151[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-1.5-reportInputMismatch [iter 5]: control + lore-enabled arms [33m 360009[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-1.7-createCollectionDeserializer [iter 1]: control + lore-enabled arms [33m 88378[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-1.7-createCollectionDeserializer [iter 2]: control + lore-enabled arms [33m 83668[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-1.7-createCollectionDeserializer [iter 3]: control + lore-enabled arms [33m 81793[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-1.7-createCollectionDeserializer [iter 4]: control + lore-enabled arms [33m 96019[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-1.7-createCollectionDeserializer [iter 5]: control + lore-enabled arms [33m 102339[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-1.8-reportInputMismatch [iter 1]: control + lore-enabled arms [33m 353393[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-1.8-reportInputMismatch [iter 2]: control + lore-enabled arms [33m 323269[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-1.8-reportInputMismatch [iter 3]: control + lore-enabled arms [33m 185859[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-1.8-reportInputMismatch [iter 4]: control + lore-enabled arms [33m 233822[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-1.8-reportInputMismatch [iter 5]: control + lore-enabled arms [33m 217361[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-7.2-reportInputMismatch [iter 1]: control + lore-enabled arms [33m 159757[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-7.2-reportInputMismatch [iter 2]: control + lore-enabled arms [33m 280509[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-7.2-reportInputMismatch [iter 3]: control + lore-enabled arms [33m 170723[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-7.2-reportInputMismatch [iter 4]: control + lore-enabled arms [33m 146480[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-7.2-reportInputMismatch [iter 5]: control + lore-enabled arms [33m 153157[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-7.3-createCollectionDeserializer [iter 1]: control + lore-enabled arms [33m 58417[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-7.3-createCollectionDeserializer [iter 2]: control + lore-enabled arms [33m 106918[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-7.3-createCollectionDeserializer [iter 3]: control + lore-enabled arms [33m 78006[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-7.3-createCollectionDeserializer [iter 4]: control + lore-enabled arms [33m 61162[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-7.3-createCollectionDeserializer [iter 5]: control + lore-enabled arms [33m 73020[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-10.1-reportInputMismatch [iter 1]: control + lore-enabled arms [33m 300306[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-10.1-reportInputMismatch [iter 2]: control + lore-enabled arms [33m 268236[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-10.1-reportInputMismatch [iter 3]: control + lore-enabled arms [33m 285213[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-10.1-reportInputMismatch [iter 4]: control + lore-enabled arms [33m 236863[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-10.1-reportInputMismatch [iter 5]: control + lore-enabled arms [33m 268612[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-10.3-reportInputMismatch [iter 1]: control + lore-enabled arms [33m 272482[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-10.3-reportInputMismatch [iter 2]: control + lore-enabled arms [33m 273053[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-10.3-reportInputMismatch [iter 3]: control + lore-enabled arms [33m 326092[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-10.3-reportInputMismatch [iter 4]: control + lore-enabled arms [33m 247207[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-10.3-reportInputMismatch [iter 5]: control + lore-enabled arms [33m 180047[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-11.2-reportInputMismatch [iter 1]: control + lore-enabled arms [33m 147947[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-11.2-reportInputMismatch [iter 2]: control + lore-enabled arms [33m 90884[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-11.2-reportInputMismatch [iter 3]: control + lore-enabled arms [33m 241366[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-11.2-reportInputMismatch [iter 4]: control + lore-enabled arms [33m 167818[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-11.2-reportInputMismatch [iter 5]: control + lore-enabled arms [33m 91935[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-11.3-reportInputMismatch [iter 1]: control + lore-enabled arms [33m 100559[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-11.3-reportInputMismatch [iter 2]: control + lore-enabled arms [33m 206644[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-11.3-reportInputMismatch [iter 3]: control + lore-enabled arms [33m 73565[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-11.3-reportInputMismatch [iter 4]: control + lore-enabled arms [33m 102462[2mms[22m[39m
+     [33m[2m✓[22m[39m jackson-databind-11.3-reportInputMismatch [iter 5]: control + lore-enabled arms [33m 108116[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m66 passed[39m[22m[90m (66)[39m
+[2m   Start at [22m 12:22:21
+[2m   Duration [22m 2425.25s[2m (transform 235ms, setup 0ms, import 341ms, tests 2424.84s, environment 0ms)[22m
+

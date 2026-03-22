@@ -1,0 +1,5083 @@
+{
+  "metadata": {
+    "model": "claude-opus-4.6",
+    "repo": "esbuild",
+    "indexMode": "scip",
+    "embeddingModel": "none",
+    "lsp": false,
+    "tasks": 13,
+    "iterations": 5,
+    "completedRuns": 65,
+    "totalExpectedRuns": 65,
+    "timestamp": "2026-03-21T21:20:15.653Z"
+  },
+  "tasks": [
+    {
+      "taskId": "esbuild-1.1-Build",
+      "family": "localization",
+      "iteration": 1,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 34,
+          "uniqueFilesRead": 4,
+          "wallTimeMs": 95428,
+          "tokensUsed": 6100,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 4,
+            "view": 8,
+            "bash": 20,
+            "task": 1
+          }
+        },
+        "tools": "bash×20, view×8, grep×4, report_intent×1, task×1",
+        "answer": "runImpl handleBuildRequest",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 3,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 27464,
+          "tokensUsed": 396,
+          "answerCoverage": 0.5,
+          "fileCoverage": 0.6666666666666666,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 2,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "lore_graph": 1
+          }
+        },
+        "tools": "report_intent×1, lore_dependents×1, lore_graph×1",
+        "loreToolArgs": "lore_dependents(query=Build, kind=symbol, compact=true), lore_graph(kind=call, target_id=7632, compact=true)",
+        "answer": "runImpl",
+        "missedParts": [
+          "handleBuildRequest"
+        ],
+        "missedAnswerLines": [
+          "handleBuildRequest"
+        ]
+      },
+      "delta": {
+        "correctness": -0.5,
+        "tokens": -5704,
+        "tokensPct": -93.50819672131148,
+        "wallTimeMs": -67964,
+        "wallTimePct": -71.22018694722723
+      },
+      "warnings": [
+        "lore worse on correctness — missed: [handleBuildRequest]"
+      ]
+    },
+    {
+      "taskId": "esbuild-1.1-Build",
+      "family": "localization",
+      "iteration": 2,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 28,
+          "uniqueFilesRead": 3,
+          "wallTimeMs": 74236,
+          "tokensUsed": 5193,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 4,
+            "view": 9,
+            "bash": 13,
+            "task": 1
+          }
+        },
+        "tools": "bash×13, view×9, grep×4, report_intent×1, task×1",
+        "answer": "runImpl handleBuildRequest",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 6,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 38768,
+          "tokensUsed": 1115,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 2,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "lore_graph": 1,
+            "grep": 1,
+            "view": 1,
+            "bash": 1
+          }
+        },
+        "tools": "report_intent×1, lore_dependents×1, lore_graph×1, grep×1, view×1, bash×1",
+        "loreToolArgs": "lore_dependents(query=Build, kind=symbol, compact=true), lore_graph(kind=call, target_id=7632, compact=true)",
+        "answer": "The function at line 597 `handleBuildRequest` contains line 782.  runImpl handleBuildRequest",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -4078,
+        "tokensPct": -78.52878875409205,
+        "wallTimeMs": -35468,
+        "wallTimePct": -47.777358693895145
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "esbuild-1.1-Build",
+      "family": "localization",
+      "iteration": 3,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 28,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 87381,
+          "tokensUsed": 5479,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "bash": 18,
+            "view": 8,
+            "task": 1
+          }
+        },
+        "tools": "bash×18, view×8, report_intent×1, task×1",
+        "answer": "handleBuildRequest runImpl",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 6,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 41395,
+          "tokensUsed": 1539,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 2,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "lore_graph": 1,
+            "grep": 2,
+            "view": 1
+          }
+        },
+        "tools": "grep×2, report_intent×1, lore_dependents×1, lore_graph×1, view×1",
+        "loreToolArgs": "lore_dependents(query=Build, kind=symbol, compact=true), lore_graph(kind=call, target_id=7632, compact=true)",
+        "answer": "runImpl handleBuildRequest",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -3940,
+        "tokensPct": -71.91093265194378,
+        "wallTimeMs": -45986,
+        "wallTimePct": -52.627001293187305
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "esbuild-1.1-Build",
+      "family": "localization",
+      "iteration": 4,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 8,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 34375,
+          "tokensUsed": 1397,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 3,
+            "view": 2,
+            "bash": 2
+          }
+        },
+        "tools": "grep×3, view×2, bash×2, report_intent×1",
+        "answer": "runImpl handleBuildRequest",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 12,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 57720,
+          "tokensUsed": 2021,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 8,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 2,
+            "lore_graph": 6,
+            "grep": 1,
+            "view": 1,
+            "bash": 1
+          }
+        },
+        "tools": "lore_graph×6, lore_dependents×2, report_intent×1, grep×1, view×1, bash×1",
+        "loreToolArgs": "lore_dependents(query=Build, kind=symbol, compact=true), lore_dependents(compact=true, kind=symbol, query=Build), lore_graph(kind=call, target_id=7632, compact=true), lore_graph(compact=true, kind=call, target_id=9347), lore_graph(compact=true, kind=call, target_id=9371), lore_graph(compact=true, kind=call, target_id=9386), lore_graph(compact=true, kind=call, target_id=9418), lore_graph(compact=true, kind=call, target_id=9608)",
+        "answer": "Line 782 is inside `handleBuildRequest` (starts at line 597, next function at 793).  runImpl handleBuildRequest",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 624,
+        "tokensPct": 44.667143879742305,
+        "wallTimeMs": 23345,
+        "wallTimePct": 67.91272727272727
+      },
+      "warnings": [
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "esbuild-1.1-Build",
+      "family": "localization",
+      "iteration": 5,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 13,
+          "uniqueFilesRead": 4,
+          "wallTimeMs": 49857,
+          "tokensUsed": 1693,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 6,
+            "view": 6
+          }
+        },
+        "tools": "grep×6, view×6, report_intent×1",
+        "answer": "The two functions that directly call `Build` are: - `runImpl` in `pkg/cli/cli_impl.go` (line 1379) - `handleBuildRequest` in `cmd/esbuild/service.go` (line 782)  runImpl handleBuildRequest",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 8,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 37029,
+          "tokensUsed": 1113,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 3,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 2,
+            "lore_graph": 1,
+            "grep": 2,
+            "view": 1,
+            "bash": 1
+          }
+        },
+        "tools": "lore_dependents×2, grep×2, report_intent×1, lore_graph×1, view×1, bash×1",
+        "loreToolArgs": "lore_dependents(query=Build, kind=symbol, compact=true), lore_dependents(compact=true, kind=symbol, query=Build), lore_graph(kind=call, target_id=7632, compact=true)",
+        "answer": "The two actual call sites of `api.Build` are in `runImpl` (cli_impl.go:1379) and `handleBuildRequest` (service.go:782).  runImpl handleBuildRequest",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -580,
+        "tokensPct": -34.25871234494979,
+        "wallTimeMs": -12828,
+        "wallTimePct": -25.729586617726696
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "esbuild-1.2-rebuildImpl",
+      "family": "localization",
+      "iteration": 1,
+      "control": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.3333333333333333,
+          "firstPassAccurate": false,
+          "toolCallCount": 4,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 43807,
+          "tokensUsed": 2412,
+          "answerCoverage": 0,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 2
+          }
+        },
+        "tools": "view×2, report_intent×1, grep×1",
+        "answer": "logger.NewStderrLog log.AddMsg fs.RealFS panic bundler.ScanBundle realFS.WatchData log.HasErrors cloneMangleCache bundle.Compile args.options.CancelFlag.DidCancel log.AddError make xxhash.New hasher.Write hasher.Sum64 binary.LittleEndian.PutUint64 base64.RawStdEncoding.EncodeToString timer.Begin tim…",
+        "missedParts": [
+          "buildImpl"
+        ],
+        "missedAnswerLines": [
+          "buildImpl",
+          "compileResult"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.3333333333333333,
+          "firstPassAccurate": true,
+          "toolCallCount": 4,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 22980,
+          "tokensUsed": 591,
+          "answerCoverage": 0,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 2,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 1,
+            "lore_graph": 1,
+            "bash": 1
+          }
+        },
+        "tools": "report_intent×1, lore_lookup×1, lore_graph×1, bash×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=rebuildImpl), lore_graph(kind=call, source_id=7779, compact=true)",
+        "answer": "CancelFlag.DidCancel bundle.Compile bundler.ScanBundle cloneMangleCache convertErrorsAndWarningsToInternal convertMessagesToPublic fs.AfterFileClose fs.BeforeFileOpen fs.MkdirAll fs.RealFS hasher.Sum64 hasher.Write linker.Link log.AddError logger.NewStderrLog timer.Begin timer.End timer.Log xxhash.N…",
+        "missedParts": [
+          "buildImpl"
+        ],
+        "missedAnswerLines": [
+          "buildImpl",
+          "compileResult"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -1821,
+        "tokensPct": -75.49751243781094,
+        "wallTimeMs": -20827,
+        "wallTimePct": -47.54263017325998
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "esbuild-1.2-rebuildImpl",
+      "family": "localization",
+      "iteration": 2,
+      "control": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.3333333333333333,
+          "firstPassAccurate": false,
+          "toolCallCount": 4,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 67515,
+          "tokensUsed": 4426,
+          "answerCoverage": 0,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 2
+          }
+        },
+        "tools": "view×2, report_intent×1, grep×1",
+        "answer": "logger.NewStderrLog log.AddMsg fs.RealFS panic bundler.ScanBundle realFS.WatchData log.HasErrors cloneMangleCache bundle.Compile args.options.CancelFlag.DidCancel log.AddError fmt.Sprintf make len xxhash.New hasher.Write binary.LittleEndian.PutUint64 hasher.Sum64 base64.RawStdEncoding.EncodeToString…",
+        "missedParts": [
+          "buildImpl"
+        ],
+        "missedAnswerLines": [
+          "buildImpl",
+          "compileResult"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.3333333333333333,
+          "firstPassAccurate": true,
+          "toolCallCount": 4,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 23197,
+          "tokensUsed": 589,
+          "answerCoverage": 0,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 2,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 1,
+            "lore_graph": 1,
+            "bash": 1
+          }
+        },
+        "tools": "report_intent×1, lore_lookup×1, lore_graph×1, bash×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=rebuildImpl), lore_graph(kind=call, source_id=7779, compact=true)",
+        "answer": "CancelFlag.DidCancel bundle.Compile bundler.ScanBundle cloneMangleCache convertErrorsAndWarningsToInternal convertMessagesToPublic fs.AfterFileClose fs.BeforeFileOpen fs.MkdirAll fs.RealFS hasher.Sum64 hasher.Write linker.Link log.AddError logger.NewStderrLog timer.Begin timer.End timer.Log xxhash.N…",
+        "missedParts": [
+          "buildImpl"
+        ],
+        "missedAnswerLines": [
+          "buildImpl",
+          "compileResult"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -3837,
+        "tokensPct": -86.69227293267058,
+        "wallTimeMs": -44318,
+        "wallTimePct": -65.64170924979635
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "esbuild-1.2-rebuildImpl",
+      "family": "localization",
+      "iteration": 3,
+      "control": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.3333333333333333,
+          "firstPassAccurate": false,
+          "toolCallCount": 4,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 41301,
+          "tokensUsed": 2413,
+          "answerCoverage": 0,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 2
+          }
+        },
+        "tools": "view×2, report_intent×1, grep×1",
+        "answer": "logger.NewStderrLog log.AddMsg fs.RealFS panic bundler.ScanBundle realFS.WatchData log.HasErrors cloneMangleCache bundle.Compile args.options.CancelFlag.DidCancel log.AddError make len xxhash.New hasher.Write hasher.Sum64 binary.LittleEndian.PutUint64 base64.RawStdEncoding.EncodeToString timer.Begin…",
+        "missedParts": [
+          "buildImpl"
+        ],
+        "missedAnswerLines": [
+          "buildImpl",
+          "compileResult"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.3333333333333333,
+          "firstPassAccurate": true,
+          "toolCallCount": 4,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 22080,
+          "tokensUsed": 590,
+          "answerCoverage": 0,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 2,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 1,
+            "lore_graph": 1,
+            "bash": 1
+          }
+        },
+        "tools": "report_intent×1, lore_lookup×1, lore_graph×1, bash×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=rebuildImpl), lore_graph(kind=call, source_id=7779, compact=true)",
+        "answer": "CancelFlag.DidCancel bundle.Compile bundler.ScanBundle cloneMangleCache convertErrorsAndWarningsToInternal convertMessagesToPublic fs.AfterFileClose fs.BeforeFileOpen fs.MkdirAll fs.RealFS hasher.Sum64 hasher.Write linker.Link log.AddError logger.NewStderrLog timer.Begin timer.End timer.Log xxhash.N…",
+        "missedParts": [
+          "buildImpl"
+        ],
+        "missedAnswerLines": [
+          "buildImpl",
+          "compileResult"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -1823,
+        "tokensPct": -75.54910899295483,
+        "wallTimeMs": -19221,
+        "wallTimePct": -46.53882472579357
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "esbuild-1.2-rebuildImpl",
+      "family": "localization",
+      "iteration": 4,
+      "control": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.3333333333333333,
+          "firstPassAccurate": false,
+          "toolCallCount": 4,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 30159,
+          "tokensUsed": 1162,
+          "answerCoverage": 0,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 2
+          }
+        },
+        "tools": "view×2, report_intent×1, grep×1",
+        "answer": "Now I have the full function. Let me extract all direct callee function/method names:  NewStderrLog AddMsg RealFS Error ScanBundle WatchData HasErrors cloneMangleCache Compile DidCancel AddError Sprintf New Write PutUint64 Sum64 EncodeToString Begin End Add BeforeFileOpen AfterFileClose ReadFile Equ…",
+        "missedParts": [
+          "buildImpl"
+        ],
+        "missedAnswerLines": [
+          "buildImpl",
+          "compileResult"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.3333333333333333,
+          "firstPassAccurate": true,
+          "toolCallCount": 4,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 23136,
+          "tokensUsed": 590,
+          "answerCoverage": 0,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 2,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 1,
+            "lore_graph": 1,
+            "bash": 1
+          }
+        },
+        "tools": "report_intent×1, lore_lookup×1, lore_graph×1, bash×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=rebuildImpl), lore_graph(kind=call, source_id=7779, compact=true)",
+        "answer": "CancelFlag.DidCancel bundle.Compile bundler.ScanBundle cloneMangleCache convertErrorsAndWarningsToInternal convertMessagesToPublic fs.AfterFileClose fs.BeforeFileOpen fs.MkdirAll fs.RealFS hasher.Sum64 hasher.Write linker.Link log.AddError logger.NewStderrLog timer.Begin timer.End timer.Log xxhash.N…",
+        "missedParts": [
+          "buildImpl"
+        ],
+        "missedAnswerLines": [
+          "buildImpl",
+          "compileResult"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -572,
+        "tokensPct": -49.225473321858864,
+        "wallTimeMs": -7023,
+        "wallTimePct": -23.286581120063662
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "esbuild-1.2-rebuildImpl",
+      "family": "localization",
+      "iteration": 5,
+      "control": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.3333333333333333,
+          "firstPassAccurate": false,
+          "toolCallCount": 4,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 55271,
+          "tokensUsed": 3226,
+          "answerCoverage": 0,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 2
+          }
+        },
+        "tools": "view×2, report_intent×1, grep×1",
+        "answer": "logger.NewStderrLog log.AddMsg fs.RealFS panic bundler.ScanBundle realFS.WatchData log.HasErrors cloneMangleCache bundle.Compile args.options.CancelFlag.DidCancel log.AddError xxhash.New hasher.Write hasher.Sum64 binary.LittleEndian.PutUint64 base64.RawStdEncoding.EncodeToString len make fmt.Sprintf…",
+        "missedParts": [
+          "buildImpl"
+        ],
+        "missedAnswerLines": [
+          "buildImpl",
+          "compileResult"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.3333333333333333,
+          "firstPassAccurate": true,
+          "toolCallCount": 4,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 23362,
+          "tokensUsed": 581,
+          "answerCoverage": 0,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 2,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 1,
+            "lore_graph": 1,
+            "bash": 1
+          }
+        },
+        "tools": "report_intent×1, lore_lookup×1, lore_graph×1, bash×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=rebuildImpl), lore_graph(kind=call, source_id=7779, compact=true)",
+        "answer": "CancelFlag.DidCancel bundle.Compile bundler.ScanBundle cloneMangleCache convertErrorsAndWarningsToInternal convertMessagesToPublic fs.AfterFileClose fs.BeforeFileOpen fs.MkdirAll fs.RealFS hasher.Sum64 hasher.Write linker.Link log.AddError logger.NewStderrLog timer.Begin timer.End timer.Log xxhash.N…",
+        "missedParts": [
+          "buildImpl"
+        ],
+        "missedAnswerLines": [
+          "buildImpl",
+          "compileResult"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -2645,
+        "tokensPct": -81.9900805951643,
+        "wallTimeMs": -31909,
+        "wallTimePct": -57.73190280617322
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "esbuild-1.4-rebuildImpl",
+      "family": "modification",
+      "iteration": 1,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 60,
+          "uniqueFilesRead": 3,
+          "wallTimeMs": 121385,
+          "tokensUsed": 12382,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "bash": 50,
+            "view": 8,
+            "task": 1
+          }
+        },
+        "tools": "bash×50, view×8, report_intent×1, task×1",
+        "answer": "pkg/api/api_impl.go rebuildImpl pkg/api/api_impl.go rebuild pkg/api/api_impl.go Rebuild pkg/api/api_impl.go Watch pkg/api/serve_other.go ServeHTTP pkg/api/serve_other.go Serve pkg/api/watcher.go start cmd/esbuild/service.go handleIncomingPacket pkg/api/api.go Build pkg/cli/cli_impl.go runImpl pkg/cl…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 2,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 16045,
+          "tokensUsed": 346,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1
+          }
+        },
+        "tools": "report_intent×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=rebuildImpl, kind=symbol, compact=true)",
+        "answer": "pkg/api/api_impl.go rebuild pkg/api/api_impl.go Rebuild pkg/api/api_impl.go Watch pkg/api/api.go Build pkg/api/api_impl.go activeBuildOrRecentBuildOrRebuild pkg/api/serve_other.go Serve pkg/cli/cli_impl.go runImpl pkg/cli/cli.go Run pkg/cli/cli.go RunWithPlugins",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -12036,
+        "tokensPct": -97.20562106283315,
+        "wallTimeMs": -105340,
+        "wallTimePct": -86.78172756106602
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "esbuild-1.4-rebuildImpl",
+      "family": "modification",
+      "iteration": 2,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 113,
+          "uniqueFilesRead": 7,
+          "wallTimeMs": 313279,
+          "tokensUsed": 25581,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 13,
+            "view": 31,
+            "bash": 66,
+            "task": 2
+          }
+        },
+        "tools": "bash×66, view×31, grep×13, task×2, report_intent×1",
+        "answer": "pkg/api/api_impl.go: (*internalContext).rebuild pkg/api/api_impl.go: (*internalContext).Rebuild pkg/api/api_impl.go: (*internalContext).Watch pkg/api/watcher.go: (*watcher).start pkg/api/api_impl.go: (*internalContext).activeBuildOrRecentBuildOrRebuild pkg/api/api.go: Build cmd/esbuild/service.go: (…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 2,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 15105,
+          "tokensUsed": 337,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1
+          }
+        },
+        "tools": "report_intent×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=rebuildImpl, kind=symbol, compact=true)",
+        "answer": "pkg/api/api_impl.go rebuild pkg/api/api_impl.go Rebuild pkg/api/api_impl.go Watch pkg/api/api_impl.go activeBuildOrRecentBuildOrRebuild pkg/api/api.go Build pkg/api/serve_other.go Serve pkg/cli/cli_impl.go runImpl pkg/cli/cli.go Run pkg/cli/cli.go RunWithPlugins",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -25244,
+        "tokensPct": -98.68261600406552,
+        "wallTimeMs": -298174,
+        "wallTimePct": -95.17841923652719
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "esbuild-1.4-rebuildImpl",
+      "family": "modification",
+      "iteration": 3,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 76,
+          "uniqueFilesRead": 9,
+          "wallTimeMs": 183634,
+          "tokensUsed": 17605,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 9,
+            "view": 23,
+            "bash": 42,
+            "task": 1
+          }
+        },
+        "tools": "bash×42, view×23, grep×9, report_intent×1, task×1",
+        "answer": "`activeBuildOrRecentBuildOrRebuild` is called from `Serve()` in `serve_other.go` (already captured). No test files reference these directly. Here's the final answer:  ``` pkg/api/api_impl.go : rebuildImpl pkg/api/api_impl.go : rebuild pkg/api/api_impl.go : Rebuild pkg/api/api_impl.go : activeBuildOr…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 2,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 16204,
+          "tokensUsed": 348,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1
+          }
+        },
+        "tools": "report_intent×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=rebuildImpl, kind=symbol, compact=true)",
+        "answer": "pkg/api/api_impl.go rebuild pkg/api/api_impl.go Rebuild pkg/api/api_impl.go Watch pkg/api/api.go Build pkg/api/api_impl.go activeBuildOrRecentBuildOrRebuild pkg/api/serve_other.go Serve pkg/cli/cli_impl.go runImpl pkg/cli/cli.go Run pkg/cli/cli.go RunWithPlugins",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -17257,
+        "tokensPct": -98.02328883839819,
+        "wallTimeMs": -167430,
+        "wallTimePct": -91.17592602677064
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "esbuild-1.4-rebuildImpl",
+      "family": "modification",
+      "iteration": 4,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 85,
+          "uniqueFilesRead": 9,
+          "wallTimeMs": 240950,
+          "tokensUsed": 16142,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "view": 34,
+            "bash": 45,
+            "grep": 4,
+            "task": 1
+          }
+        },
+        "tools": "bash×45, view×34, grep×4, report_intent×1, task×1",
+        "answer": "pkg/api/api_impl.go:rebuild pkg/api/api_impl.go:Rebuild pkg/api/api_impl.go:activeBuildOrRecentBuildOrRebuild pkg/api/api_impl.go:Watch pkg/api/serve_other.go:Serve pkg/api/watcher.go:start pkg/api/api.go:Build cmd/esbuild/service.go:handleIncomingPacket pkg/cli/cli_impl.go:runImpl pkg/cli/cli_impl.…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 2,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 15738,
+          "tokensUsed": 345,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1
+          }
+        },
+        "tools": "report_intent×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=rebuildImpl, kind=symbol, compact=true)",
+        "answer": "pkg/api/api_impl.go rebuild pkg/api/api_impl.go Rebuild pkg/api/api_impl.go Watch pkg/api/api_impl.go activeBuildOrRecentBuildOrRebuild pkg/api/api.go Build pkg/api/serve_other.go Serve pkg/cli/cli_impl.go runImpl pkg/cli/cli.go Run pkg/cli/cli.go RunWithPlugins",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -15797,
+        "tokensPct": -97.86271837442696,
+        "wallTimeMs": -225212,
+        "wallTimePct": -93.46835443037975
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "esbuild-1.4-rebuildImpl",
+      "family": "modification",
+      "iteration": 5,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 150,
+          "uniqueFilesRead": 9,
+          "wallTimeMs": 346126,
+          "tokensUsed": 32901,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 21,
+            "bash": 69,
+            "view": 55,
+            "task": 3,
+            "glob": 1
+          }
+        },
+        "tools": "bash×69, view×55, grep×21, task×3, report_intent×1, glob×1",
+        "answer": "Now I have the complete picture. Here's the full transitive dependency list:  pkg/api/api_impl.go `(*internalContext).rebuild` pkg/api/api_impl.go `(*internalContext).Rebuild` pkg/api/api_impl.go `(*internalContext).activeBuildOrRecentBuildOrRebuild` pkg/api/api_impl.go `(*internalContext).Watch` pk…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 2,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 15785,
+          "tokensUsed": 345,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1
+          }
+        },
+        "tools": "report_intent×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=rebuildImpl, kind=symbol, compact=true)",
+        "answer": "pkg/api/api_impl.go rebuild pkg/api/api_impl.go Rebuild pkg/api/api_impl.go Watch pkg/api/api.go Build pkg/api/api_impl.go activeBuildOrRecentBuildOrRebuild pkg/api/serve_other.go Serve pkg/cli/cli_impl.go runImpl pkg/cli/cli.go Run pkg/cli/cli.go RunWithPlugins",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -32556,
+        "tokensPct": -98.95139965350597,
+        "wallTimeMs": -330341,
+        "wallTimePct": -95.4395220237717
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "esbuild-1.3-rebuildImpl",
+      "family": "explanation",
+      "iteration": 1,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 6,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 152906,
+          "tokensUsed": 11689,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 3
+          }
+        },
+        "tools": "view×3, grep×2, report_intent×1",
+        "answer": "logger.NewStderrLog(args.logOptions) log.AddMsg(msg) fs.RealFS(fs.RealFSOptions{AbsWorkingDir: args.absWorkingDir, WantWatchData: args.options.WatchMode}) err.Error() bundler.ScanBundle(config.BuildCall, log, realFS, args.caches, args.entryPoints, args.options, timer) realFS.WatchData() log.HasError…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 4,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 128444,
+          "tokensUsed": 10156,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 3,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_snippet",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 1,
+            "lore_snippet": 1,
+            "lore_graph": 1
+          }
+        },
+        "tools": "report_intent×1, lore_lookup×1, lore_snippet×1, lore_graph×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=rebuildImpl), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api_impl.go, start_line=1464, end_line=1679), lore_graph(kind=call, source_id=7779, compact=false)",
+        "answer": "logger.NewStderrLog(args.logOptions) log.AddMsg(msg) fs.RealFS(fs.RealFSOptions{AbsWorkingDir: args.absWorkingDir, WantWatchData: args.options.WatchMode}) err.Error() panic(err.Error()) bundler.ScanBundle(config.BuildCall, log, realFS, args.caches, args.entryPoints, args.options, timer) realFS.Watch…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -1533,
+        "tokensPct": -13.11489434511079,
+        "wallTimeMs": -24462,
+        "wallTimePct": -15.99806417014375
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "esbuild-1.3-rebuildImpl",
+      "family": "explanation",
+      "iteration": 2,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 5,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 111373,
+          "tokensUsed": 8270,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 2
+          }
+        },
+        "tools": "grep×2, view×2, report_intent×1",
+        "answer": "Now I have the full function body (lines 1465–1680). Here are all direct callees with their argument expressions:  ``` logger.NewStderrLog(args.logOptions) log.AddMsg(msg) fs.RealFS(fs.RealFSOptions{AbsWorkingDir: args.absWorkingDir, WantWatchData: args.options.WatchMode}) err.Error() bundler.ScanBu…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 5,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 196453,
+          "tokensUsed": 15970,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 3,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_snippet",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 1,
+            "lore_snippet": 1,
+            "lore_graph": 1,
+            "bash": 1
+          }
+        },
+        "tools": "report_intent×1, lore_lookup×1, lore_snippet×1, lore_graph×1, bash×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=rebuildImpl), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api_impl.go, start_line=1464, end_line=1679), lore_graph(kind=call, source_id=7779, compact=true)",
+        "answer": "Here is the list based on reading the source of `rebuildImpl`:  ``` logger.NewStderrLog(args.logOptions) log.AddMsg(msg) fs.RealFS(fs.RealFSOptions{AbsWorkingDir: args.absWorkingDir, WantWatchData: args.options.WatchMode}) err.Error() bundler.ScanBundle(config.BuildCall, log, realFS, args.caches, ar…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 7700,
+        "tokensPct": 93.10761789600967,
+        "wallTimeMs": 85080,
+        "wallTimePct": 76.39194418754994
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "esbuild-1.3-rebuildImpl",
+      "family": "explanation",
+      "iteration": 3,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 5,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 176178,
+          "tokensUsed": 14179,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 2
+          }
+        },
+        "tools": "grep×2, view×2, report_intent×1",
+        "answer": "logger.NewStderrLog(args.logOptions) log.AddMsg(msg) fs.RealFS(fs.RealFSOptions{AbsWorkingDir: args.absWorkingDir, WantWatchData: args.options.WatchMode}) err.Error() bundler.ScanBundle(config.BuildCall, log, realFS, args.caches, args.entryPoints, args.options, timer) realFS.WatchData() log.HasError…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 5,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 133149,
+          "tokensUsed": 9942,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 3,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_snippet",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 1,
+            "lore_snippet": 1,
+            "lore_graph": 1,
+            "bash": 1
+          }
+        },
+        "tools": "report_intent×1, lore_lookup×1, lore_snippet×1, lore_graph×1, bash×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=rebuildImpl), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api_impl.go, start_line=1464, end_line=1679), lore_graph(kind=call, source_id=7779, compact=false)",
+        "answer": "Now I have the source and call graph data. Let me compile the complete list from the source:  ``` logger.NewStderrLog(args.logOptions) log.AddMsg(msg) fs.RealFS(fs.RealFSOptions{AbsWorkingDir: args.absWorkingDir, WantWatchData: args.options.WatchMode}) err.Error() panic(err.Error()) bundler.ScanBund…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -4237,
+        "tokensPct": -29.882220184780312,
+        "wallTimeMs": -43029,
+        "wallTimePct": -24.423594319381532
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "esbuild-1.3-rebuildImpl",
+      "family": "explanation",
+      "iteration": 4,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 7,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 187076,
+          "tokensUsed": 14111,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 3,
+            "view": 3
+          }
+        },
+        "tools": "grep×3, view×3, report_intent×1",
+        "answer": "Now I have the full function body. Let me compile all direct callees.  logger.NewStderrLog(args.logOptions) log.AddMsg(msg) fs.RealFS(fs.RealFSOptions{AbsWorkingDir: args.absWorkingDir, WantWatchData: args.options.WatchMode}) err.Error() panic(err.Error()) bundler.ScanBundle(config.BuildCall, log, r…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 5,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 245940,
+          "tokensUsed": 19821,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 3,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_snippet",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 1,
+            "lore_snippet": 1,
+            "lore_graph": 1,
+            "bash": 1
+          }
+        },
+        "tools": "report_intent×1, lore_lookup×1, lore_snippet×1, lore_graph×1, bash×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=rebuildImpl), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api_impl.go, start_line=1464, end_line=1679), lore_graph(kind=call, source_id=7779, compact=false)",
+        "answer": "I have the full source of `rebuildImpl`. Here are all distinct direct callees with their argument expressions:  logger.NewStderrLog(args.logOptions) log.AddMsg(msg) fs.RealFS(fs.RealFSOptions{AbsWorkingDir: args.absWorkingDir, WantWatchData: args.options.WatchMode}) err.Error() bundler.ScanBundle(co…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 5710,
+        "tokensPct": 40.464885550279924,
+        "wallTimeMs": 58864,
+        "wallTimePct": 31.465286835296887
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "esbuild-1.3-rebuildImpl",
+      "family": "explanation",
+      "iteration": 5,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 5,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 150046,
+          "tokensUsed": 11346,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 2
+          }
+        },
+        "tools": "grep×2, view×2, report_intent×1",
+        "answer": "logger.NewStderrLog(args.logOptions) log.AddMsg(msg) fs.RealFS(fs.RealFSOptions{AbsWorkingDir: args.absWorkingDir, WantWatchData: args.options.WatchMode}) err.Error() panic(err.Error()) bundler.ScanBundle(config.BuildCall, log, realFS, args.caches, args.entryPoints, args.options, timer) realFS.Watch…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 5,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 92639,
+          "tokensUsed": 6945,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 3,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_snippet",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 1,
+            "lore_snippet": 1,
+            "lore_graph": 1,
+            "bash": 1
+          }
+        },
+        "tools": "report_intent×1, lore_lookup×1, lore_snippet×1, lore_graph×1, bash×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=rebuildImpl), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api_impl.go, start_line=1464, end_line=1679), lore_graph(kind=call, source_id=7779, compact=true)",
+        "answer": "``` logger.NewStderrLog(args.logOptions) log.AddMsg(msg) fs.RealFS(fs.RealFSOptions{AbsWorkingDir: args.absWorkingDir, WantWatchData: args.options.WatchMode}) bundler.ScanBundle(config.BuildCall, log, realFS, args.caches, args.entryPoints, args.options, timer) cloneMangleCache(log, args.mangleCache)…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -4401,
+        "tokensPct": -38.78900052882073,
+        "wallTimeMs": -57407,
+        "wallTimePct": -38.25960038921398
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "esbuild-1.5-Build",
+      "family": "localization",
+      "iteration": 1,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.6666666666666666,
+          "firstPassAccurate": false,
+          "toolCallCount": 58,
+          "uniqueFilesRead": 5,
+          "wallTimeMs": 158056,
+          "tokensUsed": 11262,
+          "answerCoverage": 0.6666666666666666,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "task": 1,
+            "report_intent": 1,
+            "view": 20,
+            "bash": 28,
+            "glob": 2,
+            "grep": 4,
+            "read_agent": 2
+          }
+        },
+        "tools": "bash×28, view×20, grep×4, glob×2, read_agent×2, task×1, report_intent×1",
+        "answer": "  serveImpl — creates a build context via api.Context(options), then calls ctx.Serve(serveOptions) to start an HTTP server that serves the bundled output handleBuildRequest — when isContext=true, calls api.Context(options) to store a persistent BuildContext; when isContext=false, calls api.Build(opt…",
+        "missedParts": [
+          "main"
+        ],
+        "missedAnswerLines": [
+          "main"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0,
+          "firstPassAccurate": true,
+          "toolCallCount": 99,
+          "uniqueFilesRead": 4,
+          "wallTimeMs": 360010,
+          "tokensUsed": 24152,
+          "answerCoverage": 0,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 16,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_lookup",
+            "lore_graph",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 2,
+            "lore_dependents": 3,
+            "lore_lookup": 4,
+            "lore_graph": 7,
+            "task": 1,
+            "lore_snippet": 2,
+            "grep": 15,
+            "view": 14,
+            "bash": 49,
+            "read_agent": 2
+          }
+        },
+        "tools": "bash×49, grep×15, view×14, lore_graph×7, lore_lookup×4, lore_dependents×3, report_intent×2, lore_snippet×2, read_agent×2, task×1",
+        "loreToolArgs": "lore_dependents(query=Build, kind=symbol, compact=true), lore_dependents(query=Serve, kind=symbol, compact=true), lore_dependents(compact=true, kind=symbol, query=Serve), lore_lookup(kind=symbol, query=Serve, match_mode=exact), lore_graph(kind=call, target_id=7632, compact=true), lore_graph(compact=true, kind=call, target_id=7908), lore_lookup(kind=symbol, query=serve, match_mode=exact), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/cli/cli_impl.go, symbol=runImpl), lore_lookup(kind=symbol, match_mode=exact, query=serveImpl), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/cli/cli_impl.go, symbol=serveImpl), lore_lookup(kind=symbol, match_mode=exact, query=Build), lore_graph(compact=true, kind=call, target_id=7557), lore_graph(compact=true, kind=call, target_id=9347), lore_graph(compact=true, kind=call, target_id=9371), lore_graph(compact=true, kind=call, target_id=9386), lore_graph(compact=true, kind=call, target_id=9418)",
+        "answer": "  ",
+        "missedParts": [
+          "main",
+          "Build",
+          "Serve"
+        ],
+        "missedAnswerLines": [
+          "main",
+          "Build",
+          "Serve"
+        ]
+      },
+      "delta": {
+        "correctness": -0.6666666666666666,
+        "tokens": 12890,
+        "tokensPct": 114.45569170662404,
+        "wallTimeMs": 201954,
+        "wallTimePct": 127.77370046059625
+      },
+      "warnings": [
+        "lore worse on correctness — missed: [main, Build, Serve]",
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "esbuild-1.5-Build",
+      "family": "localization",
+      "iteration": 2,
+      "control": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.6666666666666666,
+          "firstPassAccurate": false,
+          "toolCallCount": 62,
+          "uniqueFilesRead": 7,
+          "wallTimeMs": 279900,
+          "tokensUsed": 20343,
+          "answerCoverage": 0.6666666666666666,
+          "fileCoverage": 0.5,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 10,
+            "view": 24,
+            "bash": 26,
+            "task": 1
+          }
+        },
+        "tools": "bash×26, view×24, grep×10, report_intent×1, task×1",
+        "answer": "runImpl — checks for --serve flags and delegates to serveImpl (which starts ctx.Serve and blocks forever logging requests), otherwise calls api.Build and uses the result's Errors to determine the process exit code handleIncomingPacket — dispatches \"build\" commands to handleBuildRequest (which calls …",
+        "missedParts": [
+          "main"
+        ],
+        "missedAnswerLines": [
+          "main"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.6666666666666666,
+          "firstPassAccurate": true,
+          "toolCallCount": 124,
+          "uniqueFilesRead": 5,
+          "wallTimeMs": 271753,
+          "tokensUsed": 29025,
+          "answerCoverage": 0.6666666666666666,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 29,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_graph",
+            "lore_lookup",
+            "lore_snippet",
+            "lore_search"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 4,
+            "task": 1,
+            "lore_graph": 4,
+            "grep": 20,
+            "view": 19,
+            "bash": 52,
+            "lore_lookup": 14,
+            "lore_snippet": 5,
+            "read_agent": 2,
+            "lore_search": 2
+          }
+        },
+        "tools": "bash×52, grep×20, view×19, lore_lookup×14, lore_snippet×5, lore_dependents×4, lore_graph×4, read_agent×2, lore_search×2, report_intent×1, task×1",
+        "loreToolArgs": "lore_dependents(query=Build, kind=symbol, compact=true), lore_dependents(query=Serve, kind=symbol, compact=true), lore_dependents(compact=true, kind=symbol, query=Build), lore_dependents(compact=true, kind=symbol, query=Serve), lore_graph(kind=call, target_id=7632, compact=true), lore_graph(kind=call, target_id=7557, compact=true), lore_graph(kind=call, target_id=7908, compact=true), lore_lookup(kind=symbol, query=Serve, match_mode=exact), lore_lookup(kind=symbol, query=serve, match_mode=exact), lore_graph(compact=true, kind=call, source_id=7954), lore_lookup(kind=symbol, match_mode=exact, query=serveImpl), lore_lookup(kind=symbol, match_mode=exact, query=buildOrServe), lore_lookup(kind=symbol, match_mode=contains, query=buildOrServe), lore_lookup(kind=symbol, match_mode=contains, query=buildAndServe), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/cli/cli_impl.go, symbol=runImpl), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/cli/cli_impl.go, symbol=serveImpl), lore_lookup(kind=symbol, match_mode=exact, query=buildOrServe), lore_lookup(kind=symbol, match_mode=contains, query=handleBuild), lore_search(query=function calls both build and serve, mode=semantic, limit=20), lore_lookup(kind=symbol, match_mode=contains, query=handleServe), lore_lookup(kind=symbol, match_mode=contains, query=buildServe), lore_search(mode=structural, query=build serve, limit=30), lore_lookup(kind=symbol, match_mode=exact, query=buildOrContext), lore_lookup(kind=symbol, match_mode=contains, query=buildOrContext), lore_lookup(kind=symbol, match_mode=contains, query=buildOrContextImpl), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/lib/shared/common.ts, start_line=909, end_line=1160), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/lib/npm/node.ts, start_line=1, end_line=50), lore_lookup(kind=symbol, path_prefix=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/lib/npm/node.ts, limit=40), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api.go, symbol=Build)",
+        "answer": "  Based on my thorough analysis of the codebase (Go, TypeScript), the two functions are:  runImpl — dispatches to serveImpl (which calls ctx.Serve()) when --serve/--servedir flags are found and returns early, otherwise calls api.Build() to do a one-shot build and uses its errors to set the exit code…",
+        "missedParts": [
+          "main"
+        ],
+        "missedAnswerLines": [
+          "main"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 8682,
+        "tokensPct": 42.67807108096151,
+        "wallTimeMs": -8147,
+        "wallTimePct": -2.910682386566631
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "esbuild-1.5-Build",
+      "family": "localization",
+      "iteration": 3,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.6666666666666666,
+          "firstPassAccurate": false,
+          "toolCallCount": 100,
+          "uniqueFilesRead": 6,
+          "wallTimeMs": 360006,
+          "tokensUsed": 22238,
+          "answerCoverage": 0.6666666666666666,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 19,
+            "bash": 50,
+            "view": 29,
+            "task": 1
+          }
+        },
+        "tools": "bash×50, view×29, grep×19, report_intent×1, task×1",
+        "answer": "Good - so there are NO functions that directly call both `api.Build()` (or `.Build()`) AND `.Serve()`.  However, looking at the code flow, the closest architectural match is:  1. **`handleIncomingPacket()`** in `cmd/esbuild/service.go` - This function handles multiple cases, including:    - \"build\" …",
+        "missedParts": [
+          "main"
+        ],
+        "missedAnswerLines": [
+          "main"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.6666666666666666,
+          "firstPassAccurate": true,
+          "toolCallCount": 79,
+          "uniqueFilesRead": 7,
+          "wallTimeMs": 302252,
+          "tokensUsed": 19837,
+          "answerCoverage": 0.6666666666666666,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 12,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_lookup",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 3,
+            "lore_lookup": 4,
+            "lore_graph": 5,
+            "glob": 2,
+            "grep": 14,
+            "view": 23,
+            "bash": 26,
+            "task": 1
+          }
+        },
+        "tools": "bash×26, view×23, grep×14, lore_graph×5, lore_lookup×4, lore_dependents×3, glob×2, report_intent×1, task×1",
+        "loreToolArgs": "lore_dependents(query=Build, kind=symbol, compact=true), lore_dependents(query=Serve, kind=symbol, compact=true), lore_dependents(compact=true, kind=symbol, query=buildImpl), lore_lookup(kind=symbol, query=Serve, match_mode=exact), lore_lookup(kind=symbol, query=Build, match_mode=exact), lore_graph(kind=call, target_id=7632, compact=true), lore_graph(kind=call, target_id=7557, compact=true), lore_graph(kind=call, target_id=7908, compact=true), lore_lookup(kind=symbol, match_mode=exact, query=handleIncomingPacket), lore_lookup(kind=symbol, match_mode=exact, query=handleBuildRequest), lore_graph(compact=true, kind=call, source_id=7954), lore_graph(compact=true, kind=call, source_id=38)",
+        "answer": "handleIncomingPacket — dispatches \"build\" commands to handleBuildRequest (which calls Build for a one-shot bundle and returns encoded errors/outputs/metafile) and dispatches \"serve\" commands by calling ctx.Serve to start a dev server, returning the port and hosts to the JS process runImpl — if CLI a…",
+        "missedParts": [
+          "main"
+        ],
+        "missedAnswerLines": [
+          "main"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -2401,
+        "tokensPct": -10.796834247684144,
+        "wallTimeMs": -57754,
+        "wallTimePct": -16.0425104026044
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "esbuild-1.5-Build",
+      "family": "localization",
+      "iteration": 4,
+      "control": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.6666666666666666,
+          "firstPassAccurate": false,
+          "toolCallCount": 107,
+          "uniqueFilesRead": 12,
+          "wallTimeMs": 360008,
+          "tokensUsed": 24303,
+          "answerCoverage": 0.6666666666666666,
+          "fileCoverage": 0.5,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 21,
+            "view": 39,
+            "bash": 44,
+            "task": 2
+          }
+        },
+        "tools": "bash×44, view×39, grep×21, task×2, report_intent×1",
+        "answer": "Let me create the summary without writing to a file:  ## Summary of Findings  I've thoroughly searched all 7 files you specified. Here are the precise results:  ### Files With NO Functions Calling Both `build(` and `serve(` - **lib/shared/common.ts** - Only mentions in comments; `serve` is a propert…",
+        "missedParts": [
+          "main"
+        ],
+        "missedAnswerLines": [
+          "main"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.3333333333333333,
+          "firstPassAccurate": true,
+          "toolCallCount": 105,
+          "uniqueFilesRead": 10,
+          "wallTimeMs": 360010,
+          "tokensUsed": 22104,
+          "answerCoverage": 0.3333333333333333,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 10,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_lookup",
+            "lore_graph",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 3,
+            "lore_lookup": 2,
+            "lore_graph": 3,
+            "bash": 37,
+            "grep": 20,
+            "view": 35,
+            "task": 1,
+            "lore_snippet": 2,
+            "glob": 1
+          }
+        },
+        "tools": "bash×37, view×35, grep×20, lore_dependents×3, lore_graph×3, lore_lookup×2, lore_snippet×2, report_intent×1, task×1, glob×1",
+        "loreToolArgs": "lore_dependents(query=Build, kind=symbol, compact=true), lore_dependents(query=Serve, kind=symbol, compact=true), lore_dependents(compact=true, kind=symbol, query=buildImpl), lore_lookup(kind=symbol, query=Serve, match_mode=exact), lore_lookup(kind=symbol, query=Build, match_mode=exact), lore_graph(kind=call, target_id=7632, compact=true), lore_graph(kind=call, target_id=7557, compact=true), lore_graph(kind=call, target_id=7908, compact=true), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/cli/cli_impl.go, symbol=serveImpl), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/cli/cli_impl.go, symbol=runImpl)",
+        "answer": "Now let me check the entire node.ts and browser.ts files for any serve calls:",
+        "missedParts": [
+          "main",
+          "Build"
+        ],
+        "missedAnswerLines": [
+          "main",
+          "Build"
+        ]
+      },
+      "delta": {
+        "correctness": -0.3333333333333333,
+        "tokens": -2199,
+        "tokensPct": -9.048265646216516,
+        "wallTimeMs": 2,
+        "wallTimePct": 0.0005555432101508855
+      },
+      "warnings": [
+        "lore worse on correctness — missed: [main, Build]"
+      ]
+    },
+    {
+      "taskId": "esbuild-1.5-Build",
+      "family": "localization",
+      "iteration": 5,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 88,
+          "uniqueFilesRead": 5,
+          "wallTimeMs": 360008,
+          "tokensUsed": 21336,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 28,
+            "bash": 31,
+            "view": 27,
+            "task": 1
+          }
+        },
+        "tools": "bash×31, grep×28, view×27, report_intent×1, task×1",
+        "answer": "Perfect! Now I have the complete picture. Let me create a comprehensive answer:  ## Summary  After a thorough analysis of the esbuild codebase, I found that **NO FUNCTION DIRECTLY CALLS BOTH `Build()` AND `Serve()` FUNCTIONS**.  However, there are several important patterns to note:  ### Build and S…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.6666666666666666,
+          "firstPassAccurate": true,
+          "toolCallCount": 94,
+          "uniqueFilesRead": 10,
+          "wallTimeMs": 276371,
+          "tokensUsed": 21596,
+          "answerCoverage": 0.6666666666666666,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 13,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_graph",
+            "lore_lookup",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 4,
+            "task": 1,
+            "lore_graph": 4,
+            "view": 33,
+            "glob": 2,
+            "lore_lookup": 3,
+            "grep": 21,
+            "lore_snippet": 2,
+            "bash": 21,
+            "read_agent": 2
+          }
+        },
+        "tools": "view×33, grep×21, bash×21, lore_dependents×4, lore_graph×4, lore_lookup×3, glob×2, lore_snippet×2, read_agent×2, report_intent×1, task×1",
+        "loreToolArgs": "lore_dependents(query=Build, kind=symbol, compact=true), lore_dependents(query=Serve, kind=symbol, compact=true), lore_dependents(compact=true, kind=symbol, query=Build), lore_dependents(compact=true, kind=symbol, query=Serve), lore_graph(kind=call, target_id=7632, compact=true), lore_graph(kind=call, target_id=7557, compact=true), lore_graph(kind=call, target_id=7908, compact=true), lore_lookup(kind=symbol, query=Serve, match_mode=exact), lore_lookup(kind=symbol, query=serve, match_mode=exact), lore_lookup(kind=symbol, match_mode=exact, query=runImpl), lore_graph(compact=true, kind=call, source_id=7954), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/cli/cli_impl.go, symbol=runImpl), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/cli/cli_impl.go, symbol=serveImpl)",
+        "answer": "Now I have a clear picture. Let me provide the answer:  runImpl — dispatches CLI args: calls `api.Build()` to execute a one-shot build and check errors, or calls `serveImpl()` which invokes `ctx.Serve()` to start a long-running dev server handleIncomingPacket — routes IPC commands: dispatches \"build…",
+        "missedParts": [
+          "main"
+        ],
+        "missedAnswerLines": [
+          "main"
+        ]
+      },
+      "delta": {
+        "correctness": -0.33333333333333337,
+        "tokens": 260,
+        "tokensPct": 1.2185976752905887,
+        "wallTimeMs": -83637,
+        "wallTimePct": -23.231983733694804
+      },
+      "warnings": [
+        "lore worse on correctness — missed: [main]"
+      ]
+    },
+    {
+      "taskId": "esbuild-1.7-Build",
+      "family": "explanation",
+      "iteration": 1,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 30,
+          "uniqueFilesRead": 3,
+          "wallTimeMs": 83647,
+          "tokensUsed": 6217,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "bash": 19,
+            "view": 7,
+            "task": 1
+          }
+        },
+        "tools": "bash×19, view×7, grep×2, report_intent×1, task×1",
+        "answer": "1. Build — entry-point API that creates a build context and triggers a rebuild 2. Rebuild — public method on internalContext that delegates to the private rebuild 3. rebuild — acquires the build mutex and launches rebuildImpl in a goroutine 4. rebuildImpl — sets up logging, filesystem, and options t…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 5,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 23779,
+          "tokensUsed": 575,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 4,
+          "loreToolsUsed": [
+            "lore_trace",
+            "lore_lookup"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_trace": 2,
+            "lore_lookup": 2
+          }
+        },
+        "tools": "lore_trace×2, lore_lookup×2, report_intent×1",
+        "loreToolArgs": "lore_trace(from_name=Build, to_name=ScanBundle, depth=10), lore_lookup(kind=symbol, query=Build, match_mode=exact), lore_lookup(kind=symbol, query=ScanBundle, match_mode=exact), lore_trace(from=7632, to=296, depth=10)",
+        "answer": "1. Build — public entry point that creates a build context, triggers a rebuild, and prints a summary 2. Rebuild — acquires the active build result or delegates to the internal rebuild method 3. rebuild — coordinates locking, starts a new build-in-progress, and calls rebuildImpl 4. rebuildImpl — sets…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -5642,
+        "tokensPct": -90.7511661573106,
+        "wallTimeMs": -59868,
+        "wallTimePct": -71.57220223080326
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "esbuild-1.7-Build",
+      "family": "explanation",
+      "iteration": 2,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 26,
+          "uniqueFilesRead": 3,
+          "wallTimeMs": 83540,
+          "tokensUsed": 6788,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 4,
+            "bash": 10,
+            "view": 10,
+            "task": 1
+          }
+        },
+        "tools": "bash×10, view×10, grep×4, report_intent×1, task×1",
+        "answer": "1. `Build` — public API entry point; creates a build context and triggers a rebuild 2. `contextImpl` — validates options, loads plugins, and constructs an `internalContext` 3. `Rebuild` — public method on `internalContext`; delegates to the private rebuild 4. `rebuild` — acquires locks, manages conc…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 5,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 23760,
+          "tokensUsed": 574,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 4,
+          "loreToolsUsed": [
+            "lore_trace",
+            "lore_lookup"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_trace": 2,
+            "lore_lookup": 2
+          }
+        },
+        "tools": "lore_trace×2, lore_lookup×2, report_intent×1",
+        "loreToolArgs": "lore_trace(from_name=Build, to_name=ScanBundle, depth=10), lore_lookup(kind=symbol, query=Build, match_mode=exact), lore_lookup(kind=symbol, query=ScanBundle, match_mode=exact), lore_trace(from=7632, to=296, depth=10)",
+        "answer": "1. Build — public entry point that creates a build context, triggers a rebuild, and prints a summary 2. Rebuild — acquires the active build result or delegates to the internal rebuild method 3. rebuild — manages build concurrency under a mutex and dispatches to rebuildImpl 4. rebuildImpl — sets up l…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -6214,
+        "tokensPct": -91.54390100176782,
+        "wallTimeMs": -59780,
+        "wallTimePct": -71.55853483361264
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "esbuild-1.7-Build",
+      "family": "explanation",
+      "iteration": 3,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 22,
+          "uniqueFilesRead": 4,
+          "wallTimeMs": 121962,
+          "tokensUsed": 9581,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 4,
+            "bash": 6,
+            "view": 10,
+            "task": 1
+          }
+        },
+        "tools": "view×10, bash×6, grep×4, report_intent×1, task×1",
+        "answer": "1. Build — public API entry point; creates a build context and triggers a rebuild 2. contextImpl — validates options, initializes filesystem/caches/plugins, returns an internalContext 3. Rebuild — wrapper method on internalContext that delegates to the internal rebuild 4. rebuild — manages concurren…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 5,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 26192,
+          "tokensUsed": 562,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 4,
+          "loreToolsUsed": [
+            "lore_trace",
+            "lore_lookup"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_trace": 2,
+            "lore_lookup": 2
+          }
+        },
+        "tools": "lore_trace×2, lore_lookup×2, report_intent×1",
+        "loreToolArgs": "lore_trace(from_name=Build, to_name=ScanBundle, depth=10), lore_lookup(kind=symbol, query=Build, match_mode=exact), lore_lookup(kind=symbol, query=ScanBundle, match_mode=exact), lore_trace(from=7632, to=296, depth=10)",
+        "answer": "1. Build — public entry point that creates a build context and triggers a rebuild 2. Rebuild — acquires the active build or starts a new one and returns its result 3. rebuild — manages build lifecycle with locking, delegates to rebuildImpl 4. rebuildImpl — sets up logging, filesystem, and timer then…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -9019,
+        "tokensPct": -94.13422398497026,
+        "wallTimeMs": -95770,
+        "wallTimePct": -78.52445843787409
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "esbuild-1.7-Build",
+      "family": "explanation",
+      "iteration": 4,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 38,
+          "uniqueFilesRead": 3,
+          "wallTimeMs": 108354,
+          "tokensUsed": 8160,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 3,
+            "bash": 18,
+            "view": 15,
+            "task": 1
+          }
+        },
+        "tools": "bash×18, view×15, grep×3, report_intent×1, task×1",
+        "answer": "Confirmed. Here is the chain:  1. `Build` — public API entry point; creates a build context and triggers a rebuild 2. `Rebuild` — public method on `*internalContext`; delegates to the private `rebuild` method 3. `rebuild` — private method on `*internalContext`; manages concurrency and dispatches to …",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 5,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 24073,
+          "tokensUsed": 604,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 4,
+          "loreToolsUsed": [
+            "lore_trace",
+            "lore_lookup"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_trace": 2,
+            "lore_lookup": 2
+          }
+        },
+        "tools": "lore_trace×2, lore_lookup×2, report_intent×1",
+        "loreToolArgs": "lore_trace(from_name=Build, to_name=ScanBundle, depth=10), lore_lookup(kind=symbol, query=Build, mode=exact), lore_lookup(kind=symbol, query=ScanBundle, mode=exact), lore_trace(depth=10, from=7632, to=296)",
+        "answer": "1. `Build` — public API entry point that creates a build context and triggers a rebuild 2. `Rebuild` — method on `internalContext` that delegates to the internal rebuild implementation 3. `rebuild` — manages build concurrency/locking and calls `rebuildImpl` without holding the mutex 4. `rebuildImpl`…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -7556,
+        "tokensPct": -92.59803921568628,
+        "wallTimeMs": -84281,
+        "wallTimePct": -77.78300754932906
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "esbuild-1.7-Build",
+      "family": "explanation",
+      "iteration": 5,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 32,
+          "uniqueFilesRead": 3,
+          "wallTimeMs": 90600,
+          "tokensUsed": 7019,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "bash": 20,
+            "view": 8,
+            "task": 1
+          }
+        },
+        "tools": "bash×20, view×8, grep×2, report_intent×1, task×1",
+        "answer": "1. `Build` — public API entry point that initializes a build context and triggers a rebuild 2. `Rebuild` — public method on `internalContext` that delegates to the private rebuild 3. `rebuild` — manages mutex synchronization and build state, then invokes rebuildImpl 4. `rebuildImpl` — sets up loggin…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 5,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 23501,
+          "tokensUsed": 563,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 4,
+          "loreToolsUsed": [
+            "lore_trace",
+            "lore_lookup"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_trace": 2,
+            "lore_lookup": 2
+          }
+        },
+        "tools": "lore_trace×2, lore_lookup×2, report_intent×1",
+        "loreToolArgs": "lore_trace(from_name=Build, to_name=ScanBundle, depth=10), lore_lookup(kind=symbol, query=Build, match_mode=exact), lore_lookup(kind=symbol, query=ScanBundle, match_mode=exact), lore_trace(from=7632, to=296, depth=10)",
+        "answer": "1. Build — public API entry point that creates a build context and triggers a rebuild 2. Rebuild — acquires the active build or delegates to the internal rebuild method 3. rebuild — manages build lifecycle (locking, cancellation) and calls rebuildImpl 4. rebuildImpl — sets up logging, filesystem, an…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -6456,
+        "tokensPct": -91.97891437526712,
+        "wallTimeMs": -67099,
+        "wallTimePct": -74.06070640176601
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "esbuild-1.8-Build",
+      "family": "modification",
+      "iteration": 1,
+      "control": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 10,
+          "uniqueFilesRead": 3,
+          "wallTimeMs": 48942,
+          "tokensUsed": 2165,
+          "answerCoverage": 0.5,
+          "fileCoverage": 0.5,
+          "symbolCoverage": 0.5,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 6,
+            "view": 3
+          }
+        },
+        "tools": "grep×6, view×3, report_intent×1",
+        "answer": "Handle: runImpl  Propagate: handleBuildRequest  **Explanation:** `Build` (in `pkg/api/api.go`) returns a `BuildResult` with an `Errors` field. It has two direct callers:  - **`runImpl`** (`pkg/cli/cli_impl.go:1382`) — checks `len(result.Errors) > 0` and returns exit code `1`, handling the error loca…",
+        "missedParts": [
+          "main",
+          "rebuildImpl"
+        ],
+        "missedAnswerLines": [
+          "main",
+          "rebuildImpl"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 10,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 51469,
+          "tokensUsed": 2034,
+          "answerCoverage": 0.5,
+          "fileCoverage": 0.5,
+          "symbolCoverage": 0.5,
+          "loreToolCallCount": 5,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_snippet",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 2,
+            "lore_snippet": 2,
+            "lore_graph": 1,
+            "grep": 1,
+            "view": 2,
+            "bash": 1
+          }
+        },
+        "tools": "lore_dependents×2, lore_snippet×2, view×2, report_intent×1, lore_graph×1, grep×1, bash×1",
+        "loreToolArgs": "lore_dependents(query=Build, kind=symbol, compact=true), lore_dependents(compact=true, kind=symbol, query=Build), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api.go, symbol=Build), lore_graph(kind=call, target_id=7632, compact=false), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/cli/cli_impl.go, start_line=1370, end_line=1400)",
+        "answer": "Handle: runImpl  Propagate: handleBuildRequest  **Reasoning:** `Build` (in `pkg/api/api.go`) returns a `BuildResult` with an `Errors` field. It has two direct callers:  - **`runImpl`** (`pkg/cli/cli_impl.go:1379`) — checks `len(result.Errors) > 0` and returns exit code `1`, handling the error. - **`…",
+        "missedParts": [
+          "main",
+          "rebuildImpl"
+        ],
+        "missedAnswerLines": [
+          "main",
+          "rebuildImpl"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -131,
+        "tokensPct": -6.05080831408776,
+        "wallTimeMs": 2527,
+        "wallTimePct": 5.163254464468146
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "esbuild-1.8-Build",
+      "family": "modification",
+      "iteration": 2,
+      "control": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.25,
+          "firstPassAccurate": false,
+          "toolCallCount": 54,
+          "uniqueFilesRead": 5,
+          "wallTimeMs": 143748,
+          "tokensUsed": 11631,
+          "answerCoverage": 0.5,
+          "fileCoverage": 0.5,
+          "symbolCoverage": 0.5,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "task": 1,
+            "report_intent": 1,
+            "bash": 25,
+            "grep": 10,
+            "view": 17
+          }
+        },
+        "tools": "bash×25, view×17, grep×10, task×1, report_intent×1",
+        "answer": "Perfect! Now let me create a comprehensive summary document with all the findings.  ## Summary: `Build` Function and Its Direct Callers  I've completed a thorough analysis of the esbuild codebase. Here are my findings:  ### 1. **The `Build` Function Definition**  **Location:** `/private/var/folders/…",
+        "missedParts": [
+          "Propagate",
+          "rebuildImpl"
+        ],
+        "missedAnswerLines": [
+          "Handle:",
+          "Propagate:",
+          "rebuildImpl"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 9,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 46720,
+          "tokensUsed": 1773,
+          "answerCoverage": 0.5,
+          "fileCoverage": 0.5,
+          "symbolCoverage": 0.5,
+          "loreToolCallCount": 5,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_snippet",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 2,
+            "lore_snippet": 2,
+            "lore_graph": 1,
+            "grep": 2,
+            "view": 1
+          }
+        },
+        "tools": "lore_dependents×2, lore_snippet×2, grep×2, report_intent×1, lore_graph×1, view×1",
+        "loreToolArgs": "lore_dependents(query=Build, kind=symbol, compact=true), lore_dependents(compact=true, kind=symbol, query=Build), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api.go, symbol=Build), lore_graph(kind=call, target_id=7632, compact=true), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/cli/cli_impl.go, symbol=runImpl)",
+        "answer": "Handle: runImpl  Propagate: handleBuildRequest",
+        "missedParts": [
+          "main",
+          "rebuildImpl"
+        ],
+        "missedAnswerLines": [
+          "main",
+          "rebuildImpl"
+        ]
+      },
+      "delta": {
+        "correctness": 0.25,
+        "tokens": -9858,
+        "tokensPct": -84.75625483621356,
+        "wallTimeMs": -97028,
+        "wallTimePct": -67.4986782424799
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "esbuild-1.8-Build",
+      "family": "modification",
+      "iteration": 3,
+      "control": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.25,
+          "firstPassAccurate": false,
+          "toolCallCount": 39,
+          "uniqueFilesRead": 4,
+          "wallTimeMs": 96907,
+          "tokensUsed": 8990,
+          "answerCoverage": 0.75,
+          "fileCoverage": 0.5,
+          "symbolCoverage": 0.5,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "task": 1,
+            "report_intent": 1,
+            "grep": 9,
+            "glob": 1,
+            "view": 14,
+            "bash": 13
+          }
+        },
+        "tools": "view×14, bash×13, grep×9, task×1, report_intent×1, glob×1",
+        "answer": "Perfect! Now I have all the information I need. Let me provide a comprehensive answer:  ## Summary  ### 1. Build Function Definition  **Location:** `/private/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api.go:388-406`  **Function Signature:** ```go func …",
+        "missedParts": [
+          "rebuildImpl"
+        ],
+        "missedAnswerLines": [
+          "Handle:",
+          "Propagate:",
+          "rebuildImpl"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 9,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 50570,
+          "tokensUsed": 2219,
+          "answerCoverage": 0.5,
+          "fileCoverage": 0.5,
+          "symbolCoverage": 0.5,
+          "loreToolCallCount": 5,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_snippet",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 2,
+            "lore_snippet": 2,
+            "lore_graph": 1,
+            "grep": 2,
+            "view": 1
+          }
+        },
+        "tools": "lore_dependents×2, lore_snippet×2, grep×2, report_intent×1, lore_graph×1, view×1",
+        "loreToolArgs": "lore_dependents(query=Build, kind=symbol, compact=true), lore_dependents(compact=true, kind=symbol, query=Build), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api.go, symbol=Build), lore_graph(kind=call, target_id=7632, compact=false), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/cli/cli_impl.go, start_line=1370, end_line=1400)",
+        "answer": "Based on the analysis:  **`Build`** (in `pkg/api/api.go`) returns a `BuildResult` with an `Errors` field. It has two direct callers:  1. **`runImpl`** (`pkg/cli/cli_impl.go:1379`) — checks `len(result.Errors) > 0` and returns exit code 1. 2. **`handleBuildRequest`** (`cmd/esbuild/service.go:782`) — …",
+        "missedParts": [
+          "main",
+          "rebuildImpl"
+        ],
+        "missedAnswerLines": [
+          "main",
+          "rebuildImpl"
+        ]
+      },
+      "delta": {
+        "correctness": 0.25,
+        "tokens": -6771,
+        "tokensPct": -75.31701890989989,
+        "wallTimeMs": -46337,
+        "wallTimePct": -47.81594724839279
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "esbuild-1.8-Build",
+      "family": "modification",
+      "iteration": 4,
+      "control": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.25,
+          "firstPassAccurate": false,
+          "toolCallCount": 47,
+          "uniqueFilesRead": 5,
+          "wallTimeMs": 120225,
+          "tokensUsed": 9491,
+          "answerCoverage": 0.75,
+          "fileCoverage": 1,
+          "symbolCoverage": 0.5,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "task": 1,
+            "report_intent": 1,
+            "grep": 7,
+            "view": 17,
+            "glob": 1,
+            "bash": 20
+          }
+        },
+        "tools": "bash×20, view×17, grep×7, task×1, report_intent×1, glob×1",
+        "answer": "Perfect! Now I have all the information I need. Let me create a comprehensive report.  ## Summary  I found the main `Build` function and all its direct callers in the esbuild repository. Here are the complete results:  ### **Main `Build` Function** - **Location:** `/private/var/folders/_p/cvzkrpzx3q…",
+        "missedParts": [
+          "rebuildImpl"
+        ],
+        "missedAnswerLines": [
+          "Handle:",
+          "Propagate:",
+          "rebuildImpl"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 9,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 50769,
+          "tokensUsed": 1839,
+          "answerCoverage": 0.5,
+          "fileCoverage": 0.5,
+          "symbolCoverage": 0.5,
+          "loreToolCallCount": 5,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_snippet",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 2,
+            "lore_snippet": 2,
+            "lore_graph": 1,
+            "grep": 2,
+            "view": 1
+          }
+        },
+        "tools": "lore_dependents×2, lore_snippet×2, grep×2, report_intent×1, lore_graph×1, view×1",
+        "loreToolArgs": "lore_dependents(query=Build, kind=symbol, compact=true), lore_dependents(compact=true, kind=symbol, query=Build), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api.go, symbol=Build), lore_graph(kind=call, target_id=7632, compact=true), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/cli/cli_impl.go, symbol=runImpl)",
+        "answer": "Handle: runImpl  Propagate: handleBuildRequest",
+        "missedParts": [
+          "main",
+          "rebuildImpl"
+        ],
+        "missedAnswerLines": [
+          "main",
+          "rebuildImpl"
+        ]
+      },
+      "delta": {
+        "correctness": 0.25,
+        "tokens": -7652,
+        "tokensPct": -80.62374881466653,
+        "wallTimeMs": -69456,
+        "wallTimePct": -57.771678103555836
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "esbuild-1.8-Build",
+      "family": "modification",
+      "iteration": 5,
+      "control": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 14,
+          "uniqueFilesRead": 3,
+          "wallTimeMs": 61168,
+          "tokensUsed": 2387,
+          "answerCoverage": 0.5,
+          "fileCoverage": 0.5,
+          "symbolCoverage": 0.5,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 9,
+            "view": 3,
+            "bash": 1
+          }
+        },
+        "tools": "grep×9, view×3, report_intent×1, bash×1",
+        "answer": "`Build` has exactly two direct callers:  - **`runImpl`** (in `pkg/cli/cli_impl.go`) — checks `len(result.Errors) > 0` and returns exit code 1, handling the error itself. - **`handleBuildRequest`** (in `cmd/esbuild/service.go`) — encodes errors into a response packet and returns it to its caller, pro…",
+        "missedParts": [
+          "main",
+          "rebuildImpl"
+        ],
+        "missedAnswerLines": [
+          "main",
+          "rebuildImpl"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 10,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 57076,
+          "tokensUsed": 2087,
+          "answerCoverage": 0.5,
+          "fileCoverage": 0.5,
+          "symbolCoverage": 0.5,
+          "loreToolCallCount": 4,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_snippet",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 2,
+            "lore_snippet": 1,
+            "lore_graph": 1,
+            "grep": 3,
+            "view": 2
+          }
+        },
+        "tools": "grep×3, lore_dependents×2, view×2, report_intent×1, lore_snippet×1, lore_graph×1",
+        "loreToolArgs": "lore_dependents(query=Build, kind=symbol, compact=true), lore_dependents(compact=true, kind=symbol, query=Build), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api.go, symbol=Build), lore_graph(kind=call, target_id=7632, compact=true)",
+        "answer": "Here's the analysis of `Build`'s two direct callers (`Build` returns errors embedded in `BuildResult.Errors`):  **Handle:** runImpl  **Propagate:** handleBuildRequest  - `runImpl` (cli_impl.go:1382) checks `len(result.Errors) > 0` and returns exit code 1. - `handleBuildRequest` (service.go:783) pass…",
+        "missedParts": [
+          "main",
+          "rebuildImpl"
+        ],
+        "missedAnswerLines": [
+          "main",
+          "rebuildImpl"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -300,
+        "tokensPct": -12.568077084206116,
+        "wallTimeMs": -4092,
+        "wallTimePct": -6.689772430028773
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "esbuild-7.2-rebuildImpl",
+      "family": "localization",
+      "iteration": 1,
+      "control": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 2,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 17952,
+          "tokensUsed": 385,
+          "answerCoverage": 0.8,
+          "fileCoverage": 0.5,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1
+          }
+        },
+        "tools": "report_intent×1, grep×1",
+        "answer": "There are no callers of `rebuildImpl` in other files. The function is unexported (lowercase) and its only call site is within `pkg/api/api_impl.go` itself, at line 1007.",
+        "missedParts": [
+          "api.go"
+        ],
+        "missedAnswerLines": [
+          "Build → api.go"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 7,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 33070,
+          "tokensUsed": 1651,
+          "answerCoverage": 0.8,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 5,
+            "lore_dependents": 1
+          }
+        },
+        "tools": "grep×5, report_intent×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=rebuildImpl, kind=symbol, compact=true)",
+        "answer": "The grep confirms `rebuildImpl` is only directly called at line 1007 in `pkg/api/api_impl.go` itself. The lore tool's results were transitive (multi-hop) callers. No functions in other files directly call `rebuildImpl` — it is only invoked within `pkg/api/api_impl.go` by `activeBuildOrRecentBuildOrR…",
+        "missedParts": [
+          "api.go"
+        ],
+        "missedAnswerLines": [
+          "Build → api.go"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 1266,
+        "tokensPct": 328.83116883116884,
+        "wallTimeMs": 15118,
+        "wallTimePct": 84.21345811051694
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "esbuild-7.2-rebuildImpl",
+      "family": "localization",
+      "iteration": 2,
+      "control": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 3,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 19777,
+          "tokensUsed": 480,
+          "answerCoverage": 0.8,
+          "fileCoverage": 0.5,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2
+          }
+        },
+        "tools": "grep×2, report_intent×1",
+        "answer": "`rebuildImpl` is an unexported (lowercase) Go function and is only ever called within `pkg/api/api_impl.go` itself. No functions in other files call it.",
+        "missedParts": [
+          "api.go"
+        ],
+        "missedAnswerLines": [
+          "Build → api.go"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 7,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 39908,
+          "tokensUsed": 1634,
+          "answerCoverage": 0.8,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "grep": 4,
+            "view": 1
+          }
+        },
+        "tools": "grep×4, report_intent×1, lore_dependents×1, view×1",
+        "loreToolArgs": "lore_dependents(query=rebuildImpl, kind=symbol, compact=true)",
+        "answer": "No functions in other files call `rebuildImpl`. It is only called within `pkg/api/api_impl.go` itself (by `activeBuildOrRecentBuildOrRebuild` at line 1007), and its lowercase name makes it unexported/package-private in Go. No other file—inside or outside the package—references it.",
+        "missedParts": [
+          "api.go"
+        ],
+        "missedAnswerLines": [
+          "Build → api.go"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 1154,
+        "tokensPct": 240.41666666666669,
+        "wallTimeMs": 20131,
+        "wallTimePct": 101.78995803205744
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "esbuild-7.2-rebuildImpl",
+      "family": "localization",
+      "iteration": 3,
+      "control": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 2,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 18034,
+          "tokensUsed": 426,
+          "answerCoverage": 0.8,
+          "fileCoverage": 0.5,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1
+          }
+        },
+        "tools": "report_intent×1, grep×1",
+        "answer": "No functions in other files call `rebuildImpl`. It is only called within `pkg/api/api_impl.go` itself (line 1007), and it is unexported (lowercase), so it cannot be referenced from outside that package file.",
+        "missedParts": [
+          "api.go"
+        ],
+        "missedAnswerLines": [
+          "Build → api.go"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 28,
+          "uniqueFilesRead": 5,
+          "wallTimeMs": 111182,
+          "tokensUsed": 8306,
+          "answerCoverage": 0.8,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "lore_dependents": 1,
+            "bash": 12,
+            "view": 11,
+            "task": 1
+          }
+        },
+        "tools": "bash×12, view×11, grep×2, report_intent×1, lore_dependents×1, task×1",
+        "loreToolArgs": "lore_dependents(query=rebuildImpl, kind=symbol, compact=true)",
+        "answer": "No function in any other file directly calls `rebuildImpl` — it is only called on line 1007 of `pkg/api/api_impl.go` itself (by the `rebuild` method). All external callers reach it indirectly through wrapper functions. There are no results to list in the requested format.",
+        "missedParts": [
+          "api.go"
+        ],
+        "missedAnswerLines": [
+          "Build → api.go"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 7880,
+        "tokensPct": 1849.7652582159624,
+        "wallTimeMs": 93148,
+        "wallTimePct": 516.5132527448153
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "esbuild-7.2-rebuildImpl",
+      "family": "localization",
+      "iteration": 4,
+      "control": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 3,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 20811,
+          "tokensUsed": 527,
+          "answerCoverage": 0.8,
+          "fileCoverage": 0.5,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2
+          }
+        },
+        "tools": "grep×2, report_intent×1",
+        "answer": "`rebuildImpl` is an unexported (lowercase) function that is only referenced within `pkg/api/api_impl.go` itself — both its definition (line 1465) and its sole call site (line 1007) are in that same file. No functions in other files call it.",
+        "missedParts": [
+          "api.go"
+        ],
+        "missedAnswerLines": [
+          "Build → api.go"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 9,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 42488,
+          "tokensUsed": 2095,
+          "answerCoverage": 0.8,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "grep": 6,
+            "view": 1
+          }
+        },
+        "tools": "grep×6, report_intent×1, lore_dependents×1, view×1",
+        "loreToolArgs": "lore_dependents(query=rebuildImpl, kind=symbol, compact=true)",
+        "answer": "No functions in other files call `rebuildImpl`. It is only called directly within `pkg/api/api_impl.go` itself — specifically by the `activeBuildOrRecentBuildOrRebuild` method at line 1007, which unpacks the returned `(rebuildState, map[string]string)` into `build.state` and `newHashes`, then broadc…",
+        "missedParts": [
+          "api.go"
+        ],
+        "missedAnswerLines": [
+          "Build → api.go"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 1568,
+        "tokensPct": 297.5332068311195,
+        "wallTimeMs": 21677,
+        "wallTimePct": 104.1612608716544
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "esbuild-7.2-rebuildImpl",
+      "family": "localization",
+      "iteration": 5,
+      "control": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 2,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 17511,
+          "tokensUsed": 400,
+          "answerCoverage": 0.8,
+          "fileCoverage": 0.5,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1
+          }
+        },
+        "tools": "report_intent×1, grep×1",
+        "answer": "`rebuildImpl` is an unexported (lowercase) Go function, and the grep shows it is **only called within `pkg/api/api_impl.go` itself** (line 1007). No other file calls it.  There are no callers in other files.",
+        "missedParts": [
+          "api.go"
+        ],
+        "missedAnswerLines": [
+          "Build → api.go"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 8,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 44340,
+          "tokensUsed": 2239,
+          "answerCoverage": 0.8,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "grep": 6
+          }
+        },
+        "tools": "grep×6, report_intent×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=rebuildImpl, kind=symbol, compact=true)",
+        "answer": "No functions in other files call `rebuildImpl`. It is only called once, from the `rebuild` method in the same file (`pkg/api/api_impl.go`, line 1007), where the return value is unpacked into `build.state` and `newHashes`.",
+        "missedParts": [
+          "api.go"
+        ],
+        "missedAnswerLines": [
+          "Build → api.go"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 1839,
+        "tokensPct": 459.75,
+        "wallTimeMs": 26829,
+        "wallTimePct": 153.21226657529553
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "esbuild-7.3-Build",
+      "family": "localization",
+      "iteration": 1,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 33,
+          "uniqueFilesRead": 5,
+          "wallTimeMs": 100047,
+          "tokensUsed": 7343,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "bash": 18,
+            "view": 11,
+            "task": 1
+          }
+        },
+        "tools": "bash×18, view×11, grep×2, report_intent×1, task×1",
+        "answer": "``` Build → pkg/api/api.go contextImpl → pkg/api/api_impl.go validateBuildOptions → pkg/api/api_impl.go loadPlugins → pkg/api/api_impl.go (*internalContext).Rebuild → pkg/api/api_impl.go (*internalContext).rebuild → pkg/api/api_impl.go rebuildImpl → pkg/api/api_impl.go printSummary → pkg/api/api_imp…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0,
+          "firstPassAccurate": true,
+          "toolCallCount": 11,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 39531,
+          "tokensUsed": 1747,
+          "answerCoverage": 0.5,
+          "fileCoverage": 1,
+          "symbolCoverage": 0.5,
+          "loreToolCallCount": 8,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_dependents",
+            "lore_trace",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 5,
+            "lore_dependents": 1,
+            "lore_trace": 1,
+            "lore_graph": 1,
+            "bash": 2
+          }
+        },
+        "tools": "lore_lookup×5, bash×2, report_intent×1, lore_dependents×1, lore_trace×1, lore_graph×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=Build, mode=exact), lore_dependents(query=Build, kind=symbol, compact=true), lore_trace(from=7632, depth=2, max_source_lines=30), lore_graph(kind=call, source_id=7632, compact=true), lore_lookup(kind=symbol, query=contextImpl, mode=exact), lore_lookup(kind=symbol, query=Rebuild, mode=exact), lore_lookup(kind=symbol, query=Dispose, mode=exact), lore_lookup(kind=symbol, query=printSummary, mode=exact)",
+        "answer": "contextImpl → pkg/api/api_impl.go (*internalContext).Rebuild → pkg/api/api_impl.go printSummary → pkg/api/api_impl.go (*internalContext).Dispose → pkg/api/api_impl.go",
+        "missedParts": [
+          "rebuildImpl"
+        ],
+        "missedAnswerLines": [
+          "rebuildImpl → pkg/api/api_impl.go"
+        ]
+      },
+      "delta": {
+        "correctness": -1,
+        "tokens": -5596,
+        "tokensPct": -76.20863407326706,
+        "wallTimeMs": -60516,
+        "wallTimePct": -60.4875708417044
+      },
+      "warnings": [
+        "lore worse on correctness — missed: [rebuildImpl → pkg/api/api_impl.go]"
+      ]
+    },
+    {
+      "taskId": "esbuild-7.3-Build",
+      "family": "localization",
+      "iteration": 2,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 41,
+          "uniqueFilesRead": 5,
+          "wallTimeMs": 108917,
+          "tokensUsed": 7879,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "glob": 2,
+            "grep": 2,
+            "view": 16,
+            "bash": 19,
+            "task": 1
+          }
+        },
+        "tools": "bash×19, view×16, glob×2, grep×2, report_intent×1, task×1",
+        "answer": "``` Build → pkg/api/api.go contextImpl → pkg/api/api_impl.go (*internalContext).Rebuild → pkg/api/api_impl.go (*internalContext).rebuild → pkg/api/api_impl.go rebuildImpl → pkg/api/api_impl.go ScanBundle → internal/bundler/bundler.go (*Bundle).Compile → internal/bundler/bundler.go Link → internal/li…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 23,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 72822,
+          "tokensUsed": 3495,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 13,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_dependents",
+            "lore_trace",
+            "lore_graph",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 9,
+            "lore_dependents": 1,
+            "lore_trace": 1,
+            "lore_graph": 1,
+            "bash": 2,
+            "lore_snippet": 1,
+            "grep": 4,
+            "view": 3
+          }
+        },
+        "tools": "lore_lookup×9, grep×4, view×3, bash×2, report_intent×1, lore_dependents×1, lore_trace×1, lore_graph×1, lore_snippet×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=Build, symbol_kind=function), lore_dependents(query=Build, kind=symbol, compact=true), lore_trace(from=7632, depth=2, max_source_lines=30), lore_graph(kind=call, source_id=7632, compact=true), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api.go, start_line=387, end_line=405), lore_lookup(kind=symbol, query=Rebuild, symbol_kind=function, path_prefix=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api), lore_lookup(kind=symbol, query=Dispose, symbol_kind=function, path_prefix=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api), lore_lookup(kind=symbol, path_prefix=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api, query=rebuild, symbol_kind=function), lore_lookup(kind=symbol, path_prefix=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api, query=contextImpl, symbol_kind=function), lore_lookup(kind=symbol, path_prefix=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api, query=printSummary, symbol_kind=function), lore_lookup(kind=symbol, query=ScanBundle, symbol_kind=function), lore_lookup(kind=symbol, query=Compile, symbol_kind=function), lore_lookup(kind=symbol, query=Link, symbol_kind=function, path_prefix=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/internal/linker)",
+        "answer": "Here is the delegation chain from `Build`:  contextImpl → pkg/api/api_impl.go Rebuild → pkg/api/api_impl.go rebuild → pkg/api/api_impl.go printSummary → pkg/api/api_impl.go Dispose → pkg/api/api_impl.go rebuildImpl → pkg/api/api_impl.go ScanBundle → internal/bundler/bundler.go Compile → internal/bun…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -4384,
+        "tokensPct": -55.6415788805686,
+        "wallTimeMs": -36095,
+        "wallTimePct": -33.13991387937604
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "esbuild-7.3-Build",
+      "family": "localization",
+      "iteration": 3,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 40,
+          "uniqueFilesRead": 7,
+          "wallTimeMs": 105410,
+          "tokensUsed": 9086,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 7,
+            "view": 15,
+            "bash": 16,
+            "task": 1
+          }
+        },
+        "tools": "bash×16, view×15, grep×7, report_intent×1, task×1",
+        "answer": "contextImpl → pkg/api/api_impl.go rebuild → pkg/api/api_impl.go rebuildImpl → pkg/api/api_impl.go buildOrContextImpl → lib/shared/common.ts build → lib/npm/node.ts build → lib/npm/browser.ts build → lib/deno/mod.ts build → lib/deno/wasm.ts",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0,
+          "firstPassAccurate": true,
+          "toolCallCount": 11,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 32213,
+          "tokensUsed": 1273,
+          "answerCoverage": 0.5,
+          "fileCoverage": 1,
+          "symbolCoverage": 0.5,
+          "loreToolCallCount": 10,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_dependents",
+            "lore_snippet",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 5,
+            "lore_dependents": 1,
+            "lore_snippet": 2,
+            "lore_graph": 2
+          }
+        },
+        "tools": "lore_lookup×5, lore_snippet×2, lore_graph×2, report_intent×1, lore_dependents×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=Build, match_mode=exact), lore_dependents(query=Build, kind=symbol, compact=true), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api.go, start_line=387, end_line=405), lore_graph(kind=call, source_id=7632, compact=true), lore_lookup(kind=symbol, query=contextImpl, match_mode=exact), lore_lookup(kind=symbol, query=Rebuild, match_mode=exact), lore_lookup(kind=symbol, query=printSummary, match_mode=exact), lore_lookup(kind=symbol, query=Dispose, match_mode=exact, path_prefix=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api), lore_graph(compact=true, kind=call, source_id=7785), lore_snippet(end_line=1068, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api_impl.go, start_line=1066)",
+        "answer": "contextImpl → pkg/api/api_impl.go (*internalContext).Rebuild → pkg/api/api_impl.go (*internalContext).rebuild → pkg/api/api_impl.go printSummary → pkg/api/api_impl.go (*internalContext).Dispose → pkg/api/api_impl.go",
+        "missedParts": [
+          "rebuildImpl"
+        ],
+        "missedAnswerLines": [
+          "rebuildImpl → pkg/api/api_impl.go"
+        ]
+      },
+      "delta": {
+        "correctness": -1,
+        "tokens": -7813,
+        "tokensPct": -85.98943429451904,
+        "wallTimeMs": -73197,
+        "wallTimePct": -69.44028080827246
+      },
+      "warnings": [
+        "lore worse on correctness — missed: [rebuildImpl → pkg/api/api_impl.go]"
+      ]
+    },
+    {
+      "taskId": "esbuild-7.3-Build",
+      "family": "localization",
+      "iteration": 4,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 42,
+          "uniqueFilesRead": 4,
+          "wallTimeMs": 120539,
+          "tokensUsed": 9185,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 4,
+            "bash": 23,
+            "view": 13,
+            "task": 1
+          }
+        },
+        "tools": "bash×23, view×13, grep×4, report_intent×1, task×1",
+        "answer": "contextImpl → pkg/api/api_impl.go Rebuild → pkg/api/api_impl.go rebuild → pkg/api/api_impl.go rebuildImpl → pkg/api/api_impl.go ScanBundle → internal/bundler/bundler.go Compile → internal/bundler/bundler.go",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0,
+          "firstPassAccurate": true,
+          "toolCallCount": 11,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 33472,
+          "tokensUsed": 1396,
+          "answerCoverage": 0.5,
+          "fileCoverage": 1,
+          "symbolCoverage": 0.5,
+          "loreToolCallCount": 8,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_dependents",
+            "lore_trace",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 5,
+            "lore_dependents": 1,
+            "lore_trace": 1,
+            "lore_graph": 1,
+            "bash": 2
+          }
+        },
+        "tools": "lore_lookup×5, bash×2, report_intent×1, lore_dependents×1, lore_trace×1, lore_graph×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=Build, symbol_kind=function), lore_dependents(query=Build, kind=symbol, compact=true), lore_trace(from=7632, depth=2, max_source_lines=30), lore_graph(kind=call, source_id=7632, compact=true), lore_lookup(kind=symbol, query=Rebuild, symbol_kind=method), lore_lookup(kind=symbol, query=Dispose, symbol_kind=method), lore_lookup(kind=symbol, query=contextImpl, symbol_kind=function), lore_lookup(kind=symbol, query=printSummary, symbol_kind=function)",
+        "answer": "contextImpl → pkg/api/api_impl.go (*internalContext).Rebuild → pkg/api/api_impl.go printSummary → pkg/api/api_impl.go (*internalContext).Dispose → pkg/api/api_impl.go",
+        "missedParts": [
+          "rebuildImpl"
+        ],
+        "missedAnswerLines": [
+          "rebuildImpl → pkg/api/api_impl.go"
+        ]
+      },
+      "delta": {
+        "correctness": -1,
+        "tokens": -7789,
+        "tokensPct": -84.80130647795319,
+        "wallTimeMs": -87067,
+        "wallTimePct": -72.23139398866756
+      },
+      "warnings": [
+        "lore worse on correctness — missed: [rebuildImpl → pkg/api/api_impl.go]"
+      ]
+    },
+    {
+      "taskId": "esbuild-7.3-Build",
+      "family": "localization",
+      "iteration": 5,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 34,
+          "uniqueFilesRead": 5,
+          "wallTimeMs": 110619,
+          "tokensUsed": 7894,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "bash": 15,
+            "grep": 1,
+            "view": 16,
+            "task": 1
+          }
+        },
+        "tools": "view×16, bash×15, report_intent×1, grep×1, task×1",
+        "answer": "contextImpl → pkg/api/api_impl.go Rebuild → pkg/api/api_impl.go rebuild → pkg/api/api_impl.go rebuildImpl → pkg/api/api_impl.go ScanBundle → internal/bundler/bundler.go preprocessInjectedFiles → internal/bundler/bundler.go addEntryPoints → internal/bundler/bundler.go scanAllDependencies → internal/b…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0,
+          "firstPassAccurate": true,
+          "toolCallCount": 11,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 38033,
+          "tokensUsed": 1777,
+          "answerCoverage": 0.5,
+          "fileCoverage": 1,
+          "symbolCoverage": 0.5,
+          "loreToolCallCount": 8,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_dependents",
+            "lore_trace",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 5,
+            "lore_dependents": 1,
+            "lore_trace": 1,
+            "lore_graph": 1,
+            "bash": 2
+          }
+        },
+        "tools": "lore_lookup×5, bash×2, report_intent×1, lore_dependents×1, lore_trace×1, lore_graph×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=Build, mode=exact), lore_dependents(query=Build, kind=symbol, compact=true), lore_trace(from=7632, depth=2, max_source_lines=30), lore_graph(kind=call, source_id=7632, compact=true), lore_lookup(kind=symbol, query=contextImpl, mode=exact), lore_lookup(kind=symbol, query=Rebuild, mode=exact, path_prefix=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg), lore_lookup(kind=symbol, query=Dispose, mode=exact, path_prefix=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg), lore_lookup(kind=symbol, query=printSummary, mode=exact)",
+        "answer": "contextImpl → pkg/api/api_impl.go (*internalContext).Rebuild → pkg/api/api_impl.go printSummary → pkg/api/api_impl.go (*internalContext).Dispose → pkg/api/api_impl.go",
+        "missedParts": [
+          "rebuildImpl"
+        ],
+        "missedAnswerLines": [
+          "rebuildImpl → pkg/api/api_impl.go"
+        ]
+      },
+      "delta": {
+        "correctness": -1,
+        "tokens": -6117,
+        "tokensPct": -77.48923232835064,
+        "wallTimeMs": -72586,
+        "wallTimePct": -65.61802222041422
+      },
+      "warnings": [
+        "lore worse on correctness — missed: [rebuildImpl → pkg/api/api_impl.go]"
+      ]
+    },
+    {
+      "taskId": "esbuild-10.1-rebuildImpl",
+      "family": "explanation",
+      "iteration": 1,
+      "control": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 4,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 27912,
+          "tokensUsed": 847,
+          "answerCoverage": 0.6,
+          "fileCoverage": 0.5,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 1
+          }
+        },
+        "tools": "grep×2, report_intent×1, view×1",
+        "answer": "1 rebuild → pkg/api/api_impl.go",
+        "missedParts": [
+          "api.go",
+          "rebuildImpl"
+        ],
+        "missedAnswerLines": [
+          "Build → api.go"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 5,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 33801,
+          "tokensUsed": 1186,
+          "answerCoverage": 0.6,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "grep": 2,
+            "view": 1
+          }
+        },
+        "tools": "grep×2, report_intent×1, lore_dependents×1, view×1",
+        "loreToolArgs": "lore_dependents(query=rebuildImpl, kind=symbol, compact=true)",
+        "answer": "1 rebuild → pkg/api/api_impl.go",
+        "missedParts": [
+          "api.go",
+          "rebuildImpl"
+        ],
+        "missedAnswerLines": [
+          "Build → api.go"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 339,
+        "tokensPct": 40.023612750885476,
+        "wallTimeMs": 5889,
+        "wallTimePct": 21.098452278589853
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "esbuild-10.1-rebuildImpl",
+      "family": "explanation",
+      "iteration": 2,
+      "control": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 3,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 26981,
+          "tokensUsed": 785,
+          "answerCoverage": 0.6,
+          "fileCoverage": 0.5,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2
+          }
+        },
+        "tools": "grep×2, report_intent×1",
+        "answer": "1 rebuild → pkg/api/api_impl.go",
+        "missedParts": [
+          "api.go",
+          "rebuildImpl"
+        ],
+        "missedAnswerLines": [
+          "Build → api.go"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 5,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 46246,
+          "tokensUsed": 1540,
+          "answerCoverage": 0.6,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "grep": 2,
+            "view": 1
+          }
+        },
+        "tools": "grep×2, report_intent×1, lore_dependents×1, view×1",
+        "loreToolArgs": "lore_dependents(query=rebuildImpl, kind=symbol, compact=true)",
+        "answer": "1 rebuild → pkg/api/api_impl.go",
+        "missedParts": [
+          "api.go",
+          "rebuildImpl"
+        ],
+        "missedAnswerLines": [
+          "Build → api.go"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 755,
+        "tokensPct": 96.17834394904459,
+        "wallTimeMs": 19265,
+        "wallTimePct": 71.40209777250658
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "esbuild-10.1-rebuildImpl",
+      "family": "explanation",
+      "iteration": 3,
+      "control": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 6,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 36536,
+          "tokensUsed": 1126,
+          "answerCoverage": 0.8,
+          "fileCoverage": 0.5,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 2,
+            "bash": 1
+          }
+        },
+        "tools": "grep×2, view×2, report_intent×1, bash×1",
+        "answer": "The grep results show `rebuildImpl` appears only in `pkg/api/api_impl.go` — once as the definition (line 1465) and once as a call (line 1007) inside the `rebuild` method (defined at line 978).  1 rebuild → pkg/api/api_impl.go",
+        "missedParts": [
+          "api.go"
+        ],
+        "missedAnswerLines": [
+          "Build → api.go"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 5,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 37159,
+          "tokensUsed": 1489,
+          "answerCoverage": 0.6,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "grep": 2,
+            "view": 1
+          }
+        },
+        "tools": "grep×2, report_intent×1, lore_dependents×1, view×1",
+        "loreToolArgs": "lore_dependents(query=rebuildImpl, kind=symbol, compact=true)",
+        "answer": "1 rebuild → pkg/api/api_impl.go",
+        "missedParts": [
+          "api.go",
+          "rebuildImpl"
+        ],
+        "missedAnswerLines": [
+          "Build → api.go"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 363,
+        "tokensPct": 32.238010657193605,
+        "wallTimeMs": 623,
+        "wallTimePct": 1.7051675060214582
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "esbuild-10.1-rebuildImpl",
+      "family": "explanation",
+      "iteration": 4,
+      "control": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 4,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 29532,
+          "tokensUsed": 900,
+          "answerCoverage": 0.6,
+          "fileCoverage": 0.5,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 1,
+            "bash": 1
+          }
+        },
+        "tools": "report_intent×1, grep×1, view×1, bash×1",
+        "answer": "1 rebuild → pkg/api/api_impl.go",
+        "missedParts": [
+          "api.go",
+          "rebuildImpl"
+        ],
+        "missedAnswerLines": [
+          "Build → api.go"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 6,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 34172,
+          "tokensUsed": 1270,
+          "answerCoverage": 0.6,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "grep": 2,
+            "view": 2
+          }
+        },
+        "tools": "grep×2, view×2, report_intent×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=rebuildImpl, kind=symbol, compact=true)",
+        "answer": "1 rebuild → pkg/api/api_impl.go",
+        "missedParts": [
+          "api.go",
+          "rebuildImpl"
+        ],
+        "missedAnswerLines": [
+          "Build → api.go"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 370,
+        "tokensPct": 41.11111111111111,
+        "wallTimeMs": 4640,
+        "wallTimePct": 15.711770283082757
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "esbuild-10.1-rebuildImpl",
+      "family": "explanation",
+      "iteration": 5,
+      "control": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 6,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 32986,
+          "tokensUsed": 962,
+          "answerCoverage": 0.8,
+          "fileCoverage": 0.5,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 1,
+            "bash": 2
+          }
+        },
+        "tools": "grep×2, bash×2, report_intent×1, view×1",
+        "answer": "`rebuildImpl` is only called from one non-test source file (`pkg/api/api_impl.go`), by one function.  1 (*internalContext).rebuild → pkg/api/api_impl.go",
+        "missedParts": [
+          "api.go"
+        ],
+        "missedAnswerLines": [
+          "Build → api.go"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 5,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 35071,
+          "tokensUsed": 1298,
+          "answerCoverage": 0.8,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "grep": 1,
+            "view": 2
+          }
+        },
+        "tools": "view×2, report_intent×1, lore_dependents×1, grep×1",
+        "loreToolArgs": "lore_dependents(query=rebuildImpl, kind=symbol, compact=true)",
+        "answer": "The grep shows only one call site for `rebuildImpl` (line 1007 in `api_impl.go`), in the `rebuild` method. The lore dependents showed transitive callers. Since there is only 1 direct call site and it's in the same file as the definition, there are **0 distinct source files (other than the defining f…",
+        "missedParts": [
+          "api.go"
+        ],
+        "missedAnswerLines": [
+          "Build → api.go"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 336,
+        "tokensPct": 34.92723492723493,
+        "wallTimeMs": 2085,
+        "wallTimePct": 6.320863396592494
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "esbuild-10.3-rebuildImpl",
+      "family": "explanation",
+      "iteration": 1,
+      "control": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.8,
+          "firstPassAccurate": false,
+          "toolCallCount": 13,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 62724,
+          "tokensUsed": 2067,
+          "answerCoverage": 0.8,
+          "fileCoverage": 0.5,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 10,
+            "view": 2
+          }
+        },
+        "tools": "grep×10, view×2, report_intent×1",
+        "answer": "Now I have the complete picture. Here's the answer:  There is only **one direct call** to `rebuildImpl` — inside `ctx.rebuild()` (line 1007 of `pkg/api/api_impl.go`). The callers differ in how they invoke `ctx.rebuild()`:  **Return a single field from the result (one-shot, discards rest of state):**…",
+        "missedParts": [
+          "api.go"
+        ],
+        "missedAnswerLines": [
+          "api.go"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 9,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 36138,
+          "tokensUsed": 1767,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 8,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "lore_snippet": 7
+          }
+        },
+        "tools": "lore_snippet×7, report_intent×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=rebuildImpl, kind=symbol, compact=false), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api_impl.go, start_line=1000, end_line=1100), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api_impl.go, start_line=1050, end_line=1100), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api.go, start_line=385, end_line=410), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/serve_other.go, start_line=895, end_line=920), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/cli/cli_impl.go, start_line=1370, end_line=1395), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/cli/cli.go, start_line=25, end_line=45), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api_impl.go, start_line=970, end_line=1010)",
+        "answer": "Now I have a complete picture. Here's the call graph:  - `rebuildImpl(args, oldHashes)` is only called **directly** in one place: `ctx.rebuild()` (the private method). - All other \"callers\" reach it **indirectly** through `ctx.rebuild()` or `ctx.Rebuild()` or `api.Build()`.  Here are the callers gro…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0.19999999999999996,
+        "tokens": -300,
+        "tokensPct": -14.513788098693759,
+        "wallTimeMs": -26586,
+        "wallTimePct": -42.38568968815764
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "esbuild-10.3-rebuildImpl",
+      "family": "explanation",
+      "iteration": 2,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 8,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 54197,
+          "tokensUsed": 1977,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 7
+          }
+        },
+        "tools": "grep×7, report_intent×1",
+        "answer": "`rebuildImpl` has exactly **one direct call site** — inside `ctx.rebuild()` (line 1007). But `ctx.rebuild()` is reached through distinct patterns:  **One-shot, result-only (public API):** - `buildImpl` in `pkg/api/api.go:396` — initial build via `ctx.Rebuild()` - `activeBuildOrRecentBuildOrRebuild` …",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 14,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 81696,
+          "tokensUsed": 5131,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 12,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "lore_snippet": 11,
+            "grep": 1
+          }
+        },
+        "tools": "lore_snippet×11, report_intent×1, lore_dependents×1, grep×1",
+        "loreToolArgs": "lore_dependents(query=rebuildImpl, kind=symbol, compact=false), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api_impl.go, start_line=1000, end_line=1015), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api_impl.go, start_line=1055, end_line=1100), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api.go, start_line=390, end_line=400), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/serve_other.go, start_line=895, end_line=915), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/cli/cli_impl.go, start_line=1370, end_line=1390), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/cli/cli.go, start_line=25, end_line=45), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api_impl.go, start_line=977, end_line=1040), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api_impl.go, start_line=1040, end_line=1105), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api.go, start_line=387, end_line=410), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/serve_other.go, start_line=895, end_line=910), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/cli/cli_impl.go, start_line=1342, end_line=1385)",
+        "answer": "There is only **one direct call** to `rebuildImpl` — inside `rebuild()`. All other callers reach it transitively through `rebuild` → `rebuildImpl`. Here are the patterns:  **Direct call with mutex orchestration and result broadcasting:**   `rebuild` in pkg/api/api_impl.go — captures both `rebuildSta…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 3154,
+        "tokensPct": 159.53464845725847,
+        "wallTimeMs": 27499,
+        "wallTimePct": 50.738970791741245
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "esbuild-10.3-rebuildImpl",
+      "family": "explanation",
+      "iteration": 3,
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 13,
+          "uniqueFilesRead": 3,
+          "wallTimeMs": 79108,
+          "tokensUsed": 3653,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 6,
+            "view": 6
+          }
+        },
+        "tools": "grep×6, view×6, report_intent×1",
+        "answer": "Here's the breakdown. `rebuildImpl` has a single direct call site — inside `ctx.rebuild()` at line 1007 — but it's reached through distinct calling patterns:  **One-shot, result used then context disposed:**   `Build` in `pkg/api/api.go:396` — calls `ctx.Rebuild()`, prints summary, then `ctx.Dispose…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 7,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 46465,
+          "tokensUsed": 2661,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 6,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "lore_snippet": 5
+          }
+        },
+        "tools": "lore_snippet×5, report_intent×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=rebuildImpl, kind=symbol, compact=false), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api_impl.go, start_line=1000, end_line=1100), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api.go, start_line=385, end_line=410), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/serve_other.go, start_line=895, end_line=915), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/cli/cli_impl.go, start_line=1370, end_line=1395), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/cli/cli.go, start_line=25, end_line=45)",
+        "answer": "Here are the callers of `rebuildImpl` grouped by calling pattern:  **Direct call capturing full state (both result and hashes), with post-processing (broadcast + watcher):**   `rebuild` in pkg/api/api_impl.go  **Thin wrapper extracting a single field from rebuild():**   `Rebuild` in pkg/api/api_impl…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -992,
+        "tokensPct": -27.155762387079115,
+        "wallTimeMs": -32643,
+        "wallTimePct": -41.263841836476715
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "esbuild-10.3-rebuildImpl",
+      "family": "explanation",
+      "iteration": 4,
+      "control": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.6,
+          "firstPassAccurate": false,
+          "toolCallCount": 5,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 34007,
+          "tokensUsed": 949,
+          "answerCoverage": 0.6,
+          "fileCoverage": 0.5,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 3,
+            "view": 1
+          }
+        },
+        "tools": "grep×3, report_intent×1, view×1",
+        "answer": "`rebuildImpl` has exactly **one call site** (line 1007), inside `internalContext.rebuild()`. That method is itself called in two places. Here's the grouping:  **Direct call (result stored, post-processing follows):** - `internalContext.rebuild()` in `pkg/api/api_impl.go:1007` — the sole caller. It c…",
+        "missedParts": [
+          "activeBuildOrRecentBuildOrRebuild",
+          "api.go"
+        ],
+        "missedAnswerLines": [
+          "activeBuildOrRecentBuildOrRebuild",
+          "api.go"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 22,
+          "uniqueFilesRead": 6,
+          "wallTimeMs": 98934,
+          "tokensUsed": 9442,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "view": 15,
+            "bash": 3,
+            "grep": 1,
+            "task": 1
+          }
+        },
+        "tools": "view×15, bash×3, report_intent×1, lore_dependents×1, grep×1, task×1",
+        "loreToolArgs": "lore_dependents(query=rebuildImpl, kind=symbol, compact=false)",
+        "answer": "**Direct call with full argument passing and multi-return destructuring:**   `rebuild` in pkg/api/api_impl.go — only caller passing `(args, oldHashes)` directly; destructures both `rebuildState` and `newHashes`, then broadcasts results to handler/watcher  **Closure callback for repeated async invoca…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0.4,
+        "tokens": 8493,
+        "tokensPct": 894.9420442571128,
+        "wallTimeMs": 64927,
+        "wallTimePct": 190.9224571411768
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "esbuild-10.3-rebuildImpl",
+      "family": "explanation",
+      "iteration": 5,
+      "control": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.6,
+          "firstPassAccurate": false,
+          "toolCallCount": 4,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 25433,
+          "tokensUsed": 586,
+          "answerCoverage": 0.6,
+          "fileCoverage": 0.5,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 3
+          }
+        },
+        "tools": "grep×3, report_intent×1",
+        "answer": "`rebuildImpl` has exactly **one caller** in the entire codebase:  **Single call site, result captured with post-processing:**   `contextRebuild` (anonymous goroutine body) in `pkg/api/api_impl.go:1007`  It is called as `build.state, newHashes = rebuildImpl(args, oldHashes)` — both return values are …",
+        "missedParts": [
+          "activeBuildOrRecentBuildOrRebuild",
+          "api.go"
+        ],
+        "missedAnswerLines": [
+          "activeBuildOrRecentBuildOrRebuild",
+          "api.go"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 12,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 67272,
+          "tokensUsed": 4173,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 11,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "lore_snippet": 10
+          }
+        },
+        "tools": "lore_snippet×10, report_intent×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=rebuildImpl, kind=symbol, compact=false), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api_impl.go, start_line=1000, end_line=1015), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api_impl.go, start_line=1055, end_line=1100), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api.go, start_line=388, end_line=405), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/serve_other.go, start_line=895, end_line=915), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/cli/cli_impl.go, start_line=1370, end_line=1390), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/cli/cli.go, start_line=25, end_line=45), lore_snippet(end_line=1070, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api_impl.go, start_line=1036), lore_snippet(end_line=1034, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api_impl.go, start_line=977), lore_snippet(end_line=1110, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api_impl.go, start_line=1086), lore_snippet(end_line=1400, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/cli/cli_impl.go, start_line=1340)",
+        "answer": "**Direct call with concurrency management (mutex + WaitGroup + hash tracking):**   `rebuild` in pkg/api/api_impl.go  **Thin wrapper returning only BuildResult:**   `Rebuild` in pkg/api/api_impl.go  **With build coalescing (reuses active/recent build before triggering rebuild):**   `activeBuildOrRece…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0.4,
+        "tokens": 3587,
+        "tokensPct": 612.1160409556314,
+        "wallTimeMs": 41839,
+        "wallTimePct": 164.5067432076436
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "esbuild-11.2-rebuildImpl",
+      "family": "modification",
+      "iteration": 1,
+      "control": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 2,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 20060,
+          "tokensUsed": 586,
+          "answerCoverage": 0.8,
+          "fileCoverage": 0.5,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1
+          }
+        },
+        "tools": "report_intent×1, grep×1",
+        "answer": "No functions in other files call `rebuildImpl`. It is an unexported function referenced only within `pkg/api/api_impl.go` itself (called on line 1007, defined on line 1465).",
+        "missedParts": [
+          "api.go"
+        ],
+        "missedAnswerLines": [
+          "Build → api.go"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 7,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 44446,
+          "tokensUsed": 2308,
+          "answerCoverage": 0.8,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 5,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "lore_snippet": 4,
+            "grep": 1
+          }
+        },
+        "tools": "lore_snippet×4, report_intent×1, lore_dependents×1, grep×1",
+        "loreToolArgs": "lore_dependents(query=rebuildImpl, kind=symbol, compact=false), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api.go, start_line=396, end_line=396), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/serve_other.go, start_line=904, end_line=904), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/cli/cli_impl.go, start_line=1379, end_line=1379), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/cli/cli.go, start_line=31, end_line=37)",
+        "answer": "The grep confirms `rebuildImpl` is only referenced within `pkg/api/api_impl.go` itself (called at line 1007, defined at line 1465). It's an unexported function, and no other file references it directly.  No functions in other files would break — `rebuildImpl` is only called within `pkg/api/api_impl.…",
+        "missedParts": [
+          "api.go"
+        ],
+        "missedAnswerLines": [
+          "Build → api.go"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 1722,
+        "tokensPct": 293.85665529010237,
+        "wallTimeMs": 24386,
+        "wallTimePct": 121.56530408773678
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "esbuild-11.2-rebuildImpl",
+      "family": "modification",
+      "iteration": 2,
+      "control": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 4,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 31026,
+          "tokensUsed": 874,
+          "answerCoverage": 0.8,
+          "fileCoverage": 0.5,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 1
+          }
+        },
+        "tools": "grep×2, report_intent×1, view×1",
+        "answer": "No functions in other files would break. `rebuildImpl` is only called within `pkg/api/api_impl.go` itself (by the `rebuild` method on line 1007). There are zero references to `rebuildImpl` in any other file.",
+        "missedParts": [
+          "api.go"
+        ],
+        "missedAnswerLines": [
+          "Build → api.go"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 7,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 42015,
+          "tokensUsed": 2126,
+          "answerCoverage": 0.8,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 5,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "lore_snippet": 4,
+            "grep": 1
+          }
+        },
+        "tools": "lore_snippet×4, report_intent×1, lore_dependents×1, grep×1",
+        "loreToolArgs": "lore_dependents(query=rebuildImpl, kind=symbol, compact=false), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api.go, start_line=396, end_line=396), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/serve_other.go, start_line=904, end_line=904), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/cli/cli_impl.go, start_line=1379, end_line=1379), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/cli/cli.go, start_line=31, end_line=37)",
+        "answer": "`rebuildImpl` is only called within `pkg/api/api_impl.go` itself (at line 1007 inside the `rebuild` method). No functions in other files directly reference `rebuildImpl`, so **no functions in other files would break**.",
+        "missedParts": [
+          "api.go"
+        ],
+        "missedAnswerLines": [
+          "Build → api.go"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 1252,
+        "tokensPct": 143.24942791762015,
+        "wallTimeMs": 10989,
+        "wallTimePct": 35.41868110616902
+      },
+      "warnings": [
+        "lore 50%+ more tokens"
+      ]
+    },
+    {
+      "taskId": "esbuild-11.2-rebuildImpl",
+      "family": "modification",
+      "iteration": 3,
+      "control": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 2,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 15347,
+          "tokensUsed": 327,
+          "answerCoverage": 0.8,
+          "fileCoverage": 0.5,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1
+          }
+        },
+        "tools": "report_intent×1, grep×1",
+        "answer": "`rebuildImpl` is only referenced within `pkg/api/api_impl.go` itself — no functions in **other** files call it. Deleting it would break only its single call site within the same file (line 1007), not any external callers.",
+        "missedParts": [
+          "api.go"
+        ],
+        "missedAnswerLines": [
+          "Build → api.go"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 8,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 52008,
+          "tokensUsed": 2494,
+          "answerCoverage": 0.8,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 6,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_snippet",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "lore_snippet": 4,
+            "lore_graph": 1,
+            "grep": 1
+          }
+        },
+        "tools": "lore_snippet×4, report_intent×1, lore_dependents×1, lore_graph×1, grep×1",
+        "loreToolArgs": "lore_dependents(query=rebuildImpl, kind=symbol, compact=false), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api.go, start_line=394, end_line=398), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/serve_other.go, start_line=902, end_line=906), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/cli/cli_impl.go, start_line=1377, end_line=1381), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/cli/cli.go, start_line=29, end_line=39), lore_graph(kind=call, target_id=7779, compact=false)",
+        "answer": "No functions in other files would break. `rebuildImpl` is only referenced within `pkg/api/api_impl.go` itself — it's called on line 1007 by the `rebuild` method and defined on line 1465. No other file in the repository references `rebuildImpl` directly.",
+        "missedParts": [
+          "api.go"
+        ],
+        "missedAnswerLines": [
+          "Build → api.go"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 2167,
+        "tokensPct": 662.6911314984709,
+        "wallTimeMs": 36661,
+        "wallTimePct": 238.8805629764775
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "esbuild-11.2-rebuildImpl",
+      "family": "modification",
+      "iteration": 4,
+      "control": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 3,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 21040,
+          "tokensUsed": 487,
+          "answerCoverage": 0.8,
+          "fileCoverage": 0.5,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 1
+          }
+        },
+        "tools": "report_intent×1, grep×1, view×1",
+        "answer": "`rebuildImpl` is only called from within the same file (`pkg/api/api_impl.go`), so deleting it would not break any functions in **other** files. The sole caller is at line 1007 in `api_impl.go` itself.  No functions in other files would break.",
+        "missedParts": [
+          "api.go"
+        ],
+        "missedAnswerLines": [
+          "Build → api.go"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 7,
+          "uniqueFilesRead": 4,
+          "wallTimeMs": 50703,
+          "tokensUsed": 2649,
+          "answerCoverage": 0.8,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "view": 4,
+            "grep": 1
+          }
+        },
+        "tools": "view×4, report_intent×1, lore_dependents×1, grep×1",
+        "loreToolArgs": "lore_dependents(query=rebuildImpl, kind=symbol, compact=false)",
+        "answer": "All references to `rebuildImpl` are within `pkg/api/api_impl.go` itself (one definition at line 1465, one call at line 1007). No functions in other files directly call `rebuildImpl`, so no functions in other files would break.",
+        "missedParts": [
+          "api.go"
+        ],
+        "missedAnswerLines": [
+          "Build → api.go"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 2162,
+        "tokensPct": 443.94250513347026,
+        "wallTimeMs": 29663,
+        "wallTimePct": 140.9838403041825
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "esbuild-11.2-rebuildImpl",
+      "family": "modification",
+      "iteration": 5,
+      "control": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 4,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 26633,
+          "tokensUsed": 818,
+          "answerCoverage": 0.8,
+          "fileCoverage": 0.5,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 1
+          }
+        },
+        "tools": "grep×2, report_intent×1, view×1",
+        "answer": "`rebuildImpl` is only called from within `pkg/api/api_impl.go` itself (and it's unexported, so no other package can reference it). No functions in other files would break.",
+        "missedParts": [
+          "api.go"
+        ],
+        "missedAnswerLines": [
+          "Build → api.go"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.5,
+          "firstPassAccurate": false,
+          "toolCallCount": 3,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 30327,
+          "tokensUsed": 1218,
+          "answerCoverage": 0.8,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "lore_dependents": 1
+          }
+        },
+        "tools": "report_intent×1, grep×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=rebuildImpl, kind=symbol, compact=true)",
+        "answer": "The grep confirms `rebuildImpl` is only referenced within `pkg/api/api_impl.go` itself (defined on line 1465, called on line 1007). No other file in the repository directly references `rebuildImpl`, so **no functions in other files would break**. All callers found by the dependency graph (like `Buil…",
+        "missedParts": [
+          "api.go"
+        ],
+        "missedAnswerLines": [
+          "Build → api.go"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 400,
+        "tokensPct": 48.899755501222494,
+        "wallTimeMs": 3694,
+        "wallTimePct": 13.870010888747043
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "esbuild-11.3-rebuildImpl",
+      "family": "refactoring",
+      "iteration": 1,
+      "control": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.8333333333333334,
+          "firstPassAccurate": false,
+          "toolCallCount": 6,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 26403,
+          "tokensUsed": 849,
+          "answerCoverage": 0.8333333333333334,
+          "fileCoverage": 0.5,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 4
+          }
+        },
+        "tools": "view×4, report_intent×1, grep×1",
+        "answer": "**Callers:** 1 **Verdict:** No — `rebuildImpl` is ~150 lines with heavy side effects (filesystem I/O, file writes/deletes, goroutine spawning, logging, plugin callbacks). Even with a single caller, inlining would bloat the already-large `rebuild()` method and reduce readability. The separation clean…",
+        "missedParts": [
+          "api.go"
+        ],
+        "missedAnswerLines": [
+          "api.go"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.8333333333333334,
+          "firstPassAccurate": true,
+          "toolCallCount": 9,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 39046,
+          "tokensUsed": 1410,
+          "answerCoverage": 0.8333333333333334,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 3,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_lookup"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "lore_lookup": 2,
+            "grep": 1,
+            "view": 4
+          }
+        },
+        "tools": "view×4, lore_lookup×2, report_intent×1, lore_dependents×1, grep×1",
+        "loreToolArgs": "lore_dependents(query=rebuildImpl, kind=symbol, compact=true), lore_lookup(kind=symbol, query=rebuildImpl), lore_lookup(kind=symbol, query=activeBuildOrRecentBuildOrRebuild)",
+        "answer": "Here's the complete analysis:  **Callers: 1** **Verdict: Yes** — `rebuildImpl` has exactly 1 caller, so inlining would not duplicate any logic. However, it is a **216-line** function with significant side effects (logging, file I/O via the full build pipeline, writing output files). Inlining is *saf…",
+        "missedParts": [
+          "api.go"
+        ],
+        "missedAnswerLines": [
+          "api.go"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 561,
+        "tokensPct": 66.07773851590106,
+        "wallTimeMs": 12643,
+        "wallTimePct": 47.884710070825285
+      },
+      "warnings": [
+        "lore 50%+ more tokens"
+      ]
+    },
+    {
+      "taskId": "esbuild-11.3-rebuildImpl",
+      "family": "refactoring",
+      "iteration": 2,
+      "control": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.8333333333333334,
+          "firstPassAccurate": false,
+          "toolCallCount": 6,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 27429,
+          "tokensUsed": 858,
+          "answerCoverage": 0.8333333333333334,
+          "fileCoverage": 0.5,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 4
+          }
+        },
+        "tools": "view×4, report_intent×1, grep×1",
+        "answer": "**Callers:** 1 **Verdict:** No — `rebuildImpl` is ~160 lines with heavy side effects (filesystem writes/deletes, log output, goroutine spawning, bundle scanning/compiling). Although there's only one caller, inlining would bloat `rebuild()` from ~50 lines to ~210 lines, harming readability. The funct…",
+        "missedParts": [
+          "api.go"
+        ],
+        "missedAnswerLines": [
+          "api.go"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.8333333333333334,
+          "firstPassAccurate": true,
+          "toolCallCount": 7,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 42213,
+          "tokensUsed": 1480,
+          "answerCoverage": 0.8333333333333334,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 2,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_lookup"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "lore_lookup": 1,
+            "grep": 3,
+            "view": 1
+          }
+        },
+        "tools": "grep×3, report_intent×1, lore_dependents×1, lore_lookup×1, view×1",
+        "loreToolArgs": "lore_dependents(query=rebuildImpl, kind=symbol, compact=true), lore_lookup(kind=symbol, query=rebuildImpl)",
+        "answer": "The function containing line 1007 is `rebuild` (starting at line 978). There is exactly **one** direct call site.  **Callers:** 1 **Verdict:** No — `rebuildImpl` is 216 lines (lines 1464–1679) with heavy side effects (runs the full esbuild bundler pipeline: scanning, parsing, linking, code generatio…",
+        "missedParts": [
+          "api.go"
+        ],
+        "missedAnswerLines": [
+          "api.go"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 622,
+        "tokensPct": 72.49417249417249,
+        "wallTimeMs": 14784,
+        "wallTimePct": 53.899157825658975
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "esbuild-11.3-rebuildImpl",
+      "family": "refactoring",
+      "iteration": 3,
+      "control": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.8333333333333334,
+          "firstPassAccurate": false,
+          "toolCallCount": 8,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 36732,
+          "tokensUsed": 1115,
+          "answerCoverage": 0.8333333333333334,
+          "fileCoverage": 0.5,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 6
+          }
+        },
+        "tools": "view×6, report_intent×1, grep×1",
+        "answer": "**Callers:** 1 **Verdict:** No — `rebuildImpl` spans ~215 lines (1465–1680) with heavy side effects (file I/O writes/deletes, stdout writes, plugin callbacks, logging). Although there is only one caller, inlining would bloat an already complex method (`rebuild`) and bury critical I/O logic inside mu…",
+        "missedParts": [
+          "api.go"
+        ],
+        "missedAnswerLines": [
+          "api.go"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.8333333333333334,
+          "firstPassAccurate": true,
+          "toolCallCount": 10,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 45478,
+          "tokensUsed": 1759,
+          "answerCoverage": 0.8333333333333334,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 3,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_lookup",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "lore_lookup": 1,
+            "lore_snippet": 1,
+            "grep": 4,
+            "view": 2
+          }
+        },
+        "tools": "grep×4, view×2, report_intent×1, lore_dependents×1, lore_lookup×1, lore_snippet×1",
+        "loreToolArgs": "lore_dependents(query=rebuildImpl, kind=symbol, compact=true), lore_lookup(kind=symbol, query=rebuildImpl), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api_impl.go, symbol=rebuildImpl)",
+        "answer": "There is exactly **one** direct call site. The `lore_dependents` result included transitive callers (callers-of-callers up to 5 hops).  **Callers: 1** **Verdict: No — `rebuildImpl` is 216 lines with heavy side effects (file I/O writes, file deletions, stdout writes, logging, goroutine spawning, plug…",
+        "missedParts": [
+          "api.go"
+        ],
+        "missedAnswerLines": [
+          "api.go"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 644,
+        "tokensPct": 57.75784753363229,
+        "wallTimeMs": 8746,
+        "wallTimePct": 23.810301644342807
+      },
+      "warnings": [
+        "lore 50%+ more tokens"
+      ]
+    },
+    {
+      "taskId": "esbuild-11.3-rebuildImpl",
+      "family": "refactoring",
+      "iteration": 4,
+      "control": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.8333333333333334,
+          "firstPassAccurate": false,
+          "toolCallCount": 8,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 33886,
+          "tokensUsed": 1138,
+          "answerCoverage": 0.8333333333333334,
+          "fileCoverage": 0.5,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 6
+          }
+        },
+        "tools": "view×6, report_intent×1, grep×1",
+        "answer": "**Callers:** 1 **Verdict:** No — `rebuildImpl` is ~215 lines (1465–1679) with heavy side effects (file I/O writes/deletes, stdout writes, plugin callbacks, logging). Even with a single caller, inlining would bloat `rebuild()` and obscure the clean separation between \"orchestrate a build\" and \"execut…",
+        "missedParts": [
+          "api.go"
+        ],
+        "missedAnswerLines": [
+          "api.go"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.8333333333333334,
+          "firstPassAccurate": true,
+          "toolCallCount": 7,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 34136,
+          "tokensUsed": 1201,
+          "answerCoverage": 0.8333333333333334,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 2,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_lookup"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "lore_lookup": 1,
+            "grep": 1,
+            "view": 2,
+            "bash": 1
+          }
+        },
+        "tools": "view×2, report_intent×1, lore_dependents×1, lore_lookup×1, grep×1, bash×1",
+        "loreToolArgs": "lore_dependents(query=rebuildImpl, kind=symbol, compact=true), lore_lookup(kind=symbol, query=rebuildImpl)",
+        "answer": "**Callers: 1** **Verdict: Yes — `rebuildImpl` has exactly 1 caller, so inlining would not duplicate any logic. However, it is 216 lines long with significant side effects (logging, file I/O, bundling pipeline), so inlining is *safe* but would hurt readability. From a pure deduplication standpoint it…",
+        "missedParts": [
+          "api.go"
+        ],
+        "missedAnswerLines": [
+          "api.go"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 63,
+        "tokensPct": 5.536028119507909,
+        "wallTimeMs": 250,
+        "wallTimePct": 0.7377678097149265
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "esbuild-11.3-rebuildImpl",
+      "family": "refactoring",
+      "iteration": 5,
+      "control": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 0.8333333333333334,
+          "firstPassAccurate": false,
+          "toolCallCount": 8,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 35516,
+          "tokensUsed": 1207,
+          "answerCoverage": 0.8333333333333334,
+          "fileCoverage": 0.5,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 6
+          }
+        },
+        "tools": "view×6, report_intent×1, grep×1",
+        "answer": "Now I have all the information needed.  **Callers:** 1 **Verdict:** No — `rebuildImpl` is 215 lines (1465–1680) with heavy side effects (file I/O writes/deletes, stdout writes, logging, goroutine spawning, plugin callbacks). However, the single-caller argument would technically permit inlining. The …",
+        "missedParts": [
+          "api.go"
+        ],
+        "missedAnswerLines": [
+          "api.go"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.8333333333333334,
+          "firstPassAccurate": true,
+          "toolCallCount": 8,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 39477,
+          "tokensUsed": 1317,
+          "answerCoverage": 0.8333333333333334,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 3,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_lookup"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "lore_lookup": 2,
+            "grep": 1,
+            "view": 3
+          }
+        },
+        "tools": "view×3, lore_lookup×2, report_intent×1, lore_dependents×1, grep×1",
+        "loreToolArgs": "lore_dependents(query=rebuildImpl, kind=symbol, compact=true), lore_lookup(kind=symbol, query=rebuildImpl), lore_lookup(kind=symbol, query=activeBuildOrRecentBuildOrRebuild)",
+        "answer": "The single call at line 1007 is inside the `rebuild` method (starts at line 978).  Here's the analysis:  **Callers: 1** **Verdict: No** — `rebuildImpl` is 216 lines (1464–1679) with heavy side effects (creates a filesystem, spawns the full build pipeline via `runBuild`, writes output files, computes…",
+        "missedParts": [
+          "api.go"
+        ],
+        "missedAnswerLines": [
+          "api.go"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 110,
+        "tokensPct": 9.113504556752279,
+        "wallTimeMs": 3961,
+        "wallTimePct": 11.15271990088974
+      },
+      "warnings": []
+    }
+  ],
+  "aggregate": {
+    "control": {
+      "arm": "control",
+      "totalRuns": 65,
+      "successRate": 0.46153846153846156,
+      "partialRate": 0.5384615384615384,
+      "failRate": 0,
+      "meanCorrectness": 0.7346153846153848,
+      "meanToolCalls": 25.984615384615385,
+      "meanUniqueFiles": 2.707692307692308,
+      "meanWallTimeMs": 97883.98461538462,
+      "meanTokens": 6697.446153846154,
+      "meanAnswerCoverage": 0.7882051282051282,
+      "meanFileCoverage": 0.7769230769230769,
+      "meanSymbolCoverage": 0.9615384615384616,
+      "firstPassAccuracyRate": 0,
+      "meanLoreToolCalls": 0,
+      "loreToolUsageRate": 0,
+      "allLoreToolsUsed": [],
+      "toolCallCounts": {
+        "report_intent": 65,
+        "grep": 291,
+        "view": 563,
+        "bash": 731,
+        "task": 30,
+        "glob": 7,
+        "read_agent": 2
+      },
+      "stdCorrectness": 0.2659056147210339,
+      "stdToolCalls": 32.413101280429565,
+      "stdWallTimeMs": 92270.76788867307,
+      "stdTokens": 7386.520950417831,
+      "stdAnswerCoverage": 0.275641975997169,
+      "stdFileCoverage": 0.2504803078395279,
+      "stdSymbolCoverage": 0.13427153888239377
+    },
+    "lore": {
+      "arm": "lore-enabled",
+      "totalRuns": 65,
+      "successRate": 0.7384615384615385,
+      "partialRate": 0.26153846153846155,
+      "failRate": 0,
+      "meanCorrectness": 0.671794871794872,
+      "meanToolCalls": 14.63076923076923,
+      "meanUniqueFiles": 1.1384615384615384,
+      "meanWallTimeMs": 70227.69230769231,
+      "meanTokens": 4257.784615384616,
+      "meanAnswerCoverage": 0.7338461538461539,
+      "meanFileCoverage": 0.9564102564102563,
+      "meanSymbolCoverage": 0.9307692307692308,
+      "firstPassAccuracyRate": 0.46153846153846156,
+      "meanLoreToolCalls": 4.569230769230769,
+      "loreToolUsageRate": 1,
+      "allLoreToolsUsed": [
+        "lore_dependents",
+        "lore_graph",
+        "lore_lookup",
+        "lore_snippet",
+        "lore_search",
+        "lore_trace"
+      ],
+      "toolCallCounts": {
+        "report_intent": 66,
+        "lore_dependents": 69,
+        "lore_graph": 55,
+        "grep": 159,
+        "view": 189,
+        "bash": 222,
+        "lore_lookup": 83,
+        "lore_snippet": 74,
+        "task": 7,
+        "read_agent": 6,
+        "lore_search": 2,
+        "glob": 5,
+        "lore_trace": 14
+      },
+      "stdCorrectness": 0.31591087269541634,
+      "stdToolCalls": 25.65733888113766,
+      "stdWallTimeMs": 81937.1199058543,
+      "stdTokens": 6638.215475779965,
+      "stdAnswerCoverage": 0.3034233101266367,
+      "stdFileCoverage": 0.13905972399514832,
+      "stdSymbolCoverage": 0.17403580533459637
+    },
+    "comparison": {
+      "successRateDelta": 0.27692307692307694,
+      "correctnessDelta": -0.06282051282051282,
+      "firstPassAccuracyDelta": 0.46153846153846156,
+      "answerCoverageDelta": -0.0543589743589743,
+      "toolCallsDelta": -11.353846153846154,
+      "tokensDelta": -2439.661538461538,
+      "tokensPct": -36.4267436037617,
+      "wallTimeDelta": -27656.292307692303,
+      "wallTimePct": -28.254154565082455
+    },
+    "significance": {
+      "t": -1.226560545304357,
+      "df": 124.37863322757255,
+      "p": 0.22230471204881685,
+      "significant": false
+    }
+  }
+}
