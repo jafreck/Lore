@@ -11,7 +11,7 @@
 
 Lore holds your agent's institutional knowledge over the codebase — it knows what was built, why it changed, and how it all connects. Lore indexes your code and git history into a structured knowledge base that agents query through MCP. It maps symbols, imports, call relationships, type relationships, annotations, docs, and all git data — with optional embeddings for semantic search — so agents can reason about your codebase without re-reading it from scratch.
 
-Lore-enabled agents achieve up to **8.8× faster** responses, up to **97% fewer tokens**, and up to **+33pp correctness improvement** on code intelligence tasks compared to a baseline agent with grep and file reads alone. See the [full benchmark results](docs/benchmark-results.md) for details.
+Lore-enabled agents achieve **+11pp higher success rate**, **29% fewer tokens**, and **39% fewer tool calls** across 6 benchmark repos (390 runs) compared to a baseline agent with grep and file reads alone. See the [full benchmark results](docs/benchmark-results.md) for details.
 
 ## What Lore does
 
