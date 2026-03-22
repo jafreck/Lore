@@ -35,6 +35,8 @@ export interface RawSymbol {
   docComment?: string;
   /** True when declaration is exported from its module. */
   isExported?: boolean;
+  /** Name of the enclosing parent symbol, if this symbol is nested (e.g. inner function, class method). */
+  parentName?: string;
   /** Normalized declaration-surface metadata for dependency API indexing. */
   declarationSurface?: DeclarationSurface;
   /** Original AST node for the symbol declaration/expression, when available. */

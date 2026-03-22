@@ -75,12 +75,14 @@ function extractNamedDecl(node: Parser.SyntaxNode, kind: string): RawSymbol {
     startLine: node.startPosition.row,
     endLine: node.endPosition.row,
     signature: nodeSignature(node),
+    parentName: findEnclosingSymbolName(node, JS_SYMBOL_NODE_TYPES) || undefined,
   };
 }
 
 function extractJsClassMembers(classNode: Parser.SyntaxNode, result: ExtractionResult): void {
   const body = classNode.childForFieldName('body');
   if (!body) return;
+  const className = classNode.childForFieldName('name')?.text;
   for (const child of body.namedChildren) {
     if (child.type === 'method_definition') {
       const nameNode = child.childForFieldName('name');
@@ -93,6 +95,7 @@ function extractJsClassMembers(classNode: Parser.SyntaxNode, result: ExtractionR
         startLine: child.startPosition.row,
         endLine: child.endPosition.row,
         signature: nodeSignature(child),
+        parentName: className || undefined,
       });
     }
   }

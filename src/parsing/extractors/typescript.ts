@@ -169,6 +169,7 @@ function extractNamedDecl(
     signature: nodeSignature(node),
     ...(docComment ? { docComment } : {}),
     ...(isNodeExported(node) ? { isExported: true } : {}),
+    parentName: findEnclosingSymbolName(node, TS_SYMBOL_NODE_TYPES) || undefined,
     astNode: node,
   };
 }
@@ -206,6 +207,7 @@ function extractClassMembers(
         endLine: child.endPosition.row,
         signature: nodeSignature(child),
         ...(docComment ? { docComment } : {}),
+        parentName: classNode.childForFieldName('name')?.text || undefined,
         astNode: child,
       });
     }
