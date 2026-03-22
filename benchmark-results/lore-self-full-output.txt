@@ -1,0 +1,1276 @@
+
+[1m[46m RUN [49m[22m [36mv4.0.18 [39m[90m/Users/jacobfreck/Source/Lore[39m
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self
+[22m[39m
+lore-self cloned at 660be2bf, indexed in 4051ms
+DB: /var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/.lore.db
+Model: claude-opus-4.6
+Index: scip | Embeddings: none | LSP: false
+Tasks: 13 | Iterations: 5
+
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-1.1-openDb [iter 5]: control + lore-enabled arms
+[22m[39m[control] lore-self-1.1-openDb: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=4441 wall=85.6s
+  tools: view×19, grep×3, report_intent×1, task×1
+  answer: Now I have the complete picture. The functions/methods that directly call `openDb` are:  build update ingestSummary ingestCoverage main createDb createTestDb
+[lore]    lore-self-1.1-openDb: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=3048 wall=76.3s
+  tools: grep×3, report_intent×1, lore_dependents×1, lore_graph×1, view×1
+  lore calls: lore_dependents(query=openDb, kind=symbol, compact=true), lore_graph(kind=call, target_id=409, compact=true)
+  answer: build update ingestSummary ingestCoverage main createDb createTestDb
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-1.2-build [iter 1]: control + lore-enabled arms
+[22m[39m[control] lore-self-1.1-openDb: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=3256 wall=66.3s
+  tools: view×16, grep×2, report_intent×1
+  answer: build update ingestSummary ingestCoverage main createDb createTestDb
+[lore]    lore-self-1.1-openDb: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=4454 wall=100.5s
+  tools: view×6, grep×5, report_intent×1, lore_dependents×1, lore_graph×1
+  lore calls: lore_dependents(query=openDb, kind=symbol, compact=true), lore_graph(kind=call, target_id=409, compact=true)
+  answer: build update ingestSummary ingestCoverage main createDb createTestDb
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-1.2-build [iter 2]: control + lore-enabled arms
+[22m[39m[control] lore-self-1.1-openDb: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=2715 wall=65.8s
+  tools: view×5, bash×3, report_intent×1, grep×1
+  answer: build update ingestSummary ingestCoverage main createDb createTestDb
+[lore]    lore-self-1.1-openDb: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=4107 wall=102.1s
+  tools: grep×3, view×2, report_intent×1, lore_dependents×1, lore_graph×1
+  lore calls: lore_dependents(query=openDb, kind=symbol, compact=true), lore_graph(kind=call, target_id=409, compact=true)
+  answer: build update ingestSummary ingestCoverage main createDb createTestDb
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-1.2-build [iter 3]: control + lore-enabled arms
+[22m[39m[control] lore-self-1.1-openDb: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=3123 wall=62.7s
+  tools: view×14, report_intent×1, grep×1, bash×1
+  answer: build update ingestSummary ingestCoverage main createDb createTestDb
+[lore]    lore-self-1.1-openDb: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=4845 wall=106.6s
+  tools: view×7, grep×3, report_intent×1, lore_dependents×1, lore_graph×1
+  lore calls: lore_dependents(query=openDb, kind=symbol, compact=true), lore_graph(kind=call, target_id=409, compact=true)
+  answer: build update ingestSummary ingestCoverage main createDb createTestDb
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-1.2-build [iter 4]: control + lore-enabled arms
+[22m[39m[control] lore-self-1.1-openDb: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=3792 wall=68.0s
+  tools: view×16, grep×2, report_intent×1
+  answer: build update ingestSummary ingestCoverage main createDb createTestDb
+[lore]    lore-self-1.1-openDb: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=4341 wall=110.5s
+  tools: grep×5, view×3, report_intent×1, lore_dependents×1, lore_graph×1, bash×1
+  lore calls: lore_dependents(query=openDb, kind=symbol, compact=true), lore_graph(kind=call, target_id=409, compact=true)
+  answer: build update ingestSummary ingestCoverage main createDb createTestDb
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-1.2-build [iter 5]: control + lore-enabled arms
+[22m[39m[control] lore-self-1.2-build: success=1 correctness=0.90 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=754 wall=28.4s
+  tools: grep×3, report_intent×1, view×1
+  answer: Based on the `build()` method body, the direct callees are:  getLogger performance.now openDb this.resolveBranch log.indexing IndexPipeline ScipSourceStage SourceIndexStage DocsIndexStage ImportResolutionStage DependencyApiStage LspEnrichmentStage resolutionStage testMapStage historyStage EmbeddingS…
+  MISSED answer lines: [<constructor>]
+[lore]    lore-self-1.2-build: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=1275 wall=44.4s
+  tools: bash×3, report_intent×1, lore_lookup×1, lore_graph×1
+  lore calls: lore_lookup(kind=symbol, query=build, mode=exact), lore_graph(kind=call, source_id=1839, compact=true)
+  answer: getLogger openDb resolveBranch <constructor> resolutionStage testMapStage historyStage pipeline.run saveLastKnownHead gatherDbStats log.startup
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-1.4-resolveSymbolEdges [iter 1]: control + lore-enabled arms
+[22m[39m[control] lore-self-1.2-build: success=1 correctness=0.90 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=763 wall=32.2s
+  tools: grep×3, report_intent×1, view×1
+  answer: Based on the `build()` method body, the direct callees are:  getLogger performance.now openDb this.resolveBranch log.indexing IndexPipeline ScipSourceStage SourceIndexStage DocsIndexStage ImportResolutionStage DependencyApiStage LspEnrichmentStage resolutionStage testMapStage historyStage EmbeddingS…
+  MISSED answer lines: [<constructor>]
+[lore]    lore-self-1.2-build: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=527 wall=24.0s
+  tools: report_intent×1, lore_lookup×1, lore_graph×1, bash×1
+  lore calls: lore_lookup(kind=symbol, query=build, mode=exact), lore_graph(kind=call, source_id=1839, compact=true)
+  answer: <constructor> gatherDbStats getLogger historyStage log.startup openDb pipeline.run resolutionStage resolveBranch saveLastKnownHead testMapStage
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-1.4-resolveSymbolEdges [iter 2]: control + lore-enabled arms
+[22m[39m[control] lore-self-1.2-build: success=1 correctness=0.90 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=2284 wall=41.1s
+  tools: grep×2, view×2, report_intent×1
+  answer: getLogger performance.now openDb resolveBranch log.indexing IndexPipeline ScipSourceStage SourceIndexStage DocsIndexStage ImportResolutionStage DependencyApiStage LspEnrichmentStage resolutionStage testMapStage historyStage EmbeddingStage pipeline.run saveLastKnownHead gatherDbStats Math.round log.s…
+  MISSED answer lines: [<constructor>]
+[lore]    lore-self-1.2-build: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=541 wall=25.2s
+  tools: report_intent×1, lore_lookup×1, lore_graph×1, bash×1
+  lore calls: lore_lookup(kind=symbol, query=build, mode=exact), lore_graph(kind=call, source_id=1839, compact=true)
+  answer: <constructor> gatherDbStats getLogger historyStage log.startup openDb pipeline.run resolutionStage resolveBranch saveLastKnownHead testMapStage
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-1.4-resolveSymbolEdges [iter 3]: control + lore-enabled arms
+[22m[39m[control] lore-self-1.2-build: success=1 correctness=0.90 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=2205 wall=43.8s
+  tools: grep×2, view×2, report_intent×1, task×1
+  answer: getLogger performance.now openDb resolveBranch log.indexing IndexPipeline ScipSourceStage SourceIndexStage DocsIndexStage ImportResolutionStage DependencyApiStage LspEnrichmentStage resolutionStage testMapStage historyStage EmbeddingStage pipeline.run saveLastKnownHead gatherDbStats Math.round fs.ex…
+  MISSED answer lines: [<constructor>]
+[lore]    lore-self-1.2-build: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=1354 wall=42.4s
+  tools: bash×3, report_intent×1, lore_lookup×1, lore_graph×1
+  lore calls: lore_lookup(kind=symbol, query=build, mode=exact), lore_graph(kind=call, source_id=1839, compact=true)
+  answer: getLogger openDb resolveBranch <constructor> resolutionStage testMapStage historyStage pipeline.run saveLastKnownHead gatherDbStats log.startup
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-1.4-resolveSymbolEdges [iter 4]: control + lore-enabled arms
+[22m[39m[control] lore-self-1.2-build: success=1 correctness=0.90 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=1470 wall=52.9s
+  tools: grep×2, report_intent×1, view×1
+  answer: getLogger performance.now openDb resolveBranch log.indexing ScipSourceStage SourceIndexStage DocsIndexStage ImportResolutionStage DependencyApiStage LspEnrichmentStage resolutionStage testMapStage historyStage EmbeddingStage IndexPipeline pipeline.run saveLastKnownHead gatherDbStats Math.round log.s…
+  MISSED answer lines: [<constructor>]
+[lore]    lore-self-1.2-build: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=528 wall=24.5s
+  tools: report_intent×1, lore_lookup×1, lore_graph×1, bash×1
+  lore calls: lore_lookup(kind=symbol, query=build, mode=exact), lore_graph(kind=call, source_id=1839, compact=true)
+  answer: <constructor> gatherDbStats getLogger historyStage log.startup openDb pipeline.run resolutionStage resolveBranch saveLastKnownHead testMapStage
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-1.4-resolveSymbolEdges [iter 5]: control + lore-enabled arms
+[22m[39m[control] lore-self-1.4-resolveSymbolEdges: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=9108 wall=124.6s
+  tools: view×15, grep×12, bash×10, report_intent×1, task×1
+  answer: Good — it imports `resolveSymbolEdges` directly and calls it in tests. Now here's the complete list:  ``` src/indexer/index.ts: resolutionStage src/indexer/index.ts: IndexBuilder.build src/indexer/index.ts: IndexBuilder.update src/cli.ts: main src/discovery/watcher.ts: FileWatcher.flush src/discover…
+[lore]    lore-self-1.4-resolveSymbolEdges: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=466 wall=17.4s
+  tools: report_intent×1, lore_dependents×1
+  lore calls: lore_dependents(query=resolveSymbolEdges, kind=symbol, compact=true)
+  answer: src/indexer/index.ts resolutionStage src/indexer/index.ts build src/indexer/index.ts update src/discovery/watcher.ts flush src/discovery/watcher.ts scheduleFlush src/discovery/watcher.ts start src/discovery/watcher.ts errors0 src/discovery/poller.ts poll src/discovery/poller.ts start src/cli.ts main…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-1.3-build [iter 1]: control + lore-enabled arms
+[22m[39m[control] lore-self-1.4-resolveSymbolEdges: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=10080 wall=123.2s
+  tools: view×13, bash×11, grep×7, report_intent×1, task×1
+  answer: ``` src/indexer/index.ts - resolutionStage src/index.ts - re-export src/indexer/pipeline.ts - IndexPipeline.run src/indexer/index.ts - IndexBuilder.build src/indexer/index.ts - IndexBuilder.update src/cli.ts - main src/discovery/poller.ts - FilePoller.poll src/discovery/watcher.ts - FileWatcher.flus…
+[lore]    lore-self-1.4-resolveSymbolEdges: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=468 wall=18.9s
+  tools: report_intent×1, lore_dependents×1
+  lore calls: lore_dependents(query=resolveSymbolEdges, kind=symbol, compact=true)
+  answer: src/indexer/index.ts resolutionStage src/indexer/index.ts build src/indexer/index.ts update src/discovery/watcher.ts flush src/discovery/watcher.ts scheduleFlush src/discovery/watcher.ts start src/discovery/watcher.ts errors0 src/discovery/poller.ts poll src/discovery/poller.ts start src/cli.ts main…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-1.3-build [iter 2]: control + lore-enabled arms
+[22m[39m[control] lore-self-1.4-resolveSymbolEdges: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=8485 wall=123.3s
+  tools: bash×15, view×14, report_intent×1, glob×1, grep×1, task×1
+  answer: ``` src/indexer/index.ts resolutionStage tests/db/typerefs.test.ts test cases tests/resolution/call-graph.test.ts test cases tests/resolution/graph-analysis.test.ts test cases tests/indexer/index.test.ts test cases src/indexer/index.ts IndexBuilder.build src/indexer/index.ts IndexBuilder.update src/…
+[lore]    lore-self-1.4-resolveSymbolEdges: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=466 wall=18.9s
+  tools: report_intent×1, lore_dependents×1
+  lore calls: lore_dependents(query=resolveSymbolEdges, kind=symbol, compact=true)
+  answer: src/indexer/index.ts resolutionStage src/indexer/index.ts build src/indexer/index.ts update src/discovery/watcher.ts flush src/discovery/watcher.ts scheduleFlush src/discovery/watcher.ts start src/discovery/watcher.ts errors0 src/discovery/poller.ts poll src/discovery/poller.ts start src/cli.ts main…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-1.3-build [iter 3]: control + lore-enabled arms
+[22m[39m[control] lore-self-1.4-resolveSymbolEdges: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=14879 wall=183.6s
+  tools: view×26, bash×20, grep×16, task×2, report_intent×1
+  answer: ``` src/resolution/call-graph.ts — resolveSymbolEdges src/indexer/index.ts — resolutionStage src/indexer/index.ts — IndexBuilder.build src/indexer/index.ts — IndexBuilder.update src/cli.ts — main src/discovery/watcher.ts — FileWatcher.flush src/discovery/poller.ts — FilePoller.poll src/index.ts — (r…
+[lore]    lore-self-1.4-resolveSymbolEdges: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=451 wall=18.0s
+  tools: report_intent×1, lore_dependents×1
+  lore calls: lore_dependents(query=resolveSymbolEdges, kind=symbol, compact=true)
+  answer: src/indexer/index.ts resolutionStage src/indexer/index.ts build src/indexer/index.ts update src/discovery/watcher.ts flush src/discovery/watcher.ts scheduleFlush src/discovery/watcher.ts start src/discovery/poller.ts poll src/discovery/poller.ts start src/cli.ts main src/runtime.ts embedder1 tests/i…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-1.3-build [iter 4]: control + lore-enabled arms
+[22m[39m[control] lore-self-1.4-resolveSymbolEdges: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=12043 wall=159.1s
+  tools: bash×21, view×15, grep×6, report_intent×1, task×1
+  answer: ``` src/indexer/index.ts resolutionStage src/index.ts (barrel re-export) tests/resolution/call-graph.test.ts (test blocks) tests/db/typerefs.test.ts (test blocks) tests/indexer/index.test.ts (test blocks) tests/resolution/graph-analysis.test.ts (test blocks) tests/api-surface.test.ts (test blocks) s…
+[lore]    lore-self-1.4-resolveSymbolEdges: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=466 wall=18.0s
+  tools: report_intent×1, lore_dependents×1
+  lore calls: lore_dependents(query=resolveSymbolEdges, kind=symbol, compact=true)
+  answer: src/indexer/index.ts resolutionStage src/indexer/index.ts build src/indexer/index.ts update src/discovery/watcher.ts flush src/discovery/watcher.ts scheduleFlush src/discovery/watcher.ts start src/discovery/watcher.ts errors0 src/discovery/poller.ts poll src/discovery/poller.ts start src/cli.ts main…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-1.3-build [iter 5]: control + lore-enabled arms
+[22m[39m[control] lore-self-1.3-build: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=969 wall=31.2s
+  tools: grep×3, report_intent×1, view×1
+  answer: Now let me identify each direct callee and arguments in the `build()` method:  ``` getLogger() performance.now() openDb(this.dbPath) this.resolveBranch() log.indexing('build started', { dbPath: this.dbPath, branch, rootDir: this.walkerConfig.rootDir }) ScipSourceStage() SourceIndexStage() DocsIndexS…
+[lore]    lore-self-1.3-build: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=4291 wall=69.9s
+  tools: bash×2, report_intent×1, lore_lookup×1, lore_snippet×1, lore_graph×1
+  lore calls: lore_lookup(kind=symbol, query=build, mode=exact), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, start_line=127, end_line=189), lore_graph(kind=call, source_id=1839, compact=false)
+  answer: getLogger() openDb(this.dbPath) resolveBranch() IndexPipeline([new ScipSourceStage(), new SourceIndexStage(), new DocsIndexStage(), new ImportResolutionStage(), new DependencyApiStage(), new LspEnrichmentStage(), resolutionStage(), testMapStage(), historyStage(), new EmbeddingStage()]) resolutionSta…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-1.5-openDb [iter 1]: control + lore-enabled arms
+[22m[39m[control] lore-self-1.3-build: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=4821 wall=76.6s
+  tools: view×2, report_intent×1, grep×1
+  answer: getLogger() performance.now() openDb(this.dbPath) this.resolveBranch() log.indexing('build started', { dbPath: this.dbPath, branch, rootDir: this.walkerConfig.rootDir }) new ScipSourceStage() new SourceIndexStage() new DocsIndexStage() new ImportResolutionStage() new DependencyApiStage() new LspEnri…
+[lore]    lore-self-1.3-build: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=6102 wall=100.4s
+  tools: bash×2, report_intent×1, lore_lookup×1, lore_snippet×1, lore_graph×1
+  lore calls: lore_lookup(kind=symbol, query=build), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, start_line=127, end_line=189), lore_graph(kind=call, source_id=1839, compact=false)
+  answer: getLogger() openDb(this.dbPath) resolveBranch() IndexPipeline([new ScipSourceStage(), new SourceIndexStage(), new DocsIndexStage(), new ImportResolutionStage(), new DependencyApiStage(), new LspEnrichmentStage(), resolutionStage(), testMapStage(), historyStage(), new EmbeddingStage()]) resolutionSta…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-1.5-openDb [iter 2]: control + lore-enabled arms
+[22m[39m[control] lore-self-1.3-build: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=3644 wall=58.1s
+  tools: grep×3, report_intent×1, view×1
+  answer: Now I can see all the direct callees and their arguments:  getLogger() performance.now() openDb(this.dbPath) this.resolveBranch() log.indexing('build started', { dbPath: this.dbPath, branch, rootDir: this.walkerConfig.rootDir }) new IndexPipeline([new ScipSourceStage(), new SourceIndexStage(), new D…
+[lore]    lore-self-1.3-build: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=5063 wall=87.5s
+  tools: bash×2, report_intent×1, lore_lookup×1, lore_snippet×1, lore_graph×1
+  lore calls: lore_lookup(kind=symbol, query=build, mode=exact), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, start_line=127, end_line=189), lore_graph(kind=call, source_id=1839, compact=false)
+  answer: getLogger() openDb(this.dbPath) resolveBranch() IndexPipeline([new ScipSourceStage(), new SourceIndexStage(), new DocsIndexStage(), new ImportResolutionStage(), new DependencyApiStage(), new LspEnrichmentStage(), resolutionStage(), testMapStage(), historyStage(), new EmbeddingStage()]) resolutionSta…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-1.5-openDb [iter 3]: control + lore-enabled arms
+[22m[39m[control] lore-self-1.3-build: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=2557 wall=65.3s
+  tools: grep×14, view×2, report_intent×1
+  answer: getLogger() performance.now() openDb(this.dbPath) this.resolveBranch() log.indexing('build started', { dbPath: this.dbPath, branch, rootDir: this.walkerConfig.rootDir }) new IndexPipeline([new ScipSourceStage(), new SourceIndexStage(), new DocsIndexStage(), new ImportResolutionStage(), new Dependenc…
+[lore]    lore-self-1.3-build: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=3620 wall=64.5s
+  tools: report_intent×1, lore_lookup×1, lore_snippet×1, lore_graph×1, bash×1, view×1
+  lore calls: lore_lookup(kind=symbol, query=build, mode=exact), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, start_line=127, end_line=189), lore_graph(kind=call, source_id=1839, compact=false)
+  answer: ``` getLogger() performance.now() openDb(this.dbPath) this.resolveBranch() log.indexing('build started', { dbPath: this.dbPath, branch, rootDir: this.walkerConfig.rootDir }) new ScipSourceStage() new SourceIndexStage() new DocsIndexStage() new ImportResolutionStage() new DependencyApiStage() new Lsp…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-1.5-openDb [iter 4]: control + lore-enabled arms
+[22m[39m[control] lore-self-1.5-openDb: success=0.5 correctness=1.00 ans_cov=0.50 file_cov=1.00 sym_cov=1.00 tokens=555 wall=25.7s
+  tools: grep×3, report_intent×1, view×1
+  answer: build — opens the database and resolves the current branch, then threads both into the PipelineContext so every indexing stage can read/write the db under that branch label update — opens the database and resolves the current branch, then passes both into the PipelineContext so the incremental re-in…
+  MISSED parts: [openDb, resolveBranch]
+[lore]    lore-self-1.5-openDb: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=2030 wall=47.1s
+  tools: lore_dependents×2, lore_graph×2, lore_snippet×2, report_intent×1
+  lore calls: lore_dependents(query=openDb, kind=symbol, compact=true), lore_dependents(query=resolveBranch, kind=symbol, compact=true), lore_graph(kind=call, target_id=409, compact=true), lore_graph(kind=call, target_id=1852, compact=true), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, symbol=build), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, symbol=update)
+  answer: build — calls openDb() to open the SQLite database and resolveBranch() to determine the current git branch, then passes both into a PipelineContext to run a full indexing pipeline over the codebase update — calls openDb() to open the SQLite database and resolveBranch() to get the current branch, the…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-1.5-openDb [iter 5]: control + lore-enabled arms
+[22m[39m[control] lore-self-1.5-openDb: success=0.5 correctness=1.00 ans_cov=0.50 file_cov=1.00 sym_cov=1.00 tokens=541 wall=23.1s
+  tools: grep×3, report_intent×1, view×1
+  answer: build — opens the database and resolves the current branch, then passes both into a PipelineContext to run the full indexing pipeline update — opens the database and resolves the current branch, then passes both into a PipelineContext to incrementally re-index only changed files
+  MISSED parts: [openDb, resolveBranch]
+[lore]    lore-self-1.5-openDb: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=1813 wall=41.2s
+  tools: lore_dependents×2, lore_graph×2, lore_snippet×2, report_intent×1
+  lore calls: lore_dependents(query=openDb, kind=symbol, compact=true), lore_dependents(query=resolveBranch, kind=symbol, compact=true), lore_graph(kind=call, target_id=409, compact=true), lore_graph(kind=call, target_id=1852, compact=true), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, symbol=build), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, symbol=update)
+  answer: build — calls openDb() to open the SQLite database and resolveBranch() to determine the current git branch, then passes both as parts of a PipelineContext to run the full indexing pipeline from scratch update — calls openDb() to open the SQLite database and resolveBranch() to get the current branch,…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-1.7-build [iter 1]: control + lore-enabled arms
+[22m[39m[control] lore-self-1.5-openDb: success=0.5 correctness=1.00 ans_cov=0.50 file_cov=1.00 sym_cov=1.00 tokens=565 wall=25.9s
+  tools: grep×3, report_intent×1, view×1
+  answer: build — opens the database and resolves the current branch, then feeds both into a PipelineContext to run a full indexing pipeline update — opens the database and resolves the current branch, then feeds both into a PipelineContext to incrementally re-index only changed files
+  MISSED parts: [openDb, resolveBranch]
+[lore]    lore-self-1.5-openDb: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=1824 wall=43.8s
+  tools: lore_dependents×2, lore_graph×2, lore_snippet×2, report_intent×1
+  lore calls: lore_dependents(query=openDb, kind=symbol, compact=true), lore_dependents(query=resolveBranch, kind=symbol, compact=true), lore_graph(kind=call, target_id=409, compact=true), lore_graph(kind=call, target_id=1852, compact=true), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, symbol=build), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, symbol=update)
+  answer: build — calls openDb() to open the SQLite database and resolveBranch() to get the current git branch, then passes both as part of a PipelineContext to run a full indexing pipeline update — calls openDb() to open the SQLite database and resolveBranch() to get the current git branch, then passes both …
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-1.7-build [iter 2]: control + lore-enabled arms
+[22m[39m[control] lore-self-1.3-build: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=1958 wall=37.8s
+  tools: grep×2, report_intent×1, view×1
+  answer: Now I need to check what `resolveBranch`, `saveLastKnownHead`, and `gatherDbStats` take, and confirm the exact calls.  The direct callees and their arguments from the `build` method:  ``` getLogger() performance.now() openDb(this.dbPath) this.resolveBranch() log.indexing('build started', { dbPath: t…
+[lore]    lore-self-1.3-build: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=6927 wall=117.2s
+  tools: bash×2, report_intent×1, lore_lookup×1, lore_snippet×1, lore_graph×1
+  lore calls: lore_lookup(kind=symbol, query=build, mode=exact), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, start_line=127, end_line=189), lore_graph(kind=call, source_id=1839, compact=true)
+  answer: getLogger() openDb(this.dbPath) resolveBranch() IndexPipeline([new ScipSourceStage(), new SourceIndexStage(), new DocsIndexStage(), new ImportResolutionStage(), new DependencyApiStage(), new LspEnrichmentStage(), resolutionStage(), testMapStage(), historyStage(), new EmbeddingStage()]) resolutionSta…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-1.7-build [iter 3]: control + lore-enabled arms
+[22m[39m[control] lore-self-1.5-openDb: success=0.5 correctness=1.00 ans_cov=0.50 file_cov=1.00 sym_cov=1.00 tokens=544 wall=23.7s
+  tools: grep×3, report_intent×1, view×1
+  answer: build — opens the database and resolves the current branch, then threads both into a PipelineContext that drives a full indexing pipeline update — opens the database and resolves the current branch, then threads both into a PipelineContext that drives an incremental re-index of changed files
+  MISSED parts: [openDb, resolveBranch]
+[lore]    lore-self-1.5-openDb: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=2883 wall=55.3s
+  tools: lore_snippet×5, report_intent×2, lore_dependents×2, bash×2
+  lore calls: lore_dependents(query=openDb, kind=symbol, compact=true), lore_dependents(query=resolveBranch, kind=symbol, compact=true), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, symbol=build), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, symbol=update), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/discovery/watcher.ts, symbol=flush), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/discovery/poller.ts, symbol=poll), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/cli.ts, symbol=main)
+  answer: build — opens the database with openDb(this.dbPath) and resolves the current git branch with this.resolveBranch(), then passes both the db handle and branch string into a PipelineContext to run a full index build pipeline update — opens the database with openDb(this.dbPath) and resolves the branch w…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-1.7-build [iter 4]: control + lore-enabled arms
+[22m[39m[control] lore-self-1.7-build: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=4622 wall=69.3s
+  tools: view×8, bash×5, grep×4, report_intent×1, task×1
+  answer: 1. `build` — orchestrates a full index build by assembling pipeline stages and running the pipeline 2. `IndexPipeline.run` — iterates through pipeline stages in dependency order, executing each one 3. `resolutionStage` — pipeline stage whose execute method delegates to symbol-edge resolution 4. `res…
+[lore]    lore-self-1.7-build: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=280 wall=16.6s
+  tools: report_intent×1, lore_trace×1
+  lore calls: lore_trace(from_name=build, to_name=resolveSymbolEdges, depth=10)
+  answer: 1. `build` — orchestrates the full indexing pipeline by assembling stages and running them in dependency order 2. `resolutionStage` — creates a pipeline stage that invokes symbol-edge resolution after LSP enrichment 3. `resolveSymbolEdges` — resolves unresolved call, type, and inheritance refs via c…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-1.7-build [iter 5]: control + lore-enabled arms
+[22m[39m[control] lore-self-1.5-openDb: success=0.5 correctness=1.00 ans_cov=0.50 file_cov=1.00 sym_cov=1.00 tokens=544 wall=23.3s
+  tools: grep×3, report_intent×1, view×1
+  answer: build — opens the database and resolves the current branch, then feeds both into a PipelineContext that drives a full indexing pipeline update — opens the database and resolves the current branch, then feeds both into a PipelineContext that drives an incremental re-index of changed files
+  MISSED parts: [openDb, resolveBranch]
+[lore]    lore-self-1.5-openDb: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=4471 wall=86.4s
+  tools: lore_snippet×5, lore_dependents×2, bash×2, lore_graph×2, report_intent×1, grep×1
+  lore calls: lore_dependents(query=openDb, kind=symbol, compact=true), lore_dependents(query=resolveBranch, kind=symbol, compact=true), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, symbol=build), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, symbol=update), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/discovery/watcher.ts, symbol=flush), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/discovery/poller.ts, symbol=poll), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/cli.ts, symbol=main), lore_graph(kind=call, target_id=409, compact=true), lore_graph(kind=call, target_id=1852, compact=true)
+  answer: build — calls openDb() to open the SQLite database and resolveBranch() to detect the current git branch, then passes both into a PipelineContext to run a full from-scratch index build update — calls openDb() to open the SQLite database and resolveBranch() to detect the current git branch, then passe…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-1.8-openDb [iter 1]: control + lore-enabled arms
+[22m[39m[control] lore-self-1.7-build: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=4529 wall=64.1s
+  tools: view×9, grep×4, report_intent×1, glob×1, task×1
+  answer: 1. `build` — orchestrates a full index rebuild by assembling and running the pipeline 2. `IndexPipeline.run` — executes all pipeline stages sequentially in dependency order 3. `resolutionStage().execute` — pipeline stage wrapper that delegates to the resolver 4. `resolveSymbolEdges` — resolves unres…
+[lore]    lore-self-1.7-build: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=279 wall=16.6s
+  tools: report_intent×1, lore_trace×1
+  lore calls: lore_trace(from_name=build, to_name=resolveSymbolEdges, depth=10)
+  answer: 1. `build` — orchestrates the full indexing pipeline by assembling stages and running them in dependency order 2. `resolutionStage` — creates a pipeline stage that invokes symbol-edge resolution after LSP enrichment 3. `resolveSymbolEdges` — resolves unresolved call, type, and inheritance edges usin…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-1.8-openDb [iter 2]: control + lore-enabled arms
+[22m[39m[control] lore-self-1.7-build: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=7525 wall=100.7s
+  tools: view×11, grep×5, bash×3, task×2, report_intent×1
+  answer: 1. `build` — assembles the indexing pipeline with all stages and executes it 2. `IndexPipeline.run` — iterates pipeline stages in order, calling each stage's `execute` method 3. `resolutionStage` — factory returning a PipelineStage whose execute directly invokes resolveSymbolEdges 4. `resolveSymbolE…
+[lore]    lore-self-1.7-build: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=283 wall=15.8s
+  tools: report_intent×1, lore_trace×1
+  lore calls: lore_trace(from_name=build, to_name=resolveSymbolEdges, depth=10)
+  answer: 1. `build` — orchestrates the full indexing pipeline by assembling stages and running them in dependency order 2. `resolutionStage` — wraps `resolveSymbolEdges` into a pipeline stage that runs after LSP enrichment 3. `resolveSymbolEdges` — resolves unresolved call, type, and inheritance refs by cont…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-1.8-openDb [iter 3]: control + lore-enabled arms
+[22m[39m[control] lore-self-1.7-build: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=5960 wall=73.9s
+  tools: view×12, grep×5, bash×2, report_intent×1, task×1
+  answer: 1. `build` — orchestrates a full index build by running a pipeline of stages in dependency order 2. `IndexPipeline.run` — executes each pipeline stage sequentially by calling its `execute` method 3. `resolutionStage().execute` — stage callback created by the `resolutionStage` factory that invokes sy…
+[lore]    lore-self-1.7-build: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=280 wall=16.3s
+  tools: report_intent×1, lore_trace×1
+  lore calls: lore_trace(from_name=build, to_name=resolveSymbolEdges, depth=10)
+  answer: 1. `build` — orchestrates the full indexing pipeline by assembling and running all stages in dependency order 2. `resolutionStage` — creates a pipeline stage that invokes symbol-edge resolution after LSP enrichment 3. `resolveSymbolEdges` — resolves unresolved call, type, and inheritance edges using…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-1.8-openDb [iter 4]: control + lore-enabled arms
+[22m[39m[control] lore-self-1.7-build: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=6584 wall=82.7s
+  tools: grep×7, view×6, report_intent×1, glob×1, bash×1, task×1
+  answer: 1. `build` — orchestrates the full indexing pipeline by constructing stages and running them 2. `IndexPipeline.run` — executes each pipeline stage sequentially, calling `stage.execute()` 3. `resolutionStage` — returns a pipeline stage whose execute callback invokes symbol resolution 4. `resolveSymbo…
+[lore]    lore-self-1.7-build: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=279 wall=15.7s
+  tools: report_intent×1, lore_trace×1
+  lore calls: lore_trace(from_name=build, to_name=resolveSymbolEdges, depth=10)
+  answer: 1. `build` — orchestrates the full indexing pipeline by assembling stages and running them in dependency order 2. `resolutionStage` — creates a pipeline stage that invokes symbol-edge resolution after LSP enrichment 3. `resolveSymbolEdges` — resolves unresolved call, type, and inheritance refs via c…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-1.8-openDb [iter 5]: control + lore-enabled arms
+[22m[39m[control] lore-self-1.8-openDb: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=3223 wall=66.8s
+  tools: view×6, grep×2, report_intent×1, bash×1
+  answer: Handle: None  Propagate: build update ingestSummary ingestCoverage main  All five direct callers in source code (`src/indexer/index.ts` and `src/cli.ts`) let any `openDb` error propagate. The `try/finally` blocks in each are placed *after* the `openDb` call (to close the DB), so they don't catch `op…
+[lore]    lore-self-1.8-openDb: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=3906 wall=66.3s
+  tools: lore_snippet×13, report_intent×1, lore_dependents×1, lore_graph×1
+  lore calls: lore_dependents(query=openDb, kind=symbol, compact=true), lore_graph(kind=call, target_id=409, compact=true), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/db/schema.ts, symbol=openDb), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, symbol=build), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, symbol=update), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, symbol=ingestSummary), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, symbol=ingestCoverage), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/cli.ts, symbol=docsAutoNotes1), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/db/edges.test.ts, symbol=createDb), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/db/typerefs.test.ts, symbol=createDb), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/resolution/call-graph.test.ts, symbol=createDb), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/resolution/graph-analysis.test.ts, symbol=createDb), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/server/tools/graph.test.ts, symbol=createTestDb), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/db/schema.test.ts, symbol=definition_path1), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/db/schema.test.ts, symbol=signature0)
+  answer: Handle: None Propagate: build update ingestSummary ingestCoverage docsAutoNotes1 createDb (edges.test.ts) createDb (typerefs.test.ts) createDb (call-graph.test.ts) createDb (graph-analysis.test.ts) createTestDb definition_path1 signature0  Every direct caller either returns the `openDb` result direc…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-7.2-openDb [iter 1]: control + lore-enabled arms
+[22m[39m[control] lore-self-1.8-openDb: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=1972 wall=48.2s
+  tools: view×5, grep×2, report_intent×1
+  answer: All five direct source callers of `openDb` invoke it **before** any surrounding try/catch, so if `openDb` throws, the error propagates uncaught to their callers.  Handle: None  Propagate: build update ingestSummary ingestCoverage main
+[lore]    lore-self-1.8-openDb: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=8315 wall=111.7s
+  tools: view×10, bash×6, grep×3, report_intent×1, lore_dependents×1, task×1, lore_snippet×1, read_agent×1
+  lore calls: lore_dependents(query=openDb, kind=symbol, compact=false), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/db/schema.ts, symbol=openDb)
+  answer: All 5 direct callers place `openDb` **outside** any try/catch — the try/finally blocks only wrap usage of the returned `db` object, so if `openDb` throws, the error propagates uncaught.  Handle: None  Propagate: build update ingestSummary ingestCoverage main
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-7.2-openDb [iter 2]: control + lore-enabled arms
+[22m[39m[control] lore-self-1.8-openDb: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=1612 wall=42.4s
+  tools: view×4, grep×2, report_intent×1
+  answer: All callers identified. In every case, `openDb` is called **outside** any try/catch — the subsequent try/finally blocks only protect code **after** the `openDb` call. None of the callers catch or check for errors from `openDb` itself; they all let any thrown error propagate.  The direct callers in p…
+[lore]    lore-self-1.8-openDb: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=6513 wall=116.6s
+  tools: lore_snippet×9, report_intent×1, lore_dependents×1, lore_lookup×1, lore_graph×1, bash×1, grep×1
+  lore calls: lore_dependents(query=openDb, kind=symbol, compact=false), lore_lookup(kind=symbol, query=openDb), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/db/schema.ts, symbol=openDb), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, start_line=120, end_line=280), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/cli.ts, start_line=300, end_line=545), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/discovery/watcher.ts, start_line=90, end_line=185), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/discovery/poller.ts, start_line=75, end_line=180), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/runtime.ts, start_line=130, end_line=170), lore_graph(kind=call, target_id=409, compact=false), lore_snippet(end_line=540, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/cli.ts, start_line=520), lore_snippet(end_line=145, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/cli.ts, start_line=130), lore_snippet(end_line=720, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/cli.ts, start_line=700)
+  answer: Now I have the complete picture. All 5 direct callers of `openDb` in source code are:  1. **`build`** (index.ts:131) — `openDb` is called *before* the try/finally block → propagates 2. **`update`** (index.ts:201) — same pattern → propagates 3. **`ingestSummary`** (index.ts:249) — same pattern → prop…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-7.2-openDb [iter 3]: control + lore-enabled arms
+[22m[39m[control] lore-self-1.8-openDb: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=2325 wall=51.3s
+  tools: view×8, grep×2, report_intent×1
+  answer: All five source-code callers (`build`, `update`, `ingestSummary`, `ingestCoverage` in `src/indexer/index.ts`, and `main` in `src/cli.ts`) call `openDb` **before** any `try` block. The `try/finally` in each case only wraps code that runs *after* `openDb` succeeds. If `openDb` throws, the exception pr…
+[lore]    lore-self-1.8-openDb: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=6841 wall=124.5s
+  tools: view×8, grep×4, bash×2, report_intent×1, lore_dependents×1, lore_lookup×1, lore_snippet×1
+  lore calls: lore_dependents(query=openDb, kind=symbol, compact=true), lore_lookup(kind=symbol, query=openDb), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/db/schema.ts, symbol=openDb)
+  answer: All direct callers identified. In every case, `openDb` is called **outside** any try/catch block — the surrounding try/finally blocks only wrap code that runs _after_ the db is opened (to ensure `db.close()`). None catch the `openDb` error itself.  Handle: None Propagate: build update ingestSummary …
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-7.2-openDb [iter 4]: control + lore-enabled arms
+[22m[39m[control] lore-self-7.2-openDb: success=1 correctness=1.00 ans_cov=1.00 file_cov=0.67 sym_cov=1.00 tokens=2841 wall=56.0s
+  tools: bash×3, view×3, report_intent×1, grep×1, task×1
+  answer: main → src/cli.ts — queries indexed file paths with db.prepare() and closes the database in a finally block IndexBuilder.build → src/indexer/index.ts — passes db into a PipelineContext, calls saveLastKnownHead() and gatherDbStats(), then closes it IndexBuilder.update → src/indexer/index.ts — passes …
+[lore]    lore-self-7.2-openDb: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=7039 wall=100.4s
+  tools: lore_snippet×17, grep×6, report_intent×1, lore_dependents×1
+  lore calls: lore_dependents(query=openDb, kind=symbol, compact=false), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, start_line=129, end_line=135), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, start_line=199, end_line=205), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, start_line=247, end_line=253), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, start_line=266, end_line=272), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/cli.ts, start_line=310, end_line=320), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/cli.ts, start_line=526, end_line=535), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/discovery/watcher.ts, start_line=100, end_line=110), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/discovery/watcher.ts, start_line=129, end_line=140), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/discovery/watcher.ts, start_line=150, end_line=180), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/discovery/poller.ts, start_line=85, end_line=95), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/discovery/poller.ts, start_line=165, end_line=175), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/runtime.ts, start_line=137, end_line=162), lore_snippet(end_line=190, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, start_line=127), lore_snippet(end_line=242, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, start_line=199), lore_snippet(end_line=264, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, start_line=247), lore_snippet(end_line=284, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, start_line=266), lore_snippet(end_line=545, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/cli.ts, start_line=526)
+  answer: build → src/indexer/index.ts — stores in local `db`, passes it into a PipelineContext fed to pipeline.run(), then to saveLastKnownHead() and gatherDbStats(), finally closes it update → src/indexer/index.ts — stores in local `db`, passes it into a PipelineContext fed to pipeline.run(), then to saveLa…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-7.2-openDb [iter 5]: control + lore-enabled arms
+[22m[39m[control] lore-self-1.8-openDb: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=2053 wall=52.5s
+  tools: view×8, grep×2, report_intent×1
+  answer: The `openDb` call at line 534 is inside the `main` function. None of these callers have a try/catch that would catch an error from `openDb` itself.  Handle: None  Propagate: build update ingestSummary ingestCoverage main
+[lore]    lore-self-1.8-openDb: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=20834 wall=197.3s
+  tools: view×37, bash×29, grep×9, report_intent×2, task×2, read_agent×2, lore_dependents×1, lore_lookup×1, lore_snippet×1
+  lore calls: lore_dependents(query=openDb, kind=symbol, compact=true), lore_lookup(kind=symbol, query=openDb), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/db/schema.ts, symbol=openDb)
+  answer: All five source-code callers place `openDb()` **before** their `try` blocks, so an `openDb` throw always escapes:  Handle: None Propagate: build update ingestSummary ingestCoverage main
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-7.3-resolutionStage [iter 1]: control + lore-enabled arms
+[22m[39m[control] lore-self-7.3-resolutionStage: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=434 wall=22.0s
+  tools: grep×2, report_intent×1, view×1
+  answer: resolveSymbolEdges → src/resolution/call-graph.ts
+[lore]    lore-self-7.3-resolutionStage: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=927 wall=30.8s
+  tools: report_intent×1, lore_lookup×1, lore_trace×1, lore_graph×1, bash×1, lore_snippet×1
+  lore calls: lore_lookup(kind=symbol, query=resolutionStage), lore_trace(from=1862, depth=2), lore_graph(kind=call, source_id=1862, compact=true), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, start_line=327, end_line=332)
+  answer: resolveSymbolEdges → src/resolution/call-graph.ts
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-7.3-resolutionStage [iter 2]: control + lore-enabled arms
+[22m[39m[control] lore-self-7.2-openDb: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=3922 wall=65.0s
+  tools: view×5, bash×3, grep×2, report_intent×1, task×1
+  answer: main → src/cli.ts — opens the db, queries indexed file paths for the HEAD branch, closes it, and diffs them against walked files to compute changedPaths for an incremental update IndexBuilder.build → src/indexer/index.ts — stores the db in a PipelineContext, runs the full indexing pipeline, saves th…
+[lore]    lore-self-7.2-openDb: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=8848 wall=127.3s
+  tools: view×15, lore_snippet×13, grep×6, report_intent×1, lore_dependents×1
+  lore calls: lore_dependents(query=openDb, kind=symbol, compact=false), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, start_line=128, end_line=140), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, start_line=198, end_line=210), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, start_line=246, end_line=260), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, start_line=265, end_line=280), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/cli.ts, start_line=310, end_line=325), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/cli.ts, start_line=525, end_line=540), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/discovery/watcher.ts, start_line=98, end_line=115), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/discovery/watcher.ts, start_line=128, end_line=160), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/discovery/watcher.ts, start_line=168, end_line=185), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/discovery/poller.ts, start_line=84, end_line=100), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/discovery/poller.ts, start_line=164, end_line=180), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/runtime.ts, start_line=135, end_line=165), lore_snippet(end_line=320, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/cli.ts, start_line=305)
+  answer: build → src/indexer/index.ts — stores the result in `db` and passes it via PipelineContext to `pipeline.run()`, then to `saveLastKnownHead()` and `gatherDbStats()` update → src/indexer/index.ts — stores the result in `db` and passes it via PipelineContext to `pipeline.run()`, then to `saveLastKnownH…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-7.3-resolutionStage [iter 3]: control + lore-enabled arms
+[22m[39m[control] lore-self-7.2-openDb: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=2296 wall=51.0s
+  tools: view×8, grep×3, report_intent×1
+  answer: build → src/indexer/index.ts — stores the result in `db` and passes it inside a PipelineContext to `pipeline.run()`, then calls `saveLastKnownHead(db)` update → src/indexer/index.ts — stores the result in `db` and passes it inside a PipelineContext to `pipeline.run()`, then calls `saveLastKnownHead(…
+[lore]    lore-self-7.2-openDb: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=10726 wall=148.6s
+  tools: lore_snippet×31, report_intent×2, lore_dependents×1
+  lore calls: lore_dependents(query=openDb, kind=symbol, compact=false), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, start_line=128, end_line=140), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, start_line=198, end_line=210), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, start_line=246, end_line=260), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, start_line=265, end_line=280), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/cli.ts, start_line=310, end_line=320), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/cli.ts, start_line=525, end_line=540), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/discovery/watcher.ts, start_line=98, end_line=115), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/discovery/watcher.ts, start_line=128, end_line=160), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/discovery/watcher.ts, start_line=170, end_line=180), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/discovery/poller.ts, start_line=84, end_line=100), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/discovery/poller.ts, start_line=164, end_line=180), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/runtime.ts, start_line=136, end_line=165), lore_snippet(end_line=20, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/db/edges.test.ts, start_line=8), lore_snippet(end_line=310, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/db/schema.test.ts, start_line=296), lore_snippet(end_line=340, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/db/schema.test.ts, start_line=326), lore_snippet(end_line=18, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/db/typerefs.test.ts, start_line=7), lore_snippet(end_line=108, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/resolution/call-graph.test.ts, start_line=95), lore_snippet(end_line=22, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/resolution/graph-analysis.test.ts, start_line=11), lore_snippet(end_line=20, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/server/tools/graph.test.ts, start_line=8), lore_snippet(end_line=620, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/indexer/index.test.ts, start_line=604), lore_snippet(end_line=680, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/indexer/index.test.ts, start_line=666), lore_snippet(end_line=780, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/indexer/index.test.ts, start_line=762), lore_snippet(end_line=860, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/indexer/index.test.ts, start_line=848), lore_snippet(end_line=530, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/server/tools/graph.test.ts, start_line=516), lore_snippet(end_line=615, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/server/tools/graph.test.ts, start_line=601), lore_snippet(end_line=635, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/server/tools/graph.test.ts, start_line=623), lore_snippet(end_line=100, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/lsp/refresh-options.test.ts, start_line=88), lore_snippet(end_line=189, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, start_line=131), lore_snippet(end_line=260, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, start_line=201), lore_snippet(end_line=295, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, start_line=268), lore_snippet(end_line=560, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/cli.ts, start_line=529)
+  answer: build → src/indexer/index.ts — stores the result in a local `db` variable, passes it inside a PipelineContext to pipeline.run(), then to saveLastKnownHead() and gatherDbStats(), and finally closes it update → src/indexer/index.ts — stores the result in a local `db` variable, passes it inside a Pipel…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-7.3-resolutionStage [iter 4]: control + lore-enabled arms
+[22m[39m[control] lore-self-7.2-openDb: success=1 correctness=1.00 ans_cov=1.00 file_cov=0.67 sym_cov=1.00 tokens=2685 wall=59.2s
+  tools: bash×5, view×2, report_intent×1, grep×1, task×1
+  answer: main → src/cli.ts — stores the result in a local variable, queries indexed file paths via db.prepare(), then closes it IndexBuilder.build → src/indexer/index.ts — stores the result in a local variable, passes it into a PipelineContext and to saveLastKnownHead() and gatherDbStats(), then closes it In…
+[lore]    lore-self-7.2-openDb: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=5665 wall=92.5s
+  tools: lore_snippet×16, report_intent×1, lore_dependents×1, grep×1
+  lore calls: lore_dependents(query=openDb, kind=symbol, compact=false), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, start_line=128, end_line=140), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, start_line=198, end_line=210), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, start_line=246, end_line=258), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, start_line=265, end_line=280), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/cli.ts, start_line=310, end_line=320), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/cli.ts, start_line=525, end_line=540), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/discovery/watcher.ts, start_line=98, end_line=112), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/discovery/watcher.ts, start_line=128, end_line=160), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/discovery/watcher.ts, start_line=170, end_line=180), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/discovery/poller.ts, start_line=84, end_line=100), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/discovery/poller.ts, start_line=164, end_line=178), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/runtime.ts, start_line=135, end_line=165), lore_snippet(end_line=325, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/cli.ts, start_line=305), lore_snippet(end_line=190, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, start_line=140), lore_snippet(end_line=300, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, start_line=268), lore_snippet(end_line=260, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, start_line=210)
+  answer: build → src/indexer/index.ts — stores in local `db`, passes it inside a PipelineContext to `pipeline.run()`, then to `saveLastKnownHead(db)` and `gatherDbStats(db)`, and closes it in a finally block update → src/indexer/index.ts — stores in local `db`, passes it inside a PipelineContext to `pipeline…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-7.3-resolutionStage [iter 5]: control + lore-enabled arms
+[22m[39m[control] lore-self-7.3-resolutionStage: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=1253 wall=40.2s
+  tools: grep×4, view×3, report_intent×1
+  answer: `resolutionStage` is a wrapper that delegates to `resolveSymbolEdges`, which in turn calls these concrete functions — all in the same file:  ``` resolveSymbolEdges → src/resolution/call-graph.ts resolveByContainment → src/resolution/call-graph.ts buildNameMap → src/resolution/call-graph.ts resolveBy…
+[lore]    lore-self-7.3-resolutionStage: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=482 wall=22.5s
+  tools: lore_lookup×2, report_intent×1, lore_snippet×1, lore_trace×1
+  lore calls: lore_lookup(kind=symbol, query=resolutionStage), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, start_line=327, end_line=332), lore_trace(from=1862, depth=2), lore_lookup(kind=symbol, query=resolveSymbolEdges)
+  answer: resolveSymbolEdges → src/resolution/call-graph.ts
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-10.1-openDb [iter 1]: control + lore-enabled arms
+[22m[39m[control] lore-self-7.3-resolutionStage: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=452 wall=33.2s
+  tools: grep×2, report_intent×1, view×1
+  answer: `resolutionStage` is a wrapper that delegates to a single concrete function:  resolveSymbolEdges → src/resolution/call-graph.ts
+[lore]    lore-self-7.3-resolutionStage: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=991 wall=32.8s
+  tools: lore_lookup×2, report_intent×1, lore_trace×1, lore_graph×1, bash×1, lore_snippet×1
+  lore calls: lore_lookup(kind=symbol, query=resolutionStage), lore_trace(from=1862, depth=2), lore_graph(kind=call, source_id=1862, compact=true), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, start_line=327, end_line=332), lore_lookup(kind=symbol, query=resolveSymbolEdges)
+  answer: `resolutionStage` is a wrapper that returns a `PipelineStage` whose `execute` lambda delegates to a single concrete function:  resolveSymbolEdges → src/resolution/call-graph.ts
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-10.1-openDb [iter 2]: control + lore-enabled arms
+[22m[39m[control] lore-self-7.3-resolutionStage: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=1102 wall=35.4s
+  tools: grep×3, view×3, report_intent×1
+  answer: resolveSymbolEdges → src/resolution/call-graph.ts resolveByContainment → src/resolution/call-graph.ts buildNameMap → src/resolution/call-graph.ts resolveByNameFallback → src/resolution/call-graph.ts extractBareName → src/resolution/call-graph.ts normalizeTypeName → src/resolution/call-graph.ts
+[lore]    lore-self-7.3-resolutionStage: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=482 wall=23.4s
+  tools: lore_lookup×2, report_intent×1, lore_snippet×1, lore_trace×1
+  lore calls: lore_lookup(kind=symbol, query=resolutionStage), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, start_line=327, end_line=332), lore_trace(from=1862, depth=2), lore_lookup(kind=symbol, query=resolveSymbolEdges)
+  answer: resolveSymbolEdges → src/resolution/call-graph.ts
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-10.1-openDb [iter 3]: control + lore-enabled arms
+[22m[39m[control] lore-self-7.2-openDb: success=1 correctness=1.00 ans_cov=1.00 file_cov=0.67 sym_cov=1.00 tokens=1615 wall=45.8s
+  tools: view×5, bash×3, report_intent×1, grep×1
+  answer: build → src/indexer/index.ts — stores the db in a PipelineContext, passes it to pipeline.run(), calls saveLastKnownHead() and gatherDbStats(), then closes it update → src/indexer/index.ts — stores the db in a PipelineContext, passes it to pipeline.run(), calls saveLastKnownHead(), then closes it ing…
+[lore]    lore-self-7.2-openDb: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=6567 wall=115.5s
+  tools: lore_snippet×10, grep×3, bash×2, report_intent×1, lore_dependents×1, view×1
+  lore calls: lore_dependents(query=openDb, kind=symbol, compact=true), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, symbol=build), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, symbol=update), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, symbol=ingestSummary), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, symbol=ingestCoverage), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/discovery/watcher.ts, symbol=start), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/discovery/watcher.ts, symbol=flush), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/discovery/poller.ts, symbol=start), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/discovery/poller.ts, symbol=poll), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/runtime.ts), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/cli.ts, symbol=main)
+  answer: build → src/indexer/index.ts — assigns to `db`, places it in PipelineContext, passes to pipeline.run() for full indexing, then calls saveLastKnownHead() and gatherDbStats() before closing update → src/indexer/index.ts — assigns to `db`, places it in PipelineContext, passes to pipeline.run() for incr…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-10.1-openDb [iter 4]: control + lore-enabled arms
+[22m[39m[control] lore-self-7.3-resolutionStage: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=803 wall=32.2s
+  tools: view×3, grep×2, report_intent×1
+  answer: Now I have the full picture. Here's the answer:  resolveSymbolEdges → src/resolution/call-graph.ts resolveByContainment → src/resolution/call-graph.ts buildNameMap → src/resolution/call-graph.ts resolveByNameFallback → src/resolution/call-graph.ts extractBareName → src/resolution/call-graph.ts norma…
+[lore]    lore-self-7.3-resolutionStage: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=482 wall=24.5s
+  tools: lore_lookup×2, report_intent×1, lore_snippet×1, lore_trace×1
+  lore calls: lore_lookup(kind=symbol, query=resolutionStage), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, start_line=327, end_line=332), lore_trace(from=1862, depth=2), lore_lookup(kind=symbol, query=resolveSymbolEdges)
+  answer: resolveSymbolEdges → src/resolution/call-graph.ts
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-10.1-openDb [iter 5]: control + lore-enabled arms
+[22m[39m[control] lore-self-10.1-openDb: success=1 correctness=0.83 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=1673 wall=40.0s
+  tools: view×5, grep×2, report_intent×1
+  answer: 2 build → src/indexer/index.ts update → src/indexer/index.ts ingestSummary → src/indexer/index.ts ingestCoverage → src/indexer/index.ts main → src/cli.ts
+  MISSED answer lines: [baselineRebuild → src/indexer/index.ts]
+[lore]    lore-self-10.1-openDb: success=1 correctness=0.83 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=1894 wall=45.2s
+  tools: grep×2, report_intent×1, lore_dependents×1
+  lore calls: lore_dependents(query=openDb, kind=symbol, compact=true)
+  answer: 2 build → src/indexer/index.ts update → src/indexer/index.ts ingestSummary → src/indexer/index.ts ingestCoverage → src/indexer/index.ts main → src/cli.ts
+  MISSED answer lines: [baselineRebuild → src/indexer/index.ts]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-10.3-openDb [iter 1]: control + lore-enabled arms
+[22m[39m[control] lore-self-10.1-openDb: success=1 correctness=0.83 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=2186 wall=52.6s
+  tools: view×6, grep×3, report_intent×1
+  answer: 2 main → src/cli.ts build → src/indexer/index.ts update → src/indexer/index.ts ingestSummary → src/indexer/index.ts ingestCoverage → src/indexer/index.ts
+  MISSED answer lines: [baselineRebuild → src/indexer/index.ts]
+[lore]    lore-self-10.1-openDb: success=1 correctness=0.83 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=2321 wall=49.5s
+  tools: grep×3, view×3, report_intent×1, lore_dependents×1
+  lore calls: lore_dependents(query=openDb, kind=symbol, compact=true)
+  answer: 2 build → src/indexer/index.ts update → src/indexer/index.ts ingestSummary → src/indexer/index.ts ingestCoverage → src/indexer/index.ts main → src/cli.ts
+  MISSED answer lines: [baselineRebuild → src/indexer/index.ts]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-10.3-openDb [iter 2]: control + lore-enabled arms
+[22m[39m[control] lore-self-10.1-openDb: success=1 correctness=0.83 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=1461 wall=37.1s
+  tools: view×5, report_intent×1, grep×1, bash×1
+  answer: 2 build → src/indexer/index.ts update → src/indexer/index.ts ingestSummary → src/indexer/index.ts ingestCoverage → src/indexer/index.ts main → src/cli.ts
+  MISSED answer lines: [baselineRebuild → src/indexer/index.ts]
+[lore]    lore-self-10.1-openDb: success=1 correctness=0.83 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=2874 wall=60.1s
+  tools: view×5, grep×3, report_intent×1, lore_dependents×1
+  lore calls: lore_dependents(query=openDb, kind=symbol, compact=true)
+  answer: 2 build → src/indexer/index.ts update → src/indexer/index.ts ingestSummary → src/indexer/index.ts ingestCoverage → src/indexer/index.ts main → src/cli.ts
+  MISSED answer lines: [baselineRebuild → src/indexer/index.ts]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-10.3-openDb [iter 3]: control + lore-enabled arms
+[22m[39m[control] lore-self-10.1-openDb: success=1 correctness=0.83 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=1631 wall=36.5s
+  tools: view×5, grep×2, report_intent×1
+  answer: 2 build → src/indexer/index.ts update → src/indexer/index.ts ingestSummary → src/indexer/index.ts ingestCoverage → src/indexer/index.ts main → src/cli.ts
+  MISSED answer lines: [baselineRebuild → src/indexer/index.ts]
+[lore]    lore-self-10.1-openDb: success=1 correctness=0.83 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=2817 wall=61.5s
+  tools: view×5, grep×4, report_intent×1, lore_dependents×1
+  lore calls: lore_dependents(query=openDb, kind=symbol, compact=true)
+  answer: 2 build → src/indexer/index.ts update → src/indexer/index.ts ingestSummary → src/indexer/index.ts ingestCoverage → src/indexer/index.ts main → src/cli.ts
+  MISSED answer lines: [baselineRebuild → src/indexer/index.ts]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-10.3-openDb [iter 4]: control + lore-enabled arms
+[22m[39m[control] lore-self-10.1-openDb: success=1 correctness=0.83 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=1568 wall=35.8s
+  tools: view×4, grep×2, report_intent×1
+  answer: 2 build → src/indexer/index.ts update → src/indexer/index.ts ingestSummary → src/indexer/index.ts ingestCoverage → src/indexer/index.ts main → src/cli.ts
+  MISSED answer lines: [baselineRebuild → src/indexer/index.ts]
+[lore]    lore-self-10.1-openDb: success=1 correctness=0.83 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=2750 wall=64.3s
+  tools: grep×2, report_intent×1, lore_dependents×1, view×1
+  lore calls: lore_dependents(query=openDb, kind=symbol, compact=true)
+  answer: 2 build → src/indexer/index.ts update → src/indexer/index.ts ingestSummary → src/indexer/index.ts ingestCoverage → src/indexer/index.ts main → src/cli.ts
+  MISSED answer lines: [baselineRebuild → src/indexer/index.ts]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-10.3-openDb [iter 5]: control + lore-enabled arms
+[22m[39m[control] lore-self-10.3-openDb: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=8813 wall=85.3s
+  tools: view×28, bash×2, report_intent×1, grep×1, task×1
+  answer: Here are the callers of `openDb` grouped by calling pattern:  **With try/finally (open → use → close in finally):** - `update` in `src/indexer/index.ts` - `ingestSummary` in `src/indexer/index.ts` - `ingestCoverage` in `src/indexer/index.ts`  **Dynamic import + try/finally:** - anonymous refresh han…
+[lore]    lore-self-10.3-openDb: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=3978 wall=97.9s
+  tools: bash×11, view×4, grep×2, report_intent×1, lore_dependents×1, lore_snippet×1
+  lore calls: lore_dependents(query=openDb, kind=symbol, compact=true), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/db/schema.ts, symbol=openDb)
+  answer: Here are the calling patterns grouped:  **Open with `this.dbPath`, use in try/finally `db.close()`:** - `build` in src/indexer/index.ts - `update` in src/indexer/index.ts - `ingestSummary` in src/indexer/index.ts - `ingestCoverage` in src/indexer/index.ts - `main` (refresh branch) in src/cli.ts  **O…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-11.2-openDb [iter 1]: control + lore-enabled arms
+[22m[39m[control] lore-self-10.3-openDb: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=11454 wall=119.5s
+  tools: view×32, bash×6, grep×2, report_intent×1, task×1
+  answer: Here are the callers grouped by pattern:  **Production — with try/finally (open → use → close):** - `ingestSummary` in `src/indexer/index.ts` - `ingestCoverage` in `src/indexer/index.ts`  **Production — with try/catch (post-open queries guarded):** - CLI `index` command in `src/cli.ts`  **Production…
+[lore]    lore-self-10.3-openDb: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=4760 wall=97.9s
+  tools: bash×19, grep×2, report_intent×1, lore_dependents×1, lore_snippet×1
+  lore calls: lore_dependents(query=openDb, kind=symbol, compact=true), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/db/schema.ts, symbol=openDb)
+  answer: I now have a complete picture of all calling patterns. Here's the grouping:  **`openDb(this.dbPath)` with try/finally db.close() — one-shot open-use-close in a method:** - `build` in src/indexer/index.ts - `update` in src/indexer/index.ts - `ingestSummary` in src/indexer/index.ts - `ingestCoverage` …
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-11.2-openDb [iter 2]: control + lore-enabled arms
+[22m[39m[control] lore-self-10.3-openDb: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=4266 wall=89.3s
+  tools: bash×12, report_intent×1, grep×1
+  answer: Here are the calling patterns:  **try/finally guarded, file path (production open-use-close):** - `build` in src/indexer/index.ts - `update` in src/indexer/index.ts - `ingestSummary` in src/indexer/index.ts - `ingestCoverage` in src/indexer/index.ts  **Dynamic import + try/finally guarded, file path…
+[lore]    lore-self-10.3-openDb: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=7596 wall=119.0s
+  tools: lore_snippet×23, grep×3, report_intent×1, lore_dependents×1
+  lore calls: lore_dependents(query=openDb, kind=symbol, compact=false), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/db/schema.ts, symbol=openDb), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, start_line=125, end_line=275), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/cli.ts, start_line=305, end_line=540), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/discovery/watcher.ts, start_line=95, end_line=185), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/discovery/poller.ts, start_line=80, end_line=175), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/runtime.ts, start_line=130, end_line=165), lore_snippet(end_line=20, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/db/edges.test.ts, start_line=1), lore_snippet(end_line=20, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/db/typerefs.test.ts, start_line=1), lore_snippet(end_line=110, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/resolution/call-graph.test.ts, start_line=90), lore_snippet(end_line=25, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/resolution/graph-analysis.test.ts, start_line=5), lore_snippet(end_line=25, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/server/tools/graph.test.ts, start_line=1), lore_snippet(end_line=345, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/db/schema.test.ts, start_line=290), lore_snippet(end_line=860, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/indexer/index.test.ts, start_line=600), lore_snippet(end_line=100, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/lsp/refresh-options.test.ts, start_line=85), lore_snippet(end_line=640, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/server/tools/graph.test.ts, start_line=510), lore_snippet(end_line=560, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/cli.ts, start_line=525), lore_snippet(end_line=620, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/indexer/index.test.ts, start_line=600), lore_snippet(end_line=795, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/indexer/index.test.ts, start_line=760), lore_snippet(end_line=85, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/git/history.test.ts, start_line=60), lore_snippet(end_line=130, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/server/tools/notes.test.ts, start_line=35), lore_snippet(end_line=195, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/cli.test.ts, start_line=170), lore_snippet(end_line=35, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/testing/test-mapper.test.ts, start_line=20), lore_snippet(end_line=30, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/db/schema.test.ts, start_line=1)
+  answer: Here are the direct callers of `openDb` grouped by calling pattern:  **File path + try/finally close** (production code that guarantees cleanup): - `build` in src/indexer/index.ts - `update` in src/indexer/index.ts - `ingestSummary` in src/indexer/index.ts - `ingestCoverage` in src/indexer/index.ts …
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-11.2-openDb [iter 3]: control + lore-enabled arms
+[22m[39m[control] lore-self-10.3-openDb: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=13682 wall=137.8s
+  tools: view×31, bash×8, grep×2, report_intent×1, task×1
+  answer: **With try/finally (ensures db.close()):** - `ingestSummary` in `src/indexer/index.ts` - `ingestCoverage` in `src/indexer/index.ts` - CLI refresh handler in `src/cli.ts`  **One-shot, no error handling (open → use → done):** - `build` in `src/indexer/index.ts` - `update` in `src/indexer/index.ts`  **…
+[lore]    lore-self-10.3-openDb: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=8149 wall=121.1s
+  tools: lore_snippet×22, report_intent×1, lore_dependents×1, grep×1
+  lore calls: lore_dependents(query=openDb, kind=symbol, compact=false), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/db/schema.ts, symbol=openDb), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, start_line=125, end_line=275), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/cli.ts, start_line=308, end_line=340), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/cli.ts, start_line=523, end_line=540), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/discovery/watcher.ts, start_line=95, end_line=185), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/discovery/poller.ts, start_line=80, end_line=175), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/runtime.ts, start_line=130, end_line=165), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/db/edges.test.ts, start_line=8, end_line=20), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/db/schema.test.ts, start_line=295, end_line=340), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/db/typerefs.test.ts, start_line=6, end_line=18), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/resolution/call-graph.test.ts, start_line=94, end_line=106), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/resolution/graph-analysis.test.ts, start_line=10, end_line=22), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/server/tools/graph.test.ts, start_line=7, end_line=20), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/indexer/index.test.ts, start_line=600, end_line=620), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/indexer/index.test.ts, start_line=663, end_line=680), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/indexer/index.test.ts, start_line=760, end_line=860), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/server/tools/graph.test.ts, start_line=515, end_line=635), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/lsp/refresh-options.test.ts, start_line=86, end_line=100), lore_snippet(end_line=615, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/indexer/index.test.ts, start_line=580), lore_snippet(end_line=795, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/indexer/index.test.ts, start_line=760), lore_snippet(end_line=545, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/cli.ts, start_line=523), lore_snippet(end_line=30, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/db/schema.test.ts, start_line=15)
+  answer: Here are the direct callers of `openDb`, grouped by calling pattern:  **Open on file path with try/finally db.close() (one-shot, production):** - `build` in src/indexer/index.ts - `update` in src/indexer/index.ts - `ingestSummary` in src/indexer/index.ts - `ingestCoverage` in src/indexer/index.ts - …
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-11.2-openDb [iter 4]: control + lore-enabled arms
+[22m[39m[control] lore-self-10.3-openDb: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=2252 wall=62.1s
+  tools: bash×10, report_intent×1, grep×1
+  answer: Here are the calling patterns:  **Open-use-close with `try/finally`, file path — pipeline methods (long-lived db across async work):** - `build` in `src/indexer/index.ts` - `update` in `src/indexer/index.ts`  **Open-use-close with `try/finally`, file path — short-lived one-shot operations:** - `inge…
+[lore]    lore-self-10.3-openDb: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=11724 wall=167.4s
+  tools: lore_snippet×39, grep×2, report_intent×1, lore_dependents×1
+  lore calls: lore_dependents(query=openDb, kind=symbol, compact=false), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/db/schema.ts, symbol=openDb), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, start_line=125, end_line=140), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, start_line=195, end_line=210), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, start_line=243, end_line=275), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/cli.ts, start_line=305, end_line=325), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/cli.ts, start_line=522, end_line=540), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/discovery/watcher.ts, start_line=95, end_line=115), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/discovery/watcher.ts, start_line=125, end_line=160), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/discovery/watcher.ts, start_line=165, end_line=185), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/discovery/poller.ts, start_line=80, end_line=100), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/discovery/poller.ts, start_line=160, end_line=180), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/runtime.ts, start_line=133, end_line=165), lore_snippet(end_line=20, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/db/edges.test.ts, start_line=8), lore_snippet(end_line=310, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/db/schema.test.ts, start_line=295), lore_snippet(end_line=340, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/db/schema.test.ts, start_line=325), lore_snippet(end_line=18, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/db/typerefs.test.ts, start_line=6), lore_snippet(end_line=110, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/resolution/call-graph.test.ts, start_line=93), lore_snippet(end_line=22, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/resolution/graph-analysis.test.ts, start_line=10), lore_snippet(end_line=22, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/server/tools/graph.test.ts, start_line=6), lore_snippet(end_line=530, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/server/tools/graph.test.ts, start_line=514), lore_snippet(end_line=620, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/server/tools/graph.test.ts, start_line=598), lore_snippet(end_line=640, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/server/tools/graph.test.ts, start_line=620), lore_snippet(end_line=620, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/indexer/index.test.ts, start_line=600), lore_snippet(end_line=680, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/indexer/index.test.ts, start_line=660), lore_snippet(end_line=800, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/indexer/index.test.ts, start_line=758), lore_snippet(end_line=865, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/indexer/index.test.ts, start_line=845), lore_snippet(end_line=100, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/lsp/refresh-options.test.ts, start_line=85), lore_snippet(end_line=325, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/cli.ts, start_line=308), lore_snippet(end_line=295, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, start_line=265), lore_snippet(end_line=570, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/cli.ts, start_line=526), lore_snippet(end_line=200, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, start_line=125), lore_snippet(end_line=50, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/db/schema.test.ts, start_line=25), lore_snippet(end_line=420, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/db/schema.test.ts, start_line=395), lore_snippet(end_line=85, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/git/history.test.ts, start_line=65), lore_snippet(end_line=35, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/testing/test-mapper.test.ts, start_line=20), lore_snippet(end_line=60, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/server/tools/notes.test.ts, start_line=38), lore_snippet(end_line=125, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/server/tools/notes.test.ts, start_line=108), lore_snippet(end_line=190, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/cli.test.ts, start_line=172), lore_snippet(end_line=260, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, start_line=200)
+  answer: Here are the direct callers of `openDb`, grouped by calling pattern:  **One-shot with try/finally db.close() (file path):**   `build` in src/indexer/index.ts   `update` in src/indexer/index.ts   `ingestSummary` in src/indexer/index.ts   `ingestCoverage` in src/indexer/index.ts   `main` in src/cli.ts…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-11.2-openDb [iter 5]: control + lore-enabled arms
+[22m[39m[control] lore-self-11.2-openDb: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=1114 wall=31.8s
+  tools: view×5, report_intent×1, grep×1, bash×1
+  answer: build in src/indexer/index.ts — const db = openDb(this.dbPath); update in src/indexer/index.ts — const db = openDb(this.dbPath); ingestSummary in src/indexer/index.ts — const db = openDb(this.dbPath); ingestCoverage in src/indexer/index.ts — const db = openDb(this.dbPath); main in src/cli.ts — const…
+[lore]    lore-self-11.2-openDb: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=8694 wall=115.6s
+  tools: lore_snippet×30, report_intent×1, lore_dependents×1
+  lore calls: lore_dependents(query=openDb, kind=symbol, compact=false), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, start_line=131, end_line=131), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, start_line=201, end_line=201), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, start_line=249, end_line=249), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, start_line=268, end_line=268), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/cli.ts, start_line=313, end_line=313), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/cli.ts, start_line=529, end_line=529), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/discovery/watcher.ts, start_line=103, end_line=103), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/discovery/watcher.ts, start_line=132, end_line=132), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/discovery/watcher.ts, start_line=153, end_line=153), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/discovery/watcher.ts, start_line=173, end_line=173), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/discovery/poller.ts, start_line=88, end_line=88), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/discovery/poller.ts, start_line=168, end_line=168), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/runtime.ts, start_line=140, end_line=140), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/runtime.ts, start_line=157, end_line=157), lore_snippet(end_line=13, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/db/edges.test.ts, start_line=13), lore_snippet(end_line=300, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/db/schema.test.ts, start_line=300), lore_snippet(end_line=330, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/db/schema.test.ts, start_line=330), lore_snippet(end_line=11, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/db/typerefs.test.ts, start_line=11), lore_snippet(end_line=99, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/resolution/call-graph.test.ts, start_line=99), lore_snippet(end_line=15, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/resolution/graph-analysis.test.ts, start_line=15), lore_snippet(end_line=12, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/server/tools/graph.test.ts, start_line=12), lore_snippet(end_line=520, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/server/tools/graph.test.ts, start_line=520), lore_snippet(end_line=605, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/server/tools/graph.test.ts, start_line=605), lore_snippet(end_line=627, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/server/tools/graph.test.ts, start_line=627), lore_snippet(end_line=608, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/indexer/index.test.ts, start_line=608), lore_snippet(end_line=670, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/indexer/index.test.ts, start_line=670), lore_snippet(end_line=766, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/indexer/index.test.ts, start_line=766), lore_snippet(end_line=779, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/indexer/index.test.ts, start_line=779), lore_snippet(end_line=852, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/indexer/index.test.ts, start_line=852), lore_snippet(end_line=92, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/lsp/refresh-options.test.ts, start_line=92)
+  answer: build in src/indexer/index.ts — const db = openDb(this.dbPath); update in src/indexer/index.ts — const db = openDb(this.dbPath); ingestSummary in src/indexer/index.ts — const db = openDb(this.dbPath); ingestCoverage in src/indexer/index.ts — const db = openDb(this.dbPath); main in src/cli.ts — const…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-11.3-resolveSymbolEdges [iter 1]: control + lore-enabled arms
+[22m[39m[control] lore-self-11.2-openDb: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=1148 wall=32.5s
+  tools: view×5, report_intent×1, grep×1, bash×1
+  answer: build in src/indexer/index.ts — `const db = openDb(this.dbPath);` update in src/indexer/index.ts — `const db = openDb(this.dbPath);` ingestSummary in src/indexer/index.ts — `const db = openDb(this.dbPath);` ingestCoverage in src/indexer/index.ts — `const db = openDb(this.dbPath);` main in src/cli.ts…
+[lore]    lore-self-11.2-openDb: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=7644 wall=119.2s
+  tools: view×21, lore_snippet×14, grep×2, report_intent×1, lore_dependents×1
+  lore calls: lore_dependents(query=openDb, kind=symbol, compact=false), lore_snippet(path=src/indexer/index.ts, start_line=131, end_line=131), lore_snippet(path=src/indexer/index.ts, start_line=201, end_line=201), lore_snippet(path=src/indexer/index.ts, start_line=249, end_line=249), lore_snippet(path=src/indexer/index.ts, start_line=268, end_line=268), lore_snippet(path=src/cli.ts, start_line=313, end_line=313), lore_snippet(path=src/cli.ts, start_line=529, end_line=529), lore_snippet(path=src/discovery/watcher.ts, start_line=103, end_line=103), lore_snippet(path=src/discovery/watcher.ts, start_line=132, end_line=132), lore_snippet(path=src/discovery/watcher.ts, start_line=153, end_line=153), lore_snippet(path=src/discovery/watcher.ts, start_line=173, end_line=173), lore_snippet(path=src/discovery/poller.ts, start_line=88, end_line=88), lore_snippet(path=src/discovery/poller.ts, start_line=168, end_line=168), lore_snippet(path=src/runtime.ts, start_line=140, end_line=140), lore_snippet(path=src/runtime.ts, start_line=157, end_line=157)
+  answer: build in src/indexer/index.ts — const db = openDb(this.dbPath); update in src/indexer/index.ts — const db = openDb(this.dbPath); ingestSummary in src/indexer/index.ts — const db = openDb(this.dbPath); ingestCoverage in src/indexer/index.ts — const db = openDb(this.dbPath); main in src/cli.ts — const…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-11.3-resolveSymbolEdges [iter 2]: control + lore-enabled arms
+[22m[39m[control] lore-self-11.2-openDb: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=1225 wall=32.3s
+  tools: view×6, grep×2, report_intent×1
+  answer: build in src/indexer/index.ts — const db = openDb(this.dbPath); update in src/indexer/index.ts — const db = openDb(this.dbPath); ingestSummary in src/indexer/index.ts — const db = openDb(this.dbPath); ingestCoverage in src/indexer/index.ts — const db = openDb(this.dbPath); main in src/cli.ts — const…
+[lore]    lore-self-11.2-openDb: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=7664 wall=100.4s
+  tools: lore_snippet×30, report_intent×1, lore_dependents×1
+  lore calls: lore_dependents(query=openDb, kind=symbol, compact=false), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, start_line=131, end_line=131), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, start_line=201, end_line=201), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, start_line=249, end_line=249), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, start_line=268, end_line=268), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/cli.ts, start_line=313, end_line=313), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/cli.ts, start_line=529, end_line=529), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/discovery/watcher.ts, start_line=103, end_line=103), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/discovery/watcher.ts, start_line=132, end_line=132), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/discovery/watcher.ts, start_line=153, end_line=153), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/discovery/watcher.ts, start_line=173, end_line=173), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/discovery/poller.ts, start_line=88, end_line=88), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/discovery/poller.ts, start_line=168, end_line=168), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/runtime.ts, start_line=140, end_line=140), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/runtime.ts, start_line=157, end_line=157), lore_snippet(end_line=13, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/db/edges.test.ts, start_line=13), lore_snippet(end_line=300, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/db/schema.test.ts, start_line=300), lore_snippet(end_line=330, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/db/schema.test.ts, start_line=330), lore_snippet(end_line=11, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/db/typerefs.test.ts, start_line=11), lore_snippet(end_line=99, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/resolution/call-graph.test.ts, start_line=99), lore_snippet(end_line=15, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/resolution/graph-analysis.test.ts, start_line=15), lore_snippet(end_line=12, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/server/tools/graph.test.ts, start_line=12), lore_snippet(end_line=520, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/server/tools/graph.test.ts, start_line=520), lore_snippet(end_line=605, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/server/tools/graph.test.ts, start_line=605), lore_snippet(end_line=627, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/server/tools/graph.test.ts, start_line=627), lore_snippet(end_line=608, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/indexer/index.test.ts, start_line=608), lore_snippet(end_line=670, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/indexer/index.test.ts, start_line=670), lore_snippet(end_line=766, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/indexer/index.test.ts, start_line=766), lore_snippet(end_line=779, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/indexer/index.test.ts, start_line=779), lore_snippet(end_line=852, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/indexer/index.test.ts, start_line=852), lore_snippet(end_line=92, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/lsp/refresh-options.test.ts, start_line=92)
+  answer: build in src/indexer/index.ts — const db = openDb(this.dbPath); update in src/indexer/index.ts — const db = openDb(this.dbPath); ingestSummary in src/indexer/index.ts — const db = openDb(this.dbPath); ingestCoverage in src/indexer/index.ts — const db = openDb(this.dbPath); main in src/cli.ts — const…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-11.3-resolveSymbolEdges [iter 3]: control + lore-enabled arms
+[22m[39m[control] lore-self-11.3-resolveSymbolEdges: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=760 wall=30.9s
+  tools: view×3, report_intent×1, grep×1
+  answer: Now I have the full picture. Here's the analysis:  **Callers: 1** (production code) **Verdict: No** — the function is 72 lines (98–170) with significant side effects (multiple SQL writes in a transaction) and complex multi-pass resolution logic. Inlining would not simplify anything since there is on…
+[lore]    lore-self-11.3-resolveSymbolEdges: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=1093 wall=36.9s
+  tools: lore_snippet×2, report_intent×1, lore_dependents×1, lore_lookup×1, lore_graph×1
+  lore calls: lore_dependents(query=resolveSymbolEdges, kind=symbol, compact=true), lore_lookup(kind=symbol, query=resolveSymbolEdges), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/resolution/call-graph.ts, symbol=resolveSymbolEdges), lore_graph(kind=call, target_id=437, compact=true), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, symbol=resolutionStage)
+  answer: The call graph is clear. Only **one direct caller** exists — all 17 others in the dependents list are transitive (they call `build`/`update` → `resolutionStage` → `resolveSymbolEdges`).  **Callers:** 1 **Verdict:** No — the function is 73 lines containing 7 coordinated SQL resolution passes wrapped …
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-11.3-resolveSymbolEdges [iter 4]: control + lore-enabled arms
+[22m[39m[control] lore-self-11.3-resolveSymbolEdges: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=846 wall=30.9s
+  tools: view×3, report_intent×1, grep×1
+  answer: Now I have the full picture. The function is 72 lines (98–170), has side effects (DB writes in a transaction), is exported as public API, and has only **1 production caller**.  **Callers: 1** (production code)  **Verdict: No** — the function is 72 lines of transactional DB-mutation logic with 7 sub-…
+[lore]    lore-self-11.3-resolveSymbolEdges: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=1411 wall=38.5s
+  tools: report_intent×1, lore_dependents×1, lore_lookup×1, lore_snippet×1, grep×1
+  lore calls: lore_dependents(query=resolveSymbolEdges, kind=symbol, compact=true), lore_lookup(kind=symbol, query=resolveSymbolEdges), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/resolution/call-graph.ts, symbol=resolveSymbolEdges)
+  answer: **Callers:** 1 production caller, plus 26 test call-sites across 3 test files  **Verdict:** No — the function is 73 lines wrapping a database transaction with 9 delegated calls (3× `resolveByContainment`, 1× `buildNameMap`, 5× `resolveByNameFallback`), each with distinct SQL and config. It has side …
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2mlore-self-11.3-resolveSymbolEdges [iter 5]: control + lore-enabled arms
+[22m[39m[control] lore-self-11.3-resolveSymbolEdges: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=825 wall=31.3s
+  tools: view×3, report_intent×1, grep×1
+  answer: **Callers: 1** (production code)  **Verdict: No** — the function is 72 lines wrapping a multi-pass SQLite transaction with 8 internal calls (`resolveByContainment` ×3, `buildNameMap`, `resolveByNameFallback` ×4) plus prepared statements. It has **side effects** (writes to `symbol_refs`, `type_refs`,…
+[lore]    lore-self-11.3-resolveSymbolEdges: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=1548 wall=43.0s
+  tools: report_intent×1, lore_dependents×1, lore_lookup×1, lore_snippet×1, grep×1
+  lore calls: lore_dependents(query=resolveSymbolEdges, kind=symbol, compact=true), lore_lookup(kind=symbol, query=resolveSymbolEdges), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/resolution/call-graph.ts, symbol=resolveSymbolEdges)
+  answer: **Callers: 1** production caller, plus ~25 test call sites across 3 test files  **Verdict: No** — the function is 73 lines wrapping 8 resolution passes inside a DB transaction, with heavy side effects (mutates `symbol_refs`, `type_refs`, and `symbol_relationships` tables). Even with only 1 productio…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self
+[22m[39m[control] lore-self-11.3-resolveSymbolEdges: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=785 wall=32.7s
+  tools: view×3, report_intent×1, grep×1
+  answer: Now I have all the information needed.  **Callers: 1** (production code)  **Verdict: No** — The function is 72 lines (lines 98–170) containing a multi-pass transactional resolution strategy with 7 inner calls, 6 prepared SQL statements, and database-mutating side effects. It is a **public API export…
+[lore]    lore-self-11.3-resolveSymbolEdges: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=2096 wall=53.4s
+  tools: grep×2, report_intent×1, lore_dependents×1, lore_lookup×1, lore_snippet×1
+  lore calls: lore_dependents(query=resolveSymbolEdges, kind=symbol, compact=false), lore_lookup(kind=symbol, query=resolveSymbolEdges), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/resolution/call-graph.ts, symbol=resolveSymbolEdges)
+  answer: **Callers:** 1 production call site (+ public API export + ~20 direct test call sites)  **Verdict:** No — the function is 73 lines with database side effects (multi-pass SQL UPDATEs in a transaction), is part of the **public API surface** (re-exported from `src/index.ts`, verified by `api-surface.te…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self
+[22m[39m[control] lore-self-11.3-resolveSymbolEdges: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=870 wall=30.4s
+  tools: view×3, report_intent×1, grep×1
+  answer: Now I have the full picture.  **Callers: 1** (production code)  The only production caller is `resolutionStage()` in `src/indexer/index.ts`. It is also a **public API export** (`src/index.ts:17`).  **Verdict: No** — `resolveSymbolEdges` is 72 lines (98–170) containing a multi-pass transactional reso…
+[lore]    lore-self-11.3-resolveSymbolEdges: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=1480 wall=39.0s
+  tools: report_intent×1, lore_dependents×1, lore_lookup×1, lore_snippet×1, grep×1
+  lore calls: lore_dependents(query=resolveSymbolEdges, kind=symbol, compact=true), lore_lookup(kind=symbol, query=resolveSymbolEdges), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/resolution/call-graph.ts, start_line=97, end_line=169)
+  answer: **Callers:** 1 production + 27 test call-sites (4 files total)  **Verdict:** No — the function is 73 lines wrapping a DB transaction with 7 sub-calls across multiple resolution passes. Inlining would (a) duplicate substantial, complex logic across 28 call sites, (b) destroy a well-named abstraction …
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self
+[22m[39m[control] lore-self-11.2-openDb: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=1461 wall=40.1s
+  tools: view×6, grep×3, report_intent×1
+  answer: All four calls in `src/indexer/index.ts` are methods on `IndexBuilder`: `build`, `update`, `ingestSummary`, `ingestCoverage`. The one in `src/cli.ts` is in `main`.  build in src/indexer/index.ts — const db = openDb(this.dbPath); update in src/indexer/index.ts — const db = openDb(this.dbPath); ingest…
+[lore]    lore-self-11.2-openDb: success=0.5 correctness=0.00 ans_cov=0.00 file_cov=1.00 sym_cov=1.00 tokens=21006 wall=360.0s
+  tools: lore_snippet×33, view×8, grep×4, report_intent×1, lore_dependents×1
+  lore calls: lore_dependents(query=openDb, kind=symbol, compact=false), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, start_line=131, end_line=131), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, start_line=201, end_line=201), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, start_line=249, end_line=249), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/indexer/index.ts, start_line=268, end_line=268), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/cli.ts, start_line=313, end_line=313), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/cli.ts, start_line=529, end_line=529), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/discovery/watcher.ts, start_line=103, end_line=103), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/discovery/watcher.ts, start_line=132, end_line=132), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/discovery/watcher.ts, start_line=153, end_line=153), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/discovery/watcher.ts, start_line=173, end_line=173), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/discovery/poller.ts, start_line=88, end_line=88), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/discovery/poller.ts, start_line=168, end_line=168), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/runtime.ts, start_line=140, end_line=140), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/runtime.ts, start_line=157, end_line=157), lore_snippet(end_line=535, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/cli.ts, start_line=525), lore_snippet(end_line=316, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/src/cli.ts, start_line=310), lore_snippet(end_line=15, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/db/edges.test.ts, start_line=11), lore_snippet(end_line=302, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/db/schema.test.ts, start_line=298), lore_snippet(end_line=332, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/db/schema.test.ts, start_line=328), lore_snippet(end_line=13, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/db/typerefs.test.ts, start_line=9), lore_snippet(end_line=101, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/resolution/call-graph.test.ts, start_line=97), lore_snippet(end_line=17, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/resolution/graph-analysis.test.ts, start_line=13), lore_snippet(end_line=14, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/server/tools/graph.test.ts, start_line=10), lore_snippet(end_line=522, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/server/tools/graph.test.ts, start_line=518), lore_snippet(end_line=607, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/server/tools/graph.test.ts, start_line=603), lore_snippet(end_line=629, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/server/tools/graph.test.ts, start_line=625), lore_snippet(end_line=610, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/indexer/index.test.ts, start_line=606), lore_snippet(end_line=672, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/indexer/index.test.ts, start_line=668), lore_snippet(end_line=768, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/indexer/index.test.ts, start_line=764), lore_snippet(end_line=781, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/indexer/index.test.ts, start_line=777), lore_snippet(end_line=854, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/indexer/index.test.ts, start_line=850), lore_snippet(end_line=94, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/lsp/refresh-options.test.ts, start_line=90), lore_snippet(end_line=300, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-WekntH/lore-self/tests/db/schema.test.ts, start_line=285)
+  answer: Let me verify the schema.test.ts context for a few more call sites I haven't confirmed:
+  MISSED parts: [build, update, ingestSummary, ingestCoverage, src/indexer/index.ts, src/cli.ts, openDb]
+  MISSED answer lines: [build → src/indexer/index.ts, update → src/indexer/index.ts, ingestSummary → src/cli.ts, ingestCoverage → src/cli.ts]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self
+[22m[39m[control] lore-self-11.2-openDb: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=1344 wall=35.7s
+  tools: view×5, grep×3, report_intent×1
+  answer: The `openDb` call at line 534 is inside `main`. Now let me confirm the method names in `src/indexer/index.ts`:  - Line 131: `build()` - Line 201: `update()` - Line 249: `ingestSummary()` - Line 268: `ingestCoverage()`  build in src/indexer/index.ts — const db = openDb(this.dbPath); update in src/ind…
+[lore]    lore-self-11.2-openDb: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=19634 wall=332.5s
+  tools: bash×11, report_intent×1, lore_dependents×1, grep×1
+  lore calls: lore_dependents(query=openDb, kind=symbol, compact=false)
+  answer: Now I have all the information. Let me compile the final answer.  build in src/indexer/index.ts — const db = openDb(this.dbPath); update in src/indexer/index.ts — const db = openDb(this.dbPath); ingestSummary in src/indexer/index.ts — const db = openDb(this.dbPath); ingestCoverage in src/indexer/ind…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: lore-self[2m > [22m[2maggregate: full report — control vs lore-enabled
+[22m[39m
+── lore-self-1.1-openDb [iter 1] (localization) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=2715 wall=65.8s
+    tools: view×5, bash×3, report_intent×1, grep×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=4107 wall=102.1s
+    tools: grep×3, view×2, report_intent×1, lore_dependents×1, lore_graph×1
+  DELTA:   correctness=+0.00  tokens=+1392 (+51%)  wall=+36.3s (+55%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── lore-self-1.1-openDb [iter 2] (localization) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=4441 wall=85.6s
+    tools: view×19, grep×3, report_intent×1, task×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=3048 wall=76.3s
+    tools: grep×3, report_intent×1, lore_dependents×1, lore_graph×1, view×1
+  DELTA:   correctness=+0.00  tokens=-1393 (-31%)  wall=-9.3s (-11%)
+
+── lore-self-1.1-openDb [iter 3] (localization) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=3792 wall=68.0s
+    tools: view×16, grep×2, report_intent×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=4341 wall=110.5s
+    tools: grep×5, view×3, report_intent×1, lore_dependents×1, lore_graph×1, bash×1
+  DELTA:   correctness=+0.00  tokens=+549 (+14%)  wall=+42.5s (+62%)
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── lore-self-1.1-openDb [iter 4] (localization) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=3123 wall=62.7s
+    tools: view×14, report_intent×1, grep×1, bash×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=4845 wall=106.6s
+    tools: view×7, grep×3, report_intent×1, lore_dependents×1, lore_graph×1
+  DELTA:   correctness=+0.00  tokens=+1722 (+55%)  wall=+44.0s (+70%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── lore-self-1.1-openDb [iter 5] (localization) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=3256 wall=66.3s
+    tools: view×16, grep×2, report_intent×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=4454 wall=100.5s
+    tools: view×6, grep×5, report_intent×1, lore_dependents×1, lore_graph×1
+  DELTA:   correctness=+0.00  tokens=+1198 (+37%)  wall=+34.3s (+52%)
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── lore-self-1.2-build [iter 1] (localization) ──
+  CONTROL: success=1 correctness=0.90 ans=1.00 file=1.00 sym=1.00 tokens=754 wall=28.4s
+    tools: grep×3, report_intent×1, view×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=1275 wall=44.4s
+    tools: bash×3, report_intent×1, lore_lookup×1, lore_graph×1
+  DELTA:   correctness=+0.10  tokens=+521 (+69%)  wall=+16.1s (+57%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── lore-self-1.2-build [iter 2] (localization) ──
+  CONTROL: success=1 correctness=0.90 ans=1.00 file=1.00 sym=1.00 tokens=763 wall=32.2s
+    tools: grep×3, report_intent×1, view×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=527 wall=24.0s
+    tools: report_intent×1, lore_lookup×1, lore_graph×1, bash×1
+  DELTA:   correctness=+0.10  tokens=-236 (-31%)  wall=-8.2s (-25%)
+
+── lore-self-1.2-build [iter 3] (localization) ──
+  CONTROL: success=1 correctness=0.90 ans=1.00 file=1.00 sym=1.00 tokens=1470 wall=52.9s
+    tools: grep×2, report_intent×1, view×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=528 wall=24.5s
+    tools: report_intent×1, lore_lookup×1, lore_graph×1, bash×1
+  DELTA:   correctness=+0.10  tokens=-942 (-64%)  wall=-28.4s (-54%)
+
+── lore-self-1.2-build [iter 4] (localization) ──
+  CONTROL: success=1 correctness=0.90 ans=1.00 file=1.00 sym=1.00 tokens=2284 wall=41.1s
+    tools: grep×2, view×2, report_intent×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=541 wall=25.2s
+    tools: report_intent×1, lore_lookup×1, lore_graph×1, bash×1
+  DELTA:   correctness=+0.10  tokens=-1743 (-76%)  wall=-15.8s (-39%)
+
+── lore-self-1.2-build [iter 5] (localization) ──
+  CONTROL: success=1 correctness=0.90 ans=1.00 file=1.00 sym=1.00 tokens=2205 wall=43.8s
+    tools: grep×2, view×2, report_intent×1, task×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=1354 wall=42.4s
+    tools: bash×3, report_intent×1, lore_lookup×1, lore_graph×1
+  DELTA:   correctness=+0.10  tokens=-851 (-39%)  wall=-1.4s (-3%)
+
+── lore-self-1.4-resolveSymbolEdges [iter 1] (modification) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=14879 wall=183.6s
+    tools: view×26, bash×20, grep×16, task×2, report_intent×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=451 wall=18.0s
+    tools: report_intent×1, lore_dependents×1
+  DELTA:   correctness=+0.00  tokens=-14428 (-97%)  wall=-165.7s (-90%)
+
+── lore-self-1.4-resolveSymbolEdges [iter 2] (modification) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=9108 wall=124.6s
+    tools: view×15, grep×12, bash×10, report_intent×1, task×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=466 wall=17.4s
+    tools: report_intent×1, lore_dependents×1
+  DELTA:   correctness=+0.00  tokens=-8642 (-95%)  wall=-107.1s (-86%)
+
+── lore-self-1.4-resolveSymbolEdges [iter 3] (modification) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=10080 wall=123.2s
+    tools: view×13, bash×11, grep×7, report_intent×1, task×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=468 wall=18.9s
+    tools: report_intent×1, lore_dependents×1
+  DELTA:   correctness=+0.00  tokens=-9612 (-95%)  wall=-104.3s (-85%)
+
+── lore-self-1.4-resolveSymbolEdges [iter 4] (modification) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=8485 wall=123.3s
+    tools: bash×15, view×14, report_intent×1, glob×1, grep×1, task×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=466 wall=18.9s
+    tools: report_intent×1, lore_dependents×1
+  DELTA:   correctness=+0.00  tokens=-8019 (-95%)  wall=-104.4s (-85%)
+
+── lore-self-1.4-resolveSymbolEdges [iter 5] (modification) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=12043 wall=159.1s
+    tools: bash×21, view×15, grep×6, report_intent×1, task×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=466 wall=18.0s
+    tools: report_intent×1, lore_dependents×1
+  DELTA:   correctness=+0.00  tokens=-11577 (-96%)  wall=-141.1s (-89%)
+
+── lore-self-1.3-build [iter 1] (explanation) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=4821 wall=76.6s
+    tools: view×2, report_intent×1, grep×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=6102 wall=100.4s
+    tools: bash×2, report_intent×1, lore_lookup×1, lore_snippet×1, lore_graph×1
+  DELTA:   correctness=+0.00  tokens=+1281 (+27%)  wall=+23.8s (+31%)
+
+── lore-self-1.3-build [iter 2] (explanation) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=3644 wall=58.1s
+    tools: grep×3, report_intent×1, view×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=5063 wall=87.5s
+    tools: bash×2, report_intent×1, lore_lookup×1, lore_snippet×1, lore_graph×1
+  DELTA:   correctness=+0.00  tokens=+1419 (+39%)  wall=+29.4s (+51%)
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── lore-self-1.3-build [iter 3] (explanation) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=969 wall=31.2s
+    tools: grep×3, report_intent×1, view×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=4291 wall=69.9s
+    tools: bash×2, report_intent×1, lore_lookup×1, lore_snippet×1, lore_graph×1
+  DELTA:   correctness=+0.00  tokens=+3322 (+343%)  wall=+38.7s (+124%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── lore-self-1.3-build [iter 4] (explanation) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=2557 wall=65.3s
+    tools: grep×14, view×2, report_intent×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=3620 wall=64.5s
+    tools: report_intent×1, lore_lookup×1, lore_snippet×1, lore_graph×1, bash×1, view×1
+  DELTA:   correctness=+0.00  tokens=+1063 (+42%)  wall=-0.8s (-1%)
+
+── lore-self-1.3-build [iter 5] (explanation) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=1958 wall=37.8s
+    tools: grep×2, report_intent×1, view×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=6927 wall=117.2s
+    tools: bash×2, report_intent×1, lore_lookup×1, lore_snippet×1, lore_graph×1
+  DELTA:   correctness=+0.00  tokens=+4969 (+254%)  wall=+79.5s (+210%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── lore-self-1.5-openDb [iter 1] (localization) ──
+  CONTROL: success=0.5 correctness=1.00 ans=0.50 file=1.00 sym=1.00 tokens=555 wall=25.7s
+    tools: grep×3, report_intent×1, view×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=2030 wall=47.1s
+    tools: lore_dependents×2, lore_graph×2, lore_snippet×2, report_intent×1
+  DELTA:   correctness=+0.00  tokens=+1475 (+266%)  wall=+21.4s (+83%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── lore-self-1.5-openDb [iter 2] (localization) ──
+  CONTROL: success=0.5 correctness=1.00 ans=0.50 file=1.00 sym=1.00 tokens=541 wall=23.1s
+    tools: grep×3, report_intent×1, view×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=1813 wall=41.2s
+    tools: lore_dependents×2, lore_graph×2, lore_snippet×2, report_intent×1
+  DELTA:   correctness=+0.00  tokens=+1272 (+235%)  wall=+18.0s (+78%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── lore-self-1.5-openDb [iter 3] (localization) ──
+  CONTROL: success=0.5 correctness=1.00 ans=0.50 file=1.00 sym=1.00 tokens=565 wall=25.9s
+    tools: grep×3, report_intent×1, view×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=1824 wall=43.8s
+    tools: lore_dependents×2, lore_graph×2, lore_snippet×2, report_intent×1
+  DELTA:   correctness=+0.00  tokens=+1259 (+223%)  wall=+17.9s (+69%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── lore-self-1.5-openDb [iter 4] (localization) ──
+  CONTROL: success=0.5 correctness=1.00 ans=0.50 file=1.00 sym=1.00 tokens=544 wall=23.7s
+    tools: grep×3, report_intent×1, view×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=2883 wall=55.3s
+    tools: lore_snippet×5, report_intent×2, lore_dependents×2, bash×2
+  DELTA:   correctness=+0.00  tokens=+2339 (+430%)  wall=+31.5s (+133%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── lore-self-1.5-openDb [iter 5] (localization) ──
+  CONTROL: success=0.5 correctness=1.00 ans=0.50 file=1.00 sym=1.00 tokens=544 wall=23.3s
+    tools: grep×3, report_intent×1, view×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=4471 wall=86.4s
+    tools: lore_snippet×5, lore_dependents×2, bash×2, lore_graph×2, report_intent×1, grep×1
+  DELTA:   correctness=+0.00  tokens=+3927 (+722%)  wall=+63.1s (+271%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── lore-self-1.7-build [iter 1] (explanation) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=4622 wall=69.3s
+    tools: view×8, bash×5, grep×4, report_intent×1, task×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=280 wall=16.6s
+    tools: report_intent×1, lore_trace×1
+  DELTA:   correctness=+0.00  tokens=-4342 (-94%)  wall=-52.7s (-76%)
+
+── lore-self-1.7-build [iter 2] (explanation) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=7525 wall=100.7s
+    tools: view×11, grep×5, bash×3, task×2, report_intent×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=283 wall=15.8s
+    tools: report_intent×1, lore_trace×1
+  DELTA:   correctness=+0.00  tokens=-7242 (-96%)  wall=-84.9s (-84%)
+
+── lore-self-1.7-build [iter 3] (explanation) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=4529 wall=64.1s
+    tools: view×9, grep×4, report_intent×1, glob×1, task×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=279 wall=16.6s
+    tools: report_intent×1, lore_trace×1
+  DELTA:   correctness=+0.00  tokens=-4250 (-94%)  wall=-47.5s (-74%)
+
+── lore-self-1.7-build [iter 4] (explanation) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=5960 wall=73.9s
+    tools: view×12, grep×5, bash×2, report_intent×1, task×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=280 wall=16.3s
+    tools: report_intent×1, lore_trace×1
+  DELTA:   correctness=+0.00  tokens=-5680 (-95%)  wall=-57.6s (-78%)
+
+── lore-self-1.7-build [iter 5] (explanation) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=6584 wall=82.7s
+    tools: grep×7, view×6, report_intent×1, glob×1, bash×1, task×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=279 wall=15.7s
+    tools: report_intent×1, lore_trace×1
+  DELTA:   correctness=+0.00  tokens=-6305 (-96%)  wall=-66.9s (-81%)
+
+── lore-self-1.8-openDb [iter 1] (modification) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=1972 wall=48.2s
+    tools: view×5, grep×2, report_intent×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=8315 wall=111.7s
+    tools: view×10, bash×6, grep×3, report_intent×1, lore_dependents×1, task×1, lore_snippet×1, read_agent×1
+  DELTA:   correctness=+0.00  tokens=+6343 (+322%)  wall=+63.5s (+132%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── lore-self-1.8-openDb [iter 2] (modification) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=1612 wall=42.4s
+    tools: view×4, grep×2, report_intent×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=6513 wall=116.6s
+    tools: lore_snippet×9, report_intent×1, lore_dependents×1, lore_lookup×1, lore_graph×1, bash×1, grep×1
+  DELTA:   correctness=+0.00  tokens=+4901 (+304%)  wall=+74.2s (+175%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── lore-self-1.8-openDb [iter 3] (modification) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=2053 wall=52.5s
+    tools: view×8, grep×2, report_intent×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=20834 wall=197.3s
+    tools: view×37, bash×29, grep×9, report_intent×2, task×2, read_agent×2, lore_dependents×1, lore_lookup×1, lore_snippet×1
+  DELTA:   correctness=+0.00  tokens=+18781 (+915%)  wall=+144.8s (+276%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── lore-self-1.8-openDb [iter 4] (modification) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=3223 wall=66.8s
+    tools: view×6, grep×2, report_intent×1, bash×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=3906 wall=66.3s
+    tools: lore_snippet×13, report_intent×1, lore_dependents×1, lore_graph×1
+  DELTA:   correctness=+0.00  tokens=+683 (+21%)  wall=-0.6s (-1%)
+
+── lore-self-1.8-openDb [iter 5] (modification) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=2325 wall=51.3s
+    tools: view×8, grep×2, report_intent×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=6841 wall=124.5s
+    tools: view×8, grep×4, bash×2, report_intent×1, lore_dependents×1, lore_lookup×1, lore_snippet×1
+  DELTA:   correctness=+0.00  tokens=+4516 (+194%)  wall=+73.1s (+142%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── lore-self-7.2-openDb [iter 1] (localization) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=0.67 sym=1.00 tokens=2841 wall=56.0s
+    tools: bash×3, view×3, report_intent×1, grep×1, task×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=7039 wall=100.4s
+    tools: lore_snippet×17, grep×6, report_intent×1, lore_dependents×1
+  DELTA:   correctness=+0.00  tokens=+4198 (+148%)  wall=+44.4s (+79%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── lore-self-7.2-openDb [iter 2] (localization) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=2296 wall=51.0s
+    tools: view×8, grep×3, report_intent×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=10726 wall=148.6s
+    tools: lore_snippet×31, report_intent×2, lore_dependents×1
+  DELTA:   correctness=+0.00  tokens=+8430 (+367%)  wall=+97.6s (+191%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── lore-self-7.2-openDb [iter 3] (localization) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=3922 wall=65.0s
+    tools: view×5, bash×3, grep×2, report_intent×1, task×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=8848 wall=127.3s
+    tools: view×15, lore_snippet×13, grep×6, report_intent×1, lore_dependents×1
+  DELTA:   correctness=+0.00  tokens=+4926 (+126%)  wall=+62.3s (+96%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── lore-self-7.2-openDb [iter 4] (localization) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=0.67 sym=1.00 tokens=2685 wall=59.2s
+    tools: bash×5, view×2, report_intent×1, grep×1, task×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=5665 wall=92.5s
+    tools: lore_snippet×16, report_intent×1, lore_dependents×1, grep×1
+  DELTA:   correctness=+0.00  tokens=+2980 (+111%)  wall=+33.3s (+56%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── lore-self-7.2-openDb [iter 5] (localization) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=0.67 sym=1.00 tokens=1615 wall=45.8s
+    tools: view×5, bash×3, report_intent×1, grep×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=6567 wall=115.5s
+    tools: lore_snippet×10, grep×3, bash×2, report_intent×1, lore_dependents×1, view×1
+  DELTA:   correctness=+0.00  tokens=+4952 (+307%)  wall=+69.7s (+152%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── lore-self-7.3-resolutionStage [iter 1] (localization) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=434 wall=22.0s
+    tools: grep×2, report_intent×1, view×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=927 wall=30.8s
+    tools: report_intent×1, lore_lookup×1, lore_trace×1, lore_graph×1, bash×1, lore_snippet×1
+  DELTA:   correctness=+0.00  tokens=+493 (+114%)  wall=+8.8s (+40%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+
+── lore-self-7.3-resolutionStage [iter 2] (localization) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=1253 wall=40.2s
+    tools: grep×4, view×3, report_intent×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=482 wall=22.5s
+    tools: lore_lookup×2, report_intent×1, lore_snippet×1, lore_trace×1
+  DELTA:   correctness=+0.00  tokens=-771 (-62%)  wall=-17.7s (-44%)
+
+── lore-self-7.3-resolutionStage [iter 3] (localization) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=452 wall=33.2s
+    tools: grep×2, report_intent×1, view×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=991 wall=32.8s
+    tools: lore_lookup×2, report_intent×1, lore_trace×1, lore_graph×1, bash×1, lore_snippet×1
+  DELTA:   correctness=+0.00  tokens=+539 (+119%)  wall=-0.4s (-1%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+
+── lore-self-7.3-resolutionStage [iter 4] (localization) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=1102 wall=35.4s
+    tools: grep×3, view×3, report_intent×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=482 wall=23.4s
+    tools: lore_lookup×2, report_intent×1, lore_snippet×1, lore_trace×1
+  DELTA:   correctness=+0.00  tokens=-620 (-56%)  wall=-12.0s (-34%)
+
+── lore-self-7.3-resolutionStage [iter 5] (localization) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=803 wall=32.2s
+    tools: view×3, grep×2, report_intent×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=482 wall=24.5s
+    tools: lore_lookup×2, report_intent×1, lore_snippet×1, lore_trace×1
+  DELTA:   correctness=+0.00  tokens=-321 (-40%)  wall=-7.7s (-24%)
+
+── lore-self-10.1-openDb [iter 1] (explanation) ──
+  CONTROL: success=1 correctness=0.83 ans=1.00 file=1.00 sym=1.00 tokens=2186 wall=52.6s
+    tools: view×6, grep×3, report_intent×1
+  LORE:    success=1 correctness=0.83 ans=1.00 file=1.00 sym=1.00 tokens=2321 wall=49.5s
+    tools: grep×3, view×3, report_intent×1, lore_dependents×1
+  DELTA:   correctness=+0.00  tokens=+135 (+6%)  wall=-3.2s (-6%)
+
+── lore-self-10.1-openDb [iter 2] (explanation) ──
+  CONTROL: success=1 correctness=0.83 ans=1.00 file=1.00 sym=1.00 tokens=1673 wall=40.0s
+    tools: view×5, grep×2, report_intent×1
+  LORE:    success=1 correctness=0.83 ans=1.00 file=1.00 sym=1.00 tokens=1894 wall=45.2s
+    tools: grep×2, report_intent×1, lore_dependents×1
+  DELTA:   correctness=+0.00  tokens=+221 (+13%)  wall=+5.3s (+13%)
+
+── lore-self-10.1-openDb [iter 3] (explanation) ──
+  CONTROL: success=1 correctness=0.83 ans=1.00 file=1.00 sym=1.00 tokens=1461 wall=37.1s
+    tools: view×5, report_intent×1, grep×1, bash×1
+  LORE:    success=1 correctness=0.83 ans=1.00 file=1.00 sym=1.00 tokens=2874 wall=60.1s
+    tools: view×5, grep×3, report_intent×1, lore_dependents×1
+  DELTA:   correctness=+0.00  tokens=+1413 (+97%)  wall=+23.0s (+62%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── lore-self-10.1-openDb [iter 4] (explanation) ──
+  CONTROL: success=1 correctness=0.83 ans=1.00 file=1.00 sym=1.00 tokens=1631 wall=36.5s
+    tools: view×5, grep×2, report_intent×1
+  LORE:    success=1 correctness=0.83 ans=1.00 file=1.00 sym=1.00 tokens=2817 wall=61.5s
+    tools: view×5, grep×4, report_intent×1, lore_dependents×1
+  DELTA:   correctness=+0.00  tokens=+1186 (+73%)  wall=+25.0s (+69%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── lore-self-10.1-openDb [iter 5] (explanation) ──
+  CONTROL: success=1 correctness=0.83 ans=1.00 file=1.00 sym=1.00 tokens=1568 wall=35.8s
+    tools: view×4, grep×2, report_intent×1
+  LORE:    success=1 correctness=0.83 ans=1.00 file=1.00 sym=1.00 tokens=2750 wall=64.3s
+    tools: grep×2, report_intent×1, lore_dependents×1, view×1
+  DELTA:   correctness=+0.00  tokens=+1182 (+75%)  wall=+28.5s (+80%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── lore-self-10.3-openDb [iter 1] (explanation) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=8813 wall=85.3s
+    tools: view×28, bash×2, report_intent×1, grep×1, task×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=3978 wall=97.9s
+    tools: bash×11, view×4, grep×2, report_intent×1, lore_dependents×1, lore_snippet×1
+  DELTA:   correctness=+0.00  tokens=-4835 (-55%)  wall=+12.6s (+15%)
+
+── lore-self-10.3-openDb [iter 2] (explanation) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=11454 wall=119.5s
+    tools: view×32, bash×6, grep×2, report_intent×1, task×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=4760 wall=97.9s
+    tools: bash×19, grep×2, report_intent×1, lore_dependents×1, lore_snippet×1
+  DELTA:   correctness=+0.00  tokens=-6694 (-58%)  wall=-21.6s (-18%)
+
+── lore-self-10.3-openDb [iter 3] (explanation) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=4266 wall=89.3s
+    tools: bash×12, report_intent×1, grep×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=7596 wall=119.0s
+    tools: lore_snippet×23, grep×3, report_intent×1, lore_dependents×1
+  DELTA:   correctness=+0.00  tokens=+3330 (+78%)  wall=+29.8s (+33%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+
+── lore-self-10.3-openDb [iter 4] (explanation) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=13682 wall=137.8s
+    tools: view×31, bash×8, grep×2, report_intent×1, task×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=8149 wall=121.1s
+    tools: lore_snippet×22, report_intent×1, lore_dependents×1, grep×1
+  DELTA:   correctness=+0.00  tokens=-5533 (-40%)  wall=-16.7s (-12%)
+
+── lore-self-10.3-openDb [iter 5] (explanation) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=2252 wall=62.1s
+    tools: bash×10, report_intent×1, grep×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=11724 wall=167.4s
+    tools: lore_snippet×39, grep×2, report_intent×1, lore_dependents×1
+  DELTA:   correctness=+0.00  tokens=+9472 (+421%)  wall=+105.3s (+169%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── lore-self-11.2-openDb [iter 1] (modification) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=1461 wall=40.1s
+    tools: view×6, grep×3, report_intent×1
+  LORE:    success=0.5 correctness=0.00 ans=0.00 file=1.00 sym=1.00 tokens=21006 wall=360.0s
+    tools: lore_snippet×33, view×8, grep×4, report_intent×1, lore_dependents×1
+  DELTA:   correctness=-1.00  tokens=+19545 (+1338%)  wall=+319.9s (+797%)
+  ⚠ LORE WORSE on correctness — missed: [build → src/indexer/index.ts, update → src/indexer/index.ts, ingestSummary → src/cli.ts, ingestCoverage → src/cli.ts]
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── lore-self-11.2-openDb [iter 2] (modification) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=1114 wall=31.8s
+    tools: view×5, report_intent×1, grep×1, bash×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=8694 wall=115.6s
+    tools: lore_snippet×30, report_intent×1, lore_dependents×1
+  DELTA:   correctness=+0.00  tokens=+7580 (+680%)  wall=+83.8s (+264%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── lore-self-11.2-openDb [iter 3] (modification) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=1148 wall=32.5s
+    tools: view×5, report_intent×1, grep×1, bash×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=7644 wall=119.2s
+    tools: view×21, lore_snippet×14, grep×2, report_intent×1, lore_dependents×1
+  DELTA:   correctness=+0.00  tokens=+6496 (+566%)  wall=+86.6s (+266%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── lore-self-11.2-openDb [iter 4] (modification) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=1225 wall=32.3s
+    tools: view×6, grep×2, report_intent×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=7664 wall=100.4s
+    tools: lore_snippet×30, report_intent×1, lore_dependents×1
+  DELTA:   correctness=+0.00  tokens=+6439 (+526%)  wall=+68.0s (+210%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── lore-self-11.2-openDb [iter 5] (modification) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=1344 wall=35.7s
+    tools: view×5, grep×3, report_intent×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=19634 wall=332.5s
+    tools: bash×11, report_intent×1, lore_dependents×1, grep×1
+  DELTA:   correctness=+0.00  tokens=+18290 (+1361%)  wall=+296.8s (+831%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── lore-self-11.3-resolveSymbolEdges [iter 1] (refactoring) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=760 wall=30.9s
+    tools: view×3, report_intent×1, grep×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=1093 wall=36.9s
+    tools: lore_snippet×2, report_intent×1, lore_dependents×1, lore_lookup×1, lore_graph×1
+  DELTA:   correctness=+0.00  tokens=+333 (+44%)  wall=+6.0s (+19%)
+
+── lore-self-11.3-resolveSymbolEdges [iter 2] (refactoring) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=846 wall=30.9s
+    tools: view×3, report_intent×1, grep×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=1411 wall=38.5s
+    tools: report_intent×1, lore_dependents×1, lore_lookup×1, lore_snippet×1, grep×1
+  DELTA:   correctness=+0.00  tokens=+565 (+67%)  wall=+7.6s (+25%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+
+── lore-self-11.3-resolveSymbolEdges [iter 3] (refactoring) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=825 wall=31.3s
+    tools: view×3, report_intent×1, grep×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=1548 wall=43.0s
+    tools: report_intent×1, lore_dependents×1, lore_lookup×1, lore_snippet×1, grep×1
+  DELTA:   correctness=+0.00  tokens=+723 (+88%)  wall=+11.7s (+37%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+
+── lore-self-11.3-resolveSymbolEdges [iter 4] (refactoring) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=785 wall=32.7s
+    tools: view×3, report_intent×1, grep×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=2096 wall=53.4s
+    tools: grep×2, report_intent×1, lore_dependents×1, lore_lookup×1, lore_snippet×1
+  DELTA:   correctness=+0.00  tokens=+1311 (+167%)  wall=+20.7s (+63%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── lore-self-11.3-resolveSymbolEdges [iter 5] (refactoring) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=870 wall=30.4s
+    tools: view×3, report_intent×1, grep×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=1480 wall=39.0s
+    tools: report_intent×1, lore_dependents×1, lore_lookup×1, lore_snippet×1, grep×1
+  DELTA:   correctness=+0.00  tokens=+610 (+70%)  wall=+8.5s (+28%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+
+
+═══════════════════════════════════════
+         BENCHMARK RESULTS
+═══════════════════════════════════════
+
+Model: claude-opus-4.6
+Tasks: 13
+Iterations: 5
+Completed runs: 65/65
+
+Arm: control
+  Runs: 65
+  Success: 92.3%
+  Partial: 7.7%
+  Failed:  0.0%
+  Correctness: 97.9% (σ=5.0pp)
+  First-pass accuracy: 0.0%
+  Mean tool calls: 13.3 (σ=12.2)
+  Mean unique files: 3.5
+  Mean wall time: 58.0s (σ=34.5s)
+  Mean tokens: 3281 (σ=3399.3)
+  Answer coverage: 96.2% (σ=13.4pp)
+  File coverage: 98.5% (σ=7.0pp)
+  Symbol coverage: 100.0% (σ=0.0pp)
+  Lore tool calls: 0.0 (0% of runs)
+  Tool call counts: view×441, grep×189, bash×148, report_intent×65, task×20, glob×3
+
+Arm: lore-enabled
+  Runs: 65
+  Success: 98.5%
+  Partial: 1.5%
+  Failed:  0.0%
+  Correctness: 97.2% (σ=13.0pp)
+  First-pass accuracy: 35.4%
+  Mean tool calls: 13.2 (σ=14.3)
+  Mean unique files: 1.0
+  Mean wall time: 76.9s (σ=64.8s)
+  Mean tokens: 4269 (σ=4649.3)
+  Answer coverage: 98.5% (σ=12.4pp)
+  File coverage: 100.0% (σ=0.0pp)
+  Symbol coverage: 100.0% (σ=0.0pp)
+  Lore tool calls: 7.0 (100% of runs)
+  Lore tools used: lore_dependents, lore_graph, lore_lookup, lore_snippet, lore_trace
+  Tool call counts: lore_snippet×337, view×138, bash×106, grep×89, report_intent×68, lore_dependents×50, lore_graph×28, lore_lookup×27, lore_trace×10, task×3, read_agent×3
+
+Comparison: lore-enabled vs control
+  Success rate: +6.2pp
+  Correctness: -0.8pp
+  First-pass accuracy: +35.4pp
+  Answer coverage: +2.3pp
+  Tool calls: -0.1 (13.2 vs 13.3)
+  Tokens: +988 (+30.1%)
+  Wall time: +18.9s (+32.7%)
+
+  Statistical significance (correctness):
+    t=-0.444, df=82.6, p=0.6582
+    ✗ Not significant at p<0.05
+
+Structured report written to: /Users/jacobfreck/Source/Lore/benchmark-results/lore-self.json
+
+ [32m✓[39m tests/benchmark/copilot-agent.test.ts [2m([22m[2m66 tests[22m[2m)[22m[33m 1417574[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-1.1-openDb [iter 1]: control + lore-enabled arms [33m 102131[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-1.1-openDb [iter 2]: control + lore-enabled arms [33m 85628[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-1.1-openDb [iter 3]: control + lore-enabled arms [33m 110544[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-1.1-openDb [iter 4]: control + lore-enabled arms [33m 106657[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-1.1-openDb [iter 5]: control + lore-enabled arms [33m 100531[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-1.2-build [iter 1]: control + lore-enabled arms [33m 44432[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-1.2-build [iter 2]: control + lore-enabled arms [33m 32239[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-1.2-build [iter 3]: control + lore-enabled arms [33m 52865[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-1.2-build [iter 4]: control + lore-enabled arms [33m 41088[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-1.2-build [iter 5]: control + lore-enabled arms [33m 43847[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-1.4-resolveSymbolEdges [iter 1]: control + lore-enabled arms [33m 183614[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-1.4-resolveSymbolEdges [iter 2]: control + lore-enabled arms [33m 124568[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-1.4-resolveSymbolEdges [iter 3]: control + lore-enabled arms [33m 123172[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-1.4-resolveSymbolEdges [iter 4]: control + lore-enabled arms [33m 123295[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-1.4-resolveSymbolEdges [iter 5]: control + lore-enabled arms [33m 159127[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-1.3-build [iter 1]: control + lore-enabled arms [33m 100367[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-1.3-build [iter 2]: control + lore-enabled arms [33m 87526[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-1.3-build [iter 3]: control + lore-enabled arms [33m 69865[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-1.3-build [iter 4]: control + lore-enabled arms [33m 65276[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-1.3-build [iter 5]: control + lore-enabled arms [33m 117229[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-1.5-openDb [iter 1]: control + lore-enabled arms [33m 47104[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-1.5-openDb [iter 2]: control + lore-enabled arms [33m 41158[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-1.5-openDb [iter 3]: control + lore-enabled arms [33m 43792[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-1.5-openDb [iter 4]: control + lore-enabled arms [33m 55258[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-1.5-openDb [iter 5]: control + lore-enabled arms [33m 86425[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-1.7-build [iter 1]: control + lore-enabled arms [33m 69292[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-1.7-build [iter 2]: control + lore-enabled arms [33m 100747[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-1.7-build [iter 3]: control + lore-enabled arms [33m 64066[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-1.7-build [iter 4]: control + lore-enabled arms [33m 73906[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-1.7-build [iter 5]: control + lore-enabled arms [33m 82677[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-1.8-openDb [iter 1]: control + lore-enabled arms [33m 111674[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-1.8-openDb [iter 2]: control + lore-enabled arms [33m 116585[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-1.8-openDb [iter 3]: control + lore-enabled arms [33m 197323[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-1.8-openDb [iter 4]: control + lore-enabled arms [33m 66846[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-1.8-openDb [iter 5]: control + lore-enabled arms [33m 124473[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-7.2-openDb [iter 1]: control + lore-enabled arms [33m 100368[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-7.2-openDb [iter 2]: control + lore-enabled arms [33m 148601[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-7.2-openDb [iter 3]: control + lore-enabled arms [33m 127339[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-7.2-openDb [iter 4]: control + lore-enabled arms [33m 92482[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-7.2-openDb [iter 5]: control + lore-enabled arms [33m 115499[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-7.3-resolutionStage [iter 1]: control + lore-enabled arms [33m 30809[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-7.3-resolutionStage [iter 2]: control + lore-enabled arms [33m 40175[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-7.3-resolutionStage [iter 3]: control + lore-enabled arms [33m 33185[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-7.3-resolutionStage [iter 4]: control + lore-enabled arms [33m 35430[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-7.3-resolutionStage [iter 5]: control + lore-enabled arms [33m 32193[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-10.1-openDb [iter 1]: control + lore-enabled arms [33m 52641[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-10.1-openDb [iter 2]: control + lore-enabled arms [33m 45229[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-10.1-openDb [iter 3]: control + lore-enabled arms [33m 60076[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-10.1-openDb [iter 4]: control + lore-enabled arms [33m 61488[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-10.1-openDb [iter 5]: control + lore-enabled arms [33m 64315[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-10.3-openDb [iter 1]: control + lore-enabled arms [33m 97876[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-10.3-openDb [iter 2]: control + lore-enabled arms [33m 119488[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-10.3-openDb [iter 3]: control + lore-enabled arms [33m 119041[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-10.3-openDb [iter 4]: control + lore-enabled arms [33m 137758[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-10.3-openDb [iter 5]: control + lore-enabled arms [33m 167398[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-11.2-openDb [iter 1]: control + lore-enabled arms [33m 360019[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-11.2-openDb [iter 2]: control + lore-enabled arms [33m 115605[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-11.2-openDb [iter 3]: control + lore-enabled arms [33m 119187[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-11.2-openDb [iter 4]: control + lore-enabled arms [33m 100378[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-11.2-openDb [iter 5]: control + lore-enabled arms [33m 332507[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-11.3-resolveSymbolEdges [iter 1]: control + lore-enabled arms [33m 36912[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-11.3-resolveSymbolEdges [iter 2]: control + lore-enabled arms [33m 38492[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-11.3-resolveSymbolEdges [iter 3]: control + lore-enabled arms [33m 42962[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-11.3-resolveSymbolEdges [iter 4]: control + lore-enabled arms [33m 53433[2mms[22m[39m
+     [33m[2m✓[22m[39m lore-self-11.3-resolveSymbolEdges [iter 5]: control + lore-enabled arms [33m 38970[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m66 passed[39m[22m[90m (66)[39m
+[2m   Start at [22m 11:32:58
+[2m   Duration [22m 1417.98s[2m (transform 236ms, setup 0ms, import 344ms, tests 1417.57s, environment 0ms)[22m
+

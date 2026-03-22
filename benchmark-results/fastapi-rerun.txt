@@ -1,0 +1,336 @@
+
+[1m[46m RUN [49m[22m [36mv4.0.18 [39m[90m/Users/jacobfreck/Source/Lore[39m
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: fastapi
+[22m[39m
+fastapi cloned at 11614be9, indexed in 14942ms
+DB: /var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-Pwe4L1/fastapi/.lore.db
+Model: claude-opus-4.6
+Index: scip | Embeddings: none | LSP: false
+Tasks: 13 | Iterations: 1
+
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: fastapi[2m > [22m[2mfastapi-1.5-solve_dependencies: control + lore-enabled arms
+[22m[39m[control] fastapi-1.1-solve_dependencies: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=1588 wall=42.4s
+  tools: view×8, report_intent×1, grep×1
+  answer: The three direct callers are: - `app` (line 378 in `get_request_handler`) — but this is a nested function, so the enclosing function is `get_request_handler` - `app` (line 733 in `get_websocket_app`) — nested function in `get_websocket_app`   - `solve_dependencies` itself (recursive call at line 646…
+[lore]    fastapi-1.1-solve_dependencies: success=0.5 correctness=0.50 ans_cov=0.50 file_cov=1.00 sym_cov=1.00 tokens=1038 wall=34.0s
+  tools: report_intent×1, lore_dependents×1, grep×1, bash×1
+  lore calls: lore_dependents(query=solve_dependencies, kind=symbol, compact=true)
+  answer: app solve_dependencies
+  MISSED parts: [get_request_handler]
+  MISSED answer lines: [get_request_handler]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: fastapi[2m > [22m[2mfastapi-1.7-add_api_route: control + lore-enabled arms
+[22m[39m[control] fastapi-1.2-add_api_route: success=0.5 correctness=0.25 ans_cov=0.33 file_cov=1.00 sym_cov=1.00 tokens=1827 wall=43.9s
+  tools: view×2, report_intent×1, grep×1
+  answer: get_value_or_default copy extend route_class append
+  MISSED parts: [APIRoute, generate_unique_id]
+  MISSED answer lines: [APIRoute, generate_unique_id, routes.append]
+[lore]    fastapi-1.2-add_api_route: success=1 correctness=0.50 ans_cov=0.67 file_cov=1.00 sym_cov=1.00 tokens=619 wall=26.9s
+  tools: lore_graph×2, report_intent×1, lore_lookup×1
+  lore calls: lore_lookup(kind=symbol, query=add_api_route), lore_graph(kind=call, source_id=2669, compact=true), lore_graph(kind=call, source_id=2399, compact=true)
+  answer: Default generate_unique_id get_value_or_default add_api_route
+  MISSED parts: [APIRoute]
+  MISSED answer lines: [APIRoute, routes.append]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: fastapi[2m > [22m[2mfastapi-1.8-solve_dependencies: control + lore-enabled arms
+[22m[39m[control] fastapi-1.3-add_api_route: success=1 correctness=0.83 ans_cov=0.67 file_cov=1.00 sym_cov=1.00 tokens=804 wall=27.5s
+  tools: grep×2, report_intent×1, view×1
+  answer: get_value_or_default(response_class, self.default_response_class) get_value_or_default(generate_unique_id_function, self.generate_unique_id_function) get_value_or_default(strict_content_type, self.strict_content_type) route_class(self.prefix + path, endpoint=endpoint, response_model=response_model, …
+  MISSED parts: [APIRoute]
+  MISSED answer lines: [APIRoute]
+[lore]    fastapi-1.3-add_api_route: success=1 correctness=0.83 ans_cov=0.67 file_cov=1.00 sym_cov=1.00 tokens=5392 wall=84.5s
+  tools: lore_snippet×2, report_intent×1, lore_lookup×1, lore_graph×1
+  lore calls: lore_lookup(kind=symbol, query=add_api_route), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-Pwe4L1/fastapi/fastapi/routing.py, start_line=1331, end_line=1412), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-Pwe4L1/fastapi/fastapi/routing.py, start_line=1410, end_line=1415), lore_graph(kind=call, source_id=2669, compact=true)
+  answer: get_value_or_default(response_class, self.default_response_class) self.tags.copy() current_tags.extend(tags) self.dependencies.copy() current_dependencies.extend(dependencies) self.callbacks.copy() current_callbacks.extend(callbacks) get_value_or_default(generate_unique_id_function, self.generate_un…
+  MISSED parts: [APIRoute]
+  MISSED answer lines: [APIRoute]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: fastapi[2m > [22m[2mfastapi-7.2-solve_dependencies: control + lore-enabled arms
+[22m[39m[control] fastapi-7.2-solve_dependencies: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=1476 wall=44.5s
+  tools: view×6, grep×2, report_intent×1
+  answer: I have enough context. The two callers are:  1. **`get_request_handler`** (line 347) — its inner `app` closure calls `solve_dependencies` at line 453, then reads `.errors` and `.values` from the result to either raise validation errors or call the endpoint function with the resolved dependency value…
+[lore]    fastapi-7.2-solve_dependencies: success=1 correctness=1.00 ans_cov=0.75 file_cov=1.00 sym_cov=1.00 tokens=2369 wall=51.9s
+  tools: grep×3, view×2, report_intent×1, lore_dependents×1
+  lore calls: lore_dependents(query=solve_dependencies, kind=symbol, compact=true)
+  answer: app (inner closure of get_request_handler) → fastapi/routing.py — stores result in `solved_result`, extracts `.errors` for request validation, unpacks `.values` as kwargs to call the endpoint function, and reads `.response`/`.background_tasks` to build the HTTP response app (inner closure of get_web…
+  MISSED parts: [solve_dependencies]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: fastapi[2m > [22m[2mfastapi-7.3-add_api_route: control + lore-enabled arms
+[22m[39m[control] fastapi-1.8-solve_dependencies: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=4972 wall=100.6s
+  tools: view×7, report_intent×1, grep×1
+  answer: Now I have the full picture. There are 3 direct callers of `solve_dependencies`:  1. **`solve_dependencies` itself** (recursive, `utils.py:646`) — checks `solved_result.errors`, accumulates them into its own `errors` list, and returns them in its `SolvedDependency` to its own caller. No try/catch. T…
+[lore]    fastapi-1.8-solve_dependencies: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=4922 wall=93.2s
+  tools: view×6, grep×2, report_intent×1, lore_dependents×1, lore_lookup×1
+  lore calls: lore_dependents(query=solve_dependencies, kind=symbol, compact=true), lore_lookup(kind=symbol, query=solve_dependencies)
+  answer: Here's the analysis of the three direct callers of `solve_dependencies`:  1. **`app` in `get_request_handler`** (routing.py:453) — checks `solved_result.errors`, raises `RequestValidationError` if present. **Handles**. 2. **`app` in `get_websocket_app`** (routing.py:747) — checks `solved_result.erro…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: fastapi[2m > [22m[2mfastapi-10.1-solve_dependencies: control + lore-enabled arms
+[22m[39m[control] fastapi-1.4-solve_dependencies: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=13671 wall=165.5s
+  tools: bash×37, view×28, report_intent×1, grep×1, task×1
+  answer: fastapi/dependencies/utils.py: solve_dependencies fastapi/routing.py: get_request_handler fastapi/routing.py: get_websocket_app fastapi/routing.py: APIRoute.get_route_handler fastapi/routing.py: APIWebSocketRoute.__init__ fastapi/routing.py: APIRoute.__init__ fastapi/routing.py: APIRouter.add_api_ro…
+[lore]    fastapi-1.4-solve_dependencies: success=1 correctness=0.67 ans_cov=0.67 file_cov=1.00 sym_cov=1.00 tokens=448 wall=18.8s
+  tools: report_intent×1, lore_dependents×1
+  lore calls: lore_dependents(query=solve_dependencies, kind=symbol, compact=true)
+  answer: fastapi/dependencies/utils.py solve_dependencies fastapi/routing.py __init__ fastapi/routing.py app fastapi/routing.py get_request_handler fastapi/routing.py get_websocket_app fastapi/routing.py get_route_handler docs_src/custom_request_and_route/tutorial001_an_py310.py get_route_handler docs_src/cu…
+  MISSED parts: [applications.py]
+  MISSED answer lines: [applications.py]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: fastapi[2m > [22m[2mfastapi-10.3-solve_dependencies: control + lore-enabled arms
+[22m[39m[control] fastapi-7.3-add_api_route: success=1 correctness=0.67 ans_cov=0.75 file_cov=1.00 sym_cov=1.00 tokens=867 wall=29.5s
+  tools: grep×3, view×3, report_intent×1
+  answer: `FastAPI.add_api_route` delegates to the router, and `APIRouter.add_api_route` constructs a route and calls helpers:  ``` FastAPI.add_api_route → fastapi/applications.py APIRouter.add_api_route → fastapi/routing.py APIRoute.__init__ → fastapi/routing.py get_value_or_default → fastapi/utils.py ```
+  MISSED parts: [generate_unique_id]
+  MISSED answer lines: [generate_unique_id → fastapi/utils.py]
+[lore]    fastapi-7.3-add_api_route: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=796 wall=26.5s
+  tools: lore_trace×3, report_intent×1, lore_dependents×1, lore_lookup×1, lore_snippet×1
+  lore calls: lore_trace(from_name=add_api_route, depth=3), lore_dependents(query=add_api_route, kind=symbol, compact=true), lore_trace(from=2399, depth=3), lore_trace(from=2669, depth=3), lore_lookup(kind=symbol, query=add_api_route), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-Pwe4L1/fastapi/fastapi/routing.py, start_line=1380, end_line=1412)
+  answer: `FastAPI.add_api_route` is a wrapper that delegates to `APIRouter.add_api_route`, which in turn calls helpers and constructs an `APIRoute`. The full delegation chain:  ``` FastAPI.add_api_route → fastapi/applications.py APIRouter.add_api_route → fastapi/routing.py get_value_or_default → fastapi/util…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: fastapi[2m > [22m[2mfastapi-11.2-solve_dependencies: control + lore-enabled arms
+[22m[39m[control] fastapi-1.7-add_api_route: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=9114 wall=133.2s
+  tools: view×14, bash×12, grep×3, report_intent×1, task×1
+  answer: 1. `add_api_route` — registers a new API route by instantiating an `APIRoute` 2. `APIRoute.__init__` — initializes route config, builds the dependency model and request handler 3. `get_route_handler` — delegates to `get_request_handler` to produce the ASGI-callable handler 4. `get_request_handler` —…
+[lore]    fastapi-1.7-add_api_route: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=1875 wall=56.2s
+  tools: lore_lookup×5, lore_trace×4, report_intent×1, lore_snippet×1, grep×1, view×1
+  lore calls: lore_trace(from_name=add_api_route, to_name=solve_dependencies, depth=10), lore_lookup(kind=symbol, query=add_api_route), lore_lookup(kind=symbol, query=solve_dependencies), lore_trace(depth=10, from=2669, to=2848), lore_lookup(kind=symbol, query=APIRoute, symbol_kind=class, path_prefix=fastapi/routing.py), lore_lookup(kind=symbol, query=get_request_handler), lore_trace(depth=10, from=2669, to=2581), lore_trace(depth=10, from=2581, to=2848), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-Pwe4L1/fastapi/fastapi/routing.py, start_line=1331, end_line=1412), lore_lookup(kind=symbol, query=__init__, path_prefix=fastapi/routing.py, symbol_kind=method)
+  answer: Now I have the complete chain. Here it is:  1. `add_api_route` — assembles route config and instantiates an `APIRoute` with the endpoint and its dependencies 2. `APIRoute.__init__` — builds the dependant model, body field, and wires up the route handler via `get_route_handler` 3. `get_route_handler`…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: fastapi[2m > [22m[2mfastapi-11.3-solve_dependencies: control + lore-enabled arms
+[22m[39m[control] fastapi-10.3-solve_dependencies: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=839 wall=28.5s
+  tools: view×3, report_intent×1, grep×1
+  answer: Here are the callers of `solve_dependencies`, grouped by calling pattern:  **Top-level call with `body` (HTTP request handler):**   `run_endpoint_function` (closure in `get_request_handler`) in `fastapi/routing.py:453`  **Top-level call without `body` (WebSocket handler):**   `app` (closure in `get_…
+[lore]    fastapi-10.3-solve_dependencies: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=1841 wall=42.9s
+  tools: lore_snippet×7, report_intent×1, lore_dependents×1, lore_lookup×1, view×1
+  lore calls: lore_dependents(query=solve_dependencies, kind=symbol, compact=false), lore_lookup(kind=symbol, query=solve_dependencies), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-Pwe4L1/fastapi/fastapi/dependencies/utils.py, start_line=630, end_line=665), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-Pwe4L1/fastapi/fastapi/routing.py, start_line=440, end_line=470), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-Pwe4L1/fastapi/fastapi/routing.py, start_line=710, end_line=800), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-Pwe4L1/fastapi/fastapi/routing.py, start_line=960, end_line=990), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-Pwe4L1/fastapi/fastapi/routing.py, start_line=35, end_line=60), lore_snippet(end_line=620, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-Pwe4L1/fastapi/fastapi/dependencies/utils.py, start_line=594), lore_snippet(end_line=635, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-Pwe4L1/fastapi/fastapi/dependencies/utils.py, start_line=620)
+  answer: Now I have a clear picture. Here are the calling patterns:  **Recursive inside a loop (iterating sub-dependencies, collecting errors with `continue`):**   `solve_dependencies` in `fastapi/dependencies/utils.py` (line 646) — calls itself in a `for sub_dependant in dependant.dependencies` loop; passes…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: fastapi
+[22m[39m[control] fastapi-11.3-solve_dependencies: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=988 wall=30.5s
+  tools: view×4, grep×2, report_intent×1
+  answer: **Callers:** 3 **Verdict:** No — function is 140+ lines, recursive (calls itself at line 646), and called from 2 external callers plus itself. Inlining would duplicate substantial complex logic and break the recursion.  **Call sites:**  - `get_request_handler.<locals>.app` in `fastapi/routing.py:453…
+[lore]    fastapi-11.3-solve_dependencies: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=1361 wall=37.1s
+  tools: grep×3, view×2, report_intent×1, lore_dependents×1, lore_lookup×1, lore_snippet×1
+  lore calls: lore_dependents(query=solve_dependencies, kind=symbol, compact=true), lore_lookup(kind=symbol, query=solve_dependencies), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-Pwe4L1/fastapi/fastapi/dependencies/utils.py, symbol=solve_dependencies)
+  answer: Now I have all the information needed. Here's the analysis:  **Callers: 3** (2 external + 1 recursive self-call)  **Verdict: No** — The function is 138 lines, is recursive (calls itself to resolve sub-dependencies), has side effects (mutates `dependency_cache`, creates `Response`/`BackgroundTasks` o…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: fastapi
+[22m[39m[control] fastapi-10.1-solve_dependencies: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=1419 wall=39.4s
+  tools: view×5, grep×2, report_intent×1
+  answer: The self-call at line 646 is a recursive call within the same function/file — that's `solve_dependencies` calling itself.  Summary: - `fastapi/routing.py` has 2 call sites: one inside the nested `app` function within `get_request_handler` (line 453), and one inside the nested `app` function within `…
+[lore]    fastapi-10.1-solve_dependencies: success=1 correctness=0.67 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=3247 wall=73.3s
+  tools: view×6, grep×4, report_intent×1, lore_dependents×1
+  lore calls: lore_dependents(query=solve_dependencies, kind=symbol, compact=true)
+  answer: 2 app → fastapi/routing.py app → fastapi/routing.py solve_dependencies → fastapi/dependencies/utils.py
+  MISSED answer lines: [get_websocket_app → routing.py]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: fastapi
+[22m[39m[control] fastapi-11.2-solve_dependencies: success=1 correctness=0.67 ans_cov=0.75 file_cov=1.00 sym_cov=1.00 tokens=1291 wall=38.2s
+  tools: view×6, grep×2, report_intent×1
+  answer: The call at line 453 is inside the nested `app` function within `get_request_handler`. The call at line 747 is inside the nested `app` function within `get_websocket_app`.  app in fastapi/routing.py — solved_result = await solve_dependencies( app in fastapi/routing.py — solved_result = await solve_d…
+  MISSED parts: [dependant]
+  MISSED answer lines: [dependant]
+[lore]    fastapi-11.2-solve_dependencies: success=1 correctness=0.67 ans_cov=0.75 file_cov=1.00 sym_cov=1.00 tokens=2479 wall=55.8s
+  tools: grep×3, view×2, report_intent×1, lore_dependents×1, bash×1
+  lore calls: lore_dependents(query=solve_dependencies, kind=symbol, compact=true)
+  answer: app in fastapi/routing.py — solved_result = await solve_dependencies( app in fastapi/routing.py — solved_result = await solve_dependencies(
+  MISSED parts: [dependant]
+  MISSED answer lines: [dependant]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: fastapi
+[22m[39m[control] fastapi-1.5-solve_dependencies: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=12538 wall=223.1s
+  tools: view×12, grep×8, report_intent×1, task×1, bash×1
+  answer: Based on my thorough analysis of the codebase:  - `solve_dependencies` is called at line 453 inside the nested `app()` within `get_request_handler()` - `get_request_handler` is called at line 975 inside `APIRoute.get_route_handler()`  No function in the codebase directly calls both `solve_dependenci…
+[lore]    fastapi-1.5-solve_dependencies: success=1 correctness=0.67 ans_cov=0.67 file_cov=1.00 sym_cov=1.00 tokens=14048 wall=277.5s
+  tools: lore_graph×12, lore_snippet×7, bash×6, report_intent×2, lore_dependents×2, lore_lookup×1
+  lore calls: lore_dependents(query=solve_dependencies, kind=symbol, compact=true), lore_dependents(query=get_request_handler, kind=symbol, compact=true), lore_graph(kind=call, source_id=2650, compact=true), lore_graph(kind=call, source_id=2649, compact=true), lore_graph(kind=call, source_id=522, compact=true), lore_graph(kind=call, source_id=531, compact=true), lore_graph(kind=call, source_id=543, compact=true), lore_graph(kind=call, source_id=549, compact=true), lore_graph(kind=call, source_id=537, compact=true), lore_graph(compact=true, kind=call, source_id=2582), lore_graph(compact=true, kind=call, source_id=2594), lore_graph(compact=true, kind=call, source_id=2607), lore_graph(compact=true, kind=call, source_id=2581), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-Pwe4L1/fastapi/fastapi/routing.py, symbol=get_request_handler), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-Pwe4L1/fastapi/fastapi/routing.py, symbol=get_route_handler), lore_lookup(kind=symbol, query=app, path_prefix=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-Pwe4L1/fastapi/fastapi/routing.py), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-Pwe4L1/fastapi/fastapi/routing.py, start_line=960, end_line=995), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-Pwe4L1/fastapi/fastapi/routing.py, start_line=780, end_line=810), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-Pwe4L1/fastapi/docs_src/custom_request_and_route/tutorial002_an_py310.py, symbol=get_route_handler), lore_graph(compact=true, kind=call, source_id=2554), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-Pwe4L1/fastapi/fastapi/routing.py, start_line=806, end_line=975), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-Pwe4L1/fastapi/fastapi/routing.py, symbol=get_websocket_app)
+  answer: Based on the transitive call graph analysis, `APIRoute.get_route_handler` is the only library function that calls both (directly calls `get_request_handler`, which internally calls `solve_dependencies` in its returned closure). The docs_src tutorial overrides reach both only via `super().get_route_h…
+  MISSED parts: [app]
+  MISSED answer lines: [app]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: fastapi[2m > [22m[2maggregate: full report — control vs lore-enabled
+[22m[39m
+── fastapi-1.1-solve_dependencies (localization) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=1588 wall=42.4s
+    tools: view×8, report_intent×1, grep×1
+  LORE:    success=0.5 correctness=0.50 ans=0.50 file=1.00 sym=1.00 tokens=1038 wall=34.0s
+    tools: report_intent×1, lore_dependents×1, grep×1, bash×1
+  DELTA:   correctness=-0.50  tokens=-550 (-35%)  wall=-8.4s (-20%)
+  ⚠ LORE WORSE on correctness — missed: [get_request_handler]
+
+── fastapi-1.2-add_api_route (localization) ──
+  CONTROL: success=0.5 correctness=0.25 ans=0.33 file=1.00 sym=1.00 tokens=1827 wall=43.9s
+    tools: view×2, report_intent×1, grep×1
+  LORE:    success=1 correctness=0.50 ans=0.67 file=1.00 sym=1.00 tokens=619 wall=26.9s
+    tools: lore_graph×2, report_intent×1, lore_lookup×1
+  DELTA:   correctness=+0.25  tokens=-1208 (-66%)  wall=-17.0s (-39%)
+
+── fastapi-1.4-solve_dependencies (modification) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=13671 wall=165.5s
+    tools: bash×37, view×28, report_intent×1, grep×1, task×1
+  LORE:    success=1 correctness=0.67 ans=0.67 file=1.00 sym=1.00 tokens=448 wall=18.8s
+    tools: report_intent×1, lore_dependents×1
+  DELTA:   correctness=-0.33  tokens=-13223 (-97%)  wall=-146.7s (-89%)
+  ⚠ LORE WORSE on correctness — missed: [applications.py]
+
+── fastapi-1.3-add_api_route (explanation) ──
+  CONTROL: success=1 correctness=0.83 ans=0.67 file=1.00 sym=1.00 tokens=804 wall=27.5s
+    tools: grep×2, report_intent×1, view×1
+  LORE:    success=1 correctness=0.83 ans=0.67 file=1.00 sym=1.00 tokens=5392 wall=84.5s
+    tools: lore_snippet×2, report_intent×1, lore_lookup×1, lore_graph×1
+  DELTA:   correctness=+0.00  tokens=+4588 (+571%)  wall=+57.1s (+208%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── fastapi-1.5-solve_dependencies (localization) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=12538 wall=223.1s
+    tools: view×12, grep×8, report_intent×1, task×1, bash×1
+  LORE:    success=1 correctness=0.67 ans=0.67 file=1.00 sym=1.00 tokens=14048 wall=277.5s
+    tools: lore_graph×12, lore_snippet×7, bash×6, report_intent×2, lore_dependents×2, lore_lookup×1
+  DELTA:   correctness=-0.33  tokens=+1510 (+12%)  wall=+54.4s (+24%)
+  ⚠ LORE WORSE on correctness — missed: [app]
+
+── fastapi-1.7-add_api_route (explanation) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=9114 wall=133.2s
+    tools: view×14, bash×12, grep×3, report_intent×1, task×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=1875 wall=56.2s
+    tools: lore_lookup×5, lore_trace×4, report_intent×1, lore_snippet×1, grep×1, view×1
+  DELTA:   correctness=+0.00  tokens=-7239 (-79%)  wall=-77.0s (-58%)
+
+── fastapi-1.8-solve_dependencies (modification) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=4972 wall=100.6s
+    tools: view×7, report_intent×1, grep×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=4922 wall=93.2s
+    tools: view×6, grep×2, report_intent×1, lore_dependents×1, lore_lookup×1
+  DELTA:   correctness=+0.00  tokens=-50 (-1%)  wall=-7.5s (-7%)
+
+── fastapi-7.2-solve_dependencies (localization) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=1476 wall=44.5s
+    tools: view×6, grep×2, report_intent×1
+  LORE:    success=1 correctness=1.00 ans=0.75 file=1.00 sym=1.00 tokens=2369 wall=51.9s
+    tools: grep×3, view×2, report_intent×1, lore_dependents×1
+  DELTA:   correctness=+0.00  tokens=+893 (+61%)  wall=+7.4s (+17%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+
+── fastapi-7.3-add_api_route (localization) ──
+  CONTROL: success=1 correctness=0.67 ans=0.75 file=1.00 sym=1.00 tokens=867 wall=29.5s
+    tools: grep×3, view×3, report_intent×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=796 wall=26.5s
+    tools: lore_trace×3, report_intent×1, lore_dependents×1, lore_lookup×1, lore_snippet×1
+  DELTA:   correctness=+0.33  tokens=-71 (-8%)  wall=-3.1s (-10%)
+
+── fastapi-10.1-solve_dependencies (explanation) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=1419 wall=39.4s
+    tools: view×5, grep×2, report_intent×1
+  LORE:    success=1 correctness=0.67 ans=1.00 file=1.00 sym=1.00 tokens=3247 wall=73.3s
+    tools: view×6, grep×4, report_intent×1, lore_dependents×1
+  DELTA:   correctness=-0.33  tokens=+1828 (+129%)  wall=+33.9s (+86%)
+  ⚠ LORE WORSE on correctness — missed: [get_websocket_app → routing.py]
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── fastapi-10.3-solve_dependencies (explanation) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=839 wall=28.5s
+    tools: view×3, report_intent×1, grep×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=1841 wall=42.9s
+    tools: lore_snippet×7, report_intent×1, lore_dependents×1, lore_lookup×1, view×1
+  DELTA:   correctness=+0.00  tokens=+1002 (+119%)  wall=+14.4s (+51%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── fastapi-11.2-solve_dependencies (modification) ──
+  CONTROL: success=1 correctness=0.67 ans=0.75 file=1.00 sym=1.00 tokens=1291 wall=38.2s
+    tools: view×6, grep×2, report_intent×1
+  LORE:    success=1 correctness=0.67 ans=0.75 file=1.00 sym=1.00 tokens=2479 wall=55.8s
+    tools: grep×3, view×2, report_intent×1, lore_dependents×1, bash×1
+  DELTA:   correctness=+0.00  tokens=+1188 (+92%)  wall=+17.6s (+46%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+
+── fastapi-11.3-solve_dependencies (refactoring) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=988 wall=30.5s
+    tools: view×4, grep×2, report_intent×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=1361 wall=37.1s
+    tools: grep×3, view×2, report_intent×1, lore_dependents×1, lore_lookup×1, lore_snippet×1
+  DELTA:   correctness=+0.00  tokens=+373 (+38%)  wall=+6.6s (+22%)
+
+
+═══════════════════════════════════════
+         BENCHMARK RESULTS
+═══════════════════════════════════════
+
+Model: claude-opus-4.6
+Tasks: 13
+Iterations: 1
+Completed runs: 13/13
+
+Arm: control
+  Runs: 13
+  Success: 92.3%
+  Partial: 7.7%
+  Failed:  0.0%
+  Correctness: 87.8% (σ=22.7pp)
+  First-pass accuracy: 0.0%
+  Mean tool calls: 14.9 (σ=17.8)
+  Mean unique files: 1.8
+  Mean wall time: 72.8s (σ=63.3s)
+  Mean tokens: 3953 (σ=4686.0)
+  Answer coverage: 88.5% (σ=20.6pp)
+  File coverage: 100.0% (σ=0.0pp)
+  Symbol coverage: 100.0% (σ=0.0pp)
+  Lore tool calls: 0.0 (0% of runs)
+  Tool call counts: view×99, bash×50, grep×29, report_intent×13, task×3
+
+Arm: lore-enabled
+  Runs: 13
+  Success: 92.3%
+  Partial: 7.7%
+  Failed:  0.0%
+  Correctness: 80.8% (σ=20.2pp)
+  First-pass accuracy: 53.8%
+  Mean tool calls: 9.5 (σ=7.0)
+  Mean unique files: 0.7
+  Mean wall time: 67.6s (σ=67.1s)
+  Mean tokens: 3110 (σ=3631.2)
+  Answer coverage: 82.1% (σ=18.3pp)
+  File coverage: 100.0% (σ=0.0pp)
+  Symbol coverage: 100.0% (σ=0.0pp)
+  Lore tool calls: 4.9 (100% of runs)
+  Lore tools used: lore_dependents, lore_lookup, lore_graph, lore_snippet, lore_trace
+  Tool call counts: view×20, lore_snippet×19, grep×17, lore_graph×15, report_intent×14, lore_lookup×12, lore_dependents×11, bash×8, lore_trace×7
+
+Comparison: lore-enabled vs control
+  Success rate: +0.0pp
+  Correctness: -7.1pp
+  First-pass accuracy: +53.8pp
+  Answer coverage: -6.4pp
+  Tool calls: -5.5 (9.5 vs 14.9)
+  Tokens: -843 (-21.3%)
+  Wall time: -5.3s (-7.2%)
+
+  Statistical significance (correctness):
+    t=-0.836, df=23.7, p=0.4118
+    ✗ Not significant at p<0.05
+
+Structured report written to: /Users/jacobfreck/Source/Lore/benchmark-results/fastapi.json
+
+ [32m✓[39m tests/benchmark/copilot-agent.test.ts [2m([22m[2m14 tests[22m[2m)[22m[33m 297693[2mms[22m[39m
+     [33m[2m✓[22m[39m fastapi-1.1-solve_dependencies: control + lore-enabled arms [33m 42394[2mms[22m[39m
+     [33m[2m✓[22m[39m fastapi-1.2-add_api_route: control + lore-enabled arms [33m 43881[2mms[22m[39m
+     [33m[2m✓[22m[39m fastapi-1.4-solve_dependencies: control + lore-enabled arms [33m 165495[2mms[22m[39m
+     [33m[2m✓[22m[39m fastapi-1.3-add_api_route: control + lore-enabled arms [33m 84532[2mms[22m[39m
+     [33m[2m✓[22m[39m fastapi-1.5-solve_dependencies: control + lore-enabled arms [33m 277518[2mms[22m[39m
+     [33m[2m✓[22m[39m fastapi-1.7-add_api_route: control + lore-enabled arms [33m 133189[2mms[22m[39m
+     [33m[2m✓[22m[39m fastapi-1.8-solve_dependencies: control + lore-enabled arms [33m 100632[2mms[22m[39m
+     [33m[2m✓[22m[39m fastapi-7.2-solve_dependencies: control + lore-enabled arms [33m 51874[2mms[22m[39m
+     [33m[2m✓[22m[39m fastapi-7.3-add_api_route: control + lore-enabled arms [33m 29546[2mms[22m[39m
+     [33m[2m✓[22m[39m fastapi-10.1-solve_dependencies: control + lore-enabled arms [33m 73282[2mms[22m[39m
+     [33m[2m✓[22m[39m fastapi-10.3-solve_dependencies: control + lore-enabled arms [33m 42860[2mms[22m[39m
+     [33m[2m✓[22m[39m fastapi-11.2-solve_dependencies: control + lore-enabled arms [33m 55776[2mms[22m[39m
+     [33m[2m✓[22m[39m fastapi-11.3-solve_dependencies: control + lore-enabled arms [33m 37094[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m14 passed[39m[22m[90m (14)[39m
+[2m   Start at [22m 17:31:55
+[2m   Duration [22m 298.16s[2m (transform 247ms, setup 0ms, import 397ms, tests 297.69s, environment 0ms)[22m
+

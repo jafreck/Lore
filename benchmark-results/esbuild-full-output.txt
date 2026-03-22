@@ -1,0 +1,1382 @@
+
+[1m[46m RUN [49m[22m [36mv4.0.18 [39m[90m/Users/jacobfreck/Source/Lore[39m
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild
+[22m[39m
+esbuild cloned at d50e88c0, indexed in 8425ms
+DB: /var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/.lore.db
+Model: claude-opus-4.6
+Index: scip | Embeddings: none | LSP: false
+Tasks: 13 | Iterations: 5
+
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-1.1-Build [iter 5]: control + lore-enabled arms
+[22m[39m[control] esbuild-1.1-Build: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=1693 wall=49.9s
+  tools: grep×6, view×6, report_intent×1
+  answer: The two functions that directly call `Build` are: - `runImpl` in `pkg/cli/cli_impl.go` (line 1379) - `handleBuildRequest` in `cmd/esbuild/service.go` (line 782)  runImpl handleBuildRequest
+[lore]    esbuild-1.1-Build: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=1113 wall=37.0s
+  tools: lore_dependents×2, grep×2, report_intent×1, lore_graph×1, view×1, bash×1
+  lore calls: lore_dependents(query=Build, kind=symbol, compact=true), lore_dependents(compact=true, kind=symbol, query=Build), lore_graph(kind=call, target_id=7632, compact=true)
+  answer: The two actual call sites of `api.Build` are in `runImpl` (cli_impl.go:1379) and `handleBuildRequest` (service.go:782).  runImpl handleBuildRequest
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-1.2-rebuildImpl [iter 1]: control + lore-enabled arms
+[22m[39m[control] esbuild-1.1-Build: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=1397 wall=34.4s
+  tools: grep×3, view×2, bash×2, report_intent×1
+  answer: runImpl handleBuildRequest
+[lore]    esbuild-1.1-Build: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=2021 wall=57.7s
+  tools: lore_graph×6, lore_dependents×2, report_intent×1, grep×1, view×1, bash×1
+  lore calls: lore_dependents(query=Build, kind=symbol, compact=true), lore_dependents(compact=true, kind=symbol, query=Build), lore_graph(kind=call, target_id=7632, compact=true), lore_graph(compact=true, kind=call, target_id=9347), lore_graph(compact=true, kind=call, target_id=9371), lore_graph(compact=true, kind=call, target_id=9386), lore_graph(compact=true, kind=call, target_id=9418), lore_graph(compact=true, kind=call, target_id=9608)
+  answer: Line 782 is inside `handleBuildRequest` (starts at line 597, next function at 793).  runImpl handleBuildRequest
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-1.2-rebuildImpl [iter 2]: control + lore-enabled arms
+[22m[39m[control] esbuild-1.1-Build: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=5193 wall=74.2s
+  tools: bash×13, view×9, grep×4, report_intent×1, task×1
+  answer: runImpl handleBuildRequest
+[lore]    esbuild-1.1-Build: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=1115 wall=38.8s
+  tools: report_intent×1, lore_dependents×1, lore_graph×1, grep×1, view×1, bash×1
+  lore calls: lore_dependents(query=Build, kind=symbol, compact=true), lore_graph(kind=call, target_id=7632, compact=true)
+  answer: The function at line 597 `handleBuildRequest` contains line 782.  runImpl handleBuildRequest
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-1.2-rebuildImpl [iter 3]: control + lore-enabled arms
+[22m[39m[control] esbuild-1.1-Build: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=5479 wall=87.4s
+  tools: bash×18, view×8, report_intent×1, task×1
+  answer: handleBuildRequest runImpl
+[lore]    esbuild-1.1-Build: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=1539 wall=41.4s
+  tools: grep×2, report_intent×1, lore_dependents×1, lore_graph×1, view×1
+  lore calls: lore_dependents(query=Build, kind=symbol, compact=true), lore_graph(kind=call, target_id=7632, compact=true)
+  answer: runImpl handleBuildRequest
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-1.2-rebuildImpl [iter 4]: control + lore-enabled arms
+[22m[39m[control] esbuild-1.2-rebuildImpl: success=0.5 correctness=0.33 ans_cov=0.00 file_cov=1.00 sym_cov=1.00 tokens=2412 wall=43.8s
+  tools: view×2, report_intent×1, grep×1
+  answer: logger.NewStderrLog log.AddMsg fs.RealFS panic bundler.ScanBundle realFS.WatchData log.HasErrors cloneMangleCache bundle.Compile args.options.CancelFlag.DidCancel log.AddError make xxhash.New hasher.Write hasher.Sum64 binary.LittleEndian.PutUint64 base64.RawStdEncoding.EncodeToString timer.Begin tim…
+  MISSED parts: [buildImpl]
+  MISSED answer lines: [buildImpl, compileResult]
+[lore]    esbuild-1.2-rebuildImpl: success=0.5 correctness=0.33 ans_cov=0.00 file_cov=1.00 sym_cov=1.00 tokens=591 wall=23.0s
+  tools: report_intent×1, lore_lookup×1, lore_graph×1, bash×1
+  lore calls: lore_lookup(kind=symbol, query=rebuildImpl), lore_graph(kind=call, source_id=7779, compact=true)
+  answer: CancelFlag.DidCancel bundle.Compile bundler.ScanBundle cloneMangleCache convertErrorsAndWarningsToInternal convertMessagesToPublic fs.AfterFileClose fs.BeforeFileOpen fs.MkdirAll fs.RealFS hasher.Sum64 hasher.Write linker.Link log.AddError logger.NewStderrLog timer.Begin timer.End timer.Log xxhash.N…
+  MISSED parts: [buildImpl]
+  MISSED answer lines: [buildImpl, compileResult]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-1.2-rebuildImpl [iter 5]: control + lore-enabled arms
+[22m[39m[control] esbuild-1.1-Build: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=6100 wall=95.4s
+  tools: bash×20, view×8, grep×4, report_intent×1, task×1
+  answer: runImpl handleBuildRequest
+[lore]    esbuild-1.1-Build: success=0.5 correctness=0.50 ans_cov=0.50 file_cov=0.67 sym_cov=1.00 tokens=396 wall=27.5s
+  tools: report_intent×1, lore_dependents×1, lore_graph×1
+  lore calls: lore_dependents(query=Build, kind=symbol, compact=true), lore_graph(kind=call, target_id=7632, compact=true)
+  answer: runImpl
+  MISSED parts: [handleBuildRequest]
+  MISSED answer lines: [handleBuildRequest]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-1.4-rebuildImpl [iter 1]: control + lore-enabled arms
+[22m[39m[control] esbuild-1.2-rebuildImpl: success=0.5 correctness=0.33 ans_cov=0.00 file_cov=1.00 sym_cov=1.00 tokens=2413 wall=41.3s
+  tools: view×2, report_intent×1, grep×1
+  answer: logger.NewStderrLog log.AddMsg fs.RealFS panic bundler.ScanBundle realFS.WatchData log.HasErrors cloneMangleCache bundle.Compile args.options.CancelFlag.DidCancel log.AddError make len xxhash.New hasher.Write hasher.Sum64 binary.LittleEndian.PutUint64 base64.RawStdEncoding.EncodeToString timer.Begin…
+  MISSED parts: [buildImpl]
+  MISSED answer lines: [buildImpl, compileResult]
+[lore]    esbuild-1.2-rebuildImpl: success=0.5 correctness=0.33 ans_cov=0.00 file_cov=1.00 sym_cov=1.00 tokens=590 wall=22.1s
+  tools: report_intent×1, lore_lookup×1, lore_graph×1, bash×1
+  lore calls: lore_lookup(kind=symbol, query=rebuildImpl), lore_graph(kind=call, source_id=7779, compact=true)
+  answer: CancelFlag.DidCancel bundle.Compile bundler.ScanBundle cloneMangleCache convertErrorsAndWarningsToInternal convertMessagesToPublic fs.AfterFileClose fs.BeforeFileOpen fs.MkdirAll fs.RealFS hasher.Sum64 hasher.Write linker.Link log.AddError logger.NewStderrLog timer.Begin timer.End timer.Log xxhash.N…
+  MISSED parts: [buildImpl]
+  MISSED answer lines: [buildImpl, compileResult]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-1.4-rebuildImpl [iter 2]: control + lore-enabled arms
+[22m[39m[control] esbuild-1.2-rebuildImpl: success=0.5 correctness=0.33 ans_cov=0.00 file_cov=1.00 sym_cov=1.00 tokens=1162 wall=30.2s
+  tools: view×2, report_intent×1, grep×1
+  answer: Now I have the full function. Let me extract all direct callee function/method names:  NewStderrLog AddMsg RealFS Error ScanBundle WatchData HasErrors cloneMangleCache Compile DidCancel AddError Sprintf New Write PutUint64 Sum64 EncodeToString Begin End Add BeforeFileOpen AfterFileClose ReadFile Equ…
+  MISSED parts: [buildImpl]
+  MISSED answer lines: [buildImpl, compileResult]
+[lore]    esbuild-1.2-rebuildImpl: success=0.5 correctness=0.33 ans_cov=0.00 file_cov=1.00 sym_cov=1.00 tokens=590 wall=23.1s
+  tools: report_intent×1, lore_lookup×1, lore_graph×1, bash×1
+  lore calls: lore_lookup(kind=symbol, query=rebuildImpl), lore_graph(kind=call, source_id=7779, compact=true)
+  answer: CancelFlag.DidCancel bundle.Compile bundler.ScanBundle cloneMangleCache convertErrorsAndWarningsToInternal convertMessagesToPublic fs.AfterFileClose fs.BeforeFileOpen fs.MkdirAll fs.RealFS hasher.Sum64 hasher.Write linker.Link log.AddError logger.NewStderrLog timer.Begin timer.End timer.Log xxhash.N…
+  MISSED parts: [buildImpl]
+  MISSED answer lines: [buildImpl, compileResult]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-1.4-rebuildImpl [iter 3]: control + lore-enabled arms
+[22m[39m[control] esbuild-1.2-rebuildImpl: success=0.5 correctness=0.33 ans_cov=0.00 file_cov=1.00 sym_cov=1.00 tokens=4426 wall=67.5s
+  tools: view×2, report_intent×1, grep×1
+  answer: logger.NewStderrLog log.AddMsg fs.RealFS panic bundler.ScanBundle realFS.WatchData log.HasErrors cloneMangleCache bundle.Compile args.options.CancelFlag.DidCancel log.AddError fmt.Sprintf make len xxhash.New hasher.Write binary.LittleEndian.PutUint64 hasher.Sum64 base64.RawStdEncoding.EncodeToString…
+  MISSED parts: [buildImpl]
+  MISSED answer lines: [buildImpl, compileResult]
+[lore]    esbuild-1.2-rebuildImpl: success=0.5 correctness=0.33 ans_cov=0.00 file_cov=1.00 sym_cov=1.00 tokens=589 wall=23.2s
+  tools: report_intent×1, lore_lookup×1, lore_graph×1, bash×1
+  lore calls: lore_lookup(kind=symbol, query=rebuildImpl), lore_graph(kind=call, source_id=7779, compact=true)
+  answer: CancelFlag.DidCancel bundle.Compile bundler.ScanBundle cloneMangleCache convertErrorsAndWarningsToInternal convertMessagesToPublic fs.AfterFileClose fs.BeforeFileOpen fs.MkdirAll fs.RealFS hasher.Sum64 hasher.Write linker.Link log.AddError logger.NewStderrLog timer.Begin timer.End timer.Log xxhash.N…
+  MISSED parts: [buildImpl]
+  MISSED answer lines: [buildImpl, compileResult]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-1.4-rebuildImpl [iter 4]: control + lore-enabled arms
+[22m[39m[control] esbuild-1.2-rebuildImpl: success=0.5 correctness=0.33 ans_cov=0.00 file_cov=1.00 sym_cov=1.00 tokens=3226 wall=55.3s
+  tools: view×2, report_intent×1, grep×1
+  answer: logger.NewStderrLog log.AddMsg fs.RealFS panic bundler.ScanBundle realFS.WatchData log.HasErrors cloneMangleCache bundle.Compile args.options.CancelFlag.DidCancel log.AddError xxhash.New hasher.Write hasher.Sum64 binary.LittleEndian.PutUint64 base64.RawStdEncoding.EncodeToString len make fmt.Sprintf…
+  MISSED parts: [buildImpl]
+  MISSED answer lines: [buildImpl, compileResult]
+[lore]    esbuild-1.2-rebuildImpl: success=0.5 correctness=0.33 ans_cov=0.00 file_cov=1.00 sym_cov=1.00 tokens=581 wall=23.4s
+  tools: report_intent×1, lore_lookup×1, lore_graph×1, bash×1
+  lore calls: lore_lookup(kind=symbol, query=rebuildImpl), lore_graph(kind=call, source_id=7779, compact=true)
+  answer: CancelFlag.DidCancel bundle.Compile bundler.ScanBundle cloneMangleCache convertErrorsAndWarningsToInternal convertMessagesToPublic fs.AfterFileClose fs.BeforeFileOpen fs.MkdirAll fs.RealFS hasher.Sum64 hasher.Write linker.Link log.AddError logger.NewStderrLog timer.Begin timer.End timer.Log xxhash.N…
+  MISSED parts: [buildImpl]
+  MISSED answer lines: [buildImpl, compileResult]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-1.4-rebuildImpl [iter 5]: control + lore-enabled arms
+[22m[39m[control] esbuild-1.4-rebuildImpl: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=12382 wall=121.4s
+  tools: bash×50, view×8, report_intent×1, task×1
+  answer: pkg/api/api_impl.go rebuildImpl pkg/api/api_impl.go rebuild pkg/api/api_impl.go Rebuild pkg/api/api_impl.go Watch pkg/api/serve_other.go ServeHTTP pkg/api/serve_other.go Serve pkg/api/watcher.go start cmd/esbuild/service.go handleIncomingPacket pkg/api/api.go Build pkg/cli/cli_impl.go runImpl pkg/cl…
+[lore]    esbuild-1.4-rebuildImpl: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=346 wall=16.0s
+  tools: report_intent×1, lore_dependents×1
+  lore calls: lore_dependents(query=rebuildImpl, kind=symbol, compact=true)
+  answer: pkg/api/api_impl.go rebuild pkg/api/api_impl.go Rebuild pkg/api/api_impl.go Watch pkg/api/api.go Build pkg/api/api_impl.go activeBuildOrRecentBuildOrRebuild pkg/api/serve_other.go Serve pkg/cli/cli_impl.go runImpl pkg/cli/cli.go Run pkg/cli/cli.go RunWithPlugins
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-1.3-rebuildImpl [iter 1]: control + lore-enabled arms
+[22m[39m[control] esbuild-1.4-rebuildImpl: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=17605 wall=183.6s
+  tools: bash×42, view×23, grep×9, report_intent×1, task×1
+  answer: `activeBuildOrRecentBuildOrRebuild` is called from `Serve()` in `serve_other.go` (already captured). No test files reference these directly. Here's the final answer:  ``` pkg/api/api_impl.go : rebuildImpl pkg/api/api_impl.go : rebuild pkg/api/api_impl.go : Rebuild pkg/api/api_impl.go : activeBuildOr…
+[lore]    esbuild-1.4-rebuildImpl: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=348 wall=16.2s
+  tools: report_intent×1, lore_dependents×1
+  lore calls: lore_dependents(query=rebuildImpl, kind=symbol, compact=true)
+  answer: pkg/api/api_impl.go rebuild pkg/api/api_impl.go Rebuild pkg/api/api_impl.go Watch pkg/api/api.go Build pkg/api/api_impl.go activeBuildOrRecentBuildOrRebuild pkg/api/serve_other.go Serve pkg/cli/cli_impl.go runImpl pkg/cli/cli.go Run pkg/cli/cli.go RunWithPlugins
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-1.3-rebuildImpl [iter 2]: control + lore-enabled arms
+[22m[39m[control] esbuild-1.4-rebuildImpl: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=16142 wall=240.9s
+  tools: bash×45, view×34, grep×4, report_intent×1, task×1
+  answer: pkg/api/api_impl.go:rebuild pkg/api/api_impl.go:Rebuild pkg/api/api_impl.go:activeBuildOrRecentBuildOrRebuild pkg/api/api_impl.go:Watch pkg/api/serve_other.go:Serve pkg/api/watcher.go:start pkg/api/api.go:Build cmd/esbuild/service.go:handleIncomingPacket pkg/cli/cli_impl.go:runImpl pkg/cli/cli_impl.…
+[lore]    esbuild-1.4-rebuildImpl: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=345 wall=15.7s
+  tools: report_intent×1, lore_dependents×1
+  lore calls: lore_dependents(query=rebuildImpl, kind=symbol, compact=true)
+  answer: pkg/api/api_impl.go rebuild pkg/api/api_impl.go Rebuild pkg/api/api_impl.go Watch pkg/api/api_impl.go activeBuildOrRecentBuildOrRebuild pkg/api/api.go Build pkg/api/serve_other.go Serve pkg/cli/cli_impl.go runImpl pkg/cli/cli.go Run pkg/cli/cli.go RunWithPlugins
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-1.3-rebuildImpl [iter 3]: control + lore-enabled arms
+[22m[39m[control] esbuild-1.3-rebuildImpl: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=11689 wall=152.9s
+  tools: view×3, grep×2, report_intent×1
+  answer: logger.NewStderrLog(args.logOptions) log.AddMsg(msg) fs.RealFS(fs.RealFSOptions{AbsWorkingDir: args.absWorkingDir, WantWatchData: args.options.WatchMode}) err.Error() bundler.ScanBundle(config.BuildCall, log, realFS, args.caches, args.entryPoints, args.options, timer) realFS.WatchData() log.HasError…
+[lore]    esbuild-1.3-rebuildImpl: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=10156 wall=128.4s
+  tools: report_intent×1, lore_lookup×1, lore_snippet×1, lore_graph×1
+  lore calls: lore_lookup(kind=symbol, query=rebuildImpl), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api_impl.go, start_line=1464, end_line=1679), lore_graph(kind=call, source_id=7779, compact=false)
+  answer: logger.NewStderrLog(args.logOptions) log.AddMsg(msg) fs.RealFS(fs.RealFSOptions{AbsWorkingDir: args.absWorkingDir, WantWatchData: args.options.WatchMode}) err.Error() panic(err.Error()) bundler.ScanBundle(config.BuildCall, log, realFS, args.caches, args.entryPoints, args.options, timer) realFS.Watch…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-1.3-rebuildImpl [iter 4]: control + lore-enabled arms
+[22m[39m[control] esbuild-1.4-rebuildImpl: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=25581 wall=313.3s
+  tools: bash×66, view×31, grep×13, task×2, report_intent×1
+  answer: pkg/api/api_impl.go: (*internalContext).rebuild pkg/api/api_impl.go: (*internalContext).Rebuild pkg/api/api_impl.go: (*internalContext).Watch pkg/api/watcher.go: (*watcher).start pkg/api/api_impl.go: (*internalContext).activeBuildOrRecentBuildOrRebuild pkg/api/api.go: Build cmd/esbuild/service.go: (…
+[lore]    esbuild-1.4-rebuildImpl: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=337 wall=15.1s
+  tools: report_intent×1, lore_dependents×1
+  lore calls: lore_dependents(query=rebuildImpl, kind=symbol, compact=true)
+  answer: pkg/api/api_impl.go rebuild pkg/api/api_impl.go Rebuild pkg/api/api_impl.go Watch pkg/api/api_impl.go activeBuildOrRecentBuildOrRebuild pkg/api/api.go Build pkg/api/serve_other.go Serve pkg/cli/cli_impl.go runImpl pkg/cli/cli.go Run pkg/cli/cli.go RunWithPlugins
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-1.3-rebuildImpl [iter 5]: control + lore-enabled arms
+[22m[39m[control] esbuild-1.4-rebuildImpl: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=32901 wall=346.1s
+  tools: bash×69, view×55, grep×21, task×3, report_intent×1, glob×1
+  answer: Now I have the complete picture. Here's the full transitive dependency list:  pkg/api/api_impl.go `(*internalContext).rebuild` pkg/api/api_impl.go `(*internalContext).Rebuild` pkg/api/api_impl.go `(*internalContext).activeBuildOrRecentBuildOrRebuild` pkg/api/api_impl.go `(*internalContext).Watch` pk…
+[lore]    esbuild-1.4-rebuildImpl: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=345 wall=15.8s
+  tools: report_intent×1, lore_dependents×1
+  lore calls: lore_dependents(query=rebuildImpl, kind=symbol, compact=true)
+  answer: pkg/api/api_impl.go rebuild pkg/api/api_impl.go Rebuild pkg/api/api_impl.go Watch pkg/api/api.go Build pkg/api/api_impl.go activeBuildOrRecentBuildOrRebuild pkg/api/serve_other.go Serve pkg/cli/cli_impl.go runImpl pkg/cli/cli.go Run pkg/cli/cli.go RunWithPlugins
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-1.5-Build [iter 1]: control + lore-enabled arms
+[22m[39m[control] esbuild-1.3-rebuildImpl: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=8270 wall=111.4s
+  tools: grep×2, view×2, report_intent×1
+  answer: Now I have the full function body (lines 1465–1680). Here are all direct callees with their argument expressions:  ``` logger.NewStderrLog(args.logOptions) log.AddMsg(msg) fs.RealFS(fs.RealFSOptions{AbsWorkingDir: args.absWorkingDir, WantWatchData: args.options.WatchMode}) err.Error() bundler.ScanBu…
+[lore]    esbuild-1.3-rebuildImpl: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=15970 wall=196.5s
+  tools: report_intent×1, lore_lookup×1, lore_snippet×1, lore_graph×1, bash×1
+  lore calls: lore_lookup(kind=symbol, query=rebuildImpl), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api_impl.go, start_line=1464, end_line=1679), lore_graph(kind=call, source_id=7779, compact=true)
+  answer: Here is the list based on reading the source of `rebuildImpl`:  ``` logger.NewStderrLog(args.logOptions) log.AddMsg(msg) fs.RealFS(fs.RealFSOptions{AbsWorkingDir: args.absWorkingDir, WantWatchData: args.options.WatchMode}) err.Error() bundler.ScanBundle(config.BuildCall, log, realFS, args.caches, ar…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-1.5-Build [iter 2]: control + lore-enabled arms
+[22m[39m[control] esbuild-1.3-rebuildImpl: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=14179 wall=176.2s
+  tools: grep×2, view×2, report_intent×1
+  answer: logger.NewStderrLog(args.logOptions) log.AddMsg(msg) fs.RealFS(fs.RealFSOptions{AbsWorkingDir: args.absWorkingDir, WantWatchData: args.options.WatchMode}) err.Error() bundler.ScanBundle(config.BuildCall, log, realFS, args.caches, args.entryPoints, args.options, timer) realFS.WatchData() log.HasError…
+[lore]    esbuild-1.3-rebuildImpl: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=9942 wall=133.1s
+  tools: report_intent×1, lore_lookup×1, lore_snippet×1, lore_graph×1, bash×1
+  lore calls: lore_lookup(kind=symbol, query=rebuildImpl), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api_impl.go, start_line=1464, end_line=1679), lore_graph(kind=call, source_id=7779, compact=false)
+  answer: Now I have the source and call graph data. Let me compile the complete list from the source:  ``` logger.NewStderrLog(args.logOptions) log.AddMsg(msg) fs.RealFS(fs.RealFSOptions{AbsWorkingDir: args.absWorkingDir, WantWatchData: args.options.WatchMode}) err.Error() panic(err.Error()) bundler.ScanBund…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-1.5-Build [iter 3]: control + lore-enabled arms
+[22m[39m[control] esbuild-1.3-rebuildImpl: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=11346 wall=150.0s
+  tools: grep×2, view×2, report_intent×1
+  answer: logger.NewStderrLog(args.logOptions) log.AddMsg(msg) fs.RealFS(fs.RealFSOptions{AbsWorkingDir: args.absWorkingDir, WantWatchData: args.options.WatchMode}) err.Error() panic(err.Error()) bundler.ScanBundle(config.BuildCall, log, realFS, args.caches, args.entryPoints, args.options, timer) realFS.Watch…
+[lore]    esbuild-1.3-rebuildImpl: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=6945 wall=92.6s
+  tools: report_intent×1, lore_lookup×1, lore_snippet×1, lore_graph×1, bash×1
+  lore calls: lore_lookup(kind=symbol, query=rebuildImpl), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api_impl.go, start_line=1464, end_line=1679), lore_graph(kind=call, source_id=7779, compact=true)
+  answer: ``` logger.NewStderrLog(args.logOptions) log.AddMsg(msg) fs.RealFS(fs.RealFSOptions{AbsWorkingDir: args.absWorkingDir, WantWatchData: args.options.WatchMode}) bundler.ScanBundle(config.BuildCall, log, realFS, args.caches, args.entryPoints, args.options, timer) cloneMangleCache(log, args.mangleCache)…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-1.5-Build [iter 4]: control + lore-enabled arms
+[22m[39m[control] esbuild-1.3-rebuildImpl: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=14111 wall=187.1s
+  tools: grep×3, view×3, report_intent×1
+  answer: Now I have the full function body. Let me compile all direct callees.  logger.NewStderrLog(args.logOptions) log.AddMsg(msg) fs.RealFS(fs.RealFSOptions{AbsWorkingDir: args.absWorkingDir, WantWatchData: args.options.WatchMode}) err.Error() panic(err.Error()) bundler.ScanBundle(config.BuildCall, log, r…
+[lore]    esbuild-1.3-rebuildImpl: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=19821 wall=245.9s
+  tools: report_intent×1, lore_lookup×1, lore_snippet×1, lore_graph×1, bash×1
+  lore calls: lore_lookup(kind=symbol, query=rebuildImpl), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api_impl.go, start_line=1464, end_line=1679), lore_graph(kind=call, source_id=7779, compact=false)
+  answer: I have the full source of `rebuildImpl`. Here are all distinct direct callees with their argument expressions:  logger.NewStderrLog(args.logOptions) log.AddMsg(msg) fs.RealFS(fs.RealFSOptions{AbsWorkingDir: args.absWorkingDir, WantWatchData: args.options.WatchMode}) err.Error() bundler.ScanBundle(co…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-1.5-Build [iter 5]: control + lore-enabled arms
+[22m[39m[control] esbuild-1.5-Build: success=0.5 correctness=0.67 ans_cov=0.67 file_cov=0.50 sym_cov=1.00 tokens=20343 wall=279.9s
+  tools: bash×26, view×24, grep×10, report_intent×1, task×1
+  answer: runImpl — checks for --serve flags and delegates to serveImpl (which starts ctx.Serve and blocks forever logging requests), otherwise calls api.Build and uses the result's Errors to determine the process exit code handleIncomingPacket — dispatches "build" commands to handleBuildRequest (which calls …
+  MISSED parts: [main]
+  MISSED answer lines: [main]
+[lore]    esbuild-1.5-Build: success=1 correctness=0.67 ans_cov=0.67 file_cov=1.00 sym_cov=1.00 tokens=29025 wall=271.8s
+  tools: bash×52, grep×20, view×19, lore_lookup×14, lore_snippet×5, lore_dependents×4, lore_graph×4, read_agent×2, lore_search×2, report_intent×1, task×1
+  lore calls: lore_dependents(query=Build, kind=symbol, compact=true), lore_dependents(query=Serve, kind=symbol, compact=true), lore_dependents(compact=true, kind=symbol, query=Build), lore_dependents(compact=true, kind=symbol, query=Serve), lore_graph(kind=call, target_id=7632, compact=true), lore_graph(kind=call, target_id=7557, compact=true), lore_graph(kind=call, target_id=7908, compact=true), lore_lookup(kind=symbol, query=Serve, match_mode=exact), lore_lookup(kind=symbol, query=serve, match_mode=exact), lore_graph(compact=true, kind=call, source_id=7954), lore_lookup(kind=symbol, match_mode=exact, query=serveImpl), lore_lookup(kind=symbol, match_mode=exact, query=buildOrServe), lore_lookup(kind=symbol, match_mode=contains, query=buildOrServe), lore_lookup(kind=symbol, match_mode=contains, query=buildAndServe), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/cli/cli_impl.go, symbol=runImpl), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/cli/cli_impl.go, symbol=serveImpl), lore_lookup(kind=symbol, match_mode=exact, query=buildOrServe), lore_lookup(kind=symbol, match_mode=contains, query=handleBuild), lore_search(query=function calls both build and serve, mode=semantic, limit=20), lore_lookup(kind=symbol, match_mode=contains, query=handleServe), lore_lookup(kind=symbol, match_mode=contains, query=buildServe), lore_search(mode=structural, query=build serve, limit=30), lore_lookup(kind=symbol, match_mode=exact, query=buildOrContext), lore_lookup(kind=symbol, match_mode=contains, query=buildOrContext), lore_lookup(kind=symbol, match_mode=contains, query=buildOrContextImpl), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/lib/shared/common.ts, start_line=909, end_line=1160), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/lib/npm/node.ts, start_line=1, end_line=50), lore_lookup(kind=symbol, path_prefix=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/lib/npm/node.ts, limit=40), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api.go, symbol=Build)
+  answer:   Based on my thorough analysis of the codebase (Go, TypeScript), the two functions are:  runImpl — dispatches to serveImpl (which calls ctx.Serve()) when --serve/--servedir flags are found and returns early, otherwise calls api.Build() to do a one-shot build and uses its errors to set the exit code…
+  MISSED parts: [main]
+  MISSED answer lines: [main]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-1.7-Build [iter 1]: control + lore-enabled arms
+[22m[39m[control] esbuild-1.5-Build: success=1 correctness=0.67 ans_cov=0.67 file_cov=1.00 sym_cov=1.00 tokens=11262 wall=158.1s
+  tools: bash×28, view×20, grep×4, glob×2, read_agent×2, task×1, report_intent×1
+  answer:   serveImpl — creates a build context via api.Context(options), then calls ctx.Serve(serveOptions) to start an HTTP server that serves the bundled output handleBuildRequest — when isContext=true, calls api.Context(options) to store a persistent BuildContext; when isContext=false, calls api.Build(opt…
+  MISSED parts: [main]
+  MISSED answer lines: [main]
+[lore]    esbuild-1.5-Build: success=0.5 correctness=0.00 ans_cov=0.00 file_cov=1.00 sym_cov=1.00 tokens=24152 wall=360.0s
+  tools: bash×49, grep×15, view×14, lore_graph×7, lore_lookup×4, lore_dependents×3, report_intent×2, lore_snippet×2, read_agent×2, task×1
+  lore calls: lore_dependents(query=Build, kind=symbol, compact=true), lore_dependents(query=Serve, kind=symbol, compact=true), lore_dependents(compact=true, kind=symbol, query=Serve), lore_lookup(kind=symbol, query=Serve, match_mode=exact), lore_graph(kind=call, target_id=7632, compact=true), lore_graph(compact=true, kind=call, target_id=7908), lore_lookup(kind=symbol, query=serve, match_mode=exact), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/cli/cli_impl.go, symbol=runImpl), lore_lookup(kind=symbol, match_mode=exact, query=serveImpl), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/cli/cli_impl.go, symbol=serveImpl), lore_lookup(kind=symbol, match_mode=exact, query=Build), lore_graph(compact=true, kind=call, target_id=7557), lore_graph(compact=true, kind=call, target_id=9347), lore_graph(compact=true, kind=call, target_id=9371), lore_graph(compact=true, kind=call, target_id=9386), lore_graph(compact=true, kind=call, target_id=9418)
+  answer:   
+  MISSED parts: [main, Build, Serve]
+  MISSED answer lines: [main, Build, Serve]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-1.7-Build [iter 2]: control + lore-enabled arms
+[22m[39m[control] esbuild-1.7-Build: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=6217 wall=83.6s
+  tools: bash×19, view×7, grep×2, report_intent×1, task×1
+  answer: 1. Build — entry-point API that creates a build context and triggers a rebuild 2. Rebuild — public method on internalContext that delegates to the private rebuild 3. rebuild — acquires the build mutex and launches rebuildImpl in a goroutine 4. rebuildImpl — sets up logging, filesystem, and options t…
+[lore]    esbuild-1.7-Build: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=575 wall=23.8s
+  tools: lore_trace×2, lore_lookup×2, report_intent×1
+  lore calls: lore_trace(from_name=Build, to_name=ScanBundle, depth=10), lore_lookup(kind=symbol, query=Build, match_mode=exact), lore_lookup(kind=symbol, query=ScanBundle, match_mode=exact), lore_trace(from=7632, to=296, depth=10)
+  answer: 1. Build — public entry point that creates a build context, triggers a rebuild, and prints a summary 2. Rebuild — acquires the active build result or delegates to the internal rebuild method 3. rebuild — coordinates locking, starts a new build-in-progress, and calls rebuildImpl 4. rebuildImpl — sets…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-1.7-Build [iter 3]: control + lore-enabled arms
+[22m[39m[control] esbuild-1.5-Build: success=1 correctness=0.67 ans_cov=0.67 file_cov=1.00 sym_cov=1.00 tokens=22238 wall=360.0s
+  tools: bash×50, view×29, grep×19, report_intent×1, task×1
+  answer: Good - so there are NO functions that directly call both `api.Build()` (or `.Build()`) AND `.Serve()`.  However, looking at the code flow, the closest architectural match is:  1. **`handleIncomingPacket()`** in `cmd/esbuild/service.go` - This function handles multiple cases, including:    - "build" …
+  MISSED parts: [main]
+  MISSED answer lines: [main]
+[lore]    esbuild-1.5-Build: success=1 correctness=0.67 ans_cov=0.67 file_cov=1.00 sym_cov=1.00 tokens=19837 wall=302.3s
+  tools: bash×26, view×23, grep×14, lore_graph×5, lore_lookup×4, lore_dependents×3, glob×2, report_intent×1, task×1
+  lore calls: lore_dependents(query=Build, kind=symbol, compact=true), lore_dependents(query=Serve, kind=symbol, compact=true), lore_dependents(compact=true, kind=symbol, query=buildImpl), lore_lookup(kind=symbol, query=Serve, match_mode=exact), lore_lookup(kind=symbol, query=Build, match_mode=exact), lore_graph(kind=call, target_id=7632, compact=true), lore_graph(kind=call, target_id=7557, compact=true), lore_graph(kind=call, target_id=7908, compact=true), lore_lookup(kind=symbol, match_mode=exact, query=handleIncomingPacket), lore_lookup(kind=symbol, match_mode=exact, query=handleBuildRequest), lore_graph(compact=true, kind=call, source_id=7954), lore_graph(compact=true, kind=call, source_id=38)
+  answer: handleIncomingPacket — dispatches "build" commands to handleBuildRequest (which calls Build for a one-shot bundle and returns encoded errors/outputs/metafile) and dispatches "serve" commands by calling ctx.Serve to start a dev server, returning the port and hosts to the JS process runImpl — if CLI a…
+  MISSED parts: [main]
+  MISSED answer lines: [main]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-1.7-Build [iter 4]: control + lore-enabled arms
+[22m[39m[control] esbuild-1.7-Build: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=6788 wall=83.5s
+  tools: bash×10, view×10, grep×4, report_intent×1, task×1
+  answer: 1. `Build` — public API entry point; creates a build context and triggers a rebuild 2. `contextImpl` — validates options, loads plugins, and constructs an `internalContext` 3. `Rebuild` — public method on `internalContext`; delegates to the private rebuild 4. `rebuild` — acquires locks, manages conc…
+[lore]    esbuild-1.7-Build: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=574 wall=23.8s
+  tools: lore_trace×2, lore_lookup×2, report_intent×1
+  lore calls: lore_trace(from_name=Build, to_name=ScanBundle, depth=10), lore_lookup(kind=symbol, query=Build, match_mode=exact), lore_lookup(kind=symbol, query=ScanBundle, match_mode=exact), lore_trace(from=7632, to=296, depth=10)
+  answer: 1. Build — public entry point that creates a build context, triggers a rebuild, and prints a summary 2. Rebuild — acquires the active build result or delegates to the internal rebuild method 3. rebuild — manages build concurrency under a mutex and dispatches to rebuildImpl 4. rebuildImpl — sets up l…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-1.7-Build [iter 5]: control + lore-enabled arms
+[22m[39m[control] esbuild-1.5-Build: success=0.5 correctness=0.67 ans_cov=0.67 file_cov=0.50 sym_cov=1.00 tokens=24303 wall=360.0s
+  tools: bash×44, view×39, grep×21, task×2, report_intent×1
+  answer: Let me create the summary without writing to a file:  ## Summary of Findings  I've thoroughly searched all 7 files you specified. Here are the precise results:  ### Files With NO Functions Calling Both `build(` and `serve(` - **lib/shared/common.ts** - Only mentions in comments; `serve` is a propert…
+  MISSED parts: [main]
+  MISSED answer lines: [main]
+[lore]    esbuild-1.5-Build: success=0.5 correctness=0.33 ans_cov=0.33 file_cov=1.00 sym_cov=1.00 tokens=22104 wall=360.0s
+  tools: bash×37, view×35, grep×20, lore_dependents×3, lore_graph×3, lore_lookup×2, lore_snippet×2, report_intent×1, task×1, glob×1
+  lore calls: lore_dependents(query=Build, kind=symbol, compact=true), lore_dependents(query=Serve, kind=symbol, compact=true), lore_dependents(compact=true, kind=symbol, query=buildImpl), lore_lookup(kind=symbol, query=Serve, match_mode=exact), lore_lookup(kind=symbol, query=Build, match_mode=exact), lore_graph(kind=call, target_id=7632, compact=true), lore_graph(kind=call, target_id=7557, compact=true), lore_graph(kind=call, target_id=7908, compact=true), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/cli/cli_impl.go, symbol=serveImpl), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/cli/cli_impl.go, symbol=runImpl)
+  answer: Now let me check the entire node.ts and browser.ts files for any serve calls:
+  MISSED parts: [main, Build]
+  MISSED answer lines: [main, Build]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-1.8-Build [iter 1]: control + lore-enabled arms
+[22m[39m[control] esbuild-1.5-Build: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=21336 wall=360.0s
+  tools: bash×31, grep×28, view×27, report_intent×1, task×1
+  answer: Perfect! Now I have the complete picture. Let me create a comprehensive answer:  ## Summary  After a thorough analysis of the esbuild codebase, I found that **NO FUNCTION DIRECTLY CALLS BOTH `Build()` AND `Serve()` FUNCTIONS**.  However, there are several important patterns to note:  ### Build and S…
+[lore]    esbuild-1.5-Build: success=1 correctness=0.67 ans_cov=0.67 file_cov=1.00 sym_cov=1.00 tokens=21596 wall=276.4s
+  tools: view×33, grep×21, bash×21, lore_dependents×4, lore_graph×4, lore_lookup×3, glob×2, lore_snippet×2, read_agent×2, report_intent×1, task×1
+  lore calls: lore_dependents(query=Build, kind=symbol, compact=true), lore_dependents(query=Serve, kind=symbol, compact=true), lore_dependents(compact=true, kind=symbol, query=Build), lore_dependents(compact=true, kind=symbol, query=Serve), lore_graph(kind=call, target_id=7632, compact=true), lore_graph(kind=call, target_id=7557, compact=true), lore_graph(kind=call, target_id=7908, compact=true), lore_lookup(kind=symbol, query=Serve, match_mode=exact), lore_lookup(kind=symbol, query=serve, match_mode=exact), lore_lookup(kind=symbol, match_mode=exact, query=runImpl), lore_graph(compact=true, kind=call, source_id=7954), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/cli/cli_impl.go, symbol=runImpl), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/cli/cli_impl.go, symbol=serveImpl)
+  answer: Now I have a clear picture. Let me provide the answer:  runImpl — dispatches CLI args: calls `api.Build()` to execute a one-shot build and check errors, or calls `serveImpl()` which invokes `ctx.Serve()` to start a long-running dev server handleIncomingPacket — routes IPC commands: dispatches "build…
+  MISSED parts: [main]
+  MISSED answer lines: [main]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-1.8-Build [iter 2]: control + lore-enabled arms
+[22m[39m[control] esbuild-1.7-Build: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=9581 wall=122.0s
+  tools: view×10, bash×6, grep×4, report_intent×1, task×1
+  answer: 1. Build — public API entry point; creates a build context and triggers a rebuild 2. contextImpl — validates options, initializes filesystem/caches/plugins, returns an internalContext 3. Rebuild — wrapper method on internalContext that delegates to the internal rebuild 4. rebuild — manages concurren…
+[lore]    esbuild-1.7-Build: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=562 wall=26.2s
+  tools: lore_trace×2, lore_lookup×2, report_intent×1
+  lore calls: lore_trace(from_name=Build, to_name=ScanBundle, depth=10), lore_lookup(kind=symbol, query=Build, match_mode=exact), lore_lookup(kind=symbol, query=ScanBundle, match_mode=exact), lore_trace(from=7632, to=296, depth=10)
+  answer: 1. Build — public entry point that creates a build context and triggers a rebuild 2. Rebuild — acquires the active build or starts a new one and returns its result 3. rebuild — manages build lifecycle with locking, delegates to rebuildImpl 4. rebuildImpl — sets up logging, filesystem, and timer then…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-1.8-Build [iter 3]: control + lore-enabled arms
+[22m[39m[control] esbuild-1.8-Build: success=0.5 correctness=0.50 ans_cov=0.50 file_cov=0.50 sym_cov=0.50 tokens=2165 wall=48.9s
+  tools: grep×6, view×3, report_intent×1
+  answer: Handle: runImpl  Propagate: handleBuildRequest  **Explanation:** `Build` (in `pkg/api/api.go`) returns a `BuildResult` with an `Errors` field. It has two direct callers:  - **`runImpl`** (`pkg/cli/cli_impl.go:1382`) — checks `len(result.Errors) > 0` and returns exit code `1`, handling the error loca…
+  MISSED parts: [main, rebuildImpl]
+  MISSED answer lines: [main, rebuildImpl]
+[lore]    esbuild-1.8-Build: success=0.5 correctness=0.50 ans_cov=0.50 file_cov=0.50 sym_cov=0.50 tokens=2034 wall=51.5s
+  tools: lore_dependents×2, lore_snippet×2, view×2, report_intent×1, lore_graph×1, grep×1, bash×1
+  lore calls: lore_dependents(query=Build, kind=symbol, compact=true), lore_dependents(compact=true, kind=symbol, query=Build), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api.go, symbol=Build), lore_graph(kind=call, target_id=7632, compact=false), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/cli/cli_impl.go, start_line=1370, end_line=1400)
+  answer: Handle: runImpl  Propagate: handleBuildRequest  **Reasoning:** `Build` (in `pkg/api/api.go`) returns a `BuildResult` with an `Errors` field. It has two direct callers:  - **`runImpl`** (`pkg/cli/cli_impl.go:1379`) — checks `len(result.Errors) > 0` and returns exit code `1`, handling the error. - **`…
+  MISSED parts: [main, rebuildImpl]
+  MISSED answer lines: [main, rebuildImpl]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-1.8-Build [iter 4]: control + lore-enabled arms
+[22m[39m[control] esbuild-1.7-Build: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=8160 wall=108.4s
+  tools: bash×18, view×15, grep×3, report_intent×1, task×1
+  answer: Confirmed. Here is the chain:  1. `Build` — public API entry point; creates a build context and triggers a rebuild 2. `Rebuild` — public method on `*internalContext`; delegates to the private `rebuild` method 3. `rebuild` — private method on `*internalContext`; manages concurrency and dispatches to …
+[lore]    esbuild-1.7-Build: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=604 wall=24.1s
+  tools: lore_trace×2, lore_lookup×2, report_intent×1
+  lore calls: lore_trace(from_name=Build, to_name=ScanBundle, depth=10), lore_lookup(kind=symbol, query=Build, mode=exact), lore_lookup(kind=symbol, query=ScanBundle, mode=exact), lore_trace(depth=10, from=7632, to=296)
+  answer: 1. `Build` — public API entry point that creates a build context and triggers a rebuild 2. `Rebuild` — method on `internalContext` that delegates to the internal rebuild implementation 3. `rebuild` — manages build concurrency/locking and calls `rebuildImpl` without holding the mutex 4. `rebuildImpl`…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-1.8-Build [iter 5]: control + lore-enabled arms
+[22m[39m[control] esbuild-1.7-Build: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=7019 wall=90.6s
+  tools: bash×20, view×8, grep×2, report_intent×1, task×1
+  answer: 1. `Build` — public API entry point that initializes a build context and triggers a rebuild 2. `Rebuild` — public method on `internalContext` that delegates to the private rebuild 3. `rebuild` — manages mutex synchronization and build state, then invokes rebuildImpl 4. `rebuildImpl` — sets up loggin…
+[lore]    esbuild-1.7-Build: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=563 wall=23.5s
+  tools: lore_trace×2, lore_lookup×2, report_intent×1
+  lore calls: lore_trace(from_name=Build, to_name=ScanBundle, depth=10), lore_lookup(kind=symbol, query=Build, match_mode=exact), lore_lookup(kind=symbol, query=ScanBundle, match_mode=exact), lore_trace(from=7632, to=296, depth=10)
+  answer: 1. Build — public API entry point that creates a build context and triggers a rebuild 2. Rebuild — acquires the active build or delegates to the internal rebuild method 3. rebuild — manages build lifecycle (locking, cancellation) and calls rebuildImpl 4. rebuildImpl — sets up logging, filesystem, an…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-7.2-rebuildImpl [iter 1]: control + lore-enabled arms
+[22m[39m[control] esbuild-7.2-rebuildImpl: success=0.5 correctness=0.50 ans_cov=0.80 file_cov=0.50 sym_cov=1.00 tokens=385 wall=18.0s
+  tools: report_intent×1, grep×1
+  answer: There are no callers of `rebuildImpl` in other files. The function is unexported (lowercase) and its only call site is within `pkg/api/api_impl.go` itself, at line 1007.
+  MISSED parts: [api.go]
+  MISSED answer lines: [Build → api.go]
+[lore]    esbuild-7.2-rebuildImpl: success=1 correctness=0.50 ans_cov=0.80 file_cov=1.00 sym_cov=1.00 tokens=1651 wall=33.1s
+  tools: grep×5, report_intent×1, lore_dependents×1
+  lore calls: lore_dependents(query=rebuildImpl, kind=symbol, compact=true)
+  answer: The grep confirms `rebuildImpl` is only directly called at line 1007 in `pkg/api/api_impl.go` itself. The lore tool's results were transitive (multi-hop) callers. No functions in other files directly call `rebuildImpl` — it is only invoked within `pkg/api/api_impl.go` by `activeBuildOrRecentBuildOrR…
+  MISSED parts: [api.go]
+  MISSED answer lines: [Build → api.go]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-7.2-rebuildImpl [iter 2]: control + lore-enabled arms
+[22m[39m[control] esbuild-1.8-Build: success=0.5 correctness=0.50 ans_cov=0.50 file_cov=0.50 sym_cov=0.50 tokens=2387 wall=61.2s
+  tools: grep×9, view×3, report_intent×1, bash×1
+  answer: `Build` has exactly two direct callers:  - **`runImpl`** (in `pkg/cli/cli_impl.go`) — checks `len(result.Errors) > 0` and returns exit code 1, handling the error itself. - **`handleBuildRequest`** (in `cmd/esbuild/service.go`) — encodes errors into a response packet and returns it to its caller, pro…
+  MISSED parts: [main, rebuildImpl]
+  MISSED answer lines: [main, rebuildImpl]
+[lore]    esbuild-1.8-Build: success=0.5 correctness=0.50 ans_cov=0.50 file_cov=0.50 sym_cov=0.50 tokens=2087 wall=57.1s
+  tools: grep×3, lore_dependents×2, view×2, report_intent×1, lore_snippet×1, lore_graph×1
+  lore calls: lore_dependents(query=Build, kind=symbol, compact=true), lore_dependents(compact=true, kind=symbol, query=Build), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api.go, symbol=Build), lore_graph(kind=call, target_id=7632, compact=true)
+  answer: Here's the analysis of `Build`'s two direct callers (`Build` returns errors embedded in `BuildResult.Errors`):  **Handle:** runImpl  **Propagate:** handleBuildRequest  - `runImpl` (cli_impl.go:1382) checks `len(result.Errors) > 0` and returns exit code 1. - `handleBuildRequest` (service.go:783) pass…
+  MISSED parts: [main, rebuildImpl]
+  MISSED answer lines: [main, rebuildImpl]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-7.2-rebuildImpl [iter 3]: control + lore-enabled arms
+[22m[39m[control] esbuild-1.8-Build: success=0.5 correctness=0.25 ans_cov=0.75 file_cov=0.50 sym_cov=0.50 tokens=8990 wall=96.9s
+  tools: view×14, bash×13, grep×9, task×1, report_intent×1, glob×1
+  answer: Perfect! Now I have all the information I need. Let me provide a comprehensive answer:  ## Summary  ### 1. Build Function Definition  **Location:** `/private/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api.go:388-406`  **Function Signature:** ```go func …
+  MISSED parts: [rebuildImpl]
+  MISSED answer lines: [Handle:, Propagate:, rebuildImpl]
+[lore]    esbuild-1.8-Build: success=0.5 correctness=0.50 ans_cov=0.50 file_cov=0.50 sym_cov=0.50 tokens=2219 wall=50.6s
+  tools: lore_dependents×2, lore_snippet×2, grep×2, report_intent×1, lore_graph×1, view×1
+  lore calls: lore_dependents(query=Build, kind=symbol, compact=true), lore_dependents(compact=true, kind=symbol, query=Build), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api.go, symbol=Build), lore_graph(kind=call, target_id=7632, compact=false), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/cli/cli_impl.go, start_line=1370, end_line=1400)
+  answer: Based on the analysis:  **`Build`** (in `pkg/api/api.go`) returns a `BuildResult` with an `Errors` field. It has two direct callers:  1. **`runImpl`** (`pkg/cli/cli_impl.go:1379`) — checks `len(result.Errors) > 0` and returns exit code 1. 2. **`handleBuildRequest`** (`cmd/esbuild/service.go:782`) — …
+  MISSED parts: [main, rebuildImpl]
+  MISSED answer lines: [main, rebuildImpl]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-7.2-rebuildImpl [iter 4]: control + lore-enabled arms
+[22m[39m[control] esbuild-7.2-rebuildImpl: success=0.5 correctness=0.50 ans_cov=0.80 file_cov=0.50 sym_cov=1.00 tokens=480 wall=19.8s
+  tools: grep×2, report_intent×1
+  answer: `rebuildImpl` is an unexported (lowercase) Go function and is only ever called within `pkg/api/api_impl.go` itself. No functions in other files call it.
+  MISSED parts: [api.go]
+  MISSED answer lines: [Build → api.go]
+[lore]    esbuild-7.2-rebuildImpl: success=1 correctness=0.50 ans_cov=0.80 file_cov=1.00 sym_cov=1.00 tokens=1634 wall=39.9s
+  tools: grep×4, report_intent×1, lore_dependents×1, view×1
+  lore calls: lore_dependents(query=rebuildImpl, kind=symbol, compact=true)
+  answer: No functions in other files call `rebuildImpl`. It is only called within `pkg/api/api_impl.go` itself (by `activeBuildOrRecentBuildOrRebuild` at line 1007), and its lowercase name makes it unexported/package-private in Go. No other file—inside or outside the package—references it.
+  MISSED parts: [api.go]
+  MISSED answer lines: [Build → api.go]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-7.2-rebuildImpl [iter 5]: control + lore-enabled arms
+[22m[39m[control] esbuild-1.8-Build: success=0.5 correctness=0.25 ans_cov=0.75 file_cov=1.00 sym_cov=0.50 tokens=9491 wall=120.2s
+  tools: bash×20, view×17, grep×7, task×1, report_intent×1, glob×1
+  answer: Perfect! Now I have all the information I need. Let me create a comprehensive report.  ## Summary  I found the main `Build` function and all its direct callers in the esbuild repository. Here are the complete results:  ### **Main `Build` Function** - **Location:** `/private/var/folders/_p/cvzkrpzx3q…
+  MISSED parts: [rebuildImpl]
+  MISSED answer lines: [Handle:, Propagate:, rebuildImpl]
+[lore]    esbuild-1.8-Build: success=0.5 correctness=0.50 ans_cov=0.50 file_cov=0.50 sym_cov=0.50 tokens=1839 wall=50.8s
+  tools: lore_dependents×2, lore_snippet×2, grep×2, report_intent×1, lore_graph×1, view×1
+  lore calls: lore_dependents(query=Build, kind=symbol, compact=true), lore_dependents(compact=true, kind=symbol, query=Build), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api.go, symbol=Build), lore_graph(kind=call, target_id=7632, compact=true), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/cli/cli_impl.go, symbol=runImpl)
+  answer: Handle: runImpl  Propagate: handleBuildRequest
+  MISSED parts: [main, rebuildImpl]
+  MISSED answer lines: [main, rebuildImpl]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-7.3-Build [iter 1]: control + lore-enabled arms
+[22m[39m[control] esbuild-1.8-Build: success=0.5 correctness=0.25 ans_cov=0.50 file_cov=0.50 sym_cov=0.50 tokens=11631 wall=143.7s
+  tools: bash×25, view×17, grep×10, task×1, report_intent×1
+  answer: Perfect! Now let me create a comprehensive summary document with all the findings.  ## Summary: `Build` Function and Its Direct Callers  I've completed a thorough analysis of the esbuild codebase. Here are my findings:  ### 1. **The `Build` Function Definition**  **Location:** `/private/var/folders/…
+  MISSED parts: [Propagate, rebuildImpl]
+  MISSED answer lines: [Handle:, Propagate:, rebuildImpl]
+[lore]    esbuild-1.8-Build: success=0.5 correctness=0.50 ans_cov=0.50 file_cov=0.50 sym_cov=0.50 tokens=1773 wall=46.7s
+  tools: lore_dependents×2, lore_snippet×2, grep×2, report_intent×1, lore_graph×1, view×1
+  lore calls: lore_dependents(query=Build, kind=symbol, compact=true), lore_dependents(compact=true, kind=symbol, query=Build), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api.go, symbol=Build), lore_graph(kind=call, target_id=7632, compact=true), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/cli/cli_impl.go, symbol=runImpl)
+  answer: Handle: runImpl  Propagate: handleBuildRequest
+  MISSED parts: [main, rebuildImpl]
+  MISSED answer lines: [main, rebuildImpl]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-7.3-Build [iter 2]: control + lore-enabled arms
+[22m[39m[control] esbuild-7.2-rebuildImpl: success=0.5 correctness=0.50 ans_cov=0.80 file_cov=0.50 sym_cov=1.00 tokens=527 wall=20.8s
+  tools: grep×2, report_intent×1
+  answer: `rebuildImpl` is an unexported (lowercase) function that is only referenced within `pkg/api/api_impl.go` itself — both its definition (line 1465) and its sole call site (line 1007) are in that same file. No functions in other files call it.
+  MISSED parts: [api.go]
+  MISSED answer lines: [Build → api.go]
+[lore]    esbuild-7.2-rebuildImpl: success=1 correctness=0.50 ans_cov=0.80 file_cov=1.00 sym_cov=1.00 tokens=2095 wall=42.5s
+  tools: grep×6, report_intent×1, lore_dependents×1, view×1
+  lore calls: lore_dependents(query=rebuildImpl, kind=symbol, compact=true)
+  answer: No functions in other files call `rebuildImpl`. It is only called directly within `pkg/api/api_impl.go` itself — specifically by the `activeBuildOrRecentBuildOrRebuild` method at line 1007, which unpacks the returned `(rebuildState, map[string]string)` into `build.state` and `newHashes`, then broadc…
+  MISSED parts: [api.go]
+  MISSED answer lines: [Build → api.go]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-7.3-Build [iter 3]: control + lore-enabled arms
+[22m[39m[control] esbuild-7.2-rebuildImpl: success=0.5 correctness=0.50 ans_cov=0.80 file_cov=0.50 sym_cov=1.00 tokens=400 wall=17.5s
+  tools: report_intent×1, grep×1
+  answer: `rebuildImpl` is an unexported (lowercase) Go function, and the grep shows it is **only called within `pkg/api/api_impl.go` itself** (line 1007). No other file calls it.  There are no callers in other files.
+  MISSED parts: [api.go]
+  MISSED answer lines: [Build → api.go]
+[lore]    esbuild-7.2-rebuildImpl: success=1 correctness=0.50 ans_cov=0.80 file_cov=1.00 sym_cov=1.00 tokens=2239 wall=44.3s
+  tools: grep×6, report_intent×1, lore_dependents×1
+  lore calls: lore_dependents(query=rebuildImpl, kind=symbol, compact=true)
+  answer: No functions in other files call `rebuildImpl`. It is only called once, from the `rebuild` method in the same file (`pkg/api/api_impl.go`, line 1007), where the return value is unpacked into `build.state` and `newHashes`.
+  MISSED parts: [api.go]
+  MISSED answer lines: [Build → api.go]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-7.3-Build [iter 4]: control + lore-enabled arms
+[22m[39m[control] esbuild-7.2-rebuildImpl: success=0.5 correctness=0.50 ans_cov=0.80 file_cov=0.50 sym_cov=1.00 tokens=426 wall=18.0s
+  tools: report_intent×1, grep×1
+  answer: No functions in other files call `rebuildImpl`. It is only called within `pkg/api/api_impl.go` itself (line 1007), and it is unexported (lowercase), so it cannot be referenced from outside that package file.
+  MISSED parts: [api.go]
+  MISSED answer lines: [Build → api.go]
+[lore]    esbuild-7.2-rebuildImpl: success=1 correctness=0.50 ans_cov=0.80 file_cov=1.00 sym_cov=1.00 tokens=8306 wall=111.2s
+  tools: bash×12, view×11, grep×2, report_intent×1, lore_dependents×1, task×1
+  lore calls: lore_dependents(query=rebuildImpl, kind=symbol, compact=true)
+  answer: No function in any other file directly calls `rebuildImpl` — it is only called on line 1007 of `pkg/api/api_impl.go` itself (by the `rebuild` method). All external callers reach it indirectly through wrapper functions. There are no results to list in the requested format.
+  MISSED parts: [api.go]
+  MISSED answer lines: [Build → api.go]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-7.3-Build [iter 5]: control + lore-enabled arms
+[22m[39m[control] esbuild-7.3-Build: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=7343 wall=100.0s
+  tools: bash×18, view×11, grep×2, report_intent×1, task×1
+  answer: ``` Build → pkg/api/api.go contextImpl → pkg/api/api_impl.go validateBuildOptions → pkg/api/api_impl.go loadPlugins → pkg/api/api_impl.go (*internalContext).Rebuild → pkg/api/api_impl.go (*internalContext).rebuild → pkg/api/api_impl.go rebuildImpl → pkg/api/api_impl.go printSummary → pkg/api/api_imp…
+[lore]    esbuild-7.3-Build: success=0.5 correctness=0.00 ans_cov=0.50 file_cov=1.00 sym_cov=0.50 tokens=1747 wall=39.5s
+  tools: lore_lookup×5, bash×2, report_intent×1, lore_dependents×1, lore_trace×1, lore_graph×1
+  lore calls: lore_lookup(kind=symbol, query=Build, mode=exact), lore_dependents(query=Build, kind=symbol, compact=true), lore_trace(from=7632, depth=2, max_source_lines=30), lore_graph(kind=call, source_id=7632, compact=true), lore_lookup(kind=symbol, query=contextImpl, mode=exact), lore_lookup(kind=symbol, query=Rebuild, mode=exact), lore_lookup(kind=symbol, query=Dispose, mode=exact), lore_lookup(kind=symbol, query=printSummary, mode=exact)
+  answer: contextImpl → pkg/api/api_impl.go (*internalContext).Rebuild → pkg/api/api_impl.go printSummary → pkg/api/api_impl.go (*internalContext).Dispose → pkg/api/api_impl.go
+  MISSED parts: [rebuildImpl]
+  MISSED answer lines: [rebuildImpl → pkg/api/api_impl.go]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-10.1-rebuildImpl [iter 1]: control + lore-enabled arms
+[22m[39m[control] esbuild-7.3-Build: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=9086 wall=105.4s
+  tools: bash×16, view×15, grep×7, report_intent×1, task×1
+  answer: contextImpl → pkg/api/api_impl.go rebuild → pkg/api/api_impl.go rebuildImpl → pkg/api/api_impl.go buildOrContextImpl → lib/shared/common.ts build → lib/npm/node.ts build → lib/npm/browser.ts build → lib/deno/mod.ts build → lib/deno/wasm.ts
+[lore]    esbuild-7.3-Build: success=0.5 correctness=0.00 ans_cov=0.50 file_cov=1.00 sym_cov=0.50 tokens=1273 wall=32.2s
+  tools: lore_lookup×5, lore_snippet×2, lore_graph×2, report_intent×1, lore_dependents×1
+  lore calls: lore_lookup(kind=symbol, query=Build, match_mode=exact), lore_dependents(query=Build, kind=symbol, compact=true), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api.go, start_line=387, end_line=405), lore_graph(kind=call, source_id=7632, compact=true), lore_lookup(kind=symbol, query=contextImpl, match_mode=exact), lore_lookup(kind=symbol, query=Rebuild, match_mode=exact), lore_lookup(kind=symbol, query=printSummary, match_mode=exact), lore_lookup(kind=symbol, query=Dispose, match_mode=exact, path_prefix=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api), lore_graph(compact=true, kind=call, source_id=7785), lore_snippet(end_line=1068, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api_impl.go, start_line=1066)
+  answer: contextImpl → pkg/api/api_impl.go (*internalContext).Rebuild → pkg/api/api_impl.go (*internalContext).rebuild → pkg/api/api_impl.go printSummary → pkg/api/api_impl.go (*internalContext).Dispose → pkg/api/api_impl.go
+  MISSED parts: [rebuildImpl]
+  MISSED answer lines: [rebuildImpl → pkg/api/api_impl.go]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-10.1-rebuildImpl [iter 2]: control + lore-enabled arms
+[22m[39m[control] esbuild-7.3-Build: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=7879 wall=108.9s
+  tools: bash×19, view×16, glob×2, grep×2, report_intent×1, task×1
+  answer: ``` Build → pkg/api/api.go contextImpl → pkg/api/api_impl.go (*internalContext).Rebuild → pkg/api/api_impl.go (*internalContext).rebuild → pkg/api/api_impl.go rebuildImpl → pkg/api/api_impl.go ScanBundle → internal/bundler/bundler.go (*Bundle).Compile → internal/bundler/bundler.go Link → internal/li…
+[lore]    esbuild-7.3-Build: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=3495 wall=72.8s
+  tools: lore_lookup×9, grep×4, view×3, bash×2, report_intent×1, lore_dependents×1, lore_trace×1, lore_graph×1, lore_snippet×1
+  lore calls: lore_lookup(kind=symbol, query=Build, symbol_kind=function), lore_dependents(query=Build, kind=symbol, compact=true), lore_trace(from=7632, depth=2, max_source_lines=30), lore_graph(kind=call, source_id=7632, compact=true), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api.go, start_line=387, end_line=405), lore_lookup(kind=symbol, query=Rebuild, symbol_kind=function, path_prefix=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api), lore_lookup(kind=symbol, query=Dispose, symbol_kind=function, path_prefix=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api), lore_lookup(kind=symbol, path_prefix=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api, query=rebuild, symbol_kind=function), lore_lookup(kind=symbol, path_prefix=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api, query=contextImpl, symbol_kind=function), lore_lookup(kind=symbol, path_prefix=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api, query=printSummary, symbol_kind=function), lore_lookup(kind=symbol, query=ScanBundle, symbol_kind=function), lore_lookup(kind=symbol, query=Compile, symbol_kind=function), lore_lookup(kind=symbol, query=Link, symbol_kind=function, path_prefix=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/internal/linker)
+  answer: Here is the delegation chain from `Build`:  contextImpl → pkg/api/api_impl.go Rebuild → pkg/api/api_impl.go rebuild → pkg/api/api_impl.go printSummary → pkg/api/api_impl.go Dispose → pkg/api/api_impl.go rebuildImpl → pkg/api/api_impl.go ScanBundle → internal/bundler/bundler.go Compile → internal/bun…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-10.1-rebuildImpl [iter 3]: control + lore-enabled arms
+[22m[39m[control] esbuild-10.1-rebuildImpl: success=0.5 correctness=0.50 ans_cov=0.60 file_cov=0.50 sym_cov=1.00 tokens=847 wall=27.9s
+  tools: grep×2, report_intent×1, view×1
+  answer: 1 rebuild → pkg/api/api_impl.go
+  MISSED parts: [api.go, rebuildImpl]
+  MISSED answer lines: [Build → api.go]
+[lore]    esbuild-10.1-rebuildImpl: success=1 correctness=0.50 ans_cov=0.60 file_cov=1.00 sym_cov=1.00 tokens=1186 wall=33.8s
+  tools: grep×2, report_intent×1, lore_dependents×1, view×1
+  lore calls: lore_dependents(query=rebuildImpl, kind=symbol, compact=true)
+  answer: 1 rebuild → pkg/api/api_impl.go
+  MISSED parts: [api.go, rebuildImpl]
+  MISSED answer lines: [Build → api.go]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-10.1-rebuildImpl [iter 4]: control + lore-enabled arms
+[22m[39m[control] esbuild-10.1-rebuildImpl: success=0.5 correctness=0.50 ans_cov=0.80 file_cov=0.50 sym_cov=1.00 tokens=1126 wall=36.5s
+  tools: grep×2, view×2, report_intent×1, bash×1
+  answer: The grep results show `rebuildImpl` appears only in `pkg/api/api_impl.go` — once as the definition (line 1465) and once as a call (line 1007) inside the `rebuild` method (defined at line 978).  1 rebuild → pkg/api/api_impl.go
+  MISSED parts: [api.go]
+  MISSED answer lines: [Build → api.go]
+[lore]    esbuild-10.1-rebuildImpl: success=1 correctness=0.50 ans_cov=0.60 file_cov=1.00 sym_cov=1.00 tokens=1489 wall=37.2s
+  tools: grep×2, report_intent×1, lore_dependents×1, view×1
+  lore calls: lore_dependents(query=rebuildImpl, kind=symbol, compact=true)
+  answer: 1 rebuild → pkg/api/api_impl.go
+  MISSED parts: [api.go, rebuildImpl]
+  MISSED answer lines: [Build → api.go]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-10.1-rebuildImpl [iter 5]: control + lore-enabled arms
+[22m[39m[control] esbuild-7.3-Build: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=9185 wall=120.5s
+  tools: bash×23, view×13, grep×4, report_intent×1, task×1
+  answer: contextImpl → pkg/api/api_impl.go Rebuild → pkg/api/api_impl.go rebuild → pkg/api/api_impl.go rebuildImpl → pkg/api/api_impl.go ScanBundle → internal/bundler/bundler.go Compile → internal/bundler/bundler.go
+[lore]    esbuild-7.3-Build: success=0.5 correctness=0.00 ans_cov=0.50 file_cov=1.00 sym_cov=0.50 tokens=1396 wall=33.5s
+  tools: lore_lookup×5, bash×2, report_intent×1, lore_dependents×1, lore_trace×1, lore_graph×1
+  lore calls: lore_lookup(kind=symbol, query=Build, symbol_kind=function), lore_dependents(query=Build, kind=symbol, compact=true), lore_trace(from=7632, depth=2, max_source_lines=30), lore_graph(kind=call, source_id=7632, compact=true), lore_lookup(kind=symbol, query=Rebuild, symbol_kind=method), lore_lookup(kind=symbol, query=Dispose, symbol_kind=method), lore_lookup(kind=symbol, query=contextImpl, symbol_kind=function), lore_lookup(kind=symbol, query=printSummary, symbol_kind=function)
+  answer: contextImpl → pkg/api/api_impl.go (*internalContext).Rebuild → pkg/api/api_impl.go printSummary → pkg/api/api_impl.go (*internalContext).Dispose → pkg/api/api_impl.go
+  MISSED parts: [rebuildImpl]
+  MISSED answer lines: [rebuildImpl → pkg/api/api_impl.go]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-10.3-rebuildImpl [iter 1]: control + lore-enabled arms
+[22m[39m[control] esbuild-10.1-rebuildImpl: success=0.5 correctness=0.50 ans_cov=0.60 file_cov=0.50 sym_cov=1.00 tokens=785 wall=27.0s
+  tools: grep×2, report_intent×1
+  answer: 1 rebuild → pkg/api/api_impl.go
+  MISSED parts: [api.go, rebuildImpl]
+  MISSED answer lines: [Build → api.go]
+[lore]    esbuild-10.1-rebuildImpl: success=1 correctness=0.50 ans_cov=0.60 file_cov=1.00 sym_cov=1.00 tokens=1540 wall=46.2s
+  tools: grep×2, report_intent×1, lore_dependents×1, view×1
+  lore calls: lore_dependents(query=rebuildImpl, kind=symbol, compact=true)
+  answer: 1 rebuild → pkg/api/api_impl.go
+  MISSED parts: [api.go, rebuildImpl]
+  MISSED answer lines: [Build → api.go]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-10.3-rebuildImpl [iter 2]: control + lore-enabled arms
+[22m[39m[control] esbuild-10.1-rebuildImpl: success=0.5 correctness=0.50 ans_cov=0.60 file_cov=0.50 sym_cov=1.00 tokens=900 wall=29.5s
+  tools: report_intent×1, grep×1, view×1, bash×1
+  answer: 1 rebuild → pkg/api/api_impl.go
+  MISSED parts: [api.go, rebuildImpl]
+  MISSED answer lines: [Build → api.go]
+[lore]    esbuild-10.1-rebuildImpl: success=1 correctness=0.50 ans_cov=0.60 file_cov=1.00 sym_cov=1.00 tokens=1270 wall=34.2s
+  tools: grep×2, view×2, report_intent×1, lore_dependents×1
+  lore calls: lore_dependents(query=rebuildImpl, kind=symbol, compact=true)
+  answer: 1 rebuild → pkg/api/api_impl.go
+  MISSED parts: [api.go, rebuildImpl]
+  MISSED answer lines: [Build → api.go]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-10.3-rebuildImpl [iter 3]: control + lore-enabled arms
+[22m[39m[control] esbuild-7.3-Build: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=7894 wall=110.6s
+  tools: view×16, bash×15, report_intent×1, grep×1, task×1
+  answer: contextImpl → pkg/api/api_impl.go Rebuild → pkg/api/api_impl.go rebuild → pkg/api/api_impl.go rebuildImpl → pkg/api/api_impl.go ScanBundle → internal/bundler/bundler.go preprocessInjectedFiles → internal/bundler/bundler.go addEntryPoints → internal/bundler/bundler.go scanAllDependencies → internal/b…
+[lore]    esbuild-7.3-Build: success=0.5 correctness=0.00 ans_cov=0.50 file_cov=1.00 sym_cov=0.50 tokens=1777 wall=38.0s
+  tools: lore_lookup×5, bash×2, report_intent×1, lore_dependents×1, lore_trace×1, lore_graph×1
+  lore calls: lore_lookup(kind=symbol, query=Build, mode=exact), lore_dependents(query=Build, kind=symbol, compact=true), lore_trace(from=7632, depth=2, max_source_lines=30), lore_graph(kind=call, source_id=7632, compact=true), lore_lookup(kind=symbol, query=contextImpl, mode=exact), lore_lookup(kind=symbol, query=Rebuild, mode=exact, path_prefix=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg), lore_lookup(kind=symbol, query=Dispose, mode=exact, path_prefix=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg), lore_lookup(kind=symbol, query=printSummary, mode=exact)
+  answer: contextImpl → pkg/api/api_impl.go (*internalContext).Rebuild → pkg/api/api_impl.go printSummary → pkg/api/api_impl.go (*internalContext).Dispose → pkg/api/api_impl.go
+  MISSED parts: [rebuildImpl]
+  MISSED answer lines: [rebuildImpl → pkg/api/api_impl.go]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-10.3-rebuildImpl [iter 4]: control + lore-enabled arms
+[22m[39m[control] esbuild-10.1-rebuildImpl: success=0.5 correctness=0.50 ans_cov=0.80 file_cov=0.50 sym_cov=1.00 tokens=962 wall=33.0s
+  tools: grep×2, bash×2, report_intent×1, view×1
+  answer: `rebuildImpl` is only called from one non-test source file (`pkg/api/api_impl.go`), by one function.  1 (*internalContext).rebuild → pkg/api/api_impl.go
+  MISSED parts: [api.go]
+  MISSED answer lines: [Build → api.go]
+[lore]    esbuild-10.1-rebuildImpl: success=1 correctness=0.50 ans_cov=0.80 file_cov=1.00 sym_cov=1.00 tokens=1298 wall=35.1s
+  tools: view×2, report_intent×1, lore_dependents×1, grep×1
+  lore calls: lore_dependents(query=rebuildImpl, kind=symbol, compact=true)
+  answer: The grep shows only one call site for `rebuildImpl` (line 1007 in `api_impl.go`), in the `rebuild` method. The lore dependents showed transitive callers. Since there is only 1 direct call site and it's in the same file as the definition, there are **0 distinct source files (other than the defining f…
+  MISSED parts: [api.go]
+  MISSED answer lines: [Build → api.go]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-10.3-rebuildImpl [iter 5]: control + lore-enabled arms
+[22m[39m[control] esbuild-10.3-rebuildImpl: success=0.5 correctness=0.80 ans_cov=0.80 file_cov=0.50 sym_cov=1.00 tokens=2067 wall=62.7s
+  tools: grep×10, view×2, report_intent×1
+  answer: Now I have the complete picture. Here's the answer:  There is only **one direct call** to `rebuildImpl` — inside `ctx.rebuild()` (line 1007 of `pkg/api/api_impl.go`). The callers differ in how they invoke `ctx.rebuild()`:  **Return a single field from the result (one-shot, discards rest of state):**…
+  MISSED parts: [api.go]
+  MISSED answer lines: [api.go]
+[lore]    esbuild-10.3-rebuildImpl: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=1767 wall=36.1s
+  tools: lore_snippet×7, report_intent×1, lore_dependents×1
+  lore calls: lore_dependents(query=rebuildImpl, kind=symbol, compact=false), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api_impl.go, start_line=1000, end_line=1100), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api_impl.go, start_line=1050, end_line=1100), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api.go, start_line=385, end_line=410), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/serve_other.go, start_line=895, end_line=920), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/cli/cli_impl.go, start_line=1370, end_line=1395), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/cli/cli.go, start_line=25, end_line=45), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api_impl.go, start_line=970, end_line=1010)
+  answer: Now I have a complete picture. Here's the call graph:  - `rebuildImpl(args, oldHashes)` is only called **directly** in one place: `ctx.rebuild()` (the private method). - All other "callers" reach it **indirectly** through `ctx.rebuild()` or `ctx.Rebuild()` or `api.Build()`.  Here are the callers gro…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-11.2-rebuildImpl [iter 1]: control + lore-enabled arms
+[22m[39m[control] esbuild-10.3-rebuildImpl: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=1977 wall=54.2s
+  tools: grep×7, report_intent×1
+  answer: `rebuildImpl` has exactly **one direct call site** — inside `ctx.rebuild()` (line 1007). But `ctx.rebuild()` is reached through distinct patterns:  **One-shot, result-only (public API):** - `buildImpl` in `pkg/api/api.go:396` — initial build via `ctx.Rebuild()` - `activeBuildOrRecentBuildOrRebuild` …
+[lore]    esbuild-10.3-rebuildImpl: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=5131 wall=81.7s
+  tools: lore_snippet×11, report_intent×1, lore_dependents×1, grep×1
+  lore calls: lore_dependents(query=rebuildImpl, kind=symbol, compact=false), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api_impl.go, start_line=1000, end_line=1015), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api_impl.go, start_line=1055, end_line=1100), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api.go, start_line=390, end_line=400), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/serve_other.go, start_line=895, end_line=915), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/cli/cli_impl.go, start_line=1370, end_line=1390), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/cli/cli.go, start_line=25, end_line=45), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api_impl.go, start_line=977, end_line=1040), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api_impl.go, start_line=1040, end_line=1105), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api.go, start_line=387, end_line=410), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/serve_other.go, start_line=895, end_line=910), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/cli/cli_impl.go, start_line=1342, end_line=1385)
+  answer: There is only **one direct call** to `rebuildImpl` — inside `rebuild()`. All other callers reach it transitively through `rebuild` → `rebuildImpl`. Here are the patterns:  **Direct call with mutex orchestration and result broadcasting:**   `rebuild` in pkg/api/api_impl.go — captures both `rebuildSta…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-11.2-rebuildImpl [iter 2]: control + lore-enabled arms
+[22m[39m[control] esbuild-10.3-rebuildImpl: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=3653 wall=79.1s
+  tools: grep×6, view×6, report_intent×1
+  answer: Here's the breakdown. `rebuildImpl` has a single direct call site — inside `ctx.rebuild()` at line 1007 — but it's reached through distinct calling patterns:  **One-shot, result used then context disposed:**   `Build` in `pkg/api/api.go:396` — calls `ctx.Rebuild()`, prints summary, then `ctx.Dispose…
+[lore]    esbuild-10.3-rebuildImpl: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=2661 wall=46.5s
+  tools: lore_snippet×5, report_intent×1, lore_dependents×1
+  lore calls: lore_dependents(query=rebuildImpl, kind=symbol, compact=false), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api_impl.go, start_line=1000, end_line=1100), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api.go, start_line=385, end_line=410), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/serve_other.go, start_line=895, end_line=915), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/cli/cli_impl.go, start_line=1370, end_line=1395), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/cli/cli.go, start_line=25, end_line=45)
+  answer: Here are the callers of `rebuildImpl` grouped by calling pattern:  **Direct call capturing full state (both result and hashes), with post-processing (broadcast + watcher):**   `rebuild` in pkg/api/api_impl.go  **Thin wrapper extracting a single field from rebuild():**   `Rebuild` in pkg/api/api_impl…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-11.2-rebuildImpl [iter 3]: control + lore-enabled arms
+[22m[39m[control] esbuild-10.3-rebuildImpl: success=0.5 correctness=0.60 ans_cov=0.60 file_cov=0.50 sym_cov=1.00 tokens=586 wall=25.4s
+  tools: grep×3, report_intent×1
+  answer: `rebuildImpl` has exactly **one caller** in the entire codebase:  **Single call site, result captured with post-processing:**   `contextRebuild` (anonymous goroutine body) in `pkg/api/api_impl.go:1007`  It is called as `build.state, newHashes = rebuildImpl(args, oldHashes)` — both return values are …
+  MISSED parts: [activeBuildOrRecentBuildOrRebuild, api.go]
+  MISSED answer lines: [activeBuildOrRecentBuildOrRebuild, api.go]
+[lore]    esbuild-10.3-rebuildImpl: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=4173 wall=67.3s
+  tools: lore_snippet×10, report_intent×1, lore_dependents×1
+  lore calls: lore_dependents(query=rebuildImpl, kind=symbol, compact=false), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api_impl.go, start_line=1000, end_line=1015), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api_impl.go, start_line=1055, end_line=1100), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api.go, start_line=388, end_line=405), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/serve_other.go, start_line=895, end_line=915), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/cli/cli_impl.go, start_line=1370, end_line=1390), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/cli/cli.go, start_line=25, end_line=45), lore_snippet(end_line=1070, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api_impl.go, start_line=1036), lore_snippet(end_line=1034, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api_impl.go, start_line=977), lore_snippet(end_line=1110, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api_impl.go, start_line=1086), lore_snippet(end_line=1400, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/cli/cli_impl.go, start_line=1340)
+  answer: **Direct call with concurrency management (mutex + WaitGroup + hash tracking):**   `rebuild` in pkg/api/api_impl.go  **Thin wrapper returning only BuildResult:**   `Rebuild` in pkg/api/api_impl.go  **With build coalescing (reuses active/recent build before triggering rebuild):**   `activeBuildOrRece…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-11.2-rebuildImpl [iter 4]: control + lore-enabled arms
+[22m[39m[control] esbuild-11.2-rebuildImpl: success=0.5 correctness=0.50 ans_cov=0.80 file_cov=0.50 sym_cov=1.00 tokens=586 wall=20.1s
+  tools: report_intent×1, grep×1
+  answer: No functions in other files call `rebuildImpl`. It is an unexported function referenced only within `pkg/api/api_impl.go` itself (called on line 1007, defined on line 1465).
+  MISSED parts: [api.go]
+  MISSED answer lines: [Build → api.go]
+[lore]    esbuild-11.2-rebuildImpl: success=1 correctness=0.50 ans_cov=0.80 file_cov=1.00 sym_cov=1.00 tokens=2308 wall=44.4s
+  tools: lore_snippet×4, report_intent×1, lore_dependents×1, grep×1
+  lore calls: lore_dependents(query=rebuildImpl, kind=symbol, compact=false), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api.go, start_line=396, end_line=396), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/serve_other.go, start_line=904, end_line=904), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/cli/cli_impl.go, start_line=1379, end_line=1379), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/cli/cli.go, start_line=31, end_line=37)
+  answer: The grep confirms `rebuildImpl` is only referenced within `pkg/api/api_impl.go` itself (called at line 1007, defined at line 1465). It's an unexported function, and no other file references it directly.  No functions in other files would break — `rebuildImpl` is only called within `pkg/api/api_impl.…
+  MISSED parts: [api.go]
+  MISSED answer lines: [Build → api.go]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-11.2-rebuildImpl [iter 5]: control + lore-enabled arms
+[22m[39m[control] esbuild-10.3-rebuildImpl: success=0.5 correctness=0.60 ans_cov=0.60 file_cov=0.50 sym_cov=1.00 tokens=949 wall=34.0s
+  tools: grep×3, report_intent×1, view×1
+  answer: `rebuildImpl` has exactly **one call site** (line 1007), inside `internalContext.rebuild()`. That method is itself called in two places. Here's the grouping:  **Direct call (result stored, post-processing follows):** - `internalContext.rebuild()` in `pkg/api/api_impl.go:1007` — the sole caller. It c…
+  MISSED parts: [activeBuildOrRecentBuildOrRebuild, api.go]
+  MISSED answer lines: [activeBuildOrRecentBuildOrRebuild, api.go]
+[lore]    esbuild-10.3-rebuildImpl: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=9442 wall=98.9s
+  tools: view×15, bash×3, report_intent×1, lore_dependents×1, grep×1, task×1
+  lore calls: lore_dependents(query=rebuildImpl, kind=symbol, compact=false)
+  answer: **Direct call with full argument passing and multi-return destructuring:**   `rebuild` in pkg/api/api_impl.go — only caller passing `(args, oldHashes)` directly; destructures both `rebuildState` and `newHashes`, then broadcasts results to handler/watcher  **Closure callback for repeated async invoca…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-11.3-rebuildImpl [iter 1]: control + lore-enabled arms
+[22m[39m[control] esbuild-11.2-rebuildImpl: success=0.5 correctness=0.50 ans_cov=0.80 file_cov=0.50 sym_cov=1.00 tokens=874 wall=31.0s
+  tools: grep×2, report_intent×1, view×1
+  answer: No functions in other files would break. `rebuildImpl` is only called within `pkg/api/api_impl.go` itself (by the `rebuild` method on line 1007). There are zero references to `rebuildImpl` in any other file.
+  MISSED parts: [api.go]
+  MISSED answer lines: [Build → api.go]
+[lore]    esbuild-11.2-rebuildImpl: success=1 correctness=0.50 ans_cov=0.80 file_cov=1.00 sym_cov=1.00 tokens=2126 wall=42.0s
+  tools: lore_snippet×4, report_intent×1, lore_dependents×1, grep×1
+  lore calls: lore_dependents(query=rebuildImpl, kind=symbol, compact=false), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api.go, start_line=396, end_line=396), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/serve_other.go, start_line=904, end_line=904), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/cli/cli_impl.go, start_line=1379, end_line=1379), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/cli/cli.go, start_line=31, end_line=37)
+  answer: `rebuildImpl` is only called within `pkg/api/api_impl.go` itself (at line 1007 inside the `rebuild` method). No functions in other files directly reference `rebuildImpl`, so **no functions in other files would break**.
+  MISSED parts: [api.go]
+  MISSED answer lines: [Build → api.go]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-11.3-rebuildImpl [iter 2]: control + lore-enabled arms
+[22m[39m[control] esbuild-11.2-rebuildImpl: success=0.5 correctness=0.50 ans_cov=0.80 file_cov=0.50 sym_cov=1.00 tokens=818 wall=26.6s
+  tools: grep×2, report_intent×1, view×1
+  answer: `rebuildImpl` is only called from within `pkg/api/api_impl.go` itself (and it's unexported, so no other package can reference it). No functions in other files would break.
+  MISSED parts: [api.go]
+  MISSED answer lines: [Build → api.go]
+[lore]    esbuild-11.2-rebuildImpl: success=1 correctness=0.50 ans_cov=0.80 file_cov=1.00 sym_cov=1.00 tokens=1218 wall=30.3s
+  tools: report_intent×1, grep×1, lore_dependents×1
+  lore calls: lore_dependents(query=rebuildImpl, kind=symbol, compact=true)
+  answer: The grep confirms `rebuildImpl` is only referenced within `pkg/api/api_impl.go` itself (defined on line 1465, called on line 1007). No other file in the repository directly references `rebuildImpl`, so **no functions in other files would break**. All callers found by the dependency graph (like `Buil…
+  MISSED parts: [api.go]
+  MISSED answer lines: [Build → api.go]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-11.3-rebuildImpl [iter 3]: control + lore-enabled arms
+[22m[39m[control] esbuild-11.2-rebuildImpl: success=0.5 correctness=0.50 ans_cov=0.80 file_cov=0.50 sym_cov=1.00 tokens=327 wall=15.3s
+  tools: report_intent×1, grep×1
+  answer: `rebuildImpl` is only referenced within `pkg/api/api_impl.go` itself — no functions in **other** files call it. Deleting it would break only its single call site within the same file (line 1007), not any external callers.
+  MISSED parts: [api.go]
+  MISSED answer lines: [Build → api.go]
+[lore]    esbuild-11.2-rebuildImpl: success=1 correctness=0.50 ans_cov=0.80 file_cov=1.00 sym_cov=1.00 tokens=2494 wall=52.0s
+  tools: lore_snippet×4, report_intent×1, lore_dependents×1, lore_graph×1, grep×1
+  lore calls: lore_dependents(query=rebuildImpl, kind=symbol, compact=false), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api.go, start_line=394, end_line=398), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/serve_other.go, start_line=902, end_line=906), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/cli/cli_impl.go, start_line=1377, end_line=1381), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/cli/cli.go, start_line=29, end_line=39), lore_graph(kind=call, target_id=7779, compact=false)
+  answer: No functions in other files would break. `rebuildImpl` is only referenced within `pkg/api/api_impl.go` itself — it's called on line 1007 by the `rebuild` method and defined on line 1465. No other file in the repository references `rebuildImpl` directly.
+  MISSED parts: [api.go]
+  MISSED answer lines: [Build → api.go]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-11.3-rebuildImpl [iter 4]: control + lore-enabled arms
+[22m[39m[control] esbuild-11.2-rebuildImpl: success=0.5 correctness=0.50 ans_cov=0.80 file_cov=0.50 sym_cov=1.00 tokens=487 wall=21.0s
+  tools: report_intent×1, grep×1, view×1
+  answer: `rebuildImpl` is only called from within the same file (`pkg/api/api_impl.go`), so deleting it would not break any functions in **other** files. The sole caller is at line 1007 in `api_impl.go` itself.  No functions in other files would break.
+  MISSED parts: [api.go]
+  MISSED answer lines: [Build → api.go]
+[lore]    esbuild-11.2-rebuildImpl: success=1 correctness=0.50 ans_cov=0.80 file_cov=1.00 sym_cov=1.00 tokens=2649 wall=50.7s
+  tools: view×4, report_intent×1, lore_dependents×1, grep×1
+  lore calls: lore_dependents(query=rebuildImpl, kind=symbol, compact=false)
+  answer: All references to `rebuildImpl` are within `pkg/api/api_impl.go` itself (one definition at line 1465, one call at line 1007). No functions in other files directly call `rebuildImpl`, so no functions in other files would break.
+  MISSED parts: [api.go]
+  MISSED answer lines: [Build → api.go]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2mesbuild-11.3-rebuildImpl [iter 5]: control + lore-enabled arms
+[22m[39m[control] esbuild-11.3-rebuildImpl: success=0.5 correctness=0.83 ans_cov=0.83 file_cov=0.50 sym_cov=1.00 tokens=849 wall=26.4s
+  tools: view×4, report_intent×1, grep×1
+  answer: **Callers:** 1 **Verdict:** No — `rebuildImpl` is ~150 lines with heavy side effects (filesystem I/O, file writes/deletes, goroutine spawning, logging, plugin callbacks). Even with a single caller, inlining would bloat the already-large `rebuild()` method and reduce readability. The separation clean…
+  MISSED parts: [api.go]
+  MISSED answer lines: [api.go]
+[lore]    esbuild-11.3-rebuildImpl: success=1 correctness=0.83 ans_cov=0.83 file_cov=1.00 sym_cov=1.00 tokens=1410 wall=39.0s
+  tools: view×4, lore_lookup×2, report_intent×1, lore_dependents×1, grep×1
+  lore calls: lore_dependents(query=rebuildImpl, kind=symbol, compact=true), lore_lookup(kind=symbol, query=rebuildImpl), lore_lookup(kind=symbol, query=activeBuildOrRecentBuildOrRebuild)
+  answer: Here's the complete analysis:  **Callers: 1** **Verdict: Yes** — `rebuildImpl` has exactly 1 caller, so inlining would not duplicate any logic. However, it is a **216-line** function with significant side effects (logging, file I/O via the full build pipeline, writing output files). Inlining is *saf…
+  MISSED parts: [api.go]
+  MISSED answer lines: [api.go]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild
+[22m[39m[control] esbuild-11.3-rebuildImpl: success=0.5 correctness=0.83 ans_cov=0.83 file_cov=0.50 sym_cov=1.00 tokens=858 wall=27.4s
+  tools: view×4, report_intent×1, grep×1
+  answer: **Callers:** 1 **Verdict:** No — `rebuildImpl` is ~160 lines with heavy side effects (filesystem writes/deletes, log output, goroutine spawning, bundle scanning/compiling). Although there's only one caller, inlining would bloat `rebuild()` from ~50 lines to ~210 lines, harming readability. The funct…
+  MISSED parts: [api.go]
+  MISSED answer lines: [api.go]
+[lore]    esbuild-11.3-rebuildImpl: success=1 correctness=0.83 ans_cov=0.83 file_cov=1.00 sym_cov=1.00 tokens=1480 wall=42.2s
+  tools: grep×3, report_intent×1, lore_dependents×1, lore_lookup×1, view×1
+  lore calls: lore_dependents(query=rebuildImpl, kind=symbol, compact=true), lore_lookup(kind=symbol, query=rebuildImpl)
+  answer: The function containing line 1007 is `rebuild` (starting at line 978). There is exactly **one** direct call site.  **Callers:** 1 **Verdict:** No — `rebuildImpl` is 216 lines (lines 1464–1679) with heavy side effects (runs the full esbuild bundler pipeline: scanning, parsing, linking, code generatio…
+  MISSED parts: [api.go]
+  MISSED answer lines: [api.go]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild
+[22m[39m[control] esbuild-11.3-rebuildImpl: success=0.5 correctness=0.83 ans_cov=0.83 file_cov=0.50 sym_cov=1.00 tokens=1138 wall=33.9s
+  tools: view×6, report_intent×1, grep×1
+  answer: **Callers:** 1 **Verdict:** No — `rebuildImpl` is ~215 lines (1465–1679) with heavy side effects (file I/O writes/deletes, stdout writes, plugin callbacks, logging). Even with a single caller, inlining would bloat `rebuild()` and obscure the clean separation between "orchestrate a build" and "execut…
+  MISSED parts: [api.go]
+  MISSED answer lines: [api.go]
+[lore]    esbuild-11.3-rebuildImpl: success=1 correctness=0.83 ans_cov=0.83 file_cov=1.00 sym_cov=1.00 tokens=1201 wall=34.1s
+  tools: view×2, report_intent×1, lore_dependents×1, lore_lookup×1, grep×1, bash×1
+  lore calls: lore_dependents(query=rebuildImpl, kind=symbol, compact=true), lore_lookup(kind=symbol, query=rebuildImpl)
+  answer: **Callers: 1** **Verdict: Yes — `rebuildImpl` has exactly 1 caller, so inlining would not duplicate any logic. However, it is 216 lines long with significant side effects (logging, file I/O, bundling pipeline), so inlining is *safe* but would hurt readability. From a pure deduplication standpoint it…
+  MISSED parts: [api.go]
+  MISSED answer lines: [api.go]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild
+[22m[39m[control] esbuild-11.3-rebuildImpl: success=0.5 correctness=0.83 ans_cov=0.83 file_cov=0.50 sym_cov=1.00 tokens=1115 wall=36.7s
+  tools: view×6, report_intent×1, grep×1
+  answer: **Callers:** 1 **Verdict:** No — `rebuildImpl` spans ~215 lines (1465–1680) with heavy side effects (file I/O writes/deletes, stdout writes, plugin callbacks, logging). Although there is only one caller, inlining would bloat an already complex method (`rebuild`) and bury critical I/O logic inside mu…
+  MISSED parts: [api.go]
+  MISSED answer lines: [api.go]
+[lore]    esbuild-11.3-rebuildImpl: success=1 correctness=0.83 ans_cov=0.83 file_cov=1.00 sym_cov=1.00 tokens=1759 wall=45.5s
+  tools: grep×4, view×2, report_intent×1, lore_dependents×1, lore_lookup×1, lore_snippet×1
+  lore calls: lore_dependents(query=rebuildImpl, kind=symbol, compact=true), lore_lookup(kind=symbol, query=rebuildImpl), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-PNvDk2/esbuild/pkg/api/api_impl.go, symbol=rebuildImpl)
+  answer: There is exactly **one** direct call site. The `lore_dependents` result included transitive callers (callers-of-callers up to 5 hops).  **Callers: 1** **Verdict: No — `rebuildImpl` is 216 lines with heavy side effects (file I/O writes, file deletions, stdout writes, logging, goroutine spawning, plug…
+  MISSED parts: [api.go]
+  MISSED answer lines: [api.go]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild
+[22m[39m[control] esbuild-11.3-rebuildImpl: success=0.5 correctness=0.83 ans_cov=0.83 file_cov=0.50 sym_cov=1.00 tokens=1207 wall=35.5s
+  tools: view×6, report_intent×1, grep×1
+  answer: Now I have all the information needed.  **Callers:** 1 **Verdict:** No — `rebuildImpl` is 215 lines (1465–1680) with heavy side effects (file I/O writes/deletes, stdout writes, logging, goroutine spawning, plugin callbacks). However, the single-caller argument would technically permit inlining. The …
+  MISSED parts: [api.go]
+  MISSED answer lines: [api.go]
+[lore]    esbuild-11.3-rebuildImpl: success=1 correctness=0.83 ans_cov=0.83 file_cov=1.00 sym_cov=1.00 tokens=1317 wall=39.5s
+  tools: view×3, lore_lookup×2, report_intent×1, lore_dependents×1, grep×1
+  lore calls: lore_dependents(query=rebuildImpl, kind=symbol, compact=true), lore_lookup(kind=symbol, query=rebuildImpl), lore_lookup(kind=symbol, query=activeBuildOrRecentBuildOrRebuild)
+  answer: The single call at line 1007 is inside the `rebuild` method (starts at line 978).  Here's the analysis:  **Callers: 1** **Verdict: No** — `rebuildImpl` is 216 lines (1464–1679) with heavy side effects (creates a filesystem, spawns the full build pipeline via `runBuild`, writes output files, computes…
+  MISSED parts: [api.go]
+  MISSED answer lines: [api.go]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: esbuild[2m > [22m[2maggregate: full report — control vs lore-enabled
+[22m[39m
+── esbuild-1.1-Build [iter 1] (localization) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=6100 wall=95.4s
+    tools: bash×20, view×8, grep×4, report_intent×1, task×1
+  LORE:    success=0.5 correctness=0.50 ans=0.50 file=0.67 sym=1.00 tokens=396 wall=27.5s
+    tools: report_intent×1, lore_dependents×1, lore_graph×1
+  DELTA:   correctness=-0.50  tokens=-5704 (-94%)  wall=-68.0s (-71%)
+  ⚠ LORE WORSE on correctness — missed: [handleBuildRequest]
+
+── esbuild-1.1-Build [iter 2] (localization) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=5193 wall=74.2s
+    tools: bash×13, view×9, grep×4, report_intent×1, task×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=1115 wall=38.8s
+    tools: report_intent×1, lore_dependents×1, lore_graph×1, grep×1, view×1, bash×1
+  DELTA:   correctness=+0.00  tokens=-4078 (-79%)  wall=-35.5s (-48%)
+
+── esbuild-1.1-Build [iter 3] (localization) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=5479 wall=87.4s
+    tools: bash×18, view×8, report_intent×1, task×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=1539 wall=41.4s
+    tools: grep×2, report_intent×1, lore_dependents×1, lore_graph×1, view×1
+  DELTA:   correctness=+0.00  tokens=-3940 (-72%)  wall=-46.0s (-53%)
+
+── esbuild-1.1-Build [iter 4] (localization) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=1397 wall=34.4s
+    tools: grep×3, view×2, bash×2, report_intent×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=2021 wall=57.7s
+    tools: lore_graph×6, lore_dependents×2, report_intent×1, grep×1, view×1, bash×1
+  DELTA:   correctness=+0.00  tokens=+624 (+45%)  wall=+23.3s (+68%)
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── esbuild-1.1-Build [iter 5] (localization) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=1693 wall=49.9s
+    tools: grep×6, view×6, report_intent×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=1113 wall=37.0s
+    tools: lore_dependents×2, grep×2, report_intent×1, lore_graph×1, view×1, bash×1
+  DELTA:   correctness=+0.00  tokens=-580 (-34%)  wall=-12.8s (-26%)
+
+── esbuild-1.2-rebuildImpl [iter 1] (localization) ──
+  CONTROL: success=0.5 correctness=0.33 ans=0.00 file=1.00 sym=1.00 tokens=2412 wall=43.8s
+    tools: view×2, report_intent×1, grep×1
+  LORE:    success=0.5 correctness=0.33 ans=0.00 file=1.00 sym=1.00 tokens=591 wall=23.0s
+    tools: report_intent×1, lore_lookup×1, lore_graph×1, bash×1
+  DELTA:   correctness=+0.00  tokens=-1821 (-75%)  wall=-20.8s (-48%)
+
+── esbuild-1.2-rebuildImpl [iter 2] (localization) ──
+  CONTROL: success=0.5 correctness=0.33 ans=0.00 file=1.00 sym=1.00 tokens=4426 wall=67.5s
+    tools: view×2, report_intent×1, grep×1
+  LORE:    success=0.5 correctness=0.33 ans=0.00 file=1.00 sym=1.00 tokens=589 wall=23.2s
+    tools: report_intent×1, lore_lookup×1, lore_graph×1, bash×1
+  DELTA:   correctness=+0.00  tokens=-3837 (-87%)  wall=-44.3s (-66%)
+
+── esbuild-1.2-rebuildImpl [iter 3] (localization) ──
+  CONTROL: success=0.5 correctness=0.33 ans=0.00 file=1.00 sym=1.00 tokens=2413 wall=41.3s
+    tools: view×2, report_intent×1, grep×1
+  LORE:    success=0.5 correctness=0.33 ans=0.00 file=1.00 sym=1.00 tokens=590 wall=22.1s
+    tools: report_intent×1, lore_lookup×1, lore_graph×1, bash×1
+  DELTA:   correctness=+0.00  tokens=-1823 (-76%)  wall=-19.2s (-47%)
+
+── esbuild-1.2-rebuildImpl [iter 4] (localization) ──
+  CONTROL: success=0.5 correctness=0.33 ans=0.00 file=1.00 sym=1.00 tokens=1162 wall=30.2s
+    tools: view×2, report_intent×1, grep×1
+  LORE:    success=0.5 correctness=0.33 ans=0.00 file=1.00 sym=1.00 tokens=590 wall=23.1s
+    tools: report_intent×1, lore_lookup×1, lore_graph×1, bash×1
+  DELTA:   correctness=+0.00  tokens=-572 (-49%)  wall=-7.0s (-23%)
+
+── esbuild-1.2-rebuildImpl [iter 5] (localization) ──
+  CONTROL: success=0.5 correctness=0.33 ans=0.00 file=1.00 sym=1.00 tokens=3226 wall=55.3s
+    tools: view×2, report_intent×1, grep×1
+  LORE:    success=0.5 correctness=0.33 ans=0.00 file=1.00 sym=1.00 tokens=581 wall=23.4s
+    tools: report_intent×1, lore_lookup×1, lore_graph×1, bash×1
+  DELTA:   correctness=+0.00  tokens=-2645 (-82%)  wall=-31.9s (-58%)
+
+── esbuild-1.4-rebuildImpl [iter 1] (modification) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=12382 wall=121.4s
+    tools: bash×50, view×8, report_intent×1, task×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=346 wall=16.0s
+    tools: report_intent×1, lore_dependents×1
+  DELTA:   correctness=+0.00  tokens=-12036 (-97%)  wall=-105.3s (-87%)
+
+── esbuild-1.4-rebuildImpl [iter 2] (modification) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=25581 wall=313.3s
+    tools: bash×66, view×31, grep×13, task×2, report_intent×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=337 wall=15.1s
+    tools: report_intent×1, lore_dependents×1
+  DELTA:   correctness=+0.00  tokens=-25244 (-99%)  wall=-298.2s (-95%)
+
+── esbuild-1.4-rebuildImpl [iter 3] (modification) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=17605 wall=183.6s
+    tools: bash×42, view×23, grep×9, report_intent×1, task×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=348 wall=16.2s
+    tools: report_intent×1, lore_dependents×1
+  DELTA:   correctness=+0.00  tokens=-17257 (-98%)  wall=-167.4s (-91%)
+
+── esbuild-1.4-rebuildImpl [iter 4] (modification) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=16142 wall=240.9s
+    tools: bash×45, view×34, grep×4, report_intent×1, task×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=345 wall=15.7s
+    tools: report_intent×1, lore_dependents×1
+  DELTA:   correctness=+0.00  tokens=-15797 (-98%)  wall=-225.2s (-93%)
+
+── esbuild-1.4-rebuildImpl [iter 5] (modification) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=32901 wall=346.1s
+    tools: bash×69, view×55, grep×21, task×3, report_intent×1, glob×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=345 wall=15.8s
+    tools: report_intent×1, lore_dependents×1
+  DELTA:   correctness=+0.00  tokens=-32556 (-99%)  wall=-330.3s (-95%)
+
+── esbuild-1.3-rebuildImpl [iter 1] (explanation) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=11689 wall=152.9s
+    tools: view×3, grep×2, report_intent×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=10156 wall=128.4s
+    tools: report_intent×1, lore_lookup×1, lore_snippet×1, lore_graph×1
+  DELTA:   correctness=+0.00  tokens=-1533 (-13%)  wall=-24.5s (-16%)
+
+── esbuild-1.3-rebuildImpl [iter 2] (explanation) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=8270 wall=111.4s
+    tools: grep×2, view×2, report_intent×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=15970 wall=196.5s
+    tools: report_intent×1, lore_lookup×1, lore_snippet×1, lore_graph×1, bash×1
+  DELTA:   correctness=+0.00  tokens=+7700 (+93%)  wall=+85.1s (+76%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── esbuild-1.3-rebuildImpl [iter 3] (explanation) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=14179 wall=176.2s
+    tools: grep×2, view×2, report_intent×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=9942 wall=133.1s
+    tools: report_intent×1, lore_lookup×1, lore_snippet×1, lore_graph×1, bash×1
+  DELTA:   correctness=+0.00  tokens=-4237 (-30%)  wall=-43.0s (-24%)
+
+── esbuild-1.3-rebuildImpl [iter 4] (explanation) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=14111 wall=187.1s
+    tools: grep×3, view×3, report_intent×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=19821 wall=245.9s
+    tools: report_intent×1, lore_lookup×1, lore_snippet×1, lore_graph×1, bash×1
+  DELTA:   correctness=+0.00  tokens=+5710 (+40%)  wall=+58.9s (+31%)
+
+── esbuild-1.3-rebuildImpl [iter 5] (explanation) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=11346 wall=150.0s
+    tools: grep×2, view×2, report_intent×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=6945 wall=92.6s
+    tools: report_intent×1, lore_lookup×1, lore_snippet×1, lore_graph×1, bash×1
+  DELTA:   correctness=+0.00  tokens=-4401 (-39%)  wall=-57.4s (-38%)
+
+── esbuild-1.5-Build [iter 1] (localization) ──
+  CONTROL: success=1 correctness=0.67 ans=0.67 file=1.00 sym=1.00 tokens=11262 wall=158.1s
+    tools: bash×28, view×20, grep×4, glob×2, read_agent×2, task×1, report_intent×1
+  LORE:    success=0.5 correctness=0.00 ans=0.00 file=1.00 sym=1.00 tokens=24152 wall=360.0s
+    tools: bash×49, grep×15, view×14, lore_graph×7, lore_lookup×4, lore_dependents×3, report_intent×2, lore_snippet×2, read_agent×2, task×1
+  DELTA:   correctness=-0.67  tokens=+12890 (+114%)  wall=+202.0s (+128%)
+  ⚠ LORE WORSE on correctness — missed: [main, Build, Serve]
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── esbuild-1.5-Build [iter 2] (localization) ──
+  CONTROL: success=0.5 correctness=0.67 ans=0.67 file=0.50 sym=1.00 tokens=20343 wall=279.9s
+    tools: bash×26, view×24, grep×10, report_intent×1, task×1
+  LORE:    success=1 correctness=0.67 ans=0.67 file=1.00 sym=1.00 tokens=29025 wall=271.8s
+    tools: bash×52, grep×20, view×19, lore_lookup×14, lore_snippet×5, lore_dependents×4, lore_graph×4, read_agent×2, lore_search×2, report_intent×1, task×1
+  DELTA:   correctness=+0.00  tokens=+8682 (+43%)  wall=-8.1s (-3%)
+
+── esbuild-1.5-Build [iter 3] (localization) ──
+  CONTROL: success=1 correctness=0.67 ans=0.67 file=1.00 sym=1.00 tokens=22238 wall=360.0s
+    tools: bash×50, view×29, grep×19, report_intent×1, task×1
+  LORE:    success=1 correctness=0.67 ans=0.67 file=1.00 sym=1.00 tokens=19837 wall=302.3s
+    tools: bash×26, view×23, grep×14, lore_graph×5, lore_lookup×4, lore_dependents×3, glob×2, report_intent×1, task×1
+  DELTA:   correctness=+0.00  tokens=-2401 (-11%)  wall=-57.8s (-16%)
+
+── esbuild-1.5-Build [iter 4] (localization) ──
+  CONTROL: success=0.5 correctness=0.67 ans=0.67 file=0.50 sym=1.00 tokens=24303 wall=360.0s
+    tools: bash×44, view×39, grep×21, task×2, report_intent×1
+  LORE:    success=0.5 correctness=0.33 ans=0.33 file=1.00 sym=1.00 tokens=22104 wall=360.0s
+    tools: bash×37, view×35, grep×20, lore_dependents×3, lore_graph×3, lore_lookup×2, lore_snippet×2, report_intent×1, task×1, glob×1
+  DELTA:   correctness=-0.33  tokens=-2199 (-9%)  wall=+0.0s (+0%)
+  ⚠ LORE WORSE on correctness — missed: [main, Build]
+
+── esbuild-1.5-Build [iter 5] (localization) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=21336 wall=360.0s
+    tools: bash×31, grep×28, view×27, report_intent×1, task×1
+  LORE:    success=1 correctness=0.67 ans=0.67 file=1.00 sym=1.00 tokens=21596 wall=276.4s
+    tools: view×33, grep×21, bash×21, lore_dependents×4, lore_graph×4, lore_lookup×3, glob×2, lore_snippet×2, read_agent×2, report_intent×1, task×1
+  DELTA:   correctness=-0.33  tokens=+260 (+1%)  wall=-83.6s (-23%)
+  ⚠ LORE WORSE on correctness — missed: [main]
+
+── esbuild-1.7-Build [iter 1] (explanation) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=6217 wall=83.6s
+    tools: bash×19, view×7, grep×2, report_intent×1, task×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=575 wall=23.8s
+    tools: lore_trace×2, lore_lookup×2, report_intent×1
+  DELTA:   correctness=+0.00  tokens=-5642 (-91%)  wall=-59.9s (-72%)
+
+── esbuild-1.7-Build [iter 2] (explanation) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=6788 wall=83.5s
+    tools: bash×10, view×10, grep×4, report_intent×1, task×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=574 wall=23.8s
+    tools: lore_trace×2, lore_lookup×2, report_intent×1
+  DELTA:   correctness=+0.00  tokens=-6214 (-92%)  wall=-59.8s (-72%)
+
+── esbuild-1.7-Build [iter 3] (explanation) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=9581 wall=122.0s
+    tools: view×10, bash×6, grep×4, report_intent×1, task×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=562 wall=26.2s
+    tools: lore_trace×2, lore_lookup×2, report_intent×1
+  DELTA:   correctness=+0.00  tokens=-9019 (-94%)  wall=-95.8s (-79%)
+
+── esbuild-1.7-Build [iter 4] (explanation) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=8160 wall=108.4s
+    tools: bash×18, view×15, grep×3, report_intent×1, task×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=604 wall=24.1s
+    tools: lore_trace×2, lore_lookup×2, report_intent×1
+  DELTA:   correctness=+0.00  tokens=-7556 (-93%)  wall=-84.3s (-78%)
+
+── esbuild-1.7-Build [iter 5] (explanation) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=7019 wall=90.6s
+    tools: bash×20, view×8, grep×2, report_intent×1, task×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=563 wall=23.5s
+    tools: lore_trace×2, lore_lookup×2, report_intent×1
+  DELTA:   correctness=+0.00  tokens=-6456 (-92%)  wall=-67.1s (-74%)
+
+── esbuild-1.8-Build [iter 1] (modification) ──
+  CONTROL: success=0.5 correctness=0.50 ans=0.50 file=0.50 sym=0.50 tokens=2165 wall=48.9s
+    tools: grep×6, view×3, report_intent×1
+  LORE:    success=0.5 correctness=0.50 ans=0.50 file=0.50 sym=0.50 tokens=2034 wall=51.5s
+    tools: lore_dependents×2, lore_snippet×2, view×2, report_intent×1, lore_graph×1, grep×1, bash×1
+  DELTA:   correctness=+0.00  tokens=-131 (-6%)  wall=+2.5s (+5%)
+
+── esbuild-1.8-Build [iter 2] (modification) ──
+  CONTROL: success=0.5 correctness=0.25 ans=0.50 file=0.50 sym=0.50 tokens=11631 wall=143.7s
+    tools: bash×25, view×17, grep×10, task×1, report_intent×1
+  LORE:    success=0.5 correctness=0.50 ans=0.50 file=0.50 sym=0.50 tokens=1773 wall=46.7s
+    tools: lore_dependents×2, lore_snippet×2, grep×2, report_intent×1, lore_graph×1, view×1
+  DELTA:   correctness=+0.25  tokens=-9858 (-85%)  wall=-97.0s (-67%)
+
+── esbuild-1.8-Build [iter 3] (modification) ──
+  CONTROL: success=0.5 correctness=0.25 ans=0.75 file=0.50 sym=0.50 tokens=8990 wall=96.9s
+    tools: view×14, bash×13, grep×9, task×1, report_intent×1, glob×1
+  LORE:    success=0.5 correctness=0.50 ans=0.50 file=0.50 sym=0.50 tokens=2219 wall=50.6s
+    tools: lore_dependents×2, lore_snippet×2, grep×2, report_intent×1, lore_graph×1, view×1
+  DELTA:   correctness=+0.25  tokens=-6771 (-75%)  wall=-46.3s (-48%)
+
+── esbuild-1.8-Build [iter 4] (modification) ──
+  CONTROL: success=0.5 correctness=0.25 ans=0.75 file=1.00 sym=0.50 tokens=9491 wall=120.2s
+    tools: bash×20, view×17, grep×7, task×1, report_intent×1, glob×1
+  LORE:    success=0.5 correctness=0.50 ans=0.50 file=0.50 sym=0.50 tokens=1839 wall=50.8s
+    tools: lore_dependents×2, lore_snippet×2, grep×2, report_intent×1, lore_graph×1, view×1
+  DELTA:   correctness=+0.25  tokens=-7652 (-81%)  wall=-69.5s (-58%)
+
+── esbuild-1.8-Build [iter 5] (modification) ──
+  CONTROL: success=0.5 correctness=0.50 ans=0.50 file=0.50 sym=0.50 tokens=2387 wall=61.2s
+    tools: grep×9, view×3, report_intent×1, bash×1
+  LORE:    success=0.5 correctness=0.50 ans=0.50 file=0.50 sym=0.50 tokens=2087 wall=57.1s
+    tools: grep×3, lore_dependents×2, view×2, report_intent×1, lore_snippet×1, lore_graph×1
+  DELTA:   correctness=+0.00  tokens=-300 (-13%)  wall=-4.1s (-7%)
+
+── esbuild-7.2-rebuildImpl [iter 1] (localization) ──
+  CONTROL: success=0.5 correctness=0.50 ans=0.80 file=0.50 sym=1.00 tokens=385 wall=18.0s
+    tools: report_intent×1, grep×1
+  LORE:    success=1 correctness=0.50 ans=0.80 file=1.00 sym=1.00 tokens=1651 wall=33.1s
+    tools: grep×5, report_intent×1, lore_dependents×1
+  DELTA:   correctness=+0.00  tokens=+1266 (+329%)  wall=+15.1s (+84%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── esbuild-7.2-rebuildImpl [iter 2] (localization) ──
+  CONTROL: success=0.5 correctness=0.50 ans=0.80 file=0.50 sym=1.00 tokens=480 wall=19.8s
+    tools: grep×2, report_intent×1
+  LORE:    success=1 correctness=0.50 ans=0.80 file=1.00 sym=1.00 tokens=1634 wall=39.9s
+    tools: grep×4, report_intent×1, lore_dependents×1, view×1
+  DELTA:   correctness=+0.00  tokens=+1154 (+240%)  wall=+20.1s (+102%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── esbuild-7.2-rebuildImpl [iter 3] (localization) ──
+  CONTROL: success=0.5 correctness=0.50 ans=0.80 file=0.50 sym=1.00 tokens=426 wall=18.0s
+    tools: report_intent×1, grep×1
+  LORE:    success=1 correctness=0.50 ans=0.80 file=1.00 sym=1.00 tokens=8306 wall=111.2s
+    tools: bash×12, view×11, grep×2, report_intent×1, lore_dependents×1, task×1
+  DELTA:   correctness=+0.00  tokens=+7880 (+1850%)  wall=+93.1s (+517%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── esbuild-7.2-rebuildImpl [iter 4] (localization) ──
+  CONTROL: success=0.5 correctness=0.50 ans=0.80 file=0.50 sym=1.00 tokens=527 wall=20.8s
+    tools: grep×2, report_intent×1
+  LORE:    success=1 correctness=0.50 ans=0.80 file=1.00 sym=1.00 tokens=2095 wall=42.5s
+    tools: grep×6, report_intent×1, lore_dependents×1, view×1
+  DELTA:   correctness=+0.00  tokens=+1568 (+298%)  wall=+21.7s (+104%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── esbuild-7.2-rebuildImpl [iter 5] (localization) ──
+  CONTROL: success=0.5 correctness=0.50 ans=0.80 file=0.50 sym=1.00 tokens=400 wall=17.5s
+    tools: report_intent×1, grep×1
+  LORE:    success=1 correctness=0.50 ans=0.80 file=1.00 sym=1.00 tokens=2239 wall=44.3s
+    tools: grep×6, report_intent×1, lore_dependents×1
+  DELTA:   correctness=+0.00  tokens=+1839 (+460%)  wall=+26.8s (+153%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── esbuild-7.3-Build [iter 1] (localization) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=7343 wall=100.0s
+    tools: bash×18, view×11, grep×2, report_intent×1, task×1
+  LORE:    success=0.5 correctness=0.00 ans=0.50 file=1.00 sym=0.50 tokens=1747 wall=39.5s
+    tools: lore_lookup×5, bash×2, report_intent×1, lore_dependents×1, lore_trace×1, lore_graph×1
+  DELTA:   correctness=-1.00  tokens=-5596 (-76%)  wall=-60.5s (-60%)
+  ⚠ LORE WORSE on correctness — missed: [rebuildImpl → pkg/api/api_impl.go]
+
+── esbuild-7.3-Build [iter 2] (localization) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=7879 wall=108.9s
+    tools: bash×19, view×16, glob×2, grep×2, report_intent×1, task×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=3495 wall=72.8s
+    tools: lore_lookup×9, grep×4, view×3, bash×2, report_intent×1, lore_dependents×1, lore_trace×1, lore_graph×1, lore_snippet×1
+  DELTA:   correctness=+0.00  tokens=-4384 (-56%)  wall=-36.1s (-33%)
+
+── esbuild-7.3-Build [iter 3] (localization) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=9086 wall=105.4s
+    tools: bash×16, view×15, grep×7, report_intent×1, task×1
+  LORE:    success=0.5 correctness=0.00 ans=0.50 file=1.00 sym=0.50 tokens=1273 wall=32.2s
+    tools: lore_lookup×5, lore_snippet×2, lore_graph×2, report_intent×1, lore_dependents×1
+  DELTA:   correctness=-1.00  tokens=-7813 (-86%)  wall=-73.2s (-69%)
+  ⚠ LORE WORSE on correctness — missed: [rebuildImpl → pkg/api/api_impl.go]
+
+── esbuild-7.3-Build [iter 4] (localization) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=9185 wall=120.5s
+    tools: bash×23, view×13, grep×4, report_intent×1, task×1
+  LORE:    success=0.5 correctness=0.00 ans=0.50 file=1.00 sym=0.50 tokens=1396 wall=33.5s
+    tools: lore_lookup×5, bash×2, report_intent×1, lore_dependents×1, lore_trace×1, lore_graph×1
+  DELTA:   correctness=-1.00  tokens=-7789 (-85%)  wall=-87.1s (-72%)
+  ⚠ LORE WORSE on correctness — missed: [rebuildImpl → pkg/api/api_impl.go]
+
+── esbuild-7.3-Build [iter 5] (localization) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=7894 wall=110.6s
+    tools: view×16, bash×15, report_intent×1, grep×1, task×1
+  LORE:    success=0.5 correctness=0.00 ans=0.50 file=1.00 sym=0.50 tokens=1777 wall=38.0s
+    tools: lore_lookup×5, bash×2, report_intent×1, lore_dependents×1, lore_trace×1, lore_graph×1
+  DELTA:   correctness=-1.00  tokens=-6117 (-77%)  wall=-72.6s (-66%)
+  ⚠ LORE WORSE on correctness — missed: [rebuildImpl → pkg/api/api_impl.go]
+
+── esbuild-10.1-rebuildImpl [iter 1] (explanation) ──
+  CONTROL: success=0.5 correctness=0.50 ans=0.60 file=0.50 sym=1.00 tokens=847 wall=27.9s
+    tools: grep×2, report_intent×1, view×1
+  LORE:    success=1 correctness=0.50 ans=0.60 file=1.00 sym=1.00 tokens=1186 wall=33.8s
+    tools: grep×2, report_intent×1, lore_dependents×1, view×1
+  DELTA:   correctness=+0.00  tokens=+339 (+40%)  wall=+5.9s (+21%)
+
+── esbuild-10.1-rebuildImpl [iter 2] (explanation) ──
+  CONTROL: success=0.5 correctness=0.50 ans=0.60 file=0.50 sym=1.00 tokens=785 wall=27.0s
+    tools: grep×2, report_intent×1
+  LORE:    success=1 correctness=0.50 ans=0.60 file=1.00 sym=1.00 tokens=1540 wall=46.2s
+    tools: grep×2, report_intent×1, lore_dependents×1, view×1
+  DELTA:   correctness=+0.00  tokens=+755 (+96%)  wall=+19.3s (+71%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── esbuild-10.1-rebuildImpl [iter 3] (explanation) ──
+  CONTROL: success=0.5 correctness=0.50 ans=0.80 file=0.50 sym=1.00 tokens=1126 wall=36.5s
+    tools: grep×2, view×2, report_intent×1, bash×1
+  LORE:    success=1 correctness=0.50 ans=0.60 file=1.00 sym=1.00 tokens=1489 wall=37.2s
+    tools: grep×2, report_intent×1, lore_dependents×1, view×1
+  DELTA:   correctness=+0.00  tokens=+363 (+32%)  wall=+0.6s (+2%)
+
+── esbuild-10.1-rebuildImpl [iter 4] (explanation) ──
+  CONTROL: success=0.5 correctness=0.50 ans=0.60 file=0.50 sym=1.00 tokens=900 wall=29.5s
+    tools: report_intent×1, grep×1, view×1, bash×1
+  LORE:    success=1 correctness=0.50 ans=0.60 file=1.00 sym=1.00 tokens=1270 wall=34.2s
+    tools: grep×2, view×2, report_intent×1, lore_dependents×1
+  DELTA:   correctness=+0.00  tokens=+370 (+41%)  wall=+4.6s (+16%)
+
+── esbuild-10.1-rebuildImpl [iter 5] (explanation) ──
+  CONTROL: success=0.5 correctness=0.50 ans=0.80 file=0.50 sym=1.00 tokens=962 wall=33.0s
+    tools: grep×2, bash×2, report_intent×1, view×1
+  LORE:    success=1 correctness=0.50 ans=0.80 file=1.00 sym=1.00 tokens=1298 wall=35.1s
+    tools: view×2, report_intent×1, lore_dependents×1, grep×1
+  DELTA:   correctness=+0.00  tokens=+336 (+35%)  wall=+2.1s (+6%)
+
+── esbuild-10.3-rebuildImpl [iter 1] (explanation) ──
+  CONTROL: success=0.5 correctness=0.80 ans=0.80 file=0.50 sym=1.00 tokens=2067 wall=62.7s
+    tools: grep×10, view×2, report_intent×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=1767 wall=36.1s
+    tools: lore_snippet×7, report_intent×1, lore_dependents×1
+  DELTA:   correctness=+0.20  tokens=-300 (-15%)  wall=-26.6s (-42%)
+
+── esbuild-10.3-rebuildImpl [iter 2] (explanation) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=1977 wall=54.2s
+    tools: grep×7, report_intent×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=5131 wall=81.7s
+    tools: lore_snippet×11, report_intent×1, lore_dependents×1, grep×1
+  DELTA:   correctness=+0.00  tokens=+3154 (+160%)  wall=+27.5s (+51%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── esbuild-10.3-rebuildImpl [iter 3] (explanation) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=3653 wall=79.1s
+    tools: grep×6, view×6, report_intent×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=2661 wall=46.5s
+    tools: lore_snippet×5, report_intent×1, lore_dependents×1
+  DELTA:   correctness=+0.00  tokens=-992 (-27%)  wall=-32.6s (-41%)
+
+── esbuild-10.3-rebuildImpl [iter 4] (explanation) ──
+  CONTROL: success=0.5 correctness=0.60 ans=0.60 file=0.50 sym=1.00 tokens=949 wall=34.0s
+    tools: grep×3, report_intent×1, view×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=9442 wall=98.9s
+    tools: view×15, bash×3, report_intent×1, lore_dependents×1, grep×1, task×1
+  DELTA:   correctness=+0.40  tokens=+8493 (+895%)  wall=+64.9s (+191%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── esbuild-10.3-rebuildImpl [iter 5] (explanation) ──
+  CONTROL: success=0.5 correctness=0.60 ans=0.60 file=0.50 sym=1.00 tokens=586 wall=25.4s
+    tools: grep×3, report_intent×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=4173 wall=67.3s
+    tools: lore_snippet×10, report_intent×1, lore_dependents×1
+  DELTA:   correctness=+0.40  tokens=+3587 (+612%)  wall=+41.8s (+165%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── esbuild-11.2-rebuildImpl [iter 1] (modification) ──
+  CONTROL: success=0.5 correctness=0.50 ans=0.80 file=0.50 sym=1.00 tokens=586 wall=20.1s
+    tools: report_intent×1, grep×1
+  LORE:    success=1 correctness=0.50 ans=0.80 file=1.00 sym=1.00 tokens=2308 wall=44.4s
+    tools: lore_snippet×4, report_intent×1, lore_dependents×1, grep×1
+  DELTA:   correctness=+0.00  tokens=+1722 (+294%)  wall=+24.4s (+122%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── esbuild-11.2-rebuildImpl [iter 2] (modification) ──
+  CONTROL: success=0.5 correctness=0.50 ans=0.80 file=0.50 sym=1.00 tokens=874 wall=31.0s
+    tools: grep×2, report_intent×1, view×1
+  LORE:    success=1 correctness=0.50 ans=0.80 file=1.00 sym=1.00 tokens=2126 wall=42.0s
+    tools: lore_snippet×4, report_intent×1, lore_dependents×1, grep×1
+  DELTA:   correctness=+0.00  tokens=+1252 (+143%)  wall=+11.0s (+35%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+
+── esbuild-11.2-rebuildImpl [iter 3] (modification) ──
+  CONTROL: success=0.5 correctness=0.50 ans=0.80 file=0.50 sym=1.00 tokens=327 wall=15.3s
+    tools: report_intent×1, grep×1
+  LORE:    success=1 correctness=0.50 ans=0.80 file=1.00 sym=1.00 tokens=2494 wall=52.0s
+    tools: lore_snippet×4, report_intent×1, lore_dependents×1, lore_graph×1, grep×1
+  DELTA:   correctness=+0.00  tokens=+2167 (+663%)  wall=+36.7s (+239%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── esbuild-11.2-rebuildImpl [iter 4] (modification) ──
+  CONTROL: success=0.5 correctness=0.50 ans=0.80 file=0.50 sym=1.00 tokens=487 wall=21.0s
+    tools: report_intent×1, grep×1, view×1
+  LORE:    success=1 correctness=0.50 ans=0.80 file=1.00 sym=1.00 tokens=2649 wall=50.7s
+    tools: view×4, report_intent×1, lore_dependents×1, grep×1
+  DELTA:   correctness=+0.00  tokens=+2162 (+444%)  wall=+29.7s (+141%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── esbuild-11.2-rebuildImpl [iter 5] (modification) ──
+  CONTROL: success=0.5 correctness=0.50 ans=0.80 file=0.50 sym=1.00 tokens=818 wall=26.6s
+    tools: grep×2, report_intent×1, view×1
+  LORE:    success=1 correctness=0.50 ans=0.80 file=1.00 sym=1.00 tokens=1218 wall=30.3s
+    tools: report_intent×1, grep×1, lore_dependents×1
+  DELTA:   correctness=+0.00  tokens=+400 (+49%)  wall=+3.7s (+14%)
+
+── esbuild-11.3-rebuildImpl [iter 1] (refactoring) ──
+  CONTROL: success=0.5 correctness=0.83 ans=0.83 file=0.50 sym=1.00 tokens=849 wall=26.4s
+    tools: view×4, report_intent×1, grep×1
+  LORE:    success=1 correctness=0.83 ans=0.83 file=1.00 sym=1.00 tokens=1410 wall=39.0s
+    tools: view×4, lore_lookup×2, report_intent×1, lore_dependents×1, grep×1
+  DELTA:   correctness=+0.00  tokens=+561 (+66%)  wall=+12.6s (+48%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+
+── esbuild-11.3-rebuildImpl [iter 2] (refactoring) ──
+  CONTROL: success=0.5 correctness=0.83 ans=0.83 file=0.50 sym=1.00 tokens=858 wall=27.4s
+    tools: view×4, report_intent×1, grep×1
+  LORE:    success=1 correctness=0.83 ans=0.83 file=1.00 sym=1.00 tokens=1480 wall=42.2s
+    tools: grep×3, report_intent×1, lore_dependents×1, lore_lookup×1, view×1
+  DELTA:   correctness=+0.00  tokens=+622 (+72%)  wall=+14.8s (+54%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── esbuild-11.3-rebuildImpl [iter 3] (refactoring) ──
+  CONTROL: success=0.5 correctness=0.83 ans=0.83 file=0.50 sym=1.00 tokens=1115 wall=36.7s
+    tools: view×6, report_intent×1, grep×1
+  LORE:    success=1 correctness=0.83 ans=0.83 file=1.00 sym=1.00 tokens=1759 wall=45.5s
+    tools: grep×4, view×2, report_intent×1, lore_dependents×1, lore_lookup×1, lore_snippet×1
+  DELTA:   correctness=+0.00  tokens=+644 (+58%)  wall=+8.7s (+24%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+
+── esbuild-11.3-rebuildImpl [iter 4] (refactoring) ──
+  CONTROL: success=0.5 correctness=0.83 ans=0.83 file=0.50 sym=1.00 tokens=1138 wall=33.9s
+    tools: view×6, report_intent×1, grep×1
+  LORE:    success=1 correctness=0.83 ans=0.83 file=1.00 sym=1.00 tokens=1201 wall=34.1s
+    tools: view×2, report_intent×1, lore_dependents×1, lore_lookup×1, grep×1, bash×1
+  DELTA:   correctness=+0.00  tokens=+63 (+6%)  wall=+0.3s (+1%)
+
+── esbuild-11.3-rebuildImpl [iter 5] (refactoring) ──
+  CONTROL: success=0.5 correctness=0.83 ans=0.83 file=0.50 sym=1.00 tokens=1207 wall=35.5s
+    tools: view×6, report_intent×1, grep×1
+  LORE:    success=1 correctness=0.83 ans=0.83 file=1.00 sym=1.00 tokens=1317 wall=39.5s
+    tools: view×3, lore_lookup×2, report_intent×1, lore_dependents×1, grep×1
+  DELTA:   correctness=+0.00  tokens=+110 (+9%)  wall=+4.0s (+11%)
+
+
+═══════════════════════════════════════
+         BENCHMARK RESULTS
+═══════════════════════════════════════
+
+Model: claude-opus-4.6
+Tasks: 13
+Iterations: 5
+Completed runs: 65/65
+
+Arm: control
+  Runs: 65
+  Success: 46.2%
+  Partial: 53.8%
+  Failed:  0.0%
+  Correctness: 73.5% (σ=26.6pp)
+  First-pass accuracy: 0.0%
+  Mean tool calls: 26.0 (σ=32.4)
+  Mean unique files: 2.7
+  Mean wall time: 97.9s (σ=92.3s)
+  Mean tokens: 6697 (σ=7386.5)
+  Answer coverage: 78.8% (σ=27.6pp)
+  File coverage: 77.7% (σ=25.0pp)
+  Symbol coverage: 96.2% (σ=13.4pp)
+  Lore tool calls: 0.0 (0% of runs)
+  Tool call counts: bash×731, view×563, grep×291, report_intent×65, task×30, glob×7, read_agent×2
+
+Arm: lore-enabled
+  Runs: 65
+  Success: 73.8%
+  Partial: 26.2%
+  Failed:  0.0%
+  Correctness: 67.2% (σ=31.6pp)
+  First-pass accuracy: 46.2%
+  Mean tool calls: 14.6 (σ=25.7)
+  Mean unique files: 1.1
+  Mean wall time: 70.2s (σ=81.9s)
+  Mean tokens: 4258 (σ=6638.2)
+  Answer coverage: 73.4% (σ=30.3pp)
+  File coverage: 95.6% (σ=13.9pp)
+  Symbol coverage: 93.1% (σ=17.4pp)
+  Lore tool calls: 4.6 (100% of runs)
+  Lore tools used: lore_dependents, lore_graph, lore_lookup, lore_snippet, lore_search, lore_trace
+  Tool call counts: bash×222, view×189, grep×159, lore_lookup×83, lore_snippet×74, lore_dependents×69, report_intent×66, lore_graph×55, lore_trace×14, task×7, read_agent×6, glob×5, lore_search×2
+
+Comparison: lore-enabled vs control
+  Success rate: +27.7pp
+  Correctness: -6.3pp
+  First-pass accuracy: +46.2pp
+  Answer coverage: -5.4pp
+  Tool calls: -11.4 (14.6 vs 26.0)
+  Tokens: -2440 (-36.4%)
+  Wall time: -27.7s (-28.3%)
+
+  Statistical significance (correctness):
+    t=-1.227, df=124.4, p=0.2223
+    ✗ Not significant at p<0.05
+
+Structured report written to: /Users/jacobfreck/Source/Lore/benchmark-results/esbuild.json
+
+ [32m✓[39m tests/benchmark/copilot-agent.test.ts [2m([22m[2m66 tests[22m[2m)[22m[33m 1470655[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-1.1-Build [iter 1]: control + lore-enabled arms [33m 95429[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-1.1-Build [iter 2]: control + lore-enabled arms [33m 74239[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-1.1-Build [iter 3]: control + lore-enabled arms [33m 87386[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-1.1-Build [iter 4]: control + lore-enabled arms [33m 57728[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-1.1-Build [iter 5]: control + lore-enabled arms [33m 49868[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-1.2-rebuildImpl [iter 1]: control + lore-enabled arms [33m 43807[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-1.2-rebuildImpl [iter 2]: control + lore-enabled arms [33m 67516[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-1.2-rebuildImpl [iter 3]: control + lore-enabled arms [33m 41301[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-1.2-rebuildImpl [iter 4]: control + lore-enabled arms [33m 30160[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-1.2-rebuildImpl [iter 5]: control + lore-enabled arms [33m 55272[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-1.4-rebuildImpl [iter 1]: control + lore-enabled arms [33m 121386[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-1.4-rebuildImpl [iter 2]: control + lore-enabled arms [33m 313279[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-1.4-rebuildImpl [iter 3]: control + lore-enabled arms [33m 183635[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-1.4-rebuildImpl [iter 4]: control + lore-enabled arms [33m 240950[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-1.4-rebuildImpl [iter 5]: control + lore-enabled arms [33m 346127[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-1.3-rebuildImpl [iter 1]: control + lore-enabled arms [33m 152906[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-1.3-rebuildImpl [iter 2]: control + lore-enabled arms [33m 196455[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-1.3-rebuildImpl [iter 3]: control + lore-enabled arms [33m 176179[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-1.3-rebuildImpl [iter 4]: control + lore-enabled arms [33m 245942[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-1.3-rebuildImpl [iter 5]: control + lore-enabled arms [33m 150046[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-1.5-Build [iter 1]: control + lore-enabled arms [33m 360012[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-1.5-Build [iter 2]: control + lore-enabled arms [33m 279901[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-1.5-Build [iter 3]: control + lore-enabled arms [33m 360007[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-1.5-Build [iter 4]: control + lore-enabled arms [33m 360013[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-1.5-Build [iter 5]: control + lore-enabled arms [33m 360009[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-1.7-Build [iter 1]: control + lore-enabled arms [33m 83648[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-1.7-Build [iter 2]: control + lore-enabled arms [33m 83541[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-1.7-Build [iter 3]: control + lore-enabled arms [33m 121963[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-1.7-Build [iter 4]: control + lore-enabled arms [33m 108355[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-1.7-Build [iter 5]: control + lore-enabled arms [33m 90600[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-1.8-Build [iter 1]: control + lore-enabled arms [33m 51471[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-1.8-Build [iter 2]: control + lore-enabled arms [33m 143749[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-1.8-Build [iter 3]: control + lore-enabled arms [33m 96908[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-1.8-Build [iter 4]: control + lore-enabled arms [33m 120226[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-1.8-Build [iter 5]: control + lore-enabled arms [33m 61169[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-7.2-rebuildImpl [iter 1]: control + lore-enabled arms [33m 33072[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-7.2-rebuildImpl [iter 2]: control + lore-enabled arms [33m 39910[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-7.2-rebuildImpl [iter 3]: control + lore-enabled arms [33m 111184[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-7.2-rebuildImpl [iter 4]: control + lore-enabled arms [33m 42490[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-7.2-rebuildImpl [iter 5]: control + lore-enabled arms [33m 44343[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-7.3-Build [iter 1]: control + lore-enabled arms [33m 100047[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-7.3-Build [iter 2]: control + lore-enabled arms [33m 108918[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-7.3-Build [iter 3]: control + lore-enabled arms [33m 105411[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-7.3-Build [iter 4]: control + lore-enabled arms [33m 120539[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-7.3-Build [iter 5]: control + lore-enabled arms [33m 110620[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-10.1-rebuildImpl [iter 1]: control + lore-enabled arms [33m 33803[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-10.1-rebuildImpl [iter 2]: control + lore-enabled arms [33m 46247[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-10.1-rebuildImpl [iter 3]: control + lore-enabled arms [33m 37161[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-10.1-rebuildImpl [iter 4]: control + lore-enabled arms [33m 34174[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-10.1-rebuildImpl [iter 5]: control + lore-enabled arms [33m 35073[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-10.3-rebuildImpl [iter 1]: control + lore-enabled arms [33m 62724[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-10.3-rebuildImpl [iter 2]: control + lore-enabled arms [33m 81698[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-10.3-rebuildImpl [iter 3]: control + lore-enabled arms [33m 79109[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-10.3-rebuildImpl [iter 4]: control + lore-enabled arms [33m 98938[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-10.3-rebuildImpl [iter 5]: control + lore-enabled arms [33m 67277[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-11.2-rebuildImpl [iter 1]: control + lore-enabled arms [33m 44448[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-11.2-rebuildImpl [iter 2]: control + lore-enabled arms [33m 42017[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-11.2-rebuildImpl [iter 3]: control + lore-enabled arms [33m 52010[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-11.2-rebuildImpl [iter 4]: control + lore-enabled arms [33m 50705[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-11.2-rebuildImpl [iter 5]: control + lore-enabled arms [33m 30330[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-11.3-rebuildImpl [iter 1]: control + lore-enabled arms [33m 39049[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-11.3-rebuildImpl [iter 2]: control + lore-enabled arms [33m 42215[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-11.3-rebuildImpl [iter 3]: control + lore-enabled arms [33m 45480[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-11.3-rebuildImpl [iter 4]: control + lore-enabled arms [33m 34138[2mms[22m[39m
+     [33m[2m✓[22m[39m esbuild-11.3-rebuildImpl [iter 5]: control + lore-enabled arms [33m 39479[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m66 passed[39m[22m[90m (66)[39m
+[2m   Start at [22m 13:55:44
+[2m   Duration [22m 1471.07s[2m (transform 236ms, setup 0ms, import 348ms, tests 1470.66s, environment 0ms)[22m
+
