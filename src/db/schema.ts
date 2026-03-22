@@ -355,6 +355,8 @@ CREATE INDEX IF NOT EXISTS idx_symbols_parent ON symbols(parent_symbol_id);
 CREATE INDEX IF NOT EXISTS idx_symbol_refs_definition_path ON symbol_refs(definition_path);
 CREATE INDEX IF NOT EXISTS idx_symbol_refs_file_id ON symbol_refs(file_id);
 CREATE INDEX IF NOT EXISTS idx_symbol_refs_resolution_method ON symbol_refs(resolution_method);
+CREATE INDEX IF NOT EXISTS idx_symbol_refs_callee_id ON symbol_refs(callee_id);
+CREATE INDEX IF NOT EXISTS idx_symbol_refs_caller_callee ON symbol_refs(caller_id, callee_id, call_line);
 CREATE INDEX IF NOT EXISTS idx_type_refs_resolution_method ON type_refs(resolution_method);
 CREATE INDEX IF NOT EXISTS idx_external_symbols_definition_path ON external_symbols(definition_path);
 CREATE INDEX IF NOT EXISTS idx_files_layer ON files(layer);
