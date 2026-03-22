@@ -1,0 +1,329 @@
+
+[1m[46m RUN [49m[22m [36mv4.0.18 [39m[90m/Users/jacobfreck/Source/Lore[39m
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: zod
+[22m[39m
+zod cloned at c7805073, indexed in 9726ms
+DB: /var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-IrKBvT/zod/.lore.db
+Model: claude-opus-4.6
+Index: scip | Embeddings: none | LSP: false
+Tasks: 13 | Iterations: 1
+
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: zod[2m > [22m[2mzod-1.5-_parse: control + lore-enabled arms
+[22m[39m[control] zod-1.2-parse: success=0.5 correctness=0.00 ans_cov=0.00 file_cov=1.00 sym_cov=1.00 tokens=7439 wall=133.1s
+  tools: grep×12, view×6, report_intent×1, glob×1
+  answer: Looking at the core `parse` function in `packages/zod/src/v4/core/parse.ts` (line 16-30), which is the primary implementation:  Object.assign run $ZodAsyncError map finalizeIssue config captureStackTrace
+  MISSED parts: [_parse]
+  MISSED answer lines: [_parse, _zod_output, addIssueToContext]
+[lore]    zod-1.2-parse: success=1 correctness=0.33 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=9605 wall=165.5s
+  tools: lore_graph×7, lore_snippet×6, lore_lookup×3, report_intent×1, bash×1
+  lore calls: lore_lookup(kind=symbol, query=parse, mode=exact), lore_graph(kind=call, source_id=529, compact=true), lore_graph(kind=call, source_id=742, compact=true), lore_graph(kind=call, source_id=4524, compact=true), lore_graph(kind=call, source_id=4558, compact=true), lore_graph(kind=call, source_id=5957, compact=true), lore_graph(kind=call, source_id=6687, compact=true), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-IrKBvT/zod/packages/zod/src/v4/core/parse.ts, start_line=15, end_line=50), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-IrKBvT/zod/packages/zod/src/v4/core/schemas.ts, start_line=108, end_line=128), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-IrKBvT/zod/packages/zod/src/v4/classic/parse.ts, start_line=1, end_line=30), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-IrKBvT/zod/packages/zod/src/v4/classic/schemas.ts, start_line=56, end_line=76), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-IrKBvT/zod/packages/zod/src/v4/mini/schemas.ts, start_line=29, end_line=49), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-IrKBvT/zod/packages/zod/src/v3/types.ts, start_line=222, end_line=226), lore_lookup(kind=symbol, query=_parse, mode=exact), lore_graph(compact=true, kind=call, source_id=528), lore_lookup(kind=symbol, mode=exact, query=captureStackTrace)
+  answer: Based on the indexed call graph, here are the direct callees across all `parse` implementations:  **v3 `ZodType.parse`** (src/v3/types.ts): safeParse  **v4/core `parse`** (delegates to `_parse` in src/v4/core/parse.ts): Object.assign run $ZodAsyncError finalizeIssue config captureStackTrace  Combine…
+  MISSED answer lines: [_zod_output, addIssueToContext]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: zod[2m > [22m[2mzod-1.7-parse: control + lore-enabled arms
+[22m[39m[control] zod-1.3-parse: success=0.5 correctness=0.60 ans_cov=0.60 file_cov=1.00 sym_cov=0.67 tokens=10160 wall=177.0s
+  tools: grep×15, view×8, report_intent×1, glob×1
+  answer: ``` Object.assign(_ctx, { async: false }) schema._zod.run({ value, issues: [] }, ctx) core.$ZodAsyncError() result.issues.map((iss) => util.finalizeIssue(iss, ctx, core.config())) (_params?.Err ?? _Err)(result.issues.map((iss) => util.finalizeIssue(iss, ctx, core.config()))) util.captureStackTrace(e…
+  MISSED parts: [_parse, addIssueToContext]
+  MISSED answer lines: [_parse, addIssueToContext]
+[lore]    zod-1.3-parse: success=1 correctness=0.80 ans_cov=0.80 file_cov=1.00 sym_cov=0.67 tokens=3950 wall=75.1s
+  tools: view×2, report_intent×1, lore_lookup×1, lore_search×1, grep×1
+  lore calls: lore_lookup(kind=symbol, query=parse, symbol_kind=function), lore_search(query=parse function, mode=fused, limit=20)
+  answer: The core `parse` is the inner function returned by `_parse` at line 16 of `packages/zod/src/v4/core/parse.ts`. Its direct callees are:  ``` Object.assign(_ctx, { async: false }) schema._zod.run({ value, issues: [] }, ctx) core.$ZodAsyncError() result.issues.map((iss) => util.finalizeIssue(iss, ctx, …
+  MISSED parts: [addIssueToContext]
+  MISSED answer lines: [addIssueToContext]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: zod[2m > [22m[2mzod-1.8-_parse: control + lore-enabled arms
+[22m[39m[control] zod-1.1-_parse: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=4440 wall=78.7s
+  tools: view×3, report_intent×1, grep×1
+  answer: _parseSync _parseAsync safeParseAsync _parse _encode _decode
+[lore]    zod-1.1-_parse: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=11790 wall=220.8s
+  tools: lore_graph×11, lore_lookup×5, grep×4, view×4, bash×3, report_intent×1, lore_dependents×1, lore_snippet×1
+  lore calls: lore_dependents(query=_parse, kind=symbol, compact=true), lore_graph(kind=call, target_id=528, compact=true), lore_graph(kind=call, target_id=6679, compact=true), lore_graph(kind=call, target_id=6783, compact=true), lore_graph(kind=call, target_id=6907, compact=true), lore_graph(kind=call, target_id=6966, compact=true), lore_graph(kind=call, target_id=7004, compact=true), lore_graph(kind=call, target_id=7014, compact=true), lore_graph(kind=call, target_id=7036, compact=true), lore_graph(kind=call, target_id=7043, compact=true), lore_graph(kind=call, target_id=7051, compact=true), lore_lookup(kind=symbol, query=keys0, mode=exact), lore_lookup(kind=symbol, query=received15, mode=exact), lore_lookup(kind=symbol, query=received16, mode=exact), lore_lookup(kind=symbol, query=type14, mode=exact), lore_lookup(kind=symbol, query=safeParseAsync, mode=exact), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-IrKBvT/zod/packages/zod/src/v4/core/parse.ts, symbol=_parse), lore_graph(compact=true, kind=call, target_id=528)
+  answer: _parse _parseSync _parseAsync safeParseAsync _encode _decode
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: zod[2m > [22m[2mzod-7.2-_parse: control + lore-enabled arms
+[22m[39m[control] zod-7.2-_parse: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=1743 wall=39.7s
+  tools: grep×7, report_intent×1
+  answer: parse → packages/zod/src/v4/classic/parse.ts — calls `core._parse(ZodRealError)` and assigns the returned parse function to the exported `parse` constant (cast as `any`)
+[lore]    zod-7.2-_parse: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=2541 wall=58.0s
+  tools: grep×5, view×3, lore_dependents×2, report_intent×1, bash×1
+  lore calls: lore_dependents(query=_parse, kind=symbol, compact=true), lore_dependents(compact=true, kind=file, query=packages/zod/src/v4/core/parse.ts)
+  answer: parse → packages/zod/src/v4/classic/parse.ts — calls `core._parse(ZodRealError)` and assigns the returned parser function to the module-level `parse` constant, which is exported as the classic API's synchronous parse entry point
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: zod[2m > [22m[2mzod-7.3-parse: control + lore-enabled arms
+[22m[39m[control] zod-1.5-_parse: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=22454 wall=295.4s
+  tools: view×31, bash×18, grep×4, report_intent×1, task×1
+  answer: Now I have all the information needed. Let me compile the final answer.  ZodArray._parse — calls addIssueToContext to report invalid type or length constraint violations, then delegates each element to the element type's _parse and merges all child results via ParseStatus.mergeArray ZodObject._parse…
+[lore]    zod-1.5-_parse: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=4016 wall=89.5s
+  tools: bash×6, view×5, lore_dependents×2, report_intent×1
+  lore calls: lore_dependents(query=_parse, kind=symbol, compact=true), lore_dependents(query=addIssueToContext, kind=symbol, compact=true)
+  answer: ZodObject._parse — calls addIssueToContext to report invalid type or unrecognized keys, then calls _parse on each shape field's validator (and catchall) to recursively parse values ZodTuple._parse — calls addIssueToContext to report invalid type or wrong array length, then calls _parse on each item'…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: zod[2m > [22m[2mzod-10.1-_parse: control + lore-enabled arms
+[22m[39m[control] zod-1.7-parse: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=13427 wall=182.7s
+  tools: view×19, grep×11, bash×4, report_intent×1, task×1
+  answer: Here is the chain:  1. `inst.parse` — public method on ZodType; delegates to `parse.parse(inst, data, params, …)` 2. `parse` (classic/parse.ts) — module-level alias equal to `core._parse(ZodRealError)`; binds the error class 3. `_parse` closure (core/parse.ts:16) — creates the sync parse context and…
+[lore]    zod-1.7-parse: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=10149 wall=164.9s
+  tools: grep×9, lore_snippet×7, lore_lookup×3, report_intent×1, lore_trace×1, glob×1
+  lore calls: lore_trace(from_name=parse, to_name=_parse, depth=10), lore_lookup(kind=symbol, query=parse, match_mode=exact), lore_lookup(kind=symbol, query=_parse, match_mode=exact), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-IrKBvT/zod/packages/zod/src/v4/classic/schemas.ts, start_line=50, end_line=85), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-IrKBvT/zod/packages/zod/src/v4/classic/parse.ts, start_line=1, end_line=30), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-IrKBvT/zod/packages/zod/src/v4/core/parse.ts, start_line=1, end_line=60), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-IrKBvT/zod/packages/zod/src/v4/core/schemas.ts, start_line=100, end_line=140), lore_lookup(kind=symbol, query=run, match_mode=exact, path_prefix=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-IrKBvT/zod/packages/zod/src/v4/core), lore_snippet(end_line=25, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-IrKBvT/zod/packages/zod/src/v4/classic/schemas.ts, start_line=1), lore_snippet(end_line=170, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-IrKBvT/zod/packages/zod/src/v4/classic/schemas.ts, start_line=140), lore_snippet(end_line=310, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-IrKBvT/zod/packages/zod/src/v4/core/schemas.ts, start_line=270)
+  answer: 1. `ZodType.parse` — instance method that delegates to the standalone parse function with the schema bound 2. `parse` (classic/parse.ts) — standalone function, created at load time by `core._parse(ZodRealError)` 3. `_parse` (core/parse.ts) — factory returning a closure that builds a parse context an…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: zod[2m > [22m[2mzod-10.3-_parse: control + lore-enabled arms
+[22m[39m[control] zod-10.1-_parse: success=1 correctness=1.00 ans_cov=0.67 file_cov=1.00 sym_cov=1.00 tokens=3268 wall=59.4s
+  tools: view×3, grep×3, report_intent×1
+  answer: 2 parse → packages/zod/src/v4/core/parse.ts _encode → packages/zod/src/v4/core/parse.ts _decode → packages/zod/src/v4/core/parse.ts parse → packages/zod/src/v4/classic/parse.ts
+  MISSED parts: [_parse]
+[lore]    zod-10.1-_parse: success=1 correctness=1.00 ans_cov=0.67 file_cov=1.00 sym_cov=1.00 tokens=2081 wall=44.1s
+  tools: view×3, report_intent×1, lore_dependents×1, lore_graph×1, grep×1
+  lore calls: lore_dependents(query=_parse, kind=symbol, compact=true), lore_graph(kind=call, target_id=528, compact=true)
+  answer: 2 parse → packages/zod/src/v4/core/parse.ts _encode → packages/zod/src/v4/core/parse.ts _decode → packages/zod/src/v4/core/parse.ts parse → packages/zod/src/v4/classic/parse.ts
+  MISSED parts: [_parse]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: zod[2m > [22m[2mzod-11.2-_parse: control + lore-enabled arms
+[22m[39m[control] zod-1.4-_parse: success=1 correctness=0.50 ans_cov=0.67 file_cov=1.00 sym_cov=1.00 tokens=9245 wall=124.4s
+  tools: bash×13, view×9, grep×4, report_intent×1, task×1
+  answer: packages/zod/src/v4/core/parse.ts: parse packages/zod/src/v4/core/parse.ts: _encode packages/zod/src/v4/core/parse.ts: _decode packages/zod/src/v4/classic/parse.ts: parse packages/zod/src/v4/mini/parse.ts: (re-exports of core parse) packages/zod/src/v4/classic/schemas.ts: ZodType.parse packages/zod/…
+  MISSED parts: [core.ts]
+  MISSED answer lines: [core.ts, api.ts]
+[lore]    zod-1.4-_parse: success=1 correctness=0.50 ans_cov=0.67 file_cov=1.00 sym_cov=1.00 tokens=19469 wall=360.0s
+  tools: bash×21, view×17, grep×14, lore_dependents×2, lore_graph×2, report_intent×1, task×1
+  lore calls: lore_dependents(query=_parse, kind=symbol, compact=true), lore_graph(kind=call, target_id=528, compact=true), lore_dependents(kind=file, query=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-IrKBvT/zod/packages/zod/src/v4/core/parse.ts, compact=true), lore_graph(compact=true, kind=import, target_id=7)
+  answer: Perfect! Now I have all the information I need. Let me compile the comprehensive answer:  ## Complete Transitive Blast Radius for `_parse` Function  Based on my analysis of the Zod monorepo, here's the complete trace of all functions affected by changes to `_parse`:  ---  ### **1. Functions in `pack…
+  MISSED parts: [core.ts]
+  MISSED answer lines: [core.ts, api.ts]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: zod[2m > [22m[2mzod-11.3-_parse: control + lore-enabled arms
+[22m[39m[control] zod-11.3-_parse: success=1 correctness=0.75 ans_cov=0.75 file_cov=1.00 sym_cov=1.00 tokens=1919 wall=45.3s
+  tools: grep×3, view×2, report_intent×1
+  answer: The v4 `_parse` (defined at `packages/zod/src/v4/core/parse.ts:16`) is the meaningful candidate — the v3 `_parse` is an abstract method with ~30 polymorphic overrides, which is fundamentally not inlinable.  **Callers: 4**  **Verdict: No** — `_parse` is a 10-line higher-order factory function (takes …
+  MISSED parts: [recursive]
+  MISSED answer lines: [recursive]
+[lore]    zod-11.3-_parse: success=1 correctness=0.75 ans_cov=0.75 file_cov=1.00 sym_cov=1.00 tokens=1770 wall=45.9s
+  tools: lore_dependents×2, view×2, report_intent×1, lore_lookup×1, lore_snippet×1, lore_graph×1, grep×1
+  lore calls: lore_dependents(query=_parse, kind=symbol, compact=true), lore_lookup(kind=symbol, query=_parse), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-IrKBvT/zod/packages/zod/src/v4/core/parse.ts, symbol=_parse), lore_dependents(compact=true, kind=symbol, query=_parse), lore_graph(kind=call, target_id=528, compact=true)
+  answer: Here's the full analysis for the v4 core `_parse` in `packages/zod/src/v4/core/parse.ts`:  **Callers: 4**  **Verdict: No** — `_parse` is a 12-line curried factory (takes `_Err`, returns a parse function) with non-trivial logic (schema run, async check, error construction, stack trace capture). It is…
+  MISSED parts: [recursive]
+  MISSED answer lines: [recursive]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: zod
+[22m[39m[control] zod-11.2-_parse: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=1369 wall=43.0s
+  tools: grep×8, report_intent×1, view×1
+  answer: The only file outside `parse.ts` that actually calls `core._parse(...)` is `packages/zod/src/v4/classic/parse.ts`. It's used at the module level (top-level `const` declarations), not inside a named function. But the `parse` const on line 13 directly calls `core._parse(ZodRealError)`.  Let me also ve…
+[lore]    zod-11.2-_parse: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=2506 wall=61.2s
+  tools: lore_dependents×3, grep×2, view×2, report_intent×1, lore_graph×1
+  lore calls: lore_dependents(query=_parse, kind=symbol, compact=true), lore_graph(kind=call, target_id=528, compact=false), lore_dependents(kind=file, query=packages/zod/src/v4/core/parse.ts, compact=false), lore_dependents(compact=false, kind=file, query=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-IrKBvT/zod/packages/zod/src/v4/core/parse.ts)
+  answer: parse in packages/zod/src/v4/classic/parse.ts — `/* @__PURE__ */ core._parse(ZodRealError) as any`
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: zod
+[22m[39m[control] zod-7.3-parse: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=14633 wall=186.1s
+  tools: view×29, bash×20, grep×15, task×1, report_intent×1
+  answer: Perfect! Now I have all the information needed. Let me compile a comprehensive answer.  ## Complete Trace of the `parse` Call Chain in Zod  I've traced the call chain for `parse` across all versions in the repository. Here's the complete breakdown:  ### **PRIMARY PATH: v4/classic (Main Export)**  Th…
+[lore]    zod-7.3-parse: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=12682 wall=164.6s
+  tools: view×11, bash×10, grep×7, lore_snippet×7, lore_lookup×2, report_intent×1, lore_search×1, task×1
+  lore calls: lore_lookup(kind=symbol, query=parse, symbol_kind=function), lore_search(query=parse method implementation, mode=fused, limit=20), lore_lookup(kind=symbol, query=parse, match_mode=exact), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-IrKBvT/zod/packages/zod/src/v4/classic/schemas.ts, start_line=50, end_line=80), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-IrKBvT/zod/packages/zod/src/v4/classic/parse.ts, start_line=1, end_line=40), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-IrKBvT/zod/packages/zod/src/v4/core/parse.ts, start_line=1, end_line=80), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-IrKBvT/zod/packages/zod/src/v4/core/schemas.ts, start_line=100, end_line=135), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-IrKBvT/zod/packages/zod/src/v4/mini/schemas.ts, start_line=20, end_line=55), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-IrKBvT/zod/packages/zod/src/v3/types.ts, start_line=215, end_line=230), lore_snippet(end_line=200, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-IrKBvT/zod/packages/zod/src/v4/classic/schemas.ts, start_line=150)
+  answer: Now I have the complete picture. Here's the answer:  ZodType.parse (v4/classic) → parse.parse → core._parse → schema._zod.run → schema._zod.parse ZodMiniType.parse (v4/mini) → parse.parse → core._parse → schema._zod.run → schema._zod.parse ZodType.parse (v3) → safeParse → _parseSync → _parse (abstra…
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: zod
+[22m[39m[control] zod-10.3-_parse: success=0.5 correctness=1.00 ans_cov=1.00 file_cov=0.00 sym_cov=1.00 tokens=7438 wall=89.1s
+  tools: view×22, bash×6, report_intent×2, grep×1, task×1
+  answer: Here are the callers of `_parse` grouped by calling pattern:  **Direct input passthrough — delegate to inner type, return directly:** - `ZodOptional._parse` at types.ts:4495 - `ZodNullable._parse` at types.ts:4535 - `ZodReadonly._parse` at types.ts:4878 *(also checks isAsync afterward)*  **Literal `…
+[lore]    zod-10.3-_parse: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=17684 wall=186.9s
+  tools: lore_snippet×26, view×22, bash×9, grep×4, report_intent×2, lore_dependents×2, lore_graph×2, lore_lookup×1, task×1, read_agent×1
+  lore calls: lore_dependents(query=_parse, kind=symbol, compact=false), lore_dependents(compact=false, kind=symbol, query=_parse), lore_lookup(kind=symbol, query=_parse, match_mode=exact, path_prefix=packages/zod/src/v4/core), lore_graph(kind=call, target_id=528, compact=false), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-IrKBvT/zod/packages/zod/src/v4/core/parse.ts, symbol=_parse), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-IrKBvT/zod/packages/zod/src/v3/types.ts, symbol=_parse), lore_graph(compact=false, kind=call, target_id=6679), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-IrKBvT/zod/packages/zod/src/v3/types.ts, start_line=205, end_line=330), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-IrKBvT/zod/packages/zod/src/v3/types.ts, start_line=525, end_line=540), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-IrKBvT/zod/packages/zod/src/v3/types.ts, start_line=2495, end_line=2545), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-IrKBvT/zod/packages/zod/src/v3/types.ts, start_line=2980, end_line=3000), lore_snippet(end_line=3170, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-IrKBvT/zod/packages/zod/src/v3/types.ts, start_line=3140), lore_snippet(end_line=290, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-IrKBvT/zod/packages/zod/src/v3/types.ts, start_line=275), lore_snippet(end_line=3960, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-IrKBvT/zod/packages/zod/src/v3/types.ts, start_line=3920), lore_snippet(end_line=4270, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-IrKBvT/zod/packages/zod/src/v3/types.ts, start_line=4245), lore_snippet(end_line=4830, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-IrKBvT/zod/packages/zod/src/v3/types.ts, start_line=4810), lore_snippet(end_line=425, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-IrKBvT/zod/packages/zod/src/v3/types.ts, start_line=410), lore_snippet(end_line=2320, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-IrKBvT/zod/packages/zod/src/v3/types.ts, start_line=2300), lore_snippet(end_line=4200, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-IrKBvT/zod/packages/zod/src/v3/types.ts, start_line=4110), lore_snippet(end_line=3030, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-IrKBvT/zod/packages/zod/src/v3/types.ts, start_line=2995), lore_snippet(end_line=4650, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-IrKBvT/zod/packages/zod/src/v3/types.ts, start_line=4620), lore_snippet(end_line=4900, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-IrKBvT/zod/packages/zod/src/v3/types.ts, start_line=4860), lore_snippet(end_line=3760, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-IrKBvT/zod/packages/zod/src/v3/types.ts, start_line=3730), lore_snippet(end_line=4430, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-IrKBvT/zod/packages/zod/src/v3/types.ts, start_line=4280), lore_snippet(end_line=3465, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-IrKBvT/zod/packages/zod/src/v3/types.ts, start_line=3420), lore_snippet(end_line=3550, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-IrKBvT/zod/packages/zod/src/v3/types.ts, start_line=3520), lore_snippet(end_line=3640, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-IrKBvT/zod/packages/zod/src/v3/types.ts, start_line=3610), lore_snippet(end_line=4760, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-IrKBvT/zod/packages/zod/src/v3/types.ts, start_line=4740), lore_snippet(end_line=4510, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-IrKBvT/zod/packages/zod/src/v3/types.ts, start_line=4485), lore_snippet(end_line=4580, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-IrKBvT/zod/packages/zod/src/v3/types.ts, start_line=4525), lore_snippet(end_line=3990, path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-IrKBvT/zod/packages/zod/src/v3/types.ts, start_line=3975)
+  answer: Now I have a complete picture. Here are the callers of `_parse` grouped by calling pattern:  ---  ## v3 (`src/v3/types.ts`) — method `ZodType._parse(input)`  **Sync/async wrapper (direct delegation, one-shot):** - `_parseSync` in `src/v3/types.ts` — calls `this._parse(input)`, throws if result is a …
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: zod
+[22m[39m[control] zod-1.8-_parse: success=1 correctness=1.00 ans_cov=1.00 file_cov=1.00 sym_cov=1.00 tokens=21866 wall=335.9s
+  tools: view×36, grep×12, bash×3, read_agent×3, report_intent×2, task×2
+  answer: Now I have the complete picture. The v4 `_parse` in `packages/zod/src/v4/core/parse.ts` is a curried function that throws `$ZodAsyncError` or `$ZodError`. Its direct callers are:  - **`parse`** (core/parse.ts:30) — `_parse(errors.$ZodRealError)` — partial application, no try/catch → propagates - **`…
+[lore]    zod-1.8-_parse: success=0.5 correctness=0.25 ans_cov=0.33 file_cov=1.00 sym_cov=1.00 tokens=25328 wall=360.0s
+  tools: view×29, bash×21, grep×6, lore_snippet×5, report_intent×2, lore_dependents×2, lore_graph×2, task×2, read_agent×2
+  lore calls: lore_dependents(query=_parse, kind=symbol, compact=true), lore_dependents(compact=true, kind=symbol, query=_parse), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-IrKBvT/zod/packages/zod/src/v4/core/parse.ts, symbol=_parse), lore_graph(kind=call, target_id=528, compact=true), lore_graph(kind=call, target_id=6679, compact=true), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-IrKBvT/zod/packages/zod/src/v3/types.ts, symbol=_parseSync), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-IrKBvT/zod/packages/zod/src/v3/types.ts, symbol=_parseAsync), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-IrKBvT/zod/packages/zod/src/v3/types.ts, symbol=safeParseAsync), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-IrKBvT/zod/packages/zod/src/v3/types.ts, symbol=handleResult)
+  answer: Let me also check how subclass `_parse` overrides call the inner type's `_parse`, since those are also direct callers.
+  MISSED parts: [Handle, Propagate]
+  MISSED answer lines: [Handle:, Propagate:, None]
+
+[90mstdout[2m | tests/benchmark/copilot-agent.test.ts[2m > [22m[2mCopilot agent benchmark: zod[2m > [22m[2maggregate: full report — control vs lore-enabled
+[22m[39m
+── zod-1.1-_parse (localization) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=4440 wall=78.7s
+    tools: view×3, report_intent×1, grep×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=11790 wall=220.8s
+    tools: lore_graph×11, lore_lookup×5, grep×4, view×4, bash×3, report_intent×1, lore_dependents×1, lore_snippet×1
+  DELTA:   correctness=+0.00  tokens=+7350 (+166%)  wall=+142.1s (+180%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── zod-1.2-parse (localization) ──
+  CONTROL: success=0.5 correctness=0.00 ans=0.00 file=1.00 sym=1.00 tokens=7439 wall=133.1s
+    tools: grep×12, view×6, report_intent×1, glob×1
+  LORE:    success=1 correctness=0.33 ans=1.00 file=1.00 sym=1.00 tokens=9605 wall=165.5s
+    tools: lore_graph×7, lore_snippet×6, lore_lookup×3, report_intent×1, bash×1
+  DELTA:   correctness=+0.33  tokens=+2166 (+29%)  wall=+32.4s (+24%)
+
+── zod-1.4-_parse (modification) ──
+  CONTROL: success=1 correctness=0.50 ans=0.67 file=1.00 sym=1.00 tokens=9245 wall=124.4s
+    tools: bash×13, view×9, grep×4, report_intent×1, task×1
+  LORE:    success=1 correctness=0.50 ans=0.67 file=1.00 sym=1.00 tokens=19469 wall=360.0s
+    tools: bash×21, view×17, grep×14, lore_dependents×2, lore_graph×2, report_intent×1, task×1
+  DELTA:   correctness=+0.00  tokens=+10224 (+111%)  wall=+235.6s (+189%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── zod-1.3-parse (explanation) ──
+  CONTROL: success=0.5 correctness=0.60 ans=0.60 file=1.00 sym=0.67 tokens=10160 wall=177.0s
+    tools: grep×15, view×8, report_intent×1, glob×1
+  LORE:    success=1 correctness=0.80 ans=0.80 file=1.00 sym=0.67 tokens=3950 wall=75.1s
+    tools: view×2, report_intent×1, lore_lookup×1, lore_search×1, grep×1
+  DELTA:   correctness=+0.20  tokens=-6210 (-61%)  wall=-101.9s (-58%)
+
+── zod-1.5-_parse (localization) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=22454 wall=295.4s
+    tools: view×31, bash×18, grep×4, report_intent×1, task×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=4016 wall=89.5s
+    tools: bash×6, view×5, lore_dependents×2, report_intent×1
+  DELTA:   correctness=+0.00  tokens=-18438 (-82%)  wall=-205.9s (-70%)
+
+── zod-1.7-parse (explanation) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=13427 wall=182.7s
+    tools: view×19, grep×11, bash×4, report_intent×1, task×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=10149 wall=164.9s
+    tools: grep×9, lore_snippet×7, lore_lookup×3, report_intent×1, lore_trace×1, glob×1
+  DELTA:   correctness=+0.00  tokens=-3278 (-24%)  wall=-17.7s (-10%)
+
+── zod-1.8-_parse (modification) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=21866 wall=335.9s
+    tools: view×36, grep×12, bash×3, read_agent×3, report_intent×2, task×2
+  LORE:    success=0.5 correctness=0.25 ans=0.33 file=1.00 sym=1.00 tokens=25328 wall=360.0s
+    tools: view×29, bash×21, grep×6, lore_snippet×5, report_intent×2, lore_dependents×2, lore_graph×2, task×2, read_agent×2
+  DELTA:   correctness=-0.75  tokens=+3462 (+16%)  wall=+24.1s (+7%)
+  ⚠ LORE WORSE on correctness — missed: [Handle:, Propagate:, None]
+
+── zod-7.2-_parse (localization) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=1743 wall=39.7s
+    tools: grep×7, report_intent×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=2541 wall=58.0s
+    tools: grep×5, view×3, lore_dependents×2, report_intent×1, bash×1
+  DELTA:   correctness=+0.00  tokens=+798 (+46%)  wall=+18.3s (+46%)
+
+── zod-7.3-parse (localization) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=14633 wall=186.1s
+    tools: view×29, bash×20, grep×15, task×1, report_intent×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=12682 wall=164.6s
+    tools: view×11, bash×10, grep×7, lore_snippet×7, lore_lookup×2, report_intent×1, lore_search×1, task×1
+  DELTA:   correctness=+0.00  tokens=-1951 (-13%)  wall=-21.5s (-12%)
+
+── zod-10.1-_parse (explanation) ──
+  CONTROL: success=1 correctness=1.00 ans=0.67 file=1.00 sym=1.00 tokens=3268 wall=59.4s
+    tools: view×3, grep×3, report_intent×1
+  LORE:    success=1 correctness=1.00 ans=0.67 file=1.00 sym=1.00 tokens=2081 wall=44.1s
+    tools: view×3, report_intent×1, lore_dependents×1, lore_graph×1, grep×1
+  DELTA:   correctness=+0.00  tokens=-1187 (-36%)  wall=-15.3s (-26%)
+
+── zod-10.3-_parse (explanation) ──
+  CONTROL: success=0.5 correctness=1.00 ans=1.00 file=0.00 sym=1.00 tokens=7438 wall=89.1s
+    tools: view×22, bash×6, report_intent×2, grep×1, task×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=17684 wall=186.9s
+    tools: lore_snippet×26, view×22, bash×9, grep×4, report_intent×2, lore_dependents×2, lore_graph×2, lore_lookup×1, task×1, read_agent×1
+  DELTA:   correctness=+0.00  tokens=+10246 (+138%)  wall=+97.8s (+110%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+  ⚠ LORE 50%+ SLOWER — review tool strategy
+
+── zod-11.2-_parse (modification) ──
+  CONTROL: success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=1369 wall=43.0s
+    tools: grep×8, report_intent×1, view×1
+  LORE:    success=1 correctness=1.00 ans=1.00 file=1.00 sym=1.00 tokens=2506 wall=61.2s
+    tools: lore_dependents×3, grep×2, view×2, report_intent×1, lore_graph×1
+  DELTA:   correctness=+0.00  tokens=+1137 (+83%)  wall=+18.2s (+42%)
+  ⚠ LORE 50%+ MORE TOKENS — review tool strategy
+
+── zod-11.3-_parse (refactoring) ──
+  CONTROL: success=1 correctness=0.75 ans=0.75 file=1.00 sym=1.00 tokens=1919 wall=45.3s
+    tools: grep×3, view×2, report_intent×1
+  LORE:    success=1 correctness=0.75 ans=0.75 file=1.00 sym=1.00 tokens=1770 wall=45.9s
+    tools: lore_dependents×2, view×2, report_intent×1, lore_lookup×1, lore_snippet×1, lore_graph×1, grep×1
+  DELTA:   correctness=+0.00  tokens=-149 (-8%)  wall=+0.7s (+2%)
+
+
+═══════════════════════════════════════
+         BENCHMARK RESULTS
+═══════════════════════════════════════
+
+Model: claude-opus-4.6
+Tasks: 13
+Iterations: 1
+Completed runs: 13/13
+
+Arm: control
+  Runs: 13
+  Success: 76.9%
+  Partial: 23.1%
+  Failed:  0.0%
+  Correctness: 83.5% (σ=30.5pp)
+  First-pass accuracy: 0.0%
+  Mean tool calls: 27.4 (σ=21.2)
+  Mean unique files: 4.7
+  Mean wall time: 137.7s (σ=95.5s)
+  Mean tokens: 9185 (σ=7178.7)
+  Answer coverage: 82.2% (σ=29.3pp)
+  File coverage: 92.3% (σ=27.7pp)
+  Symbol coverage: 97.4% (σ=9.2pp)
+  Lore tool calls: 0.0 (0% of runs)
+  Tool call counts: view×169, grep×96, bash×64, report_intent×15, task×7, read_agent×3, glob×2
+
+Arm: lore-enabled
+  Runs: 13
+  Success: 92.3%
+  Partial: 7.7%
+  Failed:  0.0%
+  Correctness: 81.8% (σ=27.8pp)
+  First-pass accuracy: 23.1%
+  Mean tool calls: 28.2 (σ=24.0)
+  Mean unique files: 2.9
+  Mean wall time: 153.6s (σ=109.1s)
+  Mean tokens: 9505 (σ=7668.7)
+  Answer coverage: 86.3% (σ=20.9pp)
+  File coverage: 100.0% (σ=0.0pp)
+  Symbol coverage: 97.4% (σ=9.2pp)
+  Lore tool calls: 8.9 (100% of runs)
+  Lore tools used: lore_dependents, lore_graph, lore_lookup, lore_snippet, lore_search, lore_trace
+  Tool call counts: view×100, bash×72, grep×54, lore_snippet×53, lore_graph×27, lore_dependents×17, lore_lookup×16, report_intent×15, task×5, read_agent×3, lore_search×2, lore_trace×1, glob×1
+
+Comparison: lore-enabled vs control
+  Success rate: +15.4pp
+  Correctness: -1.7pp
+  First-pass accuracy: +23.1pp
+  Answer coverage: +4.1pp
+  Tool calls: 0.8 (28.2 vs 27.4)
+  Tokens: +321 (+3.5%)
+  Wall time: +15.9s (+11.6%)
+
+  Statistical significance (correctness):
+    t=-0.146, df=23.8, p=0.8855
+    ✗ Not significant at p<0.05
+
+Structured report written to: /Users/jacobfreck/Source/Lore/benchmark-results/zod.json
+
+ [32m✓[39m tests/benchmark/copilot-agent.test.ts [2m([22m[2m14 tests[22m[2m)[22m[33m 551430[2mms[22m[39m
+     [33m[2m✓[22m[39m zod-1.1-_parse: control + lore-enabled arms [33m 220828[2mms[22m[39m
+     [33m[2m✓[22m[39m zod-1.2-parse: control + lore-enabled arms [33m 165468[2mms[22m[39m
+     [33m[2m✓[22m[39m zod-1.4-_parse: control + lore-enabled arms [33m 360013[2mms[22m[39m
+     [33m[2m✓[22m[39m zod-1.3-parse: control + lore-enabled arms [33m 177005[2mms[22m[39m
+     [33m[2m✓[22m[39m zod-1.5-_parse: control + lore-enabled arms [33m 295406[2mms[22m[39m
+     [33m[2m✓[22m[39m zod-1.7-parse: control + lore-enabled arms [33m 182669[2mms[22m[39m
+     [33m[2m✓[22m[39m zod-1.8-_parse: control + lore-enabled arms [33m 360011[2mms[22m[39m
+     [33m[2m✓[22m[39m zod-7.2-_parse: control + lore-enabled arms [33m 57976[2mms[22m[39m
+     [33m[2m✓[22m[39m zod-7.3-parse: control + lore-enabled arms [33m 186129[2mms[22m[39m
+     [33m[2m✓[22m[39m zod-10.1-_parse: control + lore-enabled arms [33m 59430[2mms[22m[39m
+     [33m[2m✓[22m[39m zod-10.3-_parse: control + lore-enabled arms [33m 186912[2mms[22m[39m
+     [33m[2m✓[22m[39m zod-11.2-_parse: control + lore-enabled arms [33m 61245[2mms[22m[39m
+     [33m[2m✓[22m[39m zod-11.3-_parse: control + lore-enabled arms [33m 45951[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m14 passed[39m[22m[90m (14)[39m
+[2m   Start at [22m 17:48:29
+[2m   Duration [22m 551.90s[2m (transform 263ms, setup 0ms, import 393ms, tests 551.43s, environment 0ms)[22m
+
