@@ -10,17 +10,17 @@
 
 | Metric | Control | Lore-enabled | Delta |
 |---|---|---|---|
-| **Success rate** | 81.5% | 92.8% | **+11.3pp** |
-| **Partial rate** | 17.7% | 7.2% | -10.5pp |
+| **Success rate** | 81.8% | 92.6% | **+10.8pp** |
+| **Partial rate** | 17.4% | 7.4% | -10.0pp |
 | **Fail rate** | 0.8% | 0.0% | -0.8pp |
-| **Correctness** | 85.0% | 86.0% | **+1.0pp** |
-| **First-pass accuracy** | 0.0% | 40.8% | **+40.8pp** |
-| **Answer coverage** | 86.9% | 89.0% | **+2.1pp** |
-| **Mean tool calls** | 27.6 | 16.8 | **-10.8 (−39.3%)** |
-| **Mean tokens** | 8,040 | 5,722 | **-2,318 (−28.8%)** |
-| **Mean wall time** | 102.8s | 99.6s | -3.2s (−3.1%) |
+| **Correctness** | 85.1% | 86.0% | **+1.0pp** |
+| **First-pass accuracy** | 0.0% | 40.0% | **+40.0pp** |
+| **Answer coverage** | 86.9% | 88.9% | **+2.0pp** |
+| **Mean tool calls** | 28.0 | 16.7 | **-11.3 (−40.5%)** |
+| **Mean tokens** | 8,023 | 5,660 | **-2,363 (−29.5%)** |
+| **Mean wall time** | 103.2s | 98.5s | -4.7s (−4.6%) |
 
-> **Key takeaway:** Lore-enabled achieves a **+11.3pp higher success rate**, **+40.8pp first-pass accuracy**, and **+1.0pp correctness** while using **39% fewer tool calls** and **29% fewer tokens**. jackson-databind is the first repo to reach statistical significance (p = 0.038).
+> **Key takeaway:** Lore-enabled achieves a **+10.8pp higher success rate**, **+40.0pp first-pass accuracy**, and **+1.0pp correctness** while using **40% fewer tool calls** and **29% fewer tokens**. jackson-databind is the first repo to reach statistical significance (p = 0.038).
 
 ### Metric Definitions
 
@@ -35,23 +35,23 @@ Note: The success rate composite also includes *file coverage* (did expected fil
 
 ## Per-Repo Breakdown
 
-### lore-self (TypeScript, medium)
+### lore-self (TypeScript, medium) — re-run 2026-03-23
 
 | Metric | Control | Lore | Delta |
 |---|---|---|---|
-| Success rate | 90.8% | **100.0%** | **+9.2pp** |
-| Correctness | 97.2% | **98.6%** | +1.4pp |
-| First-pass accuracy | 0.0% | **36.9%** | +36.9pp |
-| Answer coverage | 95.8% | **100.0%** | +4.2pp |
-| Mean tool calls | 11.3 | 13.6 | +2.4 |
-| Mean tokens | 3,478 | 5,009 | +1,531 (+44.0%) |
-| Mean wall time | 62.9s | 85.6s | +22.7s (+36.1%) |
-| Lore tool calls | — | 5.4 (100% usage) | |
-| Stat. significance (p) | | | 0.220 (not sig.) |
+| Success rate | 92.3% | **98.5%** | **+6.2pp** |
+| Correctness | 97.8% | **98.7%** | +0.9pp |
+| First-pass accuracy | 0.0% | **32.3%** | +32.3pp |
+| Answer coverage | 95.8% | **99.2%** | +3.5pp |
+| Mean tool calls | 13.6 | 13.1 | -0.5 |
+| Mean tokens | 3,380 | 4,637 | +1,257 (+37.2%) |
+| Mean wall time | 65.4s | 78.9s | +13.5s (+20.6%) |
+| Lore tool calls | — | 7.2 (100% usage) | |
+| Stat. significance (p) | | | 0.291 (not sig.) |
 
 **Lore tools used:** lore_dependents, lore_graph, lore_lookup, lore_snippet, lore_trace
 
-**Highlights:** Perfect 100% success rate and coverage across all 65 runs. Lore uses more tokens here because the model invokes additional Lore tools for verification, but achieves perfect scores.
+**Highlights:** Near-perfect 98.5% success rate and 99.2% answer coverage. Lore uses more tokens here because the model invokes additional Lore tools for verification, but achieves higher correctness. All 65 runs used Lore tools.
 
 ---
 
@@ -169,7 +169,7 @@ Note: The success rate composite also includes *file coverage* (did expected fil
 ### Efficiency Gains (All Repos)
 | Repo | Tool Call Reduction | Token Reduction | Wall Time Delta |
 |---|---|---|---|
-| lore-self | +21.2% | +44.0% | +36.1% |
+| lore-self | -3.7% | +37.2% | +20.6% |
 | zod | +6.8% | −3.1% | +1.1% |
 | fastapi | **−31.2%** | **−13.1%** | **−7.3%** |
 | esbuild | **−51.9%** | **−40.7%** | **−26.8%** |
@@ -179,11 +179,11 @@ Note: The success rate composite also includes *file coverage* (did expected fil
 ### Lore Tool Usage
 | Tool | Total Calls | Usage Pattern |
 |---|---|---|
-| lore_snippet | 518 | Code extraction without full file reads |
+| lore_snippet | 642 | Code extraction without full file reads |
 | lore_dependents | 367 | Finds callers/callees efficiently |
-| lore_graph | 356 | Call graph traversal |
-| lore_lookup | 281 | Symbol search and resolution |
-| lore_trace | 106 | Dependency tracing |
+| lore_graph | 357 | Call graph traversal |
+| lore_lookup | 277 | Symbol search and resolution |
+| lore_trace | 102 | Dependency tracing |
 | lore_search | 14 | Semantic search (rarely needed) |
 
 ### Statistical Significance
@@ -195,18 +195,18 @@ jackson-databind reached **p = 0.038** (statistically significant at α = 0.05) 
 
 | Repo | Language | Tests | Passed | Failed | Duration |
 |---|---|---|---|---|---|
-| lore-self | TypeScript | 66 | 66 | 0 | 1,424s |
+| lore-self (v2) | TypeScript | 66 | 66 | 0 | 1,411s |
 | zod | TypeScript | 66 | 66 | 0 | 1,889s |
 | fastapi | Python | 66 | 66 | 0 | 1,272s |
 | esbuild | Go/TS | 66 | 66 | 0 | 1,472s |
 | jackson-databind (v1) | Java | 66 | 66 | 0 | 3,936s |
 | jackson-databind (v2) | Java | 66 | 66 | 0 | 3,214s |
 | postgres | C | 66 | 63 | 3 | 1,616s |
-| **Total** | | **462** | **459** | **3** | **14,823s** |
+| **Total** | | **462** | **459** | **3** | **14,810s** |
 
 The 3 postgres failures were timeouts on task 1.3 (iterations 3–5), where both arms exceeded the 360s per-arm timeout.
 
-jackson-databind was re-run on 2026-03-22 (v2). The v2 results replace v1 in all aggregate numbers above.
+jackson-databind was re-run on 2026-03-22 (v2). lore-self was re-run on 2026-03-23 (v2). The v2 results replace v1 in all aggregate numbers above.
 
 ---
 
