@@ -11,7 +11,7 @@
 
 Lore holds your agent's institutional knowledge over the codebase — it knows what was built, why it changed, and how it all connects. Lore indexes your code and git history into a structured knowledge base that agents query through MCP. It maps symbols, imports, call relationships, type relationships, annotations, docs, and all git data — with optional embeddings for semantic search — so agents can reason about your codebase without re-reading it from scratch.
 
-Lore-enabled agents achieve **+1pp higher correctness**, **29% fewer tokens**, and **5% faster wall-clock time** across 6 benchmark repos (390 runs) compared to a baseline agent with grep and file reads alone. See the [full benchmark results](docs/benchmark-results.md) for details.
+Lore-enabled agents achieve up to **+7.5pp higher correctness**, up to **48% fewer tokens**, and up to **22% faster wall-clock time** compared to a baseline agent with grep and file reads alone. See the [full benchmark results](docs/benchmark-results.md) for details.
 
 ## What Lore does
 
@@ -148,7 +148,7 @@ await builder.build();
 ## MCP tools
 
 | Tool | Purpose |
-|------|---------|
+|------|----------|
 | `lore_lookup` | Find symbols by name or files by path, including external dependency API symbols and LSP-resolved metadata when available |
 | `lore_search` | Structural BM25, semantic vector, or fused RRF search across symbols and doc sections |
 | `lore_docs` | List, fetch, or search indexed documentation with branch, kind, and path filters |
@@ -538,4 +538,3 @@ npm run coverage
 
 CI currently enforces minimum coverage thresholds of 77% statements, 64%
 branches, 80% functions, and 79% lines.
-
