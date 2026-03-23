@@ -55,7 +55,7 @@ export const PILOT_REPOS: RepoSpec[] = [
       commands: [
         {
           command: 'npm',
-          args: ['install'],
+          args: ['install', '--legacy-peer-deps'],
           timeoutMs: 900_000,
         },
         {
