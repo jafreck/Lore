@@ -129,6 +129,131 @@ function inferKindFromScipSymbol(scipSymbol: string, docHint: string): string {
 }
 
 /**
+ * Extract the parent SCIP symbol string by stripping the last descriptor.
+ *
+ * SCIP symbols are formed by chaining descriptors: `scheme package desc1 desc2 desc3`
+ * The parent of `desc3` is `scheme package desc1 desc2`.
+ *
+ * E.g. `scip-java maven pkg 1.0 com/fasterxml/jackson/BeanSerializer#serialize().`
+ * → `scip-java maven pkg 1.0 com/fasterxml/jackson/BeanSerializer#`
+ *
+ * Returns `null` if the symbol has no parent (top-level or unparseable).
+ */
+function extractParentScipSymbol(scipSymbol: string): string | null {
+  if (!scipSymbol || scipSymbol.startsWith('local ')) return null;
+
+  // Find the end of the package section (3 space-separated segments after scheme)
+  // Format: <scheme> ' ' <manager> ' ' <package-name> ' ' <version> ' ' <descriptors>
+  let spaceCount = 0;
+  let packageEnd = 0;
+  for (let i = 0; i < scipSymbol.length; i++) {
+    if (scipSymbol[i] === ' ' && (i === 0 || scipSymbol[i - 1] !== ' ')) {
+      spaceCount++;
+      if (spaceCount === 4) {
+        packageEnd = i + 1;
+        break;
+      }
+    }
+  }
+  if (packageEnd === 0) return null;
+
+  const descriptorPart = scipSymbol.slice(packageEnd);
+  if (!descriptorPart) return null;
+
+  // Split descriptors by suffix characters (/, #, ., :, !), keeping delimiters
+  // Method descriptors end with '().' or '(+N).'
+  // We need to find the start of the last descriptor
+
+  // Strategy: tokenize from the end. The last descriptor ends at the string end
+  // and starts after the previous descriptor's suffix.
+  // Descriptor suffixes: / # . : ! and method pattern ().
+
+  // Strip the last descriptor by finding where it starts
+  let lastDescStart = descriptorPart.length;
+
+  // Walk backward to find the start of the last descriptor
+  // A method descriptor ends with `().` — check for that pattern first
+  if (descriptorPart.endsWith('.')) {
+    // Could be a method `name().` or a term `name.`
+    const beforeDot = descriptorPart.slice(0, -1);
+    const parenClose = beforeDot.lastIndexOf(')');
+    if (parenClose >= 0) {
+      // Find matching open paren
+      const parenOpen = beforeDot.lastIndexOf('(', parenClose);
+      if (parenOpen >= 0) {
+        // Method descriptor: everything from start-of-name to end
+        // Find where the name starts (after previous suffix)
+        lastDescStart = findDescriptorNameStart(beforeDot, parenOpen);
+      }
+    }
+    if (lastDescStart === descriptorPart.length) {
+      // Simple term: name.
+      const nameEnd = descriptorPart.length - 1; // position of '.'
+      lastDescStart = findDescriptorNameStart(descriptorPart, nameEnd);
+    }
+  } else if (descriptorPart.endsWith('#') || descriptorPart.endsWith('/') ||
+             descriptorPart.endsWith(':') || descriptorPart.endsWith('!')) {
+    const nameEnd = descriptorPart.length - 1;
+    lastDescStart = findDescriptorNameStart(descriptorPart, nameEnd);
+  } else {
+    // Unknown suffix pattern
+    return null;
+  }
+
+  if (lastDescStart <= 0) return null;
+
+  const parentDescriptors = descriptorPart.slice(0, lastDescStart);
+  if (!parentDescriptors) return null;
+
+  return scipSymbol.slice(0, packageEnd) + parentDescriptors;
+}
+
+/**
+ * Find where a descriptor name starts, given the position of its suffix.
+ * Walks backward past the name (possibly backtick-escaped) to the previous
+ * descriptor's suffix character.
+ */
+function findDescriptorNameStart(s: string, suffixPos: number): number {
+  let i = suffixPos - 1;
+  // Handle backtick-escaped identifiers
+  if (i >= 0 && s[i] === '`') {
+    // Walk back to the opening backtick
+    i--;
+    while (i >= 0 && s[i] !== '`') i--;
+    return i;
+  }
+  // Walk back through simple identifier characters
+  while (i >= 0 && /[_+\-$a-zA-Z0-9]/.test(s[i]!)) i--;
+  return i + 1;
+}
+
+/**
+ * Count the number of descriptors in a SCIP symbol string.
+ *
+ * Used to sort symbols shallowest-first so parents are inserted before
+ * children.  Counts descriptor-ending characters (`/`, `#`, `.`, `:`, `!`)
+ * after the package prefix.
+ */
+function descriptorDepth(scipSymbol: string): number {
+  // Skip past the 4-space-separated package header
+  let spaceCount = 0;
+  let start = 0;
+  for (let i = 0; i < scipSymbol.length; i++) {
+    if (scipSymbol[i] === ' ' && (i === 0 || scipSymbol[i - 1] !== ' ')) {
+      spaceCount++;
+      if (spaceCount === 4) { start = i + 1; break; }
+    }
+  }
+  // Count descriptor suffix characters in the descriptor portion
+  let depth = 0;
+  for (let i = start; i < scipSymbol.length; i++) {
+    const ch = scipSymbol[i];
+    if (ch === '/' || ch === '#' || ch === '.' || ch === ':' || ch === '!') depth++;
+  }
+  return depth;
+}
+
+/**
  * Extract a human-readable name from a SCIP symbol string.
  *
  * E.g. `scip-typescript npm pkg 1.0 src/\`file.ts\`/MyClass#myMethod().`
@@ -414,8 +539,8 @@ export class ScipIndexerStage implements PipelineStage {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     const insertSymbol = db.prepare(
-      `INSERT INTO symbols (file_id, name, kind, start_line, end_line, signature, doc_comment, resolved_type_signature, resolved_return_type, definition_uri, definition_path, layer, generation)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO symbols (file_id, name, kind, start_line, end_line, signature, doc_comment, resolved_type_signature, resolved_return_type, definition_uri, definition_path, parent_symbol_id, layer, generation)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     const insertCallRef = db.prepare(
       `INSERT INTO symbol_refs (caller_id, file_id, callee_id, callee_name, call_line, call_character, call_kind, resolution_method, resolved_type_signature, resolved_return_type, definition_uri, definition_path, definition_line, definition_character, layer, generation)
@@ -523,12 +648,17 @@ export class ScipIndexerStage implements PipelineStage {
           }
         }
 
-        // Insert symbols from SymbolInformation + definition occurrences
-        for (const symInfo of doc.symbols) {
-          if (!symInfo.symbol || symInfo.symbol.startsWith('local ')) continue;
+        // Insert symbols from SymbolInformation + definition occurrences.
+        // Sort by descriptor depth (shallowest first) so that parent symbols
+        // are inserted before their children, allowing us to resolve
+        // parent_symbol_id inline during INSERT rather than in a separate
+        // UPDATE pass.
+        const insertableSymbols = doc.symbols
+          .filter(si => si.symbol && !si.symbol.startsWith('local ') && docDefs.has(si.symbol))
+          .sort((a, b) => descriptorDepth(a.symbol) - descriptorDepth(b.symbol));
 
-          const defLoc = docDefs.get(symInfo.symbol);
-          if (!defLoc) continue; // No definition occurrence for this symbol info
+        for (const symInfo of insertableSymbols) {
+          const defLoc = docDefs.get(symInfo.symbol)!;
 
           const name = symInfo.displayName || extractNameFromScipSymbol(symInfo.symbol);
           const firstDoc = symInfo.documentation[0] ?? '';
@@ -546,11 +676,25 @@ export class ScipIndexerStage implements PipelineStage {
           const resolvedReturnType = extractReturnType(resolvedTypeSig);
           const definitionUri = pathToFileURL(absPath).toString();
 
+          // Resolve parent_symbol_id by walking the SCIP descriptor chain
+          // upward until we find a parent that was already inserted.
+          let parentLoreId: number | null = null;
+          let candidateScip = extractParentScipSymbol(symInfo.symbol);
+          while (candidateScip) {
+            const id = scipToLoreId.get(candidateScip);
+            if (id !== undefined) {
+              parentLoreId = id;
+              break;
+            }
+            candidateScip = extractParentScipSymbol(candidateScip);
+          }
+
           const info = insertSymbol.run(
             fileId, name, kind,
             defLoc.startLine, defLoc.endLine,
             signature || null, docComment,
             resolvedTypeSig, resolvedReturnType, definitionUri, absPath,
+            parentLoreId,
             layer, generation,
           ) as { lastInsertRowid: number | bigint };
           const loreId = Number(info.lastInsertRowid);
@@ -1539,4 +1683,5 @@ export {
   extractNameFromScipSymbol as _extractNameFromScipSymbol,
   extractParentTypeSymbol as _extractParentTypeSymbol,
   extractMethodDescriptor as _extractMethodDescriptor,
+  extractParentScipSymbol as _extractParentScipSymbol,
 };
