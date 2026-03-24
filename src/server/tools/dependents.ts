@@ -78,9 +78,10 @@ export interface DependentTarget {
 interface CallerEntry {
   caller_id: number;
   caller_name: string;
+  caller_parent_symbol_id?: number | null;
+  caller_parent_name?: string | null;
   caller_kind: string;
   caller_file: string;
-  enclosing_name?: string;
   line?: number;
   character?: number | null;
   resolution_method?: string;
@@ -89,9 +90,10 @@ interface CallerEntry {
 interface CompactCallerEntry {
   caller_id: number;
   caller_name: string;
+  caller_parent_symbol_id?: number | null;
+  caller_parent_name?: string | null;
   caller_kind: string;
   caller_file: string;
-  enclosing_name?: string;
 }
 
 interface ImporterEntry {
@@ -168,6 +170,7 @@ interface RawCallerRow {
   caller_name: string;
   caller_kind: string;
   caller_file: string;
+  caller_parent_symbol_id: number | null;
   enclosing_name: string | null;
   line: number;
   character: number | null;
@@ -226,6 +229,7 @@ function queryCallers(
               s.name AS caller_name,
               s.kind AS caller_kind,
               f.path AS caller_file,
+              s.parent_symbol_id AS caller_parent_symbol_id,
               sp.name AS enclosing_name,
               sr.call_line + 1 AS line,
               CASE WHEN sr.call_character IS NULL THEN NULL ELSE sr.call_character + 1 END AS character,
@@ -371,33 +375,31 @@ function getSymbolIdsInFiles(
 
 // ─── Compact helpers ──────────────────────────────────────────────────────────
 
-function formatCallerName(row: RawCallerRow): string {
-  return row.enclosing_name
-    ? `${row.caller_name} (in ${row.enclosing_name})`
-    : row.caller_name;
-}
-
 function compactCaller(row: RawCallerRow): CompactCallerEntry {
-  return {
+  const entry: CompactCallerEntry = {
     caller_id: row.caller_id,
-    caller_name: formatCallerName(row),
+    caller_name: row.caller_name,
     caller_kind: row.caller_kind,
     caller_file: row.caller_file,
-    ...(row.enclosing_name ? { enclosing_name: row.enclosing_name } : {}),
   };
+  if (row.caller_parent_symbol_id != null) entry.caller_parent_symbol_id = row.caller_parent_symbol_id;
+  if (row.enclosing_name != null) entry.caller_parent_name = row.enclosing_name;
+  return entry;
 }
 
 function fullCaller(row: RawCallerRow): CallerEntry {
-  return {
+  const entry: CallerEntry = {
     caller_id: row.caller_id,
-    caller_name: formatCallerName(row),
+    caller_name: row.caller_name,
     caller_kind: row.caller_kind,
     caller_file: row.caller_file,
-    ...(row.enclosing_name ? { enclosing_name: row.enclosing_name } : {}),
     line: row.line,
     character: row.character,
     resolution_method: row.resolution_method,
   };
+  if (row.caller_parent_symbol_id != null) entry.caller_parent_symbol_id = row.caller_parent_symbol_id;
+  if (row.enclosing_name != null) entry.caller_parent_name = row.enclosing_name;
+  return entry;
 }
 
 function compactImporter(row: RawImporterRow): CompactImporterEntry {

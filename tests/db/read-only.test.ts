@@ -77,6 +77,7 @@ function createTestDb(): Database.Database {
       definition_uri TEXT,
       definition_path TEXT,
       is_exported INTEGER NOT NULL DEFAULT 0,
+      parent_symbol_id INTEGER REFERENCES symbols(id) ON DELETE SET NULL,
       layer       TEXT    NOT NULL DEFAULT 'baseline',
       generation  INTEGER NOT NULL DEFAULT 0
     );
@@ -189,7 +190,8 @@ function createCoverageDb(): Database.Database {
       start_line  INTEGER NOT NULL,
       end_line    INTEGER NOT NULL,
       signature   TEXT,
-      doc_comment TEXT
+      doc_comment TEXT,
+      parent_symbol_id INTEGER REFERENCES symbols(id) ON DELETE SET NULL
     );
     CREATE TABLE commits (
       sha          TEXT    PRIMARY KEY,
@@ -720,7 +722,8 @@ describe('listResolvedEdges', () => {
         start_line INTEGER NOT NULL,
         end_line   INTEGER NOT NULL,
         signature  TEXT,
-        doc_comment TEXT
+        doc_comment TEXT,
+        parent_symbol_id INTEGER REFERENCES symbols(id) ON DELETE SET NULL
       );
       CREATE TABLE symbol_refs (
         id                  INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1596,7 +1599,8 @@ describe('getSymbolById', () => {
         end_line INTEGER NOT NULL,
         signature TEXT,
         doc_comment TEXT,
-        is_exported INTEGER NOT NULL DEFAULT 0
+        is_exported INTEGER NOT NULL DEFAULT 0,
+        parent_symbol_id INTEGER REFERENCES symbols(id) ON DELETE SET NULL
       );
       CREATE TABLE symbol_metrics (
         symbol_id   INTEGER PRIMARY KEY REFERENCES symbols(id) ON DELETE CASCADE,

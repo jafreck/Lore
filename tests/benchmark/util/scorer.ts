@@ -22,10 +22,17 @@ export function scoreRun(
 ): RunScore {
   const answer = trace.finalAnswer.toLowerCase();
 
-  // ── Answer coverage: fraction of expected answer parts found ──────────
-  const answerCoverage = computeCoverage(
-    task.expectedAnswerParts,
-    (part) => answer.includes(part.toLowerCase()),
+  // ── Correctness: fraction of expectedAnswer lines found ────────────────
+  // Split expectedAnswer on newlines; each non-empty line must appear as a
+  // case-insensitive substring in the agent's response. All lines are
+  // equally important. 1.0 means every expected line was present.
+  const expectedLines = task.expectedAnswer
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean);
+  const correctness = computeCoverage(
+    expectedLines,
+    (line) => lineMatches(line.toLowerCase(), answer),
   );
 
   // ── File coverage: fraction of expected files referenced ──────────────
@@ -59,16 +66,12 @@ export function scoreRun(
     },
   );
 
-  // ── Correctness: exact-match against canonical expected answer ─────────
-  const correctness = computeCorrectness(task.expectedAnswer, trace.finalAnswer);
-
-  // ── Task success: composite score ─────────────────────────────────────
-  // Timeouts are always scored as failures — the agent did not produce a
-  // final answer within the allotted time, regardless of partial coverage
-  // from intermediate tool-call results.
+  // ── Task success: binary pass/fail ────────────────────────────────────
+  // Success means no coverage metric fell below threshold. Timeouts always
+  // fail — the agent did not produce a final answer in time.
   const taskSuccess = trace.timedOut
     ? 0
-    : computeTaskSuccess(answerCoverage, fileCoverage, symbolCoverage);
+    : computeTaskSuccess(correctness, fileCoverage, symbolCoverage);
 
   // ── First-pass accuracy ───────────────────────────────────────────────
   const firstPassAccurate = computeFirstPassAccuracy(task, trace);
@@ -93,7 +96,6 @@ export function scoreRun(
     uniqueFilesRead: new Set(trace.filesRead).size,
     wallTimeMs,
     tokensUsed: trace.totalTokensEstimate,
-    answerCoverage,
     fileCoverage,
     symbolCoverage,
     loreToolCallCount: loreToolCalls.length,
@@ -113,30 +115,17 @@ function computeCoverage(
   return matched / expected.length;
 }
 
-function computeTaskSuccess(
-  answerCoverage: number,
-  fileCoverage: number,
-  symbolCoverage: number,
-): 0 | 0.5 | 1 {
-  // Weighted composite: answer parts matter most
-  const composite = answerCoverage * 0.5 + fileCoverage * 0.25 + symbolCoverage * 0.25;
-
-  if (composite >= 0.8) return 1;
-  if (composite >= 0.4) return 0.5;
-  return 0;
-}
-
 /**
- * Check whether a single expected-answer line matches the actual response.
+ * Check whether an expected-answer line matches the actual response.
  *
  * Lines containing " → " (arrow-delimited key → file-list) are matched
  * set-wise: the key must appear, and every expected file must appear
  * somewhere in the actual text, regardless of ordering or extra files.
- * Plain lines fall back to exact substring matching.
+ * Plain lines fall back to substring matching.
  *
  * Both arguments should already be lower-cased.
  */
-function arrowLineMatches(line: string, actual: string): boolean {
+function lineMatches(line: string, actual: string): boolean {
   const arrowIdx = line.indexOf(' → ');
   if (arrowIdx === -1) {
     return actual.includes(line);
@@ -152,25 +141,14 @@ function arrowLineMatches(line: string, actual: string): boolean {
   return expectedValues.every((v) => actual.includes(v));
 }
 
-/**
- * Compute correctness by checking how many expected-answer lines
- * appear in the agent's actual response (case-insensitive, trimmed).
- *
- * Returns a fraction 0–1.
- */
-function computeCorrectness(expectedAnswer: string, actualAnswer: string): number {
-  const toLines = (s: string) =>
-    s
-      .split('\n')
-      .map((l) => l.trim().toLowerCase())
-      .filter(Boolean);
-
-  const expectedLines = toLines(expectedAnswer);
-  if (expectedLines.length === 0) return 1;
-
-  const actual = actualAnswer.toLowerCase();
-  const matched = expectedLines.filter((line) => arrowLineMatches(line, actual)).length;
-  return matched / expectedLines.length;
+function computeTaskSuccess(
+  correctness: number,
+  fileCoverage: number,
+  symbolCoverage: number,
+): 0 | 1 {
+  // Success = no assertions failed. All coverage metrics must meet threshold.
+  if (correctness >= 0.8 && fileCoverage >= 0.6 && symbolCoverage >= 0.6) return 1;
+  return 0;
 }
 
 /**
@@ -213,14 +191,12 @@ export interface AggregateReport {
   arm: string;
   totalRuns: number;
   successRate: number;
-  partialRate: number;
   failRate: number;
   meanCorrectness: number;
   meanToolCalls: number;
   meanUniqueFiles: number;
   meanWallTimeMs: number;
   meanTokens: number;
-  meanAnswerCoverage: number;
   meanFileCoverage: number;
   meanSymbolCoverage: number;
   firstPassAccuracyRate: number;
@@ -237,7 +213,6 @@ export interface AggregateReport {
   stdToolCalls: number;
   stdWallTimeMs: number;
   stdTokens: number;
-  stdAnswerCoverage: number;
   stdFileCoverage: number;
   stdSymbolCoverage: number;
 }
@@ -252,14 +227,12 @@ export function aggregateScores(arm: string, scores: RunScore[]): AggregateRepor
       arm,
       totalRuns: 0,
       successRate: 0,
-      partialRate: 0,
       failRate: 0,
       meanCorrectness: 0,
       meanToolCalls: 0,
       meanUniqueFiles: 0,
       meanWallTimeMs: 0,
       meanTokens: 0,
-      meanAnswerCoverage: 0,
       meanFileCoverage: 0,
       meanSymbolCoverage: 0,
       firstPassAccuracyRate: 0,
@@ -271,14 +244,12 @@ export function aggregateScores(arm: string, scores: RunScore[]): AggregateRepor
       stdToolCalls: 0,
       stdWallTimeMs: 0,
       stdTokens: 0,
-      stdAnswerCoverage: 0,
       stdFileCoverage: 0,
       stdSymbolCoverage: 0,
     };
   }
 
   const successes = scores.filter((s) => s.taskSuccess === 1).length;
-  const partials = scores.filter((s) => s.taskSuccess === 0.5).length;
   const failures = scores.filter((s) => s.taskSuccess === 0).length;
   const allLoreTools = new Set<string>();
   const toolCounts: Record<string, number> = {};
@@ -293,14 +264,12 @@ export function aggregateScores(arm: string, scores: RunScore[]): AggregateRepor
     arm,
     totalRuns: n,
     successRate: successes / n,
-    partialRate: partials / n,
     failRate: failures / n,
     meanCorrectness: mean(scores.map((s) => s.correctness)),
     meanToolCalls: mean(scores.map((s) => s.toolCallCount)),
     meanUniqueFiles: mean(scores.map((s) => s.uniqueFilesRead)),
     meanWallTimeMs: mean(scores.map((s) => s.wallTimeMs)),
     meanTokens: mean(scores.map((s) => s.tokensUsed)),
-    meanAnswerCoverage: mean(scores.map((s) => s.answerCoverage)),
     meanFileCoverage: mean(scores.map((s) => s.fileCoverage)),
     meanSymbolCoverage: mean(scores.map((s) => s.symbolCoverage)),
     firstPassAccuracyRate: scores.filter((s) => s.firstPassAccurate).length / n,
@@ -312,7 +281,6 @@ export function aggregateScores(arm: string, scores: RunScore[]): AggregateRepor
     stdToolCalls: stddev(scores.map((s) => s.toolCallCount)),
     stdWallTimeMs: stddev(scores.map((s) => s.wallTimeMs)),
     stdTokens: stddev(scores.map((s) => s.tokensUsed)),
-    stdAnswerCoverage: stddev(scores.map((s) => s.answerCoverage)),
     stdFileCoverage: stddev(scores.map((s) => s.fileCoverage)),
     stdSymbolCoverage: stddev(scores.map((s) => s.symbolCoverage)),
   };
@@ -342,7 +310,6 @@ export function formatReport(report: AggregateReport): string {
     `Arm: ${report.arm}`,
     `  Runs: ${report.totalRuns}`,
     `  Success: ${(report.successRate * 100).toFixed(1)}%`,
-    `  Partial: ${(report.partialRate * 100).toFixed(1)}%`,
     `  Failed:  ${(report.failRate * 100).toFixed(1)}%`,
     `  Correctness: ${(report.meanCorrectness * 100).toFixed(1)}%${pctStd(report.meanCorrectness, report.stdCorrectness)}`,
     `  First-pass accuracy: ${(report.firstPassAccuracyRate * 100).toFixed(1)}%`,
@@ -350,7 +317,6 @@ export function formatReport(report: AggregateReport): string {
     `  Mean unique files: ${report.meanUniqueFiles.toFixed(1)}`,
     `  Mean wall time: ${(report.meanWallTimeMs / 1000).toFixed(1)}s${numStd(report.stdWallTimeMs / 1000, 's')}`,
     `  Mean tokens: ${report.meanTokens.toFixed(0)}${numStd(report.stdTokens)}`,
-    `  Answer coverage: ${(report.meanAnswerCoverage * 100).toFixed(1)}%${pctStd(report.meanAnswerCoverage, report.stdAnswerCoverage)}`,
     `  File coverage: ${(report.meanFileCoverage * 100).toFixed(1)}%${pctStd(report.meanFileCoverage, report.stdFileCoverage)}`,
     `  Symbol coverage: ${(report.meanSymbolCoverage * 100).toFixed(1)}%${pctStd(report.meanSymbolCoverage, report.stdSymbolCoverage)}`,
     `  Lore tool calls: ${report.meanLoreToolCalls.toFixed(1)} (${(report.loreToolUsageRate * 100).toFixed(0)}% of runs)`,
@@ -492,7 +458,6 @@ export function compareReports(baseline: AggregateReport, treatment: AggregateRe
     `  Success rate: ${diff(baseline.successRate, treatment.successRate)}`,
     `  Correctness: ${diff(baseline.meanCorrectness, treatment.meanCorrectness)}`,
     `  First-pass accuracy: ${diff(baseline.firstPassAccuracyRate, treatment.firstPassAccuracyRate)}`,
-    `  Answer coverage: ${diff(baseline.meanAnswerCoverage, treatment.meanAnswerCoverage)}`,
     `  Tool calls: ${(treatment.meanToolCalls - baseline.meanToolCalls).toFixed(1)} (${treatment.meanToolCalls.toFixed(1)} vs ${baseline.meanToolCalls.toFixed(1)})`,
     `  Tokens: ${tokenDelta >= 0 ? '+' : ''}${tokenDelta.toFixed(0)} (${pctDelta(baseline.meanTokens, treatment.meanTokens)})`,
     `  Wall time: ${wallDelta >= 0 ? '+' : ''}${(wallDelta / 1000).toFixed(1)}s (${pctDelta(baseline.meanWallTimeMs, treatment.meanWallTimeMs)})`,
@@ -533,28 +498,21 @@ export function formatToolFrequency(calls: ToolCallRecord[]): string {
     .join(', ');
 }
 
-/** Identify which expected parts matched / missed in the final answer. */
+/** Identify which expected answer lines matched / missed in the final answer. */
 export function diagnoseExpectations(
   task: BenchmarkTask,
   trace: AgentTrace,
-): { matched: string[]; missed: string[]; correctnessDetail: { matched: string[]; missed: string[] } } {
+): { matched: string[]; missed: string[] } {
   const answer = trace.finalAnswer.toLowerCase();
-
-  const matched = task.expectedAnswerParts.filter((p) => answer.includes(p.toLowerCase()));
-  const missed = task.expectedAnswerParts.filter((p) => !answer.includes(p.toLowerCase()));
 
   const expectedLines = task.expectedAnswer
     .split('\n')
     .map((l) => l.trim())
     .filter(Boolean);
-  const correctnessMatched = expectedLines.filter((l) => arrowLineMatches(l.toLowerCase(), answer));
-  const correctnessMissed = expectedLines.filter((l) => !arrowLineMatches(l.toLowerCase(), answer));
+  const matched = expectedLines.filter((l) => lineMatches(l.toLowerCase(), answer));
+  const missed = expectedLines.filter((l) => !lineMatches(l.toLowerCase(), answer));
 
-  return {
-    matched,
-    missed,
-    correctnessDetail: { matched: correctnessMatched, missed: correctnessMissed },
-  };
+  return { matched, missed };
 }
 
 /** Truncate a string to maxLen, appending "…" if truncated. */
@@ -573,7 +531,6 @@ export interface StructuredTaskResult {
     loreToolArgs?: string;
     answer: string;
     missedParts: string[];
-    missedAnswerLines: string[];
   };
   lore: {
     score: RunScore;
@@ -581,7 +538,6 @@ export interface StructuredTaskResult {
     loreToolArgs: string;
     answer: string;
     missedParts: string[];
-    missedAnswerLines: string[];
   };
   delta: {
     correctness: number;
@@ -614,7 +570,6 @@ export interface StructuredBenchmarkReport {
       successRateDelta: number;
       correctnessDelta: number;
       firstPassAccuracyDelta: number;
-      answerCoverageDelta: number;
       toolCallsDelta: number;
       tokensDelta: number;
       tokensPct: number | null;
@@ -647,7 +602,7 @@ export function buildStructuredTaskResult(
   const wallPct = controlScore.wallTimeMs ? (wallDelta / controlScore.wallTimeMs) * 100 : null;
   const warnings: string[] = [];
   if (loreScore.correctness < controlScore.correctness) {
-    warnings.push(`lore worse on correctness — missed: [${loreDiag.correctnessDetail.missed.join(', ')}]`);
+    warnings.push(`lore worse on correctness — missed: [${loreDiag.missed.join(', ')}]`);
   }
   if (loreScore.tokensUsed > controlScore.tokensUsed * 1.5) {
     warnings.push('lore 50%+ more tokens');
@@ -665,7 +620,6 @@ export function buildStructuredTaskResult(
       tools: formatToolFrequency(controlTrace.toolCalls),
       answer: truncate(controlTrace.finalAnswer.replace(/\n/g, ' '), 300),
       missedParts: controlDiag.missed,
-      missedAnswerLines: controlDiag.correctnessDetail.missed,
     },
     lore: {
       score: loreScore,
@@ -673,7 +627,6 @@ export function buildStructuredTaskResult(
       loreToolArgs: formatLoreToolArgs(loreTrace.toolCalls),
       answer: truncate(loreTrace.finalAnswer.replace(/\n/g, ' '), 300),
       missedParts: loreDiag.missed,
-      missedAnswerLines: loreDiag.correctnessDetail.missed,
     },
     delta: {
       correctness: loreScore.correctness - controlScore.correctness,
@@ -699,7 +652,6 @@ export function buildStructuredReport(
     successRateDelta: loreReport.successRate - controlReport.successRate,
     correctnessDelta: loreReport.meanCorrectness - controlReport.meanCorrectness,
     firstPassAccuracyDelta: loreReport.firstPassAccuracyRate - controlReport.firstPassAccuracyRate,
-    answerCoverageDelta: loreReport.meanAnswerCoverage - controlReport.meanAnswerCoverage,
     toolCallsDelta: loreReport.meanToolCalls - controlReport.meanToolCalls,
     tokensDelta: tokenDelta,
     tokensPct: controlReport.meanTokens ? (tokenDelta / controlReport.meanTokens) * 100 : null,

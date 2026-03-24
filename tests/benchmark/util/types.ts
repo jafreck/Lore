@@ -141,14 +141,9 @@ export interface BenchmarkTask {
   /** Category from the benchmark-questions catalog, e.g. "1.1", "11.3". */
   questionId?: string;
   /**
-   * Expected answer components for automatic scoring.
-   * Each entry is a string that should appear in the agent's output.
-   */
-  expectedAnswerParts: string[];
-  /**
-   * The canonical correct answer for exact-match correctness scoring.
-   * Prompts should instruct the agent to respond in this exact format
-   * (e.g., "Answer with only the count as a single integer").
+   * Canonical expected answer (newline-separated lines).
+   * Each line is a case-insensitive substring that must appear in the
+   * agent's response. All lines are equally important.
    */
   expectedAnswer: string;
   /**
@@ -216,11 +211,11 @@ export interface BenchmarkAgent {
 // ─── Scoring ──────────────────────────────────────────────────────────────────
 
 export interface RunScore {
-  /** 0 = failed, 0.5 = partial, 1 = success. */
-  taskSuccess: 0 | 0.5 | 1;
+  /** 0 = at least one coverage metric failed, 1 = all passed. */
+  taskSuccess: 0 | 1;
   /**
-   * Exact-match correctness score (0–1).
-   * 1 when the agent's normalised answer matches the canonical expected answer.
+   * Correctness score (0–1): fraction of expectedAnswer lines found in
+   * the agent's response. 1 means all expected parts were present.
    */
   correctness: number;
   /** Whether the first referenced file/symbol was correct. */
@@ -233,8 +228,6 @@ export interface RunScore {
   wallTimeMs: number;
   /** Estimated token usage. */
   tokensUsed: number;
-  /** Matched expected answer parts (fraction 0–1). */
-  answerCoverage: number;
   /** Matched expected files (fraction 0–1). */
   fileCoverage: number;
   /** Matched expected symbols (fraction 0–1). */
