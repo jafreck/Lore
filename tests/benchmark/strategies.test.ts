@@ -162,15 +162,15 @@ describe('buildLoreStrategy', () => {
     expect(toolNames).toContain('lore_graph');
   });
 
-  it('should use lore_graph for cycle detection questions (8.1)', () => {
+  it('should use lore_cohesion for directory cohesion questions (8.1)', () => {
     const task = makeTask({
       questionId: '8.1',
-      prompt: 'Are there any circular dependencies between source files?',
-      family: 'explanation',
+      prompt: 'Rank the top-level directories by module cohesion.',
+      family: 'coverage',
     });
     const strategy = buildLoreStrategy(task);
     const toolNames = strategy.steps.map((s) => s.toolName);
-    expect(toolNames).toContain('lore_graph');
+    expect(toolNames).toContain('lore_cohesion');
   });
 
   it('should use lore_search for symbol search questions (7.2)', () => {
