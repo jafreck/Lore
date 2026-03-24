@@ -132,7 +132,7 @@ describe.skipIf(SKIP)('Benchmark integration: Lore self-evaluation', () => {
     expect(loreReport.totalRuns).toBe(LORE_SELF_TASKS.length);
     expect(loreDynReport.totalRuns).toBe(LORE_SELF_TASKS.length);
 
-    // The dynamic Lore arm should have some answer coverage (tools return real data)
-    expect(loreDynReport.meanAnswerCoverage).toBeGreaterThanOrEqual(0);
+    // The dynamic Lore arm should have some correctness (tools return real data)
+    expect(loreDynReport.meanCorrectness).toBeGreaterThanOrEqual(0);
   });
 });

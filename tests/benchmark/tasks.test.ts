@@ -27,7 +27,7 @@ describe('LORE_SELF_TASKS', () => {
 
   it('should have at least one expected answer part', () => {
     for (const task of LORE_SELF_TASKS) {
-      expect(task.expectedAnswerParts.length).toBeGreaterThan(0);
+      expect(task.expectedAnswer.length).toBeGreaterThan(0);
     }
   });
 

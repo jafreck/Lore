@@ -76,6 +76,9 @@ const INDEX_MODE = (process.env['BENCHMARK_INDEX_MODE'] ?? 'scip') as 'tree-sitt
 const EMBEDDING_MODEL = process.env['BENCHMARK_EMBEDDING_MODEL'] ?? '';
 const ENABLE_LSP = process.env['BENCHMARK_LSP'] === '1';
 
+// Arm filter: BENCHMARK_ARM=control or BENCHMARK_ARM=lore to run only one arm
+const ARM_FILTER = process.env['BENCHMARK_ARM'] as 'control' | 'lore' | undefined;
+
 // ─── Per-task result storage (Map-based for concurrent safety) ────────────────
 
 interface TaskResult {
@@ -91,14 +94,13 @@ const loreResults = new Map<string, TaskResult>();
 function logArmResult(arm: string, task: BenchmarkTask, score: RunScore, trace: AgentTrace): void {
   const diag = diagnoseExpectations(task, trace);
   const prefix = arm === 'control' ? '[control]' : '[lore]   ';
-  console.log(`${prefix} ${task.id}: success=${score.taskSuccess} correctness=${score.correctness.toFixed(2)} ans_cov=${score.answerCoverage.toFixed(2)} file_cov=${score.fileCoverage.toFixed(2)} sym_cov=${score.symbolCoverage.toFixed(2)} tokens=${score.tokensUsed} wall=${(score.wallTimeMs / 1000).toFixed(1)}s`);
+  console.log(`${prefix} ${task.id}: success=${score.taskSuccess} correctness=${score.correctness.toFixed(2)} file_cov=${score.fileCoverage.toFixed(2)} sym_cov=${score.symbolCoverage.toFixed(2)} tokens=${score.tokensUsed} wall=${(score.wallTimeMs / 1000).toFixed(1)}s`);
   console.log(`  tools: ${formatToolFrequency(trace.toolCalls)}`);
   if (arm === 'lore-enabled') {
     console.log(`  lore calls: ${formatLoreToolArgs(trace.toolCalls)}`);
   }
   console.log(`  answer: ${truncate(trace.finalAnswer.replace(/\n/g, ' '), 300)}`);
   if (diag.missed.length > 0) console.log(`  MISSED parts: [${diag.missed.join(', ')}]`);
-  if (diag.correctnessDetail.missed.length > 0) console.log(`  MISSED answer lines: [${diag.correctnessDetail.missed.join(', ')}]`);
 }
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
@@ -144,51 +146,46 @@ describe.skipIf(SKIP)(`Copilot agent benchmark: ${TARGET_REPO}`, () => {
       const iterLabel = ITERATIONS > 1 ? ` [iter ${iter + 1}]` : '';
       const resultKey = `${task.id}:${iter}`;
 
-      it.concurrent(`${task.id}${iterLabel}: control + lore-enabled arms`, async () => {
-        // Run both arms concurrently — they are independent copilot CLI processes
-        const [controlTrace, loreTrace] = await Promise.all([
-          (async () => {
-            const startPerf = performance.now();
-            const trace = await runCopilotAgent(task, 'control', repoPath, undefined, COPILOT_OPTIONS);
-            const wallTimeMs = Math.round(performance.now() - startPerf);
-            return { trace, wallTimeMs };
-          })(),
-          (async () => {
-            const startPerf = performance.now();
-            const trace = await runCopilotAgent(task, 'lore-enabled', repoPath, dbPath, COPILOT_OPTIONS);
-            const wallTimeMs = Math.round(performance.now() - startPerf);
-            return { trace, wallTimeMs };
-          })(),
-        ]);
+      it.concurrent(`${task.id}${iterLabel}: ${ARM_FILTER ?? 'control + lore-enabled'} arms`, async () => {
+        const runControl = !ARM_FILTER || ARM_FILTER === 'control';
+        const runLore = !ARM_FILTER || ARM_FILTER === 'lore';
 
-        // ── Score both arms and store results BEFORE assertions ────────────
-        // This ensures data is always captured in the aggregate report even
-        // when a soft expectation fails (e.g. loreToolsCalled empty).
-        const controlScore = scoreRun(task, controlTrace.trace, controlTrace.wallTimeMs);
-        const loreScore = scoreRun(task, loreTrace.trace, loreTrace.wallTimeMs);
+        const runArm = async (arm: 'control' | 'lore-enabled', db?: string) => {
+          const startPerf = performance.now();
+          const trace = await runCopilotAgent(task, arm, repoPath, db, COPILOT_OPTIONS);
+          const wallTimeMs = Math.round(performance.now() - startPerf);
+          return { trace, wallTimeMs };
+        };
 
-        controlResults.set(resultKey, { score: controlScore, trace: controlTrace.trace });
-        loreResults.set(resultKey, { score: loreScore, trace: loreTrace.trace });
+        const controlResult = runControl ? await runArm('control') : undefined;
+        const loreResult = runLore ? await runArm('lore-enabled', dbPath) : undefined;
 
-        logArmResult('control', task, controlScore, controlTrace.trace);
-        logArmResult('lore-enabled', task, loreScore, loreTrace.trace);
+        if (controlResult) {
+          const controlScore = scoreRun(task, controlResult.trace, controlResult.wallTimeMs);
+          controlResults.set(resultKey, { score: controlScore, trace: controlResult.trace });
+          logArmResult('control', task, controlScore, controlResult.trace);
 
-        // ── Validate control arm ────────────────────────────────────────────
-        expect(controlTrace.trace.finalAnswer.length).toBeGreaterThan(0);
-        expect(controlTrace.trace.loreToolsCalled).toHaveLength(0);
-        expect(controlScore.wallTimeMs).toBeGreaterThan(0);
-        expect(controlScore.tokensUsed).toBeGreaterThan(0);
-        expect(controlScore.correctness).toBeGreaterThanOrEqual(0);
-        expect(controlScore.correctness).toBeLessThanOrEqual(1);
+          expect(controlResult.trace.finalAnswer.length).toBeGreaterThan(0);
+          expect(controlResult.trace.loreToolsCalled).toHaveLength(0);
+          expect(controlScore.wallTimeMs).toBeGreaterThan(0);
+          expect(controlScore.tokensUsed).toBeGreaterThan(0);
+          expect(controlScore.correctness).toBeGreaterThanOrEqual(0);
+          expect(controlScore.correctness).toBeLessThanOrEqual(1);
+        }
 
-        // ── Validate lore-enabled arm ───────────────────────────────────────
-        expect(loreTrace.trace.finalAnswer.length).toBeGreaterThan(0);
-        expect(loreTrace.trace.loreToolsCalled.length).toBeGreaterThan(0);
-        expect(loreScore.wallTimeMs).toBeGreaterThan(0);
-        expect(loreScore.tokensUsed).toBeGreaterThan(0);
-        expect(loreScore.correctness).toBeGreaterThanOrEqual(0);
-        expect(loreScore.correctness).toBeLessThanOrEqual(1);
-        expect(loreScore.loreToolCallCount).toBeGreaterThan(0);
+        if (loreResult) {
+          const loreScore = scoreRun(task, loreResult.trace, loreResult.wallTimeMs);
+          loreResults.set(resultKey, { score: loreScore, trace: loreResult.trace });
+          logArmResult('lore-enabled', task, loreScore, loreResult.trace);
+
+          expect(loreResult.trace.finalAnswer.length).toBeGreaterThan(0);
+          expect(loreResult.trace.loreToolsCalled.length).toBeGreaterThan(0);
+          expect(loreScore.wallTimeMs).toBeGreaterThan(0);
+          expect(loreScore.tokensUsed).toBeGreaterThan(0);
+          expect(loreScore.correctness).toBeGreaterThanOrEqual(0);
+          expect(loreScore.correctness).toBeLessThanOrEqual(1);
+          expect(loreScore.loreToolCallCount).toBeGreaterThan(0);
+        }
       }, ARM_TIMEOUT_MS * 2 + 60_000); // vitest timeout: both arms + 1 min buffer
     }
   }
@@ -208,8 +205,35 @@ describe.skipIf(SKIP)(`Copilot agent benchmark: ${TARGET_REPO}`, () => {
         const key = `${task.id}:${iter}`;
         const cr = controlResults.get(key);
         const lr = loreResults.get(key);
+        const iterLabel = ITERATIONS > 1 ? ` [iter ${iter + 1}]` : '';
+
+        // In single-arm mode, only require that arm's result
+        if (ARM_FILTER === 'control') {
+          if (!cr) {
+            console.log(`\n── ${task.id}${iterLabel} (${task.family}) ── SKIPPED (no result captured)`);
+            continue;
+          }
+          controlScores.push(cr.score);
+          console.log(`\n── ${task.id}${iterLabel} (${task.family}) ──`);
+          console.log(`  CONTROL: success=${cr.score.taskSuccess} correctness=${cr.score.correctness.toFixed(2)} file=${cr.score.fileCoverage.toFixed(2)} sym=${cr.score.symbolCoverage.toFixed(2)} tokens=${cr.score.tokensUsed} wall=${(cr.score.wallTimeMs / 1000).toFixed(1)}s`);
+          console.log(`    tools: ${formatToolFrequency(cr.trace.toolCalls)}`);
+          continue;
+        }
+
+        if (ARM_FILTER === 'lore') {
+          if (!lr) {
+            console.log(`\n── ${task.id}${iterLabel} (${task.family}) ── SKIPPED (no result captured)`);
+            continue;
+          }
+          loreScores.push(lr.score);
+          console.log(`\n── ${task.id}${iterLabel} (${task.family}) ──`);
+          console.log(`  LORE:    success=${lr.score.taskSuccess} correctness=${lr.score.correctness.toFixed(2)} file=${lr.score.fileCoverage.toFixed(2)} sym=${lr.score.symbolCoverage.toFixed(2)} tokens=${lr.score.tokensUsed} wall=${(lr.score.wallTimeMs / 1000).toFixed(1)}s`);
+          console.log(`    tools: ${formatToolFrequency(lr.trace.toolCalls)}`);
+          continue;
+        }
+
+        // Both-arm mode
         if (!cr || !lr) {
-          const iterLabel = ITERATIONS > 1 ? ` [iter ${iter + 1}]` : '';
           console.log(`\n── ${task.id}${iterLabel} (${task.family}) ── SKIPPED (no result captured)`);
           continue;
         }
@@ -222,21 +246,20 @@ describe.skipIf(SKIP)(`Copilot agent benchmark: ${TARGET_REPO}`, () => {
         );
         structuredTasks.push(structuredTask);
 
-        const iterLabel = ITERATIONS > 1 ? ` [iter ${iter + 1}]` : '';
         const tokenDelta = lr.score.tokensUsed - cr.score.tokensUsed;
         const tokenPct = cr.score.tokensUsed ? ((tokenDelta / cr.score.tokensUsed) * 100).toFixed(0) : 'N/A';
         const wallDelta = lr.score.wallTimeMs - cr.score.wallTimeMs;
         const wallPct = cr.score.wallTimeMs ? ((wallDelta / cr.score.wallTimeMs) * 100).toFixed(0) : 'N/A';
         const correctDelta = lr.score.correctness - cr.score.correctness;
         console.log(`\n── ${task.id}${iterLabel} (${task.family}) ──`);
-        console.log(`  CONTROL: success=${cr.score.taskSuccess} correctness=${cr.score.correctness.toFixed(2)} ans=${cr.score.answerCoverage.toFixed(2)} file=${cr.score.fileCoverage.toFixed(2)} sym=${cr.score.symbolCoverage.toFixed(2)} tokens=${cr.score.tokensUsed} wall=${(cr.score.wallTimeMs / 1000).toFixed(1)}s`);
+        console.log(`  CONTROL: success=${cr.score.taskSuccess} correctness=${cr.score.correctness.toFixed(2)} file=${cr.score.fileCoverage.toFixed(2)} sym=${cr.score.symbolCoverage.toFixed(2)} tokens=${cr.score.tokensUsed} wall=${(cr.score.wallTimeMs / 1000).toFixed(1)}s`);
         console.log(`    tools: ${formatToolFrequency(cr.trace.toolCalls)}`);
-        console.log(`  LORE:    success=${lr.score.taskSuccess} correctness=${lr.score.correctness.toFixed(2)} ans=${lr.score.answerCoverage.toFixed(2)} file=${lr.score.fileCoverage.toFixed(2)} sym=${lr.score.symbolCoverage.toFixed(2)} tokens=${lr.score.tokensUsed} wall=${(lr.score.wallTimeMs / 1000).toFixed(1)}s`);
+        console.log(`  LORE:    success=${lr.score.taskSuccess} correctness=${lr.score.correctness.toFixed(2)} file=${lr.score.fileCoverage.toFixed(2)} sym=${lr.score.symbolCoverage.toFixed(2)} tokens=${lr.score.tokensUsed} wall=${(lr.score.wallTimeMs / 1000).toFixed(1)}s`);
         console.log(`    tools: ${formatToolFrequency(lr.trace.toolCalls)}`);
         console.log(`  DELTA:   correctness=${correctDelta >= 0 ? '+' : ''}${correctDelta.toFixed(2)}  tokens=${tokenDelta > 0 ? '+' : ''}${tokenDelta} (${tokenDelta > 0 ? '+' : ''}${tokenPct}%)  wall=${wallDelta > 0 ? '+' : ''}${(wallDelta / 1000).toFixed(1)}s (${wallDelta > 0 ? '+' : ''}${wallPct}%)`);
         if (lr.score.correctness < cr.score.correctness) {
           const loreDiag = diagnoseExpectations(task, lr.trace);
-          console.log(`  ⚠ LORE WORSE on correctness — missed: [${loreDiag.correctnessDetail.missed.join(', ')}]`);
+          console.log(`  ⚠ LORE WORSE on correctness — missed: [${loreDiag.missed.join(', ')}]`);
         }
         if (lr.score.tokensUsed > cr.score.tokensUsed * 1.5) {
           console.log(`  ⚠ LORE 50%+ MORE TOKENS — review tool strategy`);
@@ -247,17 +270,35 @@ describe.skipIf(SKIP)(`Copilot agent benchmark: ${TARGET_REPO}`, () => {
       }
     }
 
-    // Always print the report, even with partial results
-    if (controlScores.length > 0 && loreScores.length > 0) {
+    console.log('\n\n═══════════════════════════════════════');
+    console.log('         BENCHMARK RESULTS');
+    console.log('═══════════════════════════════════════\n');
+    console.log(`Model: ${COPILOT_OPTIONS.model}`);
+    console.log(`Tasks: ${COPILOT_TASKS.length}`);
+    console.log(`Iterations: ${ITERATIONS}`);
+    console.log(`Arm filter: ${ARM_FILTER ?? 'both'}`);
+
+    // Single-arm mode: report only the requested arm
+    if (ARM_FILTER === 'control' && controlScores.length > 0) {
+      const controlReport = aggregateScores('control', controlScores);
+      console.log(`Completed runs: ${controlScores.length}/${totalExpectedRuns}\n`);
+      console.log(formatReport(controlReport));
+      expect(controlReport.totalRuns).toBe(totalExpectedRuns);
+      expect(controlReport.meanWallTimeMs).toBeGreaterThan(0);
+      expect(controlReport.meanTokens).toBeGreaterThan(0);
+    } else if (ARM_FILTER === 'lore' && loreScores.length > 0) {
+      const loreReport = aggregateScores('lore-enabled', loreScores);
+      console.log(`Completed runs: ${loreScores.length}/${totalExpectedRuns}\n`);
+      console.log(formatReport(loreReport));
+      expect(loreReport.totalRuns).toBe(totalExpectedRuns);
+      expect(loreReport.loreToolUsageRate).toBeGreaterThan(0);
+      expect(loreReport.meanWallTimeMs).toBeGreaterThan(0);
+      expect(loreReport.meanTokens).toBeGreaterThan(0);
+    } else if (controlScores.length > 0 && loreScores.length > 0) {
+      // Both-arm comparison mode
       const controlReport = aggregateScores('control', controlScores);
       const loreReport = aggregateScores('lore-enabled', loreScores);
 
-      console.log('\n\n═══════════════════════════════════════');
-      console.log('         BENCHMARK RESULTS');
-      console.log('═══════════════════════════════════════\n');
-      console.log(`Model: ${COPILOT_OPTIONS.model}`);
-      console.log(`Tasks: ${COPILOT_TASKS.length}`);
-      console.log(`Iterations: ${ITERATIONS}`);
       console.log(`Completed runs: ${controlScores.length}/${totalExpectedRuns}\n`);
       console.log(formatReport(controlReport));
       console.log('\n' + formatReport(loreReport));
@@ -298,8 +339,8 @@ describe.skipIf(SKIP)(`Copilot agent benchmark: ${TARGET_REPO}`, () => {
       expect(controlReport.meanCorrectness).toBeGreaterThanOrEqual(0);
       expect(loreReport.meanCorrectness).toBeGreaterThanOrEqual(0);
     } else {
-      console.log('\n⚠ No completed task pairs to report on.\n');
-      expect(controlScores.length).toBeGreaterThan(0);
+      console.log('\n⚠ No completed runs to report on.\n');
+      expect(controlScores.length + loreScores.length).toBeGreaterThan(0);
     }
   });
 });

@@ -93,7 +93,6 @@ describe('renderPrompt', () => {
     symbol: 'openDb',
     file: 'src/db/schema.ts',
     expectedAnswer: 'build\nupdate',
-    expectedAnswerParts: ['build', 'update'],
   };
 
   const repo: RepoContext = {

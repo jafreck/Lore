@@ -27,7 +27,6 @@ function makeTask(): BenchmarkTask {
     family: 'localization',
     prompt: 'Find the main entry point.',
     expectedAnswer: 'main\nindex.ts',
-    expectedAnswerParts: ['main', 'index.ts'],
   };
 }
 
