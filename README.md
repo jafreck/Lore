@@ -1,3 +1,5 @@
+<div align="center">
+
 # Lore
 
 [![CI](https://github.com/jafreck/Lore/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/jafreck/Lore/actions/workflows/ci.yml)
@@ -7,9 +9,11 @@
 [![Node.js](https://img.shields.io/badge/node-%3E%3D22.0.0-brightgreen)](https://nodejs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9+-blue)](https://www.typescriptlang.org)
 
+</div>
+
 **The teammate that knows it all** 
 
-Lore holds your agent's institutional knowledge over the codebase — it knows what was built, why it changed, and how it all connects. Lore indexes your code and git history into a structured knowledge base that agents query through MCP. It maps symbols, imports, call relationships, type relationships, annotations, docs, and all git data — with optional embeddings for semantic search — so agents can reason about your codebase without re-reading it from scratch.
+Lore holds the structural knowledge over the codebase in memory so your agent doesn't have to. Lore indexes your code into a structured knowledge base that agents query through MCP. It fully maps symbols, imports, call relationships, type relationships, annotations, docs, and all git data — with optional embeddings for semantic search — so agents can reason about your codebase without re-reading it from scratch.
 
 Lore-enabled agents achieve up to **+7.5pp higher correctness**, up to **48% fewer tokens**, and up to **22% faster wall-clock time** compared to a baseline agent with grep and file reads alone. See the [full benchmark results](docs/benchmark-results.md) for details.
 
