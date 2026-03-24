@@ -59,7 +59,19 @@ const ITERATIONS = Math.max(1, parseInt(process.env['BENCHMARK_ITERATIONS'] ?? '
 // Target repo: override with BENCHMARK_REPO=esbuild (etc.), default lore-self
 const TARGET_REPO = process.env['BENCHMARK_REPO'] ?? 'lore-self';
 const repoSpec = PILOT_REPOS.find((r) => r.name === TARGET_REPO)!;
-const COPILOT_TASKS = getTasksForRepo(TARGET_REPO);
+
+// Optional question filter: BENCHMARK_QUESTION=6.1 or BENCHMARK_QUESTION=1.1,1.2
+const QUESTION_FILTER = process.env['BENCHMARK_QUESTION']?.split(',').map((q) => q.trim()).filter(Boolean) ?? [];
+const COPILOT_TASKS = (() => {
+  const all = getTasksForRepo(TARGET_REPO);
+  if (QUESTION_FILTER.length === 0) return all;
+  const filtered = all.filter((t) => t.questionId && QUESTION_FILTER.includes(t.questionId));
+  if (filtered.length === 0) {
+    console.warn(`⚠ BENCHMARK_QUESTION=${process.env['BENCHMARK_QUESTION']} matched no tasks for ${TARGET_REPO}`);
+  }
+  return filtered;
+})();
+
 const INDEX_MODE = (process.env['BENCHMARK_INDEX_MODE'] ?? 'scip') as 'tree-sitter' | 'scip' | 'full';
 const EMBEDDING_MODEL = process.env['BENCHMARK_EMBEDDING_MODEL'] ?? '';
 const ENABLE_LSP = process.env['BENCHMARK_LSP'] === '1';
