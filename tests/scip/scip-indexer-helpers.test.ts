@@ -19,6 +19,7 @@ import {
   _inferLoreLanguage as inferLoreLanguage,
   _classifyScipReference as classifyScipReference,
   _extractNameFromScipSymbol as extractNameFromScipSymbol,
+  _extractParentScipSymbol as extractParentScipSymbol,
 } from '../../src/indexer/stages/scip-indexer.js';
 
 // ─── estimateSymbolEndLine ──────────────────────────────────────────────────
@@ -600,5 +601,63 @@ describe('extractNameFromScipSymbol', () => {
 
   it('strips backtick escaping', () => {
     expect(extractNameFromScipSymbol('scip-typescript npm pkg 1.0 src/`special-name`.')).toBe('special-name');
+  });
+});
+
+// ─── extractParentScipSymbol ────────────────────────────────────────────────
+
+describe('extractParentScipSymbol', () => {
+  it('returns class for a method', () => {
+    expect(extractParentScipSymbol('scip-typescript npm pkg 1.0 src/`file.ts`/MyClass#myMethod().')).toBe(
+      'scip-typescript npm pkg 1.0 src/`file.ts`/MyClass#',
+    );
+  });
+
+  it('returns namespace for a class', () => {
+    expect(extractParentScipSymbol('scip-typescript npm pkg 1.0 src/`file.ts`/MyClass#')).toBe(
+      'scip-typescript npm pkg 1.0 src/`file.ts`/',
+    );
+  });
+
+  it('returns namespace for a top-level term', () => {
+    expect(extractParentScipSymbol('scip-typescript npm pkg 1.0 src/`file.ts`/myVar.')).toBe(
+      'scip-typescript npm pkg 1.0 src/`file.ts`/',
+    );
+  });
+
+  it('returns null for local symbols', () => {
+    expect(extractParentScipSymbol('local 42')).toBeNull();
+  });
+
+  it('returns null for empty string', () => {
+    expect(extractParentScipSymbol('')).toBeNull();
+  });
+
+  it('returns null for single descriptor (top-level namespace)', () => {
+    expect(extractParentScipSymbol('scip-typescript npm pkg 1.0 src/')).toBeNull();
+  });
+
+  it('handles Java nested class with method', () => {
+    expect(extractParentScipSymbol('scip-java maven com.fasterxml 2.17 com/fasterxml/jackson/BeanSerializer#serialize().')).toBe(
+      'scip-java maven com.fasterxml 2.17 com/fasterxml/jackson/BeanSerializer#',
+    );
+  });
+
+  it('handles Go package-level function', () => {
+    expect(extractParentScipSymbol('scip-go gomod github.com/esbuild/esbuild v0.19 internal/bundler/bundler.go/parseFile().')).toBe(
+      'scip-go gomod github.com/esbuild/esbuild v0.19 internal/bundler/bundler.go/',
+    );
+  });
+
+  it('handles disambiguated method', () => {
+    expect(extractParentScipSymbol('scip-java maven pkg 1.0 com/Foo#bar(+1).')).toBe(
+      'scip-java maven pkg 1.0 com/Foo#',
+    );
+  });
+
+  it('handles meta descriptor (property ending with :)', () => {
+    expect(extractParentScipSymbol('scip-typescript npm pkg 1.0 src/`file.ts`/MyClass#myProp:')).toBe(
+      'scip-typescript npm pkg 1.0 src/`file.ts`/MyClass#',
+    );
   });
 });

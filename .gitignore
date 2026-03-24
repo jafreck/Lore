@@ -9,3 +9,4 @@ coverage/
 .benchmark/
 /.benchmark-results/
 .autoresearch/
+index.scip
