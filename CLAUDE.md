@@ -8,7 +8,7 @@ Lore is a code intelligence tool that enables AI agents and API consumers to und
 
 - **Correctness**: Pre-resolved symbols, call graphs, type relationships, and import edges give agents accurate structural facts rather than heuristic guesses.
 - **Scale**: Lore indexes entire repositories — across 23 languages — into a compact database that agents query surgically, avoiding full-file reads.
-- **Efficiency**: Across 6 benchmark repos (390 runs), Lore-enabled agents achieve up to +7.5pp higher correctness, up to 48% fewer tokens, and up to 22% faster wall-clock time compared to grep + file-read baselines.
+- **Efficiency**: Across 6 benchmark repos (390 runs), Lore-enabled agents achieve up to +10pp higher correctness, up to 84% fewer tokens, and up to 62% faster wall-clock time compared to grep + file-read baselines.
 
 ### How It Works
 
