@@ -962,14 +962,14 @@ export class ScipIndexerStage implements PipelineStage {
     let resolvedIndexers = resolveScipIndexerRegistry(settings.indexers);
     const log = getLogger();
 
-    // Check if any indexers are available; if not, try auto-installing
+    // Auto-install missing indexers for languages that need them.
     const requestedLanguages = staleLanguages ?? new Set(Object.keys(resolvedIndexers));
-    const hasAvailable = [...requestedLanguages].some(
-      (lang) => resolvedIndexers[lang]?.available,
+    const missingLanguages = [...requestedLanguages].filter(
+      (lang) => !resolvedIndexers[lang]?.available,
     );
-    if (!hasAvailable) {
+    if (missingLanguages.length > 0) {
       const attempted = new Set<string>();
-      for (const lang of requestedLanguages) {
+      for (const lang of missingLanguages) {
         for (const spec of getSpecsForLanguage(lang)) {
           if (attempted.has(spec.command)) continue;
           attempted.add(spec.command);

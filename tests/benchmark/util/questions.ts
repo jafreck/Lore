@@ -255,6 +255,43 @@ export const QUESTION_CATALOG: QuestionTemplate[] = [
       'Example format:\nWith error handling:\n  foo in src/a.ts\n  bar in src/b.ts\nFire-and-forget:\n  baz in src/c.ts',
   },
 
+  // ── Complexity metrics ──────────────────────────────────────────────────
+
+  {
+    questionId: '6.1',
+    category: 'Complexity',
+    family: 'coverage',
+    description: 'Top 5 most complex symbols by cyclomatic complexity',
+    loreTools: ['lore_metrics'],
+    loreAdvantage:
+      'lore_metrics queries pre-indexed symbol_metrics table in one call; ' +
+      'control must scan every file with bash/grep and compute complexity manually.',
+    promptTemplate:
+      'List the top 5 most complex functions or methods in this {{languageLabel}} codebase, ' +
+      'ranked by cyclomatic complexity. For each, give the symbol name, file path, and ' +
+      'cyclomatic complexity score.',
+  },
+
+  // ── Directory cohesion ─────────────────────────────────────────────────
+
+  {
+    questionId: '8.1',
+    category: 'Directory Cohesion',
+    family: 'coverage',
+    description: 'Top-level directory cohesion ranking — ratio of internal to external symbol references',
+    loreTools: ['lore_cohesion'],
+    loreAdvantage:
+      'lore_cohesion queries pre-indexed symbol_refs to compute internal vs external edge counts per directory in one call; ' +
+      'control must read every file, resolve all cross-file references, and aggregate by directory manually.',
+    promptTemplate:
+      'Rank the top-level directories of this {{languageLabel}} codebase by module cohesion. ' +
+      'For each directory, report the directory name, the number of internal symbol references (calls within the directory), ' +
+      'the number of external inbound references (calls from other directories into this one), ' +
+      'the number of external outbound references (calls from this directory to others), ' +
+      'the cohesion ratio (internal / total), and the instability metric (outbound / (inbound + outbound)). ' +
+      'Order by cohesion ascending (least cohesive first).',
+  },
+
   // ── Modification safety + snippet ──────────────────────────────────────
 
   {

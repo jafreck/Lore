@@ -394,7 +394,7 @@ function inheritanceLoreSteps(task: BenchmarkTask): ScriptedStep[] {
 
 function cyclesLoreSteps(_task: BenchmarkTask): ScriptedStep[] {
   return [
-    { toolName: 'lore_graph', args: { kind: 'import' } },
+    { toolName: 'lore_cohesion', args: { depth: 2, limit: 10 } },
   ];
 }
 
@@ -639,7 +639,7 @@ export function buildDynamicLoreStrategy(task: BenchmarkTask): ProgrammaticAgent
           case '7.2':
             return { toolName: 'lore_search', args: { query: symbols[0] ?? task.prompt, mode: 'structural' } };
           case '8.1':
-            return { toolName: 'lore_graph', args: { kind: 'import' } };
+            return { toolName: 'lore_cohesion', args: { depth: 2, limit: 10 } };
           case '3.3':
             return { toolName: 'lore_graph', args: { kind: 'import' } };
           case '10.2':
