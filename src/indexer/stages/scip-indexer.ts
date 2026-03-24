@@ -962,10 +962,13 @@ export class ScipIndexerStage implements PipelineStage {
     let resolvedIndexers = resolveScipIndexerRegistry(settings.indexers);
     const log = getLogger();
 
-    // Auto-install missing indexers for languages that need them.
-    const requestedLanguages = staleLanguages ?? new Set(Object.keys(resolvedIndexers));
-    const missingLanguages = [...requestedLanguages].filter(
-      (lang) => !resolvedIndexers[lang]?.available,
+    // Determine which SCIP-supported languages actually exist in the project
+    // so we don't waste time running irrelevant indexers (e.g., scip-go on a C project).
+    const projectLanguages = staleLanguages ?? detectProjectLanguages(resolve(rootDir));
+
+    // Auto-install missing indexers only for languages present in the project.
+    const missingLanguages = [...projectLanguages].filter(
+      (lang) => resolvedIndexers[lang] && !resolvedIndexers[lang]!.available,
     );
     if (missingLanguages.length > 0) {
       const attempted = new Set<string>();
@@ -985,10 +988,6 @@ export class ScipIndexerStage implements PipelineStage {
       // Re-resolve after installation
       resolvedIndexers = resolveScipIndexerRegistry(settings.indexers);
     }
-
-    // Determine which SCIP-supported languages actually exist in the project
-    // so we don't waste time running irrelevant indexers (e.g., scip-go on a C project).
-    const projectLanguages = staleLanguages ?? detectProjectLanguages(resolve(rootDir));
 
     // Run all available indexers and merge results — don't stop at the first success.
     // Group by shared command to avoid running the same indexer twice (e.g., scip-java for java/scala/kotlin).
