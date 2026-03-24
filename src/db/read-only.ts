@@ -103,6 +103,10 @@ export interface SymbolRow {
   definition_uri?: string | null;
   definition_path?: string | null;
   is_exported?: number | null;
+  parent_symbol_id?: number | null;
+  parent_name?: string | null;
+  file_path?: string | null;
+  file_branch?: string | null;
 }
 
 export interface SymbolRangeLookupOptions {
@@ -163,7 +167,7 @@ export interface ListSymbolsOptions {
 export function getSymbolById(db: Database.Database, id: number): SymbolRow | undefined {
   return db
     .prepare(
-      'SELECT s.*, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting FROM symbols s LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id WHERE s.id = ?'
+      'SELECT s.*, sp.name AS parent_name, f.path AS file_path, f.branch AS file_branch, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting FROM symbols s JOIN files f ON f.id = s.file_id LEFT JOIN symbols sp ON sp.id = s.parent_symbol_id LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id WHERE s.id = ?'
     )
     .get(id) as SymbolRow | undefined;
 }
@@ -291,9 +295,10 @@ export function getSymbolsByName(
 
   return db
     .prepare(
-      `SELECT s.*, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting
+      `SELECT s.*, sp.name AS parent_name, f.path AS file_path, f.branch AS file_branch, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting
        FROM symbols s
        JOIN files f ON s.file_id = f.id
+       LEFT JOIN symbols sp ON sp.id = s.parent_symbol_id
        LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id
        WHERE ${where.join(' AND ')}`,
     )
@@ -320,9 +325,10 @@ export function listSymbols(
 
   return db
     .prepare(
-      `SELECT s.*, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting
+      `SELECT s.*, sp.name AS parent_name, f.path AS file_path, f.branch AS file_branch, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting
        FROM symbols s
        JOIN files f ON s.file_id = f.id
+       LEFT JOIN symbols sp ON sp.id = s.parent_symbol_id
        LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id
        ${where.length > 0 ? `WHERE ${where.join(' AND ')}` : ''}
        LIMIT ? OFFSET ?`,
@@ -360,13 +366,14 @@ export function semanticSearchSymbols(
 
   return db
     .prepare(
-      `SELECT s.*, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting,
+      `SELECT s.*, sp.name AS parent_name, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting,
               f.path AS file_path,
               f.branch AS file_branch,
               distance AS score
          FROM symbol_embeddings se
          JOIN symbols s ON s.rowid = se.rowid
          JOIN files f ON f.id = s.file_id
+         LEFT JOIN symbols sp ON sp.id = s.parent_symbol_id
          LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id
         WHERE ${where.join(' AND ')}
         ORDER BY distance ASC,

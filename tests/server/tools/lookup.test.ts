@@ -33,7 +33,8 @@ function createTestDb(): Database.Database {
       resolved_type_signature TEXT,
       resolved_return_type    TEXT,
       definition_uri          TEXT,
-      definition_path         TEXT
+      definition_path         TEXT,
+      parent_symbol_id INTEGER REFERENCES symbols(id) ON DELETE SET NULL
     );
     CREATE TABLE symbol_metrics (
       symbol_id    INTEGER PRIMARY KEY REFERENCES symbols(id) ON DELETE CASCADE,
@@ -56,7 +57,8 @@ function createTestDb(): Database.Database {
       resolved_type_signature TEXT,
       resolved_return_type    TEXT,
       definition_uri          TEXT,
-      definition_path         TEXT
+      definition_path         TEXT,
+      parent_symbol_id INTEGER REFERENCES symbols(id) ON DELETE SET NULL
     );
   `);
   return db;

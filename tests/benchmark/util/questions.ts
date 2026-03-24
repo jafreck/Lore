@@ -73,10 +73,12 @@ export interface QuestionParams {
   symbol2?: string;
   /** The file path referenced in the prompt. */
   file: string;
-  /** Canonical expected answer (newline-separated lines). */
+  /**
+   * Canonical expected answer (newline-separated lines).
+   * Each line is a substring that must appear in the agent's response.
+   * This is the single source of truth for scoring correctness.
+   */
   expectedAnswer: string;
-  /** Key fragments that MUST appear in a correct response. */
-  expectedAnswerParts: string[];
   /** Files a correct response should reference (optional). */
   expectedFiles?: string[];
   /** Symbols a correct response should reference (optional). */

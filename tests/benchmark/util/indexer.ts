@@ -97,7 +97,11 @@ export async function indexRepo(
   const elapsed = Math.round(performance.now() - start);
 
   if (instance.spec.coverage) {
-    await ingestBenchmarkCoverage(instance, dbPath, instance.spec.coverage);
+    try {
+      await ingestBenchmarkCoverage(instance, dbPath, instance.spec.coverage);
+    } catch (err) {
+      console.warn(`[benchmark] coverage ingestion failed (non-fatal): ${(err as Error).message}`);
+    }
   }
 
   return {
