@@ -43,7 +43,7 @@ afterEach(() => {
 function buildScipIndexBytes(docs: Array<{
   relativePath: string;
   language: string;
-  occurrences: Array<{ range: number[]; symbol: string; symbolRoles: number }>;
+  occurrences: Array<{ range: number[]; symbol: string; symbolRoles: number; enclosingRange?: number[] }>;
   symbols?: Array<{
     symbol: string;
     documentation?: string[];
@@ -59,6 +59,7 @@ function buildScipIndexBytes(docs: Array<{
         range: o.range,
         symbol: o.symbol,
         symbolRoles: o.symbolRoles,
+        enclosingRange: o.enclosingRange ?? [],
       })),
       symbols: (d.symbols ?? []).map(s => create(SymbolInformationSchema, {
         symbol: s.symbol,
@@ -116,8 +117,8 @@ describe('ScipIndexerStage', () => {
       relativePath: 'main.ts',
       language: 'TypeScript',
       occurrences: [
-        { range: [0, 9, 0, 14], symbol: symGreet, symbolRoles: SymbolRole.Definition },
-        { range: [3, 9, 3, 13], symbol: symMain, symbolRoles: SymbolRole.Definition },
+        { range: [0, 9, 0, 14], symbol: symGreet, symbolRoles: SymbolRole.Definition, enclosingRange: [0, 0, 2, 1] },
+        { range: [3, 9, 3, 13], symbol: symMain, symbolRoles: SymbolRole.Definition, enclosingRange: [3, 0, 5, 1] },
         // Call to greet inside main()
         { range: [4, 2, 4, 7], symbol: symGreet, symbolRoles: 0 },
       ],
@@ -400,9 +401,10 @@ describe('ScipIndexerStage', () => {
     ).get('HandleRequest') as { start_line: number; end_line: number } | undefined;
     expect(beforePatch).toBeDefined();
     expect(beforePatch!.start_line).toBe(6);
-    // With the lastIndexOf('{') fix, the brace counter skips the interface{}
-    // in the signature and correctly finds the function body end
-    expect(beforePatch!.end_line).toBe(10);
+    // With estimateSymbolEndLine now returning defLine (tree-sitter
+    // patches accurate spans via SourceIndexStage), the initial end_line
+    // equals the definition line when no enclosingRange is provided.
+    expect(beforePatch!.end_line).toBe(6);
 
     // Step 2: Run SourceIndexStage — tree-sitter should patch end_line
     // ScipIndexerStage sets ctx.scipSourcedFiles; verify it was set
