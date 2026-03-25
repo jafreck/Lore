@@ -4,8 +4,28 @@
  * MCP tool: line-level git blame, line-range history, and ownership metadata.
  */
 
-import { execFileSync } from 'node:child_process';
+import { execFile as execFileCb } from 'node:child_process';
 import { dirname, relative } from 'node:path';
+
+function execFileAsync(
+  cmd: string,
+  args: string[],
+  opts: { encoding: BufferEncoding },
+): Promise<{ stdout: string }> {
+  return new Promise((resolve, reject) => {
+    execFileCb(cmd, args, opts, (err, stdout) => {
+      if (err) reject(err);
+      else resolve({ stdout: String(stdout) });
+    });
+  });
+}
+
+const gitRootCache = new Map<string, string>();
+
+/** Clear the cached git root lookups. Exposed for testing. */
+export function clearGitRootCache(): void {
+  gitRootCache.clear();
+}
 import type { Database } from '../../db/read-only.js';
 import {
   getCommitBySha,
@@ -296,14 +316,22 @@ function resolveFileTarget(
   };
 }
 
-function resolveGitPath(filePath: string): GitPath {
+async function resolveGitPath(filePath: string): Promise<GitPath> {
+  const dir = dirname(filePath);
+  const cached = gitRootCache.get(dir);
   let repoRoot = '';
-  try {
-    repoRoot = execFileSync('git', ['-C', dirname(filePath), 'rev-parse', '--show-toplevel'], {
-      encoding: 'utf8',
-    }).trim();
-  } catch {
-    throw new Error(`Unable to resolve git repository root for path: ${filePath}`);
+  if (cached) {
+    repoRoot = cached;
+  } else {
+    try {
+      const { stdout } = await execFileAsync('git', ['-C', dir, 'rev-parse', '--show-toplevel'], {
+        encoding: 'utf8',
+      });
+      repoRoot = stdout.trim();
+    } catch {
+      throw new Error(`Unable to resolve git repository root for path: ${filePath}`);
+    }
+    gitRootCache.set(dir, repoRoot);
   }
 
   const relPath = relative(repoRoot, filePath);
@@ -380,13 +408,13 @@ function parseBlamePorcelain(output: string): BlameLine[] {
   return results;
 }
 
-function runBlamePorcelain(
+async function runBlamePorcelain(
   repoRoot: string,
   relPath: string,
   ref: string,
   start?: number,
   end?: number,
-): BlameLine[] {
+): Promise<BlameLine[]> {
   const blameArgs = ['-C', repoRoot, 'blame', '--line-porcelain'];
   if (start != null && end != null) {
     blameArgs.push('-L', `${start},${end}`);
@@ -395,7 +423,8 @@ function runBlamePorcelain(
 
   let output = '';
   try {
-    output = execFileSync('git', blameArgs, { encoding: 'utf8' });
+    const result = await execFileAsync('git', blameArgs, { encoding: 'utf8' });
+    output = result.stdout;
   } catch {
     if (start != null && end != null) {
       throw new Error(`git blame failed for ${relPath}:${start}-${end} at ref ${ref}.`);
@@ -449,16 +478,16 @@ function parseHistoryOutput(output: string): BlameHistoryEntry[] {
   return entries;
 }
 
-function runHistoryLog(
+async function runHistoryLog(
   repoRoot: string,
   relPath: string,
   ref: string,
   start: number,
   end: number,
-): BlameHistoryEntry[] {
+): Promise<BlameHistoryEntry[]> {
   let output = '';
   try {
-    output = execFileSync(
+    const result = await execFileAsync(
       'git',
       [
         '-C',
@@ -471,6 +500,7 @@ function runHistoryLog(
       ],
       { encoding: 'utf8' },
     );
+    output = result.stdout;
   } catch {
     throw new Error(`git log -L failed for ${relPath}:${start}-${end} at ref ${ref}.`);
   }
@@ -644,15 +674,15 @@ function sortedCommits(commitMap: Map<string, CommitWithFiles>): CommitWithFiles
   });
 }
 
-function handleBlameMode(db: Database.Database, args: BlameArgs): BlameResult {
+async function handleBlameMode(db: Database.Database, args: BlameArgs): Promise<BlameResult> {
   const target = resolveFileTarget(db, args, { requireRange: true });
   const { start_line, end_line } = target;
   if (start_line == null || end_line == null) {
     throw new Error('Failed to resolve blame line range.');
   }
 
-  const { repoRoot, relPath } = resolveGitPath(target.path);
-  const parsed = runBlamePorcelain(repoRoot, relPath, target.ref, start_line, end_line);
+  const { repoRoot, relPath } = await resolveGitPath(target.path);
+  const parsed = await runBlamePorcelain(repoRoot, relPath, target.ref, start_line, end_line);
   const commitMap = buildCommitContextMap(
     db,
     parsed.map((line) => line.commit_sha),
@@ -677,15 +707,15 @@ function handleBlameMode(db: Database.Database, args: BlameArgs): BlameResult {
   };
 }
 
-function handleHistoryMode(db: Database.Database, args: BlameArgs): BlameHistoryResult {
+async function handleHistoryMode(db: Database.Database, args: BlameArgs): Promise<BlameHistoryResult> {
   const target = resolveFileTarget(db, args, { requireRange: true });
   const { start_line, end_line } = target;
   if (start_line == null || end_line == null) {
     throw new Error('Failed to resolve history line range.');
   }
 
-  const { repoRoot, relPath } = resolveGitPath(target.path);
-  const history = runHistoryLog(repoRoot, relPath, target.ref, start_line, end_line);
+  const { repoRoot, relPath } = await resolveGitPath(target.path);
+  const history = await runHistoryLog(repoRoot, relPath, target.ref, start_line, end_line);
   const commitMap = buildCommitContextMap(
     db,
     history.map((entry) => entry.commit_sha),
@@ -716,10 +746,10 @@ function handleHistoryMode(db: Database.Database, args: BlameArgs): BlameHistory
   };
 }
 
-function handleOwnershipMode(
+async function handleOwnershipMode(
   db: Database.Database,
   args: BlameArgs,
-): BlameOwnershipResult {
+): Promise<BlameOwnershipResult> {
   const branch = args.branch?.trim();
   const scopeFromArgs = args.scope;
   const explicitRange = resolveRange(args);
@@ -776,8 +806,8 @@ function handleOwnershipMode(
   const commitShas = new Set<string>();
 
   for (const filePath of files) {
-    const { repoRoot, relPath } = resolveGitPath(filePath);
-    const lines = runBlamePorcelain(repoRoot, relPath, ref, startLine, endLine);
+    const { repoRoot, relPath } = await resolveGitPath(filePath);
+    const lines = await runBlamePorcelain(repoRoot, relPath, ref, startLine, endLine);
     for (const line of lines) {
       const key = `${line.author}\u0000${line.author_email}`;
       const current = ownershipMap.get(key) ?? {
@@ -833,10 +863,10 @@ function handleOwnershipMode(
 }
 
 /** Execute lore_blame mode routing against the indexed repository metadata. */
-export function handler(
+export async function handler(
   db: Database.Database,
   args: BlameArgs,
-): BlameResult | BlameHistoryResult | BlameOwnershipResult {
+): Promise<BlameResult | BlameHistoryResult | BlameOwnershipResult> {
   const mode = args.mode ?? 'blame';
   if (mode === 'history') {
     return handleHistoryMode(db, args);

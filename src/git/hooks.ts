@@ -6,7 +6,6 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { execFileSync } from 'node:child_process';
 
 export interface InstallGitHooksOptions {
   repoRoot: string;
@@ -96,11 +95,7 @@ export function installGitHooks(options: InstallGitHooksOptions): { installed: s
     }
 
     fs.writeFileSync(hookPath, content, 'utf8');
-    try {
-      execFileSync('chmod', ['+x', hookPath]);
-    } catch {
-      fs.chmodSync(hookPath, 0o755);
-    }
+    fs.chmodSync(hookPath, 0o755);
     installed.push(hookName);
   }
 
