@@ -16,6 +16,10 @@ import type { Database } from '../../db/read-only.js';
 import type { EmbeddingProvider } from '../../embeddings/embedder.js';
 import { semanticSearchDocSections } from '../../db/read-only.js';
 
+const queryEmbeddingCache = new Map<string, { vector: number[]; ts: number }>();
+const CACHE_MAX_SIZE = 1000;
+const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+
 // ─── Observability ────────────────────────────────────────────────────────────
 
 /**
@@ -228,8 +232,8 @@ function structuralSearch(
     const rows = db.prepare(sql).all(...params) as SearchSymbolResult[];
     return rows;
   } catch {
-    // FTS5 parse error — fall back to LIKE-based search.
-    const likeQuery = `%${query}%`;
+    // FTS5 parse error — fall back to LIKE-based prefix search.
+    const likeQuery = `${escapeLikeWildcards(query)}%`;
     const sql = `SELECT 'symbol' AS result_type,
                 s.id AS symbol_id, s.name, s.kind, f.path AS file_path,
                 s.start_line, s.end_line,
@@ -343,8 +347,23 @@ async function semanticSearch(
   docFilters?: { doc_path_prefix?: string; doc_kind?: string },
 ): Promise<SearchResultItem[] | null> {
   try {
-    const [queryVec] = await embedder.embed([query]);
-    if (!queryVec) return null;
+    const cacheKey = query;
+    const now = Date.now();
+    const cached = queryEmbeddingCache.get(cacheKey);
+    let queryVec: number[] | undefined;
+    if (cached && now - cached.ts < CACHE_TTL_MS) {
+      queryVec = cached.vector;
+    } else {
+      const [embedded] = await embedder.embed([query]);
+      if (!embedded) return null;
+      queryVec = embedded;
+      // Evict oldest if at capacity
+      if (queryEmbeddingCache.size >= CACHE_MAX_SIZE) {
+        const oldestKey = queryEmbeddingCache.keys().next().value;
+        if (oldestKey !== undefined) queryEmbeddingCache.delete(oldestKey);
+      }
+      queryEmbeddingCache.set(cacheKey, { vector: queryVec, ts: now });
+    }
 
     const symbolRows = semanticSymbolSearch(db, queryVec, limit, branch);
     const docRows = semanticDocSectionSearch(db, queryVec, limit, branch, docFilters);
