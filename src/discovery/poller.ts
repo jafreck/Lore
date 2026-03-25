@@ -151,31 +151,43 @@ export class FilePoller {
 
       const currentPaths = new Set<string>();
 
-      for (const entry of entries) {
-        currentPaths.add(entry.path);
-        let mtime: number;
-        try {
-          mtime = fs.statSync(entry.path).mtimeMs;
-        } catch {
-          continue; // file vanished between walk and stat
-        }
-
-        const prev = this.snapshot.get(entry.path);
-        if (prev === undefined || prev !== mtime) {
-          changed.push(entry.path);
-          this.snapshot.set(entry.path, mtime);
+      const STAT_BATCH_SIZE = 100;
+      for (let i = 0; i < entries.length; i += STAT_BATCH_SIZE) {
+        const batch = entries.slice(i, i + STAT_BATCH_SIZE);
+        const stats = await Promise.all(
+          batch.map(async (entry) => {
+            try {
+              const stat = await fs.promises.stat(entry.path);
+              return { path: entry.path, mtime: stat.mtimeMs };
+            } catch {
+              return { path: entry.path, mtime: null };
+            }
+          }),
+        );
+        for (const { path: filePath, mtime } of stats) {
+          currentPaths.add(filePath);
+          if (mtime === null) continue;
+          const prev = this.snapshot.get(filePath);
+          if (prev === undefined || prev !== mtime) {
+            changed.push(filePath);
+            this.snapshot.set(filePath, mtime);
+          }
         }
       }
 
-      for (const relPath of COVERAGE_REPORT_RELATIVE_PATHS) {
-        const coveragePath = path.join(this.walkerConfig.rootDir, relPath);
-        let mtime: number;
-        try {
-          mtime = fs.statSync(coveragePath).mtimeMs;
-        } catch {
-          continue;
-        }
-
+      const coverageStats = await Promise.all(
+        COVERAGE_REPORT_RELATIVE_PATHS.map(async (relPath) => {
+          const coveragePath = path.join(this.walkerConfig.rootDir, relPath);
+          try {
+            const stat = await fs.promises.stat(coveragePath);
+            return { path: coveragePath, mtime: stat.mtimeMs };
+          } catch {
+            return { path: coveragePath, mtime: null };
+          }
+        }),
+      );
+      for (const { path: coveragePath, mtime } of coverageStats) {
+        if (mtime === null) continue;
         currentPaths.add(coveragePath);
         const prev = this.snapshot.get(coveragePath);
         if (prev === undefined || prev !== mtime) {
