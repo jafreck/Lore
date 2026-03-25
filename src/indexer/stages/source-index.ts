@@ -232,6 +232,7 @@ export class SourceIndexStage implements PipelineStage {
       return;
     }
 
+    // v8 ignore start — parallel path requires compiled worker JS, unreachable in vitest
     context.log.indexing('parallel parse: starting workers', {
       workers: workerCount,
       files: tasks.length,
@@ -284,6 +285,7 @@ export class SourceIndexStage implements PipelineStage {
       skipped,
       errors,
     });
+    // v8 ignore stop
   }
 
   // ─── Update mode ─────────────────────────────────────────────────────────
@@ -438,7 +440,40 @@ function processFileWithSource(
   // Populate the source cache for later stages (enrichment) to avoid re-reading.
   if (sourceCache) sourceCache.set(filePath, source);
 
+  // Parse the source
+  const tree = pool.parse(language, source);
+  if (!tree) return;
+
+  const extractor = EXTRACTORS[language];
+  if (!extractor) return;
+
+  const result: ExtractionResult = extractor.extract(tree, source, filePath);
   const sizeBytes = Buffer.byteLength(source, 'utf8');
+
+  insertFileAndExtractions(db, filePath, language, branch, source, hash, sizeBytes, existing, result, tree.rootNode.endPosition.row, layer, generation);
+}
+
+/**
+ * Upsert a file row and insert all extracted symbols, imports, refs,
+ * relationships, type refs, and metrics into the database.
+ *
+ * Shared by both the serial path (`processFileWithSource`) and the
+ * parallel worker path (`insertParsedFile`).
+ */
+function insertFileAndExtractions(
+  db: Database.Database,
+  filePath: string,
+  language: string,
+  branch: string,
+  source: string,
+  hash: string,
+  sizeBytes: number,
+  existing: FileRow | undefined,
+  result: ExtractionResult,
+  rootEndRow: number,
+  layer: 'baseline' | 'overlay' = 'baseline',
+  generation = 0,
+): void {
 
   // Upsert the file row
   let fileId: number;
@@ -502,15 +537,6 @@ function processFileWithSource(
       };
     fileId = Number(info.lastInsertRowid);
   }
-
-  // Parse the source
-  const tree = pool.parse(language, source);
-  if (!tree) return;
-
-  const extractor = EXTRACTORS[language];
-  if (!extractor) return;
-
-  const result: ExtractionResult = extractor.extract(tree, source, filePath);
 
   // Insert symbols (FTS5 index is rebuilt in bulk by ftsRefreshStage)
   const insertSymbol = db.prepare(
@@ -580,7 +606,7 @@ function processFileWithSource(
     const moduleName = path.basename(filePath, path.extname(filePath));
     const info = insertSymbol.run(
       fileId, `<module:${moduleName}>`, 'module',
-      0, tree.rootNode.endPosition.row,
+      0, rootEndRow,
       null, null, 0, layer, generation,
     ) as { lastInsertRowid: number | bigint };
     symbolIdMap.set('', Number(info.lastInsertRowid));
@@ -624,6 +650,7 @@ function processFileWithSource(
  * Distribute parse tasks across N workers and collect all results.
  * Workers process batches of tasks and post results back as arrays.
  */
+/* v8 ignore start — worker orchestration requires compiled JS, untestable in vitest */
 async function runParseWorkers(
   workerScript: string,
   workerCount: number,
@@ -683,11 +710,11 @@ async function runParseWorkers(
   await Promise.all(workerPromises);
   return allResults;
 }
+/* v8 ignore stop */
 
 /**
  * Insert a single parsed file result (from a worker) into the database.
- * Mirrors the insertion logic in `processFileWithSource` but takes
- * pre-computed extraction results instead of parsing in-process.
+ * Delegates to the shared `insertFileAndExtractions` used by the serial path.
  */
 function insertParsedFile(
   db: Database.Database,
@@ -698,164 +725,8 @@ function insertParsedFile(
   layer: 'baseline' | 'overlay' = 'baseline',
   generation = 0,
 ): void {
-  // Populate the source cache for later stages (enrichment) to avoid re-reading.
   if (sourceCache) sourceCache.set(r.filePath, r.source);
-
-  // Upsert the file row
-  let fileId: number;
-  if (existing && layer === 'baseline') {
-    db.prepare(
-      `UPDATE files SET language = ?, size_bytes = ?, last_hash = ?, source = ?, indexed_at = unixepoch()
-        WHERE id = ?`,
-    ).run(r.language, r.sizeBytes, r.hash, r.source, existing.id);
-    fileId = existing.id;
-    db.prepare('DELETE FROM symbol_relationships WHERE file_id = ?').run(fileId);
-    db.prepare('DELETE FROM type_refs WHERE file_id = ?').run(fileId);
-    db.prepare('UPDATE symbol_refs SET callee_id = NULL WHERE callee_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(fileId);
-    db.prepare('UPDATE type_refs SET type_id = NULL WHERE type_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(fileId);
-    db.prepare('UPDATE symbol_relationships SET target_symbol_id = NULL WHERE target_symbol_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(fileId);
-    db.prepare('DELETE FROM symbols WHERE file_id = ?').run(fileId);
-    db.prepare('DELETE FROM file_imports WHERE file_id = ?').run(fileId);
-    db.prepare('DELETE FROM external_deps WHERE file_id = ?').run(fileId);
-    db.prepare('DELETE FROM annotations WHERE file_id = ?').run(fileId);
-  } else if (layer === 'overlay') {
-    const overlayRow = db.prepare(
-      'SELECT id FROM files WHERE path = ? AND branch = ? AND layer = ?',
-    ).get(r.filePath, branch, 'overlay') as { id: number } | undefined;
-    if (overlayRow) {
-      db.prepare('DELETE FROM symbol_relationships WHERE file_id = ?').run(overlayRow.id);
-      db.prepare('DELETE FROM type_refs WHERE file_id = ?').run(overlayRow.id);
-      db.prepare('UPDATE symbol_refs SET callee_id = NULL WHERE callee_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(overlayRow.id);
-      db.prepare('UPDATE type_refs SET type_id = NULL WHERE type_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(overlayRow.id);
-      db.prepare('UPDATE symbol_relationships SET target_symbol_id = NULL WHERE target_symbol_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(overlayRow.id);
-      db.prepare('DELETE FROM symbols WHERE file_id = ?').run(overlayRow.id);
-      db.prepare('DELETE FROM file_imports WHERE file_id = ?').run(overlayRow.id);
-      db.prepare('DELETE FROM external_deps WHERE file_id = ?').run(overlayRow.id);
-      db.prepare('DELETE FROM annotations WHERE file_id = ?').run(overlayRow.id);
-      db.prepare('DELETE FROM files WHERE id = ?').run(overlayRow.id);
-    }
-    const info = db
-      .prepare(
-        `INSERT INTO files (path, branch, language, size_bytes, last_hash, source, layer, generation)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(r.filePath, branch, r.language, r.sizeBytes, r.hash, r.source, layer, generation) as {
-        lastInsertRowid: number | bigint;
-      };
-    fileId = Number(info.lastInsertRowid);
-    db.prepare(
-      'INSERT OR REPLACE INTO dirty_files (path, dirty_since, overlay_gen) VALUES (?, unixepoch(), ?)',
-    ).run(r.filePath, generation);
-  } else {
-    const info = db
-      .prepare(
-        `INSERT INTO files (path, branch, language, size_bytes, last_hash, source, layer, generation)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(r.filePath, branch, r.language, r.sizeBytes, r.hash, r.source, layer, generation) as {
-        lastInsertRowid: number | bigint;
-      };
-    fileId = Number(info.lastInsertRowid);
-  }
-
-  const { result } = r;
-
-  // Insert symbols
-  const insertSymbol = db.prepare(
-    `INSERT INTO symbols (file_id, name, kind, start_line, end_line, signature, doc_comment, is_exported, layer, generation)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  );
-
-  const symbolIdMap = new Map<string, number>();
-  const pendingParents: Array<{ symId: number; parentName: string }> = [];
-
-  for (const sym of result.symbols) {
-    if (!sym.name) continue;
-    const info = insertSymbol.run(
-      fileId, sym.name, sym.kind, sym.startLine, sym.endLine,
-      sym.signature ?? null, sym.docComment ?? null, sym.isExported ? 1 : 0,
-      layer, generation,
-    ) as { lastInsertRowid: number | bigint };
-    const symId = Number(info.lastInsertRowid);
-    symbolIdMap.set(sym.name, symId);
-    if (sym.parentName) {
-      pendingParents.push({ symId, parentName: sym.parentName });
-    }
-  }
-
-  if (pendingParents.length > 0) {
-    const updateParent = db.prepare('UPDATE symbols SET parent_symbol_id = ? WHERE id = ?');
-    for (const { symId, parentName } of pendingParents) {
-      const parentId = symbolIdMap.get(parentName);
-      if (parentId !== undefined) {
-        updateParent.run(parentId, symId);
-      }
-    }
-  }
-
-  // Insert symbol metrics
-  const insertMetrics = db.prepare(
-    `INSERT OR REPLACE INTO symbol_metrics (symbol_id, line_count, param_count, cyclomatic, max_nesting, layer, generation)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-  );
-  for (const sym of result.symbols) {
-    if (!sym.name) continue;
-    const symId = symbolIdMap.get(sym.name);
-    if (symId === undefined) continue;
-    const metrics = computeSymbolMetrics(sym, r.language);
-    insertMetrics.run(symId, metrics.line_count, metrics.param_count, metrics.cyclomatic, metrics.max_nesting, layer, generation);
-  }
-
-  // Insert imports
-  const insertImport = db.prepare(
-    'INSERT INTO file_imports (file_id, raw_import, layer, generation) VALUES (?, ?, ?, ?)',
-  );
-  for (const imp of result.imports) {
-    insertImport.run(fileId, imp.source, layer, generation);
-  }
-
-  // Insert call refs
-  const hasTopLevelCalls = result.callRefs.some(ref => !ref.callerSymbol);
-  if (hasTopLevelCalls && !symbolIdMap.has('')) {
-    const moduleName = path.basename(r.filePath, path.extname(r.filePath));
-    const info = insertSymbol.run(
-      fileId, `<module:${moduleName}>`, 'module',
-      0, r.rootEndRow,
-      null, null, 0, layer, generation,
-    ) as { lastInsertRowid: number | bigint };
-    symbolIdMap.set('', Number(info.lastInsertRowid));
-  }
-
-  const insertCallRef = db.prepare(
-    `INSERT INTO symbol_refs (caller_id, file_id, callee_name, call_line, call_character, call_kind, layer, generation)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-  );
-  for (const ref of result.callRefs) {
-    const callerId = symbolIdMap.get(ref.callerSymbol);
-    if (callerId !== undefined) {
-      insertCallRef.run(callerId, fileId, ref.calleeRaw, ref.line, ref.character ?? null, ref.callKind ?? 'direct', layer, generation);
-    }
-  }
-
-  // Insert relationships
-  const insertRelationship = db.prepare(
-    `INSERT INTO symbol_relationships (file_id, source_symbol_id, target_symbol_name, relationship_type, line, character, layer, generation)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-  );
-  for (const rel of result.relationships) {
-    const sourceId = symbolIdMap.get(rel.fromSymbol) ?? null;
-    insertRelationship.run(fileId, sourceId, rel.toSymbol, rel.kind, rel.line, rel.character ?? null, layer, generation);
-  }
-
-  // Insert type refs
-  const insertTypeRef = db.prepare(
-    `INSERT INTO type_refs (file_id, symbol_id, type_name, type_name_bare, ref_kind, ref_line, ref_character, layer, generation)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  );
-  for (const ref of result.typeRefs) {
-    const symId = symbolIdMap.get(ref.enclosingSymbol) ?? null;
-    insertTypeRef.run(fileId, symId, ref.typeRaw, normalizeTypeName(ref.typeRaw), ref.refKind, ref.line, ref.character ?? null, layer, generation);
-  }
+  insertFileAndExtractions(db, r.filePath, r.language, branch, r.source, r.hash, r.sizeBytes, existing, r.result, r.rootEndRow, layer, generation);
 }
 
 // ─── Metrics-only pass for SCIP-sourced files ─────────────────────────────────
