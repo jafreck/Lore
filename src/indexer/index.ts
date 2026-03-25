@@ -52,6 +52,7 @@ import { IndexPipeline } from './pipeline.js';
 import type { PipelineContext, PipelineStage } from './pipeline.js';
 import {
   ScipIndexerStage,
+  ScipRefStage,
   SourceIndexStage,
   DocsIndexStage,
   ImportResolutionStage,
@@ -141,10 +142,11 @@ export class IndexBuilder {
     log.indexing('build started', { dbPath: this.dbPath, branch, rootDir: this.walkerConfig.rootDir });
 
     // Build the pipeline with all stages in dependency order.
-    // ScipIndexerStage runs first for SCIP-covered languages (symbols + refs
-    // from SCIP directly, with enrichment metadata populated inline).
-    // SourceIndexStage then adds tree-sitter metrics to SCIP files and
-    // handles remaining languages.  LSP enrichment is optional.
+    // ScipIndexerStage runs first: inserts symbols from SCIP, stashes
+    // ref data for deferred processing.
+    // SourceIndexStage patches symbol end_line with tree-sitter spans.
+    // ScipRefStage then uses accurate spans to build the containment
+    // index and insert refs.
     //
     // Stages in arrays run concurrently:
     //   - SourceIndexStage + DocsIndexStage: write to disjoint tables.
@@ -153,6 +155,7 @@ export class IndexBuilder {
     const pipeline = new IndexPipeline([
       new ScipIndexerStage(),
       [new SourceIndexStage(), new DocsIndexStage()],
+      new ScipRefStage(),
       new ImportResolutionStage(),
       new DependencyApiStage(),
       [new LspEnrichmentStage(), historyStage()],
@@ -225,6 +228,7 @@ export class IndexBuilder {
     const pipeline = new IndexPipeline([
       new ScipIndexerStage(),
       [new SourceIndexStage(), new DocsIndexStage()],
+      new ScipRefStage(),
       new ImportResolutionStage(),
       new DependencyApiStage(),
       [new LspEnrichmentStage(), historyStage()],
@@ -286,6 +290,7 @@ export class IndexBuilder {
     const pipeline = new IndexPipeline([
       new ScipIndexerStage(),
       [new SourceIndexStage(), new DocsIndexStage()],
+      new ScipRefStage(),
       new ImportResolutionStage(),
       new DependencyApiStage(),
       [new LspEnrichmentStage(), historyStage()],

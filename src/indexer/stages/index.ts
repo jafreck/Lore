@@ -4,7 +4,7 @@
  * Concrete pipeline stages with real implementations.
  */
 
-export { ScipIndexerStage } from './scip-indexer.js';
+export { ScipIndexerStage, ScipRefStage } from './scip-indexer.js';
 export { SourceIndexStage } from './source-index.js';
 export { DocsIndexStage } from './docs-index.js';
 export { ImportResolutionStage } from './import-resolution.js';

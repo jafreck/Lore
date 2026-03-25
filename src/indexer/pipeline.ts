@@ -139,6 +139,29 @@ export interface PipelineContext {
    * Overlay rows always use `generation = 0`.
    */
   generation: number;
+
+  /**
+   * SCIP ref data stashed by `ScipIndexerStage` for deferred processing.
+   *
+   * The SCIP stage inserts symbols (Pass 1) but defers ref insertion
+   * until after `SourceIndexStage` patches symbol `end_line` values
+   * with accurate tree-sitter spans.  `ScipRefStage` then reads this
+   * data (Pass 2+3+4) to build the containment index and insert refs.
+   */
+  scipRefData?: {
+    /** SCIP symbol → Lore DB symbol ID */
+    scipToLoreId: Map<string, number>;
+    /** SCIP symbol → definition location */
+    symbolDefinitions: Map<string, { filePath: string; line: number; character: number }>;
+    /** SCIP symbol → SymbolInformation (docs, display name) */
+    symbolInfoMap: Map<string, unknown>;
+    /** Absolute path → file_id */
+    fileIdMap: Map<string, number>;
+    /** Raw SCIP documents (occurrences + symbols) */
+    documents: unknown[];
+    /** Internal package prefixes for external-symbol detection */
+    isExternalSymbol: (sym: string) => boolean;
+  };
 }
 
 /**
