@@ -16,6 +16,7 @@ import {
   type SemanticSymbolRow,
 } from '../../db/read-only.js';
 import type { EmbeddingProvider } from '../../embeddings/embedder.js';
+import { getCachedEmbedding, setCachedEmbedding } from './embedding-cache.js';
 
 // ─── Tool definition ──────────────────────────────────────────────────────────
 
@@ -132,7 +133,11 @@ async function semanticLookup(
   embedder: EmbeddingProvider,
 ): Promise<SemanticSymbolRow[] | null> {
   try {
-    const [queryVector] = await embedder.embed([query]);
+    let queryVector = getCachedEmbedding(query);
+    if (!queryVector) {
+      [queryVector] = await embedder.embed([query]);
+      if (queryVector) setCachedEmbedding(query, queryVector);
+    }
     if (!queryVector || queryVector.length === 0) {
       return null;
     }

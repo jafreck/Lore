@@ -15,6 +15,7 @@
 import type { Database } from '../../db/read-only.js';
 import type { EmbeddingProvider } from '../../embeddings/embedder.js';
 import { semanticSearchDocSections } from '../../db/read-only.js';
+import { getCachedEmbedding, setCachedEmbedding } from './embedding-cache.js';
 
 // ─── Observability ────────────────────────────────────────────────────────────
 
@@ -343,7 +344,11 @@ async function semanticSearch(
   docFilters?: { doc_path_prefix?: string; doc_kind?: string },
 ): Promise<SearchResultItem[] | null> {
   try {
-    const [queryVec] = await embedder.embed([query]);
+    let queryVec = getCachedEmbedding(query);
+    if (!queryVec) {
+      [queryVec] = await embedder.embed([query]);
+      if (queryVec) setCachedEmbedding(query, queryVec);
+    }
     if (!queryVec) return null;
 
     const symbolRows = semanticSymbolSearch(db, queryVec, limit, branch);
