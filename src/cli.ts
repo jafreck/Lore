@@ -58,6 +58,7 @@ Options:
   --embeddings             Enable embedding generation during indexing (disabled by default)
   --no-embeddings          Disable embedding generation during indexing (default)
   --index-deps             Enable dependency API indexing (disabled by default)
+  --max-workers <n>        Maximum number of parse worker threads
   --history                Enable git history ingestion
   --history-depth <n>      Limit commit ingestion to the most recent N commits
   --history-all            Traverse all refs (branches/tags) for history ingestion
@@ -161,6 +162,18 @@ async function main(): Promise<void> {
     const historyEnabled = args.includes('--history');
     const historyAll = args.includes('--history-all');
     const historyDepthRaw = flag(args, '--history-depth');
+    const maxWorkersRaw = flag(args, '--max-workers');
+
+    let maxWorkers: number | undefined;
+    if (maxWorkersRaw !== undefined) {
+      const parsed = Number(maxWorkersRaw);
+      if (!Number.isInteger(parsed) || parsed <= 0) {
+        console.error('Error: --max-workers must be a positive integer.\n');
+        usage();
+        return;
+      }
+      maxWorkers = parsed;
+    }
 
     let historyDepth: number | undefined;
     if (historyDepthRaw !== undefined) {
@@ -277,6 +290,7 @@ async function main(): Promise<void> {
       lsp: lspSettings,
       scip: scipSettings,
       ...(embeddingModel && { embeddingModel }),
+      ...(maxWorkers !== undefined && { maxWorkers }),
       ...(shouldEnableHistory && {
         history: {
           ...(historyDepth !== undefined && { depth: historyDepth }),
