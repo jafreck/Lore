@@ -739,11 +739,10 @@ export class ScipIndexerStage implements PipelineStage {
         }
 
         // Insert imports (from Import-role occurrences)
-        // Prefer the actual import path from source; fall back to SCIP package.
+        // Prefer tree-sitter AST import extraction; fall back to SCIP package descriptor.
         // Use symbolDefinitions to pre-resolve imports to target file IDs.
-        // Parse source with tree-sitter for AST-based import path extraction.
         let importTree: Parser.Tree | null = null;
-        try { importTree = importParserPool.parse(loreLang, source); } catch { /* fall back to regex */ }
+        try { importTree = importParserPool.parse(loreLang, source); } catch { /* ignore parse failure */ }
 
         const seenImports = new Map<string, number | null>(); // rawImport → resolved file ID
         for (const occ of doc.occurrences) {
@@ -1135,18 +1134,7 @@ export class ScipRefStage implements PipelineStage {
         const loreLang = inferLoreLanguage(doc.language, doc.relativePath);
         let tree: Parser.Tree | null = null;
         if (loreLang) {
-          try { tree = parserPool.parse(loreLang, source); } catch { /* fall back to heuristics */ }
-        }
-
-        // Build a per-line index of all occurrences for receiver lookup.
-        const occsByLine = new Map<number, Array<{ startChar: number; endChar: number; symbol: string }>>();
-        for (const o of doc.occurrences) {
-          const ln = o.range[0] ?? 0;
-          const sc = o.range[1] ?? 0;
-          const ec = o.range.length >= 4 ? (o.range[3] ?? 0) : (o.range[2] ?? 0);
-          let list = occsByLine.get(ln);
-          if (!list) { list = []; occsByLine.set(ln, list); }
-          list.push({ startChar: sc, endChar: ec, symbol: o.symbol });
+          try { tree = parserPool.parse(loreLang, source); } catch { /* ignore parse failure */ }
         }
 
         for (const occ of doc.occurrences) {
@@ -1162,7 +1150,7 @@ export class ScipRefStage implements PipelineStage {
           if (refKind === 'skip') {
             // Term-value refs (ending in '.') may be calls to arrow-function
             // or const-assigned function values.  Use tree-sitter to check
-            // for call_expression parent; fall back to source char peek.
+            // for call_expression parent.
             const refLine = occ.range[0] ?? 0;
             const refChar = occ.range[1] ?? 0;
             const refEndChar = occ.range.length >= 4 ? (occ.range[3] ?? 0) : (occ.range[2] ?? 0);
