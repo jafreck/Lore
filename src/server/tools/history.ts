@@ -13,8 +13,6 @@ import {
   listCommitsByRef,
   hasCommitEmbeddings,
   listCommitsBySemanticQuery,
-  listCommitFiles,
-  listCommitRefs,
   type CommitRow,
   type CommitFileRow,
   type CommitRefRow,
@@ -93,6 +91,52 @@ function clampLimit(limit?: number): number {
   return Math.min(Math.max(1, Math.floor(limit)), MAX_LIMIT);
 }
 
+/** Batch-fetch files for multiple commits in a single query, grouped by SHA. */
+function batchListCommitFiles(
+  db: Database.Database,
+  shas: string[],
+): Map<string, CommitFileRow[]> {
+  if (shas.length === 0) return new Map();
+  const placeholders = shas.map(() => '?').join(', ');
+  const rows = db
+    .prepare(`SELECT * FROM commit_files WHERE commit_sha IN (${placeholders})`)
+    .all(...shas) as CommitFileRow[];
+  const grouped = new Map<string, CommitFileRow[]>();
+  for (const row of rows) {
+    let arr = grouped.get(row.commit_sha);
+    if (!arr) {
+      arr = [];
+      grouped.set(row.commit_sha, arr);
+    }
+    arr.push(row);
+  }
+  return grouped;
+}
+
+/** Batch-fetch refs for multiple commits in a single query, grouped by SHA. */
+function batchListCommitRefs(
+  db: Database.Database,
+  shas: string[],
+): Map<string, CommitRefRow[]> {
+  if (shas.length === 0) return new Map();
+  const placeholders = shas.map(() => '?').join(', ');
+  const rows = db
+    .prepare(
+      `SELECT * FROM commit_refs WHERE commit_sha IN (${placeholders}) ORDER BY ref_type ASC, ref_name ASC`,
+    )
+    .all(...shas) as CommitRefRow[];
+  const grouped = new Map<string, CommitRefRow[]>();
+  for (const row of rows) {
+    let arr = grouped.get(row.commit_sha);
+    if (!arr) {
+      arr = [];
+      grouped.set(row.commit_sha, arr);
+    }
+    arr.push(row);
+  }
+  return grouped;
+}
+
 /** Enrich commit rows with touched files and refs metadata. */
 export function enrichCommitsWithContext(
   db: Database.Database,
@@ -102,10 +146,14 @@ export function enrichCommitsWithContext(
   const includeFiles = options.includeFiles ?? true;
   const includeRefs = options.includeRefs ?? true;
 
+  const shas = commits.map((c) => c.sha);
+  const filesMap = includeFiles ? batchListCommitFiles(db, shas) : undefined;
+  const refsMap = includeRefs ? batchListCommitRefs(db, shas) : undefined;
+
   return commits.map((commit) => ({
     ...commit,
-    ...(includeFiles ? { files: listCommitFiles(db, commit.sha) } : {}),
-    ...(includeRefs ? { refs: listCommitRefs(db, commit.sha) } : {}),
+    ...(filesMap ? { files: filesMap.get(commit.sha) ?? [] } : {}),
+    ...(refsMap ? { refs: refsMap.get(commit.sha) ?? [] } : {}),
   }));
 }
 

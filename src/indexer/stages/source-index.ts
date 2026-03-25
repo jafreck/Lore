@@ -175,7 +175,7 @@ export class SourceIndexStage implements PipelineStage {
     if (workerCount <= 1) {
       // Single-core fallback: use the serial path
       const pool = this.pool!;
-      const BATCH_SIZE = 200;
+      const BATCH_SIZE = 1000;
       for (let batchStart = resumeAt; batchStart < files.length; batchStart += BATCH_SIZE) {
         const batchEnd = Math.min(batchStart + BATCH_SIZE, files.length);
         db.transaction(() => {
@@ -185,7 +185,9 @@ export class SourceIndexStage implements PipelineStage {
             processFile(db, pool, file.path, file.language, branch, context.sourceCache, context.layer, context.generation);
           }
         })();
+        if (batchEnd >= files.length || batchEnd % (BATCH_SIZE * 5) < BATCH_SIZE) {
         saveBuildCheckpoint(db, branch, context.walkerConfig.rootDir, batchEnd, files.length);
+      }
       }
       return;
     }
@@ -193,10 +195,9 @@ export class SourceIndexStage implements PipelineStage {
     // Pre-fetch existing file hashes from DB so workers can skip unchanged files.
     const existingRows = new Map<string, { hash: string | null; sizeBytes: number }>();
     const layerForLookup = context.layer === 'overlay' ? 'overlay' : 'baseline';
-    const allExisting = db.prepare(
+    for (const row of db.prepare(
       'SELECT path, last_hash, size_bytes FROM files WHERE branch = ? AND layer = ?',
-    ).all(branch, layerForLookup) as Array<{ path: string; last_hash: string | null; size_bytes: number }>;
-    for (const row of allExisting) {
+    ).iterate(branch, layerForLookup) as Iterable<{ path: string; last_hash: string | null; size_bytes: number }>) {
       existingRows.set(row.path, { hash: row.last_hash, sizeBytes: row.size_bytes });
     }
 
@@ -220,7 +221,7 @@ export class SourceIndexStage implements PipelineStage {
     if (!fs.existsSync(workerScript)) {
       // Serial fallback when worker script is unavailable
       const pool = this.pool!;
-      const BATCH_SIZE = 200;
+      const BATCH_SIZE = 1000;
       for (let batchStart = resumeAt; batchStart < files.length; batchStart += BATCH_SIZE) {
         const batchEnd = Math.min(batchStart + BATCH_SIZE, files.length);
         db.transaction(() => {
@@ -230,7 +231,9 @@ export class SourceIndexStage implements PipelineStage {
             processFile(db, pool, file.path, file.language, branch, context.sourceCache, context.layer, context.generation);
           }
         })();
+        if (batchEnd >= files.length || batchEnd % (BATCH_SIZE * 5) < BATCH_SIZE) {
         saveBuildCheckpoint(db, branch, context.walkerConfig.rootDir, batchEnd, files.length);
+      }
       }
       return;
     }
@@ -269,7 +272,7 @@ export class SourceIndexStage implements PipelineStage {
     }
 
     // Insert results into DB in batched transactions, in original file order
-    const BATCH_SIZE = 200;
+    const BATCH_SIZE = 1000;
     let processed = 0;
     let skipped = 0;
     let errors = 0;
@@ -289,7 +292,9 @@ export class SourceIndexStage implements PipelineStage {
           processed++;
         }
       })();
-      saveBuildCheckpoint(db, branch, context.walkerConfig.rootDir, batchEnd, files.length);
+      if (batchEnd >= files.length || batchEnd % (BATCH_SIZE * 5) < BATCH_SIZE) {
+        saveBuildCheckpoint(db, branch, context.walkerConfig.rootDir, batchEnd, files.length);
+      }
     }
 
     context.log.indexing('parallel parse: complete', {
