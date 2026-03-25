@@ -61,7 +61,7 @@ import { normalizeTypeName } from '../../resolution/call-graph.js';
 import { SCIP_SUPPORTED_LANGUAGES, resolveScipIndexerRegistry } from '../../scip/registry.js';
 import type { EffectiveScipSettings } from '../../scip/config.js';
 import { getLogger } from '../../logger.js';
-import { extractReturnType } from '../../scip/index-reader.js';
+import { extractReturnType, iterateScipDocuments } from '../../scip/index-reader.js';
 import { getSpecsForLanguage, installScipIndexer } from '../../scip/installer.js';
 import { ensureCompilationDatabase } from '../../scip/compdb.js';
 import { EXT_TO_LANG } from '../../discovery/walker.js';
@@ -485,31 +485,39 @@ export class ScipIndexerStage implements PipelineStage {
       return;
     }
 
-    // Parse all SCIP index buffers and combine their documents
-    const allDocuments: import('../../scip/scip_pb.js').Document[] = [];
-    const allExternalSymbols: import('../../scip/scip_pb.js').SymbolInformation[] = [];
-    for (const buf of indexBuffers) {
-      const parsed = fromBinary(IndexSchema, buf);
-      allDocuments.push(...parsed.documents);
-      allExternalSymbols.push(...parsed.externalSymbols);
+    // Decode all SCIP index buffers once and keep the decoded objects alive.
+    // A lazy generator is provided for the deferred ScipRefStage so that
+    // documents are accessed without a redundant flat-array copy.
+    const parsedIndexes = indexBuffers.map(buf => fromBinary(IndexSchema, buf));
+
+    // Generator used only for the single-pass ScipRefStage iteration stored in
+    // context.scipRefData.  All in-scope preprocessing passes iterate
+    // parsedIndexes directly (nested for-of) to avoid generator overhead.
+    function* iterateAllDocuments(): Generator<ScipDocument> {
+      for (const idx of parsedIndexes) {
+        yield* idx.documents;
+      }
     }
 
-    const scipIndex = { documents: allDocuments, externalSymbols: allExternalSymbols };
+    const totalDocuments = parsedIndexes.reduce((n, idx) => n + idx.documents.length, 0);
+    const totalExternalSymbols = parsedIndexes.reduce((n, idx) => n + idx.externalSymbols.length, 0);
     log.indexing('scip-indexer: loaded index', {
-      documents: scipIndex.documents.length,
-      externalSymbols: scipIndex.externalSymbols.length,
+      documents: totalDocuments,
+      externalSymbols: totalExternalSymbols,
     });
 
-    if (scipIndex.documents.length === 0) return;
+    if (totalDocuments === 0) return;
 
     // Determine which languages are covered
     const coveredLanguages = new Set<string>();
     const coveredFiles = new Set<string>();
-    for (const doc of scipIndex.documents) {
-      // scip-typescript (and some other indexers) leave language blank;
-      // fall back to file-extension inference.
-      const loreLang = inferLoreLanguage(doc.language, doc.relativePath);
-      if (loreLang) coveredLanguages.add(loreLang);
+    for (const idx of parsedIndexes) {
+      for (const doc of idx.documents) {
+        // scip-typescript (and some other indexers) leave language blank;
+        // fall back to file-extension inference.
+        const loreLang = inferLoreLanguage(doc.language, doc.relativePath);
+        if (loreLang) coveredLanguages.add(loreLang);
+      }
     }
 
     log.indexing('scip-indexer: languages covered', { languages: [...coveredLanguages] });
@@ -519,15 +527,17 @@ export class ScipIndexerStage implements PipelineStage {
     // Internal symbols are those whose SCIP string starts with the same
     // scheme + package as symbols defined in the index's own documents.
     const internalPrefixes = new Set<string>();
-    for (const doc of scipIndex.documents) {
-      for (const sym of doc.symbols) {
-        if (sym.symbol && !sym.symbol.startsWith('local ')) {
-          // Extract "scheme package" prefix (first 4 space-separated tokens)
-          const parts = sym.symbol.split(' ');
-          if (parts.length >= 4) {
-            internalPrefixes.add(parts.slice(0, 4).join(' '));
+    for (const idx of parsedIndexes) {
+      for (const doc of idx.documents) {
+        for (const sym of doc.symbols) {
+          if (sym.symbol && !sym.symbol.startsWith('local ')) {
+            // Extract "scheme package" prefix (first 4 space-separated tokens)
+            const parts = sym.symbol.split(' ');
+            if (parts.length >= 4) {
+              internalPrefixes.add(parts.slice(0, 4).join(' '));
+            }
+            break; // One per document is enough
           }
-          break; // One per document is enough
         }
       }
     }
@@ -543,16 +553,18 @@ export class ScipIndexerStage implements PipelineStage {
 
     // Build a global SCIP symbol → definition location map
     const symbolDefinitions = new Map<string, { filePath: string; line: number; character: number }>();
-    for (const doc of scipIndex.documents) {
-      const absPath = resolve(rootDir, doc.relativePath);
-      for (const occ of doc.occurrences) {
-        if ((occ.symbolRoles & SymbolRole.Definition) !== 0 && occ.symbol && !occ.symbol.startsWith('local ')) {
-          if (!symbolDefinitions.has(occ.symbol)) {
-            symbolDefinitions.set(occ.symbol, {
-              filePath: absPath,
-              line: occ.range[0] ?? 0,
-              character: occ.range[1] ?? 0,
-            });
+    for (const idx of parsedIndexes) {
+      for (const doc of idx.documents) {
+        const absPath = resolve(rootDir, doc.relativePath);
+        for (const occ of doc.occurrences) {
+          if ((occ.symbolRoles & SymbolRole.Definition) !== 0 && occ.symbol && !occ.symbol.startsWith('local ')) {
+            if (!symbolDefinitions.has(occ.symbol)) {
+              symbolDefinitions.set(occ.symbol, {
+                filePath: absPath,
+                line: occ.range[0] ?? 0,
+                character: occ.range[1] ?? 0,
+              });
+            }
           }
         }
       }
@@ -560,9 +572,11 @@ export class ScipIndexerStage implements PipelineStage {
 
     // Build a SymbolInformation map for signatures/docs
     const symbolInfoMap = new Map<string, ScipSymbolInformation>();
-    for (const doc of scipIndex.documents) {
-      for (const sym of doc.symbols) {
-        if (sym.symbol) symbolInfoMap.set(sym.symbol, sym);
+    for (const idx of parsedIndexes) {
+      for (const doc of idx.documents) {
+        for (const sym of doc.symbols) {
+          if (sym.symbol) symbolInfoMap.set(sym.symbol, sym);
+        }
       }
     }
 
@@ -606,7 +620,8 @@ export class ScipIndexerStage implements PipelineStage {
     const importParserPool = new ParserPool();
 
     const processDocuments = db.transaction(() => {
-      for (const doc of scipIndex.documents) {
+      for (const idx of parsedIndexes) {
+        for (const doc of idx.documents) {
         const absPath = resolve(rootDir, doc.relativePath);
         const loreLang = inferLoreLanguage(doc.language, doc.relativePath);
         if (!loreLang) continue;
@@ -849,6 +864,7 @@ export class ScipIndexerStage implements PipelineStage {
           }
         }
       }
+    }
     });
     processDocuments();
 
@@ -867,7 +883,7 @@ export class ScipIndexerStage implements PipelineStage {
       symbolDefinitions,
       symbolInfoMap,
       fileIdMap,
-      documents: scipIndex.documents,
+      documents: iterateAllDocuments(),
       isExternalSymbol,
     };
 
@@ -877,11 +893,13 @@ export class ScipIndexerStage implements PipelineStage {
     context.scipCoveredLanguages = coveredLanguages;
 
     // Add SCIP-sourced files to context.files so later stages process them
-    for (const doc of scipIndex.documents) {
-      const absPath = resolve(rootDir, doc.relativePath);
-      const loreLang = inferLoreLanguage(doc.language, doc.relativePath);
-      if (loreLang && fileIdMap.has(absPath)) {
-        context.files.push({ path: absPath, language: loreLang });
+    for (const idx of parsedIndexes) {
+      for (const doc of idx.documents) {
+        const absPath = resolve(rootDir, doc.relativePath);
+        const loreLang = inferLoreLanguage(doc.language, doc.relativePath);
+        if (loreLang && fileIdMap.has(absPath)) {
+          context.files.push({ path: absPath, language: loreLang });
+        }
       }
     }
   }
@@ -1119,7 +1137,7 @@ export class ScipRefStage implements PipelineStage {
     let refsSkippedNonCall = 0;
     let typeRefsInserted = 0;
 
-    const scipDocs = documents as ScipDocument[];
+    const scipDocs = documents as Iterable<ScipDocument>;
     const sipInfoMap = symbolInfoMap as Map<string, ScipSymbolInformation>;
     const parserPool = new ParserPool();
 

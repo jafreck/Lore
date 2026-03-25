@@ -65,6 +65,8 @@ export class LspEnrichmentStage implements PipelineStage {
       this.coordinator = new LspEnrichmentCoordinator(context.lsp, context.walkerConfig.rootDir);
       await this.coordinator.start(languages);
 
+      await preCacheFiles(nonScipFiles, context.sourceCache);
+
       if (nonScipFiles.length > 0) {
         await enrichProjectRefs(context.db, context.branch, nonScipFiles, this.coordinator, context.sourceCache);
       }
@@ -106,6 +108,9 @@ export class LspEnrichmentStage implements PipelineStage {
     this.coordinator = new LspEnrichmentCoordinator(context.lsp, context.walkerConfig.rootDir);
     await this.coordinator.start(languages);
 
+    // Pre-populate sourceCache with async I/O for all files that will be enriched.
+    await preCacheFiles([...fullEnrichFiles, ...scipFiles], context.sourceCache);
+
     // Full enrichment for non-SCIP files (all targets).
     if (fullEnrichFiles.length > 0) {
       await enrichProjectRefs(context.db, context.branch, fullEnrichFiles, this.coordinator, context.sourceCache);
@@ -128,6 +133,36 @@ export class LspEnrichmentStage implements PipelineStage {
     if (this.coordinator) {
       await this.coordinator.dispose();
       this.coordinator = null;
+    }
+  }
+}
+
+// ─── Cache pre-population ──────────────────────────────────────────────────────
+
+/**
+ * Pre-populate `sourceCache` for any files not already cached, using async
+ * I/O batched in groups of 50 to avoid blocking the event loop.
+ */
+async function preCacheFiles(
+  files: Array<{ path: string; language: string }>,
+  sourceCache: Map<string, string> | undefined,
+): Promise<void> {
+  if (!sourceCache) return;
+  const uncachedFiles = files.filter(f => !sourceCache.has(f.path));
+  if (uncachedFiles.length === 0) return;
+  const BATCH_SIZE = 50;
+  for (let i = 0; i < uncachedFiles.length; i += BATCH_SIZE) {
+    const batch = uncachedFiles.slice(i, i + BATCH_SIZE);
+    const results = await Promise.allSettled(
+      batch.map(async (f) => {
+        const content = await fs.promises.readFile(f.path, 'utf8');
+        return { path: f.path, content };
+      }),
+    );
+    for (const r of results) {
+      if (r.status === 'fulfilled') {
+        sourceCache.set(r.value.path, r.value.content);
+      }
     }
   }
 }
