@@ -561,6 +561,7 @@ export interface StructuredBenchmarkReport {
     completedRuns: number;
     totalExpectedRuns: number;
     timestamp: string;
+    indexTimeMs?: number;
   };
   tasks: StructuredTaskResult[];
   aggregate: {
