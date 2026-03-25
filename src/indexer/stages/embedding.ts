@@ -5,9 +5,9 @@
  * commit messages into vec0 virtual tables for semantic search.
  *
  * Optimisations:
- *   - **Token-aware batching**: batches are sized by estimated token budget
- *     rather than a fixed item count, avoiding pathological padding waste
- *     when one long signature inflates the whole batch.
+ *   - **Streaming batching**: symbols and doc sections are processed
+ *     incrementally; only one batch of text is held in memory at a time,
+ *     capping peak memory usage regardless of corpus size.
  *   - **Skip-unchanged**: in update mode, symbols whose embedding input text
  *     has not changed (by SHA-256 hash) are skipped entirely.
  *   - **Double-buffered I/O**: the next `embed()` call fires while the
@@ -18,7 +18,7 @@ import type { PipelineContext, PipelineStage } from '../pipeline.js';
 import type { Database } from '../../db/schema.js';
 import type { EmbeddingProvider } from '../../embeddings/embedder.js';
 import { setLoreMeta, createVec0Tables } from '../../db/schema.js';
-import { buildStructuralEmbeddingText, hashEmbeddingText, tokenAwareBatch } from '../../embeddings/embedder.js';
+import { buildStructuralEmbeddingText, hashEmbeddingText, tokenAwareBatch, estimateTokens, MAX_BATCH_TOKENS, MAX_BATCH_ITEMS } from '../../embeddings/embedder.js';
 
 /**
  * Embed symbol signatures, documentation sections, and commit messages.
@@ -101,9 +101,47 @@ async function embedStructural(
     symbols = db.prepare(baseQuery).all() as SymbolRow[];
   }
 
-  // Build texts and compute hashes; filter out unchanged if requested.
-  const items: Array<{ sym: SymbolRow; text: string; hash: string }> = [];
-  const existingHashes = skipUnchanged ? loadExistingHashes(db, 'symbol_embeddings', symbols.map(s => s.id)) : new Map();
+  // Build texts incrementally and flush into embedding batches as they fill.
+  // This avoids holding all embedding text in memory simultaneously.
+  const existingHashes = skipUnchanged ? loadExistingHashes(db, 'symbol_embeddings', symbols.map(s => s.id)) : new Map<number, string>();
+
+  const insertEmbed = db.prepare(
+    'INSERT OR REPLACE INTO symbol_embeddings(rowid, embedding) VALUES (CAST(? AS INTEGER), json(?))',
+  );
+  const insertHash = db.prepare(
+    'INSERT OR REPLACE INTO symbol_embeddings_hashes(rowid, content_hash) VALUES (?, ?)',
+  );
+
+  const writeBatch = (batch: Array<{ sym: SymbolRow; text: string; hash: string }>, embeddings: number[][]) => {
+    db.transaction(() => {
+      for (let j = 0; j < batch.length; j++) {
+        const item = batch[j];
+        if (item) {
+          insertEmbed.run(item.sym.id, JSON.stringify(embeddings[j]));
+          insertHash.run(item.sym.id, item.hash);
+        }
+      }
+    })();
+  };
+
+  let currentBatch: Array<{ sym: SymbolRow; text: string; hash: string }> = [];
+  let currentBatchTokens = 0;
+  let pendingEmbed: Promise<number[][]> | null = null;
+  let pendingBatch: Array<{ sym: SymbolRow; text: string; hash: string }> = [];
+
+  // Double-buffered flush: starts embedding currentBatch while the previous
+  // batch's results are being written to the DB.
+  const flushBatch = async () => {
+    if (currentBatch.length === 0) return;
+    if (pendingEmbed) {
+      const embeddings = await pendingEmbed;
+      writeBatch(pendingBatch, embeddings);
+    }
+    pendingEmbed = embedder.embed(currentBatch.map(item => item.text));
+    pendingBatch = currentBatch;
+    currentBatch = [];
+    currentBatchTokens = 0;
+  };
 
   for (const sym of symbols) {
     const text = buildStructuralEmbeddingText({
@@ -114,33 +152,21 @@ async function embedStructural(
     });
     const hash = hashEmbeddingText(text);
     if (skipUnchanged && existingHashes.get(sym.id) === hash) continue;
-    items.push({ sym, text, hash });
+
+    const itemTokens = estimateTokens(text);
+    if (currentBatch.length >= MAX_BATCH_ITEMS || currentBatchTokens + itemTokens > MAX_BATCH_TOKENS) {
+      await flushBatch();
+    }
+    currentBatch.push({ sym, text, hash });
+    currentBatchTokens += itemTokens;
   }
 
-  if (items.length === 0) return;
-
-  const insertEmbed = db.prepare(
-    'INSERT OR REPLACE INTO symbol_embeddings(rowid, embedding) VALUES (CAST(? AS INTEGER), json(?))',
-  );
-  const insertHash = db.prepare(
-    'INSERT OR REPLACE INTO symbol_embeddings_hashes(rowid, content_hash) VALUES (?, ?)',
-  );
-
-  const batches = tokenAwareBatch(items, (item) => item.text);
-  await embedBatchesDoubleBuffered(batches, embedder,
-    (item) => item.text,
-    (batch, embeddings) => {
-      db.transaction(() => {
-        for (let j = 0; j < batch.length; j++) {
-          const item = batch[j];
-          if (item) {
-            insertEmbed.run(item.sym.id, JSON.stringify(embeddings[j]));
-            insertHash.run(item.sym.id, item.hash);
-          }
-        }
-      })();
-    },
-  );
+  // Flush remaining items and drain the last pending batch.
+  await flushBatch();
+  if (pendingEmbed) {
+    const embeddings = await pendingEmbed;
+    writeBatch(pendingBatch, embeddings);
+  }
 }
 
 // ─── Documentation section embeddings ─────────────────────────────────────────
@@ -176,18 +202,9 @@ async function embedDocumentation(
   }
   if (sections.length === 0) return;
 
-  // Build texts, compute hashes, filter unchanged.
-  const items: Array<{ section: typeof sections[number]; text: string; hash: string }> = [];
-  const existingHashes = skipUnchanged ? loadExistingHashes(db, 'doc_section_embeddings', sections.map(s => s.id)) : new Map();
-
-  for (const section of sections) {
-    const text = section.content || section.title;
-    const hash = hashEmbeddingText(text);
-    if (skipUnchanged && existingHashes.get(section.id) === hash) continue;
-    items.push({ section, text, hash });
-  }
-
-  if (items.length === 0) return;
+  // Build texts incrementally and flush into embedding batches as they fill.
+  // This avoids holding all embedding text in memory simultaneously.
+  const existingHashes = skipUnchanged ? loadExistingHashes(db, 'doc_section_embeddings', sections.map(s => s.id)) : new Map<number, string>();
 
   const insertEmbed = db.prepare(
     'INSERT OR REPLACE INTO doc_section_embeddings(rowid, embedding) VALUES (CAST(? AS INTEGER), json(?))',
@@ -196,21 +213,58 @@ async function embedDocumentation(
     'INSERT OR REPLACE INTO doc_section_embeddings_hashes(rowid, content_hash) VALUES (?, ?)',
   );
 
-  const batches = tokenAwareBatch(items, (item) => item.text);
-  await embedBatchesDoubleBuffered(batches, embedder,
-    (item) => item.text,
-    (batch, embeddings) => {
-      db.transaction(() => {
-        for (let j = 0; j < batch.length; j++) {
-          const item = batch[j];
-          if (item) {
-            insertEmbed.run(item.section.id, JSON.stringify(embeddings[j]));
-            insertHash.run(item.section.id, item.hash);
-          }
+  type SectionItem = { section: typeof sections[number]; text: string; hash: string };
+
+  const writeBatch = (batch: SectionItem[], embeddings: number[][]) => {
+    db.transaction(() => {
+      for (let j = 0; j < batch.length; j++) {
+        const item = batch[j];
+        if (item) {
+          insertEmbed.run(item.section.id, JSON.stringify(embeddings[j]));
+          insertHash.run(item.section.id, item.hash);
         }
-      })();
-    },
-  );
+      }
+    })();
+  };
+
+  let currentBatch: SectionItem[] = [];
+  let currentBatchTokens = 0;
+  let pendingEmbed: Promise<number[][]> | null = null;
+  let pendingBatch: SectionItem[] = [];
+
+  // Double-buffered flush: starts embedding currentBatch while the previous
+  // batch's results are being written to the DB.
+  const flushBatch = async () => {
+    if (currentBatch.length === 0) return;
+    if (pendingEmbed) {
+      const embeddings = await pendingEmbed;
+      writeBatch(pendingBatch, embeddings);
+    }
+    pendingEmbed = embedder.embed(currentBatch.map(item => item.text));
+    pendingBatch = currentBatch;
+    currentBatch = [];
+    currentBatchTokens = 0;
+  };
+
+  for (const section of sections) {
+    const text = section.content || section.title;
+    const hash = hashEmbeddingText(text);
+    if (skipUnchanged && existingHashes.get(section.id) === hash) continue;
+
+    const itemTokens = estimateTokens(text);
+    if (currentBatch.length >= MAX_BATCH_ITEMS || currentBatchTokens + itemTokens > MAX_BATCH_TOKENS) {
+      await flushBatch();
+    }
+    currentBatch.push({ section, text, hash });
+    currentBatchTokens += itemTokens;
+  }
+
+  // Flush remaining items and drain the last pending batch.
+  await flushBatch();
+  if (pendingEmbed) {
+    const embeddings = await pendingEmbed;
+    writeBatch(pendingBatch, embeddings);
+  }
 }
 
 // ─── Commit message embeddings ────────────────────────────────────────────────
