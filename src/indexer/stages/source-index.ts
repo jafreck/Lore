@@ -172,7 +172,7 @@ export class SourceIndexStage implements PipelineStage {
     if (workerCount <= 1) {
       // Single-core fallback: use the serial path
       const pool = this.pool!;
-      const BATCH_SIZE = 200;
+      const BATCH_SIZE = 1000;
       for (let batchStart = resumeAt; batchStart < files.length; batchStart += BATCH_SIZE) {
         const batchEnd = Math.min(batchStart + BATCH_SIZE, files.length);
         db.transaction(() => {
@@ -182,7 +182,9 @@ export class SourceIndexStage implements PipelineStage {
             processFile(db, pool, file.path, file.language, branch, context.sourceCache, context.layer, context.generation);
           }
         })();
-        saveBuildCheckpoint(db, branch, context.walkerConfig.rootDir, batchEnd, files.length);
+        if ((batchStart / BATCH_SIZE) % 5 === 0 || batchEnd >= files.length) {
+          saveBuildCheckpoint(db, branch, context.walkerConfig.rootDir, batchEnd, files.length);
+        }
       }
       return;
     }
@@ -217,7 +219,7 @@ export class SourceIndexStage implements PipelineStage {
     if (!fs.existsSync(workerScript)) {
       // Serial fallback when worker script is unavailable
       const pool = this.pool!;
-      const BATCH_SIZE = 200;
+      const BATCH_SIZE = 1000;
       for (let batchStart = resumeAt; batchStart < files.length; batchStart += BATCH_SIZE) {
         const batchEnd = Math.min(batchStart + BATCH_SIZE, files.length);
         db.transaction(() => {
@@ -227,7 +229,9 @@ export class SourceIndexStage implements PipelineStage {
             processFile(db, pool, file.path, file.language, branch, context.sourceCache, context.layer, context.generation);
           }
         })();
-        saveBuildCheckpoint(db, branch, context.walkerConfig.rootDir, batchEnd, files.length);
+        if ((batchStart / BATCH_SIZE) % 5 === 0 || batchEnd >= files.length) {
+          saveBuildCheckpoint(db, branch, context.walkerConfig.rootDir, batchEnd, files.length);
+        }
       }
       return;
     }
@@ -257,7 +261,7 @@ export class SourceIndexStage implements PipelineStage {
     }
 
     // Insert results into DB in batched transactions, in original file order
-    const BATCH_SIZE = 200;
+    const BATCH_SIZE = 1000;
     let processed = 0;
     let skipped = 0;
     let errors = 0;
@@ -277,7 +281,9 @@ export class SourceIndexStage implements PipelineStage {
           processed++;
         }
       })();
-      saveBuildCheckpoint(db, branch, context.walkerConfig.rootDir, batchEnd, files.length);
+      if ((batchStart / BATCH_SIZE) % 5 === 0 || batchEnd >= files.length) {
+        saveBuildCheckpoint(db, branch, context.walkerConfig.rootDir, batchEnd, files.length);
+      }
     }
 
     context.log.indexing('parallel parse: complete', {
