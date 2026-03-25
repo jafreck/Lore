@@ -62,7 +62,7 @@ export function hashEmbeddingText(text: string): string {
  * Approximate token count for a text string.
  * Uses the ~4 chars/token heuristic (reasonable for code/English).
  */
-function estimateTokens(text: string): number {
+export function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
 }
 
@@ -74,10 +74,10 @@ function estimateTokens(text: string): number {
  * 32 768 tokens ≈ 128 KB of text — keeps peak memory reasonable while
  * avoiding pathological padding waste.
  */
-const MAX_BATCH_TOKENS = 32_768;
+export const MAX_BATCH_TOKENS = 32_768;
 
 /** Absolute cap on items per batch (avoids degenerate cases with many tiny texts). */
-const MAX_BATCH_ITEMS = 512;
+export const MAX_BATCH_ITEMS = 512;
 
 /**
  * Split `items` into token-budget-aware batches.
