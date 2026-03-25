@@ -619,9 +619,9 @@ export class ScipIndexerStage implements PipelineStage {
     const fileIdMap = new Map<string, number>(); // absPath → file_id
     const importParserPool = new ParserPool();
 
-    const processDocuments = db.transaction(() => {
-      for (const idx of parsedIndexes) {
-        for (const doc of idx.documents) {
+    const SCIP_BATCH_SIZE = 200;
+    const processDocumentBatch = db.transaction((batch: ScipDocument[]) => {
+      for (const doc of batch) {
         const absPath = resolve(rootDir, doc.relativePath);
         const loreLang = inferLoreLanguage(doc.language, doc.relativePath);
         if (!loreLang) continue;
@@ -864,9 +864,16 @@ export class ScipIndexerStage implements PipelineStage {
           }
         }
       }
-    }
     });
-    processDocuments();
+
+    // Collect all documents across parsed indexes for batched processing
+    const allDocsForBatching: ScipDocument[] = [];
+    for (const idx of parsedIndexes) {
+      allDocsForBatching.push(...idx.documents);
+    }
+    for (let batchStart = 0; batchStart < allDocsForBatching.length; batchStart += SCIP_BATCH_SIZE) {
+      processDocumentBatch(allDocsForBatching.slice(batchStart, batchStart + SCIP_BATCH_SIZE));
+    }
 
     log.indexing('scip-indexer: symbols inserted', {
       files: fileIdMap.size,
@@ -1137,12 +1144,13 @@ export class ScipRefStage implements PipelineStage {
     let refsSkippedNonCall = 0;
     let typeRefsInserted = 0;
 
-    const scipDocs = documents as Iterable<ScipDocument>;
+    const scipDocs = [...(documents as Iterable<ScipDocument>)];
     const sipInfoMap = symbolInfoMap as Map<string, ScipSymbolInformation>;
     const parserPool = new ParserPool();
 
-    const processRefs = db.transaction(() => {
-      for (const doc of scipDocs) {
+    const SCIP_REF_BATCH_SIZE = 200;
+    const processRefBatch = db.transaction((batch: ScipDocument[]) => {
+      for (const doc of batch) {
         const absPath = resolve(rootDir, doc.relativePath);
         const fileId = fileIdMap.get(absPath);
         if (!fileId) continue;
@@ -1262,7 +1270,9 @@ export class ScipRefStage implements PipelineStage {
         }
       }
     });
-    processRefs();
+    for (let batchStart = 0; batchStart < scipDocs.length; batchStart += SCIP_REF_BATCH_SIZE) {
+      processRefBatch(scipDocs.slice(batchStart, batchStart + SCIP_REF_BATCH_SIZE));
+    }
 
     log.indexing('scip-refs: refs inserted', {
       callRefs: refsInserted,
