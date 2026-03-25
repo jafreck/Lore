@@ -40,7 +40,10 @@ export class LspEnrichmentStage implements PipelineStage {
   private coordinator: LspEnrichmentCoordinator | null = null;
 
   async execute(context: PipelineContext, _mode: 'build' | 'update'): Promise<void> {
-    if (!context.lsp?.enabled || context.files.length === 0) return;
+    if (!context.lsp?.enabled || context.files.length === 0) {
+      context.sourceCache.clear();
+      return;
+    }
 
     // In baseline builds, SCIP is the sole resolution authority.
     // LSP enrichment is only used in overlay mode for cross-file resolution.
@@ -51,7 +54,10 @@ export class LspEnrichmentStage implements PipelineStage {
       const nonScipFiles = context.files.filter(f =>
         !(scipSourced?.has(f.language) || scipCovered?.has(f.language)),
       );
-      if (nonScipFiles.length === 0) return;
+      if (nonScipFiles.length === 0) {
+        context.sourceCache.clear();
+        return;
+      }
 
       const languages = new Set(nonScipFiles.map(f => f.language));
       if (context.indexDependencies) languages.add('typescript');
@@ -62,6 +68,8 @@ export class LspEnrichmentStage implements PipelineStage {
       if (nonScipFiles.length > 0) {
         await enrichProjectRefs(context.db, context.branch, nonScipFiles, this.coordinator, context.sourceCache);
       }
+      // sourceCache is no longer needed — release memory.
+      context.sourceCache.clear();
       return;
     }
 
@@ -84,6 +92,7 @@ export class LspEnrichmentStage implements PipelineStage {
 
     if (fullEnrichFiles.length === 0 && scipFiles.length === 0) {
       context.log.indexing('lsp-enrichment: no files to enrich');
+      context.sourceCache.clear();
       return;
     }
 
@@ -109,6 +118,10 @@ export class LspEnrichmentStage implements PipelineStage {
       });
       await enrichUnresolvedScipRefs(context.db, context.branch, scipFiles, this.coordinator, context.sourceCache);
     }
+
+    // sourceCache is no longer needed — release memory.
+    // Later stages (Resolution, TestMap, History, Embedding) are DB-only.
+    context.sourceCache.clear();
   }
 
   async dispose(): Promise<void> {

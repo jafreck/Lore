@@ -10,6 +10,9 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as crypto from 'node:crypto';
+import { availableParallelism } from 'node:os';
+import { Worker } from 'node:worker_threads';
+import { fileURLToPath } from 'node:url';
 import type { PipelineContext, PipelineStage } from '../pipeline.js';
 import type { Database } from '../../db/schema.js';
 import {
@@ -49,6 +52,7 @@ import { HaskellExtractor } from '../../parsing/extractors/haskell.js';
 import { JuliaExtractor } from '../../parsing/extractors/julia.js';
 import { ElmExtractor } from '../../parsing/extractors/elm.js';
 import { ObjcExtractor } from '../../parsing/extractors/objc.js';
+import type { ParseTask, ParseResult, ParseResultSuccess, WorkerMessage } from './parse-worker.js';
 
 // ─── Extractor registry ───────────────────────────────────────────────────────
 
@@ -152,28 +156,134 @@ export class SourceIndexStage implements PipelineStage {
     files: Array<{ path: string; language: string }>,
   ): Promise<void> {
     const { db, branch } = context;
-    const pool = this.pool!;
 
     const resumeAt = loadBuildCheckpoint(db, branch, context.walkerConfig.rootDir, files.length);
     if (resumeAt > 0) {
       context.log.indexing('resuming from checkpoint', { resumeAt, totalFiles: files.length });
     }
 
-    // Process in batched transactions so that checkpoints survive crashes.
+    const remaining = files.slice(resumeAt);
+    if (remaining.length === 0) return;
+
+    // Use worker threads for parallel parse+extract on multi-core machines.
+    // Workers own their own ParserPool + extractors; main thread handles all DB writes.
+    const workerCount = Math.max(1, Math.min(remaining.length, availableParallelism() - 1));
+
+    if (workerCount <= 1) {
+      // Single-core fallback: use the serial path
+      const pool = this.pool!;
+      const BATCH_SIZE = 200;
+      for (let batchStart = resumeAt; batchStart < files.length; batchStart += BATCH_SIZE) {
+        const batchEnd = Math.min(batchStart + BATCH_SIZE, files.length);
+        db.transaction(() => {
+          for (let i = batchStart; i < batchEnd; i++) {
+            const file = files[i];
+            if (!file) continue;
+            processFile(db, pool, file.path, file.language, branch, context.sourceCache, context.layer, context.generation);
+          }
+        })();
+        saveBuildCheckpoint(db, branch, context.walkerConfig.rootDir, batchEnd, files.length);
+      }
+      return;
+    }
+
+    // Pre-fetch existing file hashes from DB so workers can skip unchanged files.
+    const existingRows = new Map<string, { hash: string | null; sizeBytes: number }>();
+    const layerForLookup = context.layer === 'overlay' ? 'overlay' : 'baseline';
+    const allExisting = db.prepare(
+      'SELECT path, last_hash, size_bytes FROM files WHERE branch = ? AND layer = ?',
+    ).all(branch, layerForLookup) as Array<{ path: string; last_hash: string | null; size_bytes: number }>;
+    for (const row of allExisting) {
+      existingRows.set(row.path, { hash: row.last_hash, sizeBytes: row.size_bytes });
+    }
+
+    // Build tasks for workers
+    const tasks: ParseTask[] = remaining.map(f => {
+      const existing = existingRows.get(f.path);
+      return {
+        filePath: f.path,
+        language: f.language,
+        existingHash: existing?.hash ?? null,
+        existingSizeBytes: existing?.sizeBytes ?? 0,
+      };
+    });
+
+    // Resolve worker script path (compiled JS alongside this file).
+    // Fall back to serial path if the compiled worker script isn't available
+    // (e.g., running from TypeScript source via vitest).
+    const thisFile = fileURLToPath(import.meta.url);
+    const workerScript = path.join(path.dirname(thisFile), 'parse-worker.js');
+
+    if (!fs.existsSync(workerScript)) {
+      // Serial fallback when worker script is unavailable
+      const pool = this.pool!;
+      const BATCH_SIZE = 200;
+      for (let batchStart = resumeAt; batchStart < files.length; batchStart += BATCH_SIZE) {
+        const batchEnd = Math.min(batchStart + BATCH_SIZE, files.length);
+        db.transaction(() => {
+          for (let i = batchStart; i < batchEnd; i++) {
+            const file = files[i];
+            if (!file) continue;
+            processFile(db, pool, file.path, file.language, branch, context.sourceCache, context.layer, context.generation);
+          }
+        })();
+        saveBuildCheckpoint(db, branch, context.walkerConfig.rootDir, batchEnd, files.length);
+      }
+      return;
+    }
+
+    context.log.indexing('parallel parse: starting workers', {
+      workers: workerCount,
+      files: tasks.length,
+    });
+
+    // Distribute tasks across workers in round-robin chunks
+    const WORKER_BATCH_SIZE = 50;
+    const taskChunks: ParseTask[][] = [];
+    for (let i = 0; i < tasks.length; i += WORKER_BATCH_SIZE) {
+      taskChunks.push(tasks.slice(i, i + WORKER_BATCH_SIZE));
+    }
+
+    // Spawn workers and collect results
+    const allResults = await runParseWorkers(workerScript, workerCount, taskChunks);
+
+    // Build a path→result map so we can insert in original file order.
+    // This preserves checkpoint semantics: checkpoint N means all files
+    // before index N in the original `files` array have been inserted.
+    const resultsByPath = new Map<string, ParseResult>();
+    for (const r of allResults) {
+      resultsByPath.set(r.filePath, r);
+    }
+
+    // Insert results into DB in batched transactions, in original file order
     const BATCH_SIZE = 200;
+    let processed = 0;
+    let skipped = 0;
+    let errors = 0;
     for (let batchStart = resumeAt; batchStart < files.length; batchStart += BATCH_SIZE) {
       const batchEnd = Math.min(batchStart + BATCH_SIZE, files.length);
       db.transaction(() => {
         for (let i = batchStart; i < batchEnd; i++) {
           const file = files[i];
           if (!file) continue;
-          processFile(db, pool, file.path, file.language, branch, context.sourceCache, context.layer, context.generation);
+          const r = resultsByPath.get(file.path);
+          if (!r || r.kind === 'error') { errors++; continue; }
+          if (r.kind === 'skipped') { skipped++; continue; }
+          const existing = db.prepare(
+            'SELECT id, last_hash, size_bytes FROM files WHERE path = ? AND branch = ? AND layer = ?',
+          ).get(r.filePath, branch, layerForLookup) as FileRow | undefined;
+          insertParsedFile(db, r, branch, existing, context.sourceCache, context.layer, context.generation);
+          processed++;
         }
       })();
-      // Checkpoint between batches — committed outside the batch transaction
-      // so it persists even if a later batch crashes.
       saveBuildCheckpoint(db, branch, context.walkerConfig.rootDir, batchEnd, files.length);
     }
+
+    context.log.indexing('parallel parse: complete', {
+      processed,
+      skipped,
+      errors,
+    });
   }
 
   // ─── Update mode ─────────────────────────────────────────────────────────
@@ -471,6 +581,246 @@ function processFileWithSource(
     const info = insertSymbol.run(
       fileId, `<module:${moduleName}>`, 'module',
       0, tree.rootNode.endPosition.row,
+      null, null, 0, layer, generation,
+    ) as { lastInsertRowid: number | bigint };
+    symbolIdMap.set('', Number(info.lastInsertRowid));
+  }
+
+  const insertCallRef = db.prepare(
+    `INSERT INTO symbol_refs (caller_id, file_id, callee_name, call_line, call_character, call_kind, layer, generation)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+  );
+  for (const ref of result.callRefs) {
+    const callerId = symbolIdMap.get(ref.callerSymbol);
+    if (callerId !== undefined) {
+      insertCallRef.run(callerId, fileId, ref.calleeRaw, ref.line, ref.character ?? null, ref.callKind ?? 'direct', layer, generation);
+    }
+  }
+
+  // Insert relationships
+  const insertRelationship = db.prepare(
+    `INSERT INTO symbol_relationships (file_id, source_symbol_id, target_symbol_name, relationship_type, line, character, layer, generation)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+  );
+  for (const rel of result.relationships) {
+    const sourceId = symbolIdMap.get(rel.fromSymbol) ?? null;
+    insertRelationship.run(fileId, sourceId, rel.toSymbol, rel.kind, rel.line, rel.character ?? null, layer, generation);
+  }
+
+  // Insert type refs
+  const insertTypeRef = db.prepare(
+    `INSERT INTO type_refs (file_id, symbol_id, type_name, type_name_bare, ref_kind, ref_line, ref_character, layer, generation)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  );
+  for (const ref of result.typeRefs) {
+    const symId = symbolIdMap.get(ref.enclosingSymbol) ?? null;
+    insertTypeRef.run(fileId, symId, ref.typeRaw, normalizeTypeName(ref.typeRaw), ref.refKind, ref.line, ref.character ?? null, layer, generation);
+  }
+}
+
+// ─── Parallel worker orchestration ────────────────────────────────────────────
+
+/**
+ * Distribute parse tasks across N workers and collect all results.
+ * Workers process batches of tasks and post results back as arrays.
+ */
+async function runParseWorkers(
+  workerScript: string,
+  workerCount: number,
+  taskChunks: ParseTask[][],
+): Promise<ParseResult[]> {
+  const allResults: ParseResult[] = [];
+  let nextChunk = 0;
+
+  const workers: Worker[] = [];
+  const workerPromises: Promise<void>[] = [];
+  let failed = false;
+
+  function terminateAll(): void {
+    for (const w of workers) w.terminate().catch(() => {});
+  }
+
+  for (let w = 0; w < workerCount; w++) {
+    workerPromises.push(new Promise<void>((resolve, reject) => {
+      const worker = new Worker(workerScript);
+      workers.push(worker);
+
+      function sendNext(): void {
+        if (failed) return;
+        if (nextChunk >= taskChunks.length) {
+          worker.postMessage({ type: 'done' } satisfies WorkerMessage);
+          return;
+        }
+        const chunk = taskChunks[nextChunk++]!;
+        worker.postMessage({ type: 'batch', tasks: chunk } satisfies WorkerMessage);
+      }
+
+      worker.on('message', (results: ParseResult[]) => {
+        allResults.push(...results);
+        sendNext();
+      });
+
+      worker.on('error', (err) => {
+        failed = true;
+        terminateAll();
+        reject(err);
+      });
+      worker.on('exit', (code) => {
+        if (code === 0) {
+          resolve();
+        } else if (!failed) {
+          failed = true;
+          terminateAll();
+          reject(new Error(`Parse worker exited with code ${code}`));
+        }
+      });
+
+      // Send initial batch
+      sendNext();
+    }));
+  }
+
+  await Promise.all(workerPromises);
+  return allResults;
+}
+
+/**
+ * Insert a single parsed file result (from a worker) into the database.
+ * Mirrors the insertion logic in `processFileWithSource` but takes
+ * pre-computed extraction results instead of parsing in-process.
+ */
+function insertParsedFile(
+  db: Database.Database,
+  r: ParseResultSuccess,
+  branch: string,
+  existing: FileRow | undefined,
+  sourceCache?: Map<string, string>,
+  layer: 'baseline' | 'overlay' = 'baseline',
+  generation = 0,
+): void {
+  // Populate the source cache for later stages (enrichment) to avoid re-reading.
+  if (sourceCache) sourceCache.set(r.filePath, r.source);
+
+  // Upsert the file row
+  let fileId: number;
+  if (existing && layer === 'baseline') {
+    db.prepare(
+      `UPDATE files SET language = ?, size_bytes = ?, last_hash = ?, source = ?, indexed_at = unixepoch()
+        WHERE id = ?`,
+    ).run(r.language, r.sizeBytes, r.hash, r.source, existing.id);
+    fileId = existing.id;
+    db.prepare('DELETE FROM symbol_relationships WHERE file_id = ?').run(fileId);
+    db.prepare('DELETE FROM type_refs WHERE file_id = ?').run(fileId);
+    db.prepare('UPDATE symbol_refs SET callee_id = NULL WHERE callee_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(fileId);
+    db.prepare('UPDATE type_refs SET type_id = NULL WHERE type_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(fileId);
+    db.prepare('UPDATE symbol_relationships SET target_symbol_id = NULL WHERE target_symbol_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(fileId);
+    db.prepare('DELETE FROM symbols WHERE file_id = ?').run(fileId);
+    db.prepare('DELETE FROM file_imports WHERE file_id = ?').run(fileId);
+    db.prepare('DELETE FROM external_deps WHERE file_id = ?').run(fileId);
+    db.prepare('DELETE FROM annotations WHERE file_id = ?').run(fileId);
+  } else if (layer === 'overlay') {
+    const overlayRow = db.prepare(
+      'SELECT id FROM files WHERE path = ? AND branch = ? AND layer = ?',
+    ).get(r.filePath, branch, 'overlay') as { id: number } | undefined;
+    if (overlayRow) {
+      db.prepare('DELETE FROM symbol_relationships WHERE file_id = ?').run(overlayRow.id);
+      db.prepare('DELETE FROM type_refs WHERE file_id = ?').run(overlayRow.id);
+      db.prepare('UPDATE symbol_refs SET callee_id = NULL WHERE callee_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(overlayRow.id);
+      db.prepare('UPDATE type_refs SET type_id = NULL WHERE type_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(overlayRow.id);
+      db.prepare('UPDATE symbol_relationships SET target_symbol_id = NULL WHERE target_symbol_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(overlayRow.id);
+      db.prepare('DELETE FROM symbols WHERE file_id = ?').run(overlayRow.id);
+      db.prepare('DELETE FROM file_imports WHERE file_id = ?').run(overlayRow.id);
+      db.prepare('DELETE FROM external_deps WHERE file_id = ?').run(overlayRow.id);
+      db.prepare('DELETE FROM annotations WHERE file_id = ?').run(overlayRow.id);
+      db.prepare('DELETE FROM files WHERE id = ?').run(overlayRow.id);
+    }
+    const info = db
+      .prepare(
+        `INSERT INTO files (path, branch, language, size_bytes, last_hash, source, layer, generation)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(r.filePath, branch, r.language, r.sizeBytes, r.hash, r.source, layer, generation) as {
+        lastInsertRowid: number | bigint;
+      };
+    fileId = Number(info.lastInsertRowid);
+    db.prepare(
+      'INSERT OR REPLACE INTO dirty_files (path, dirty_since, overlay_gen) VALUES (?, unixepoch(), ?)',
+    ).run(r.filePath, generation);
+  } else {
+    const info = db
+      .prepare(
+        `INSERT INTO files (path, branch, language, size_bytes, last_hash, source, layer, generation)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(r.filePath, branch, r.language, r.sizeBytes, r.hash, r.source, layer, generation) as {
+        lastInsertRowid: number | bigint;
+      };
+    fileId = Number(info.lastInsertRowid);
+  }
+
+  const { result } = r;
+
+  // Insert symbols
+  const insertSymbol = db.prepare(
+    `INSERT INTO symbols (file_id, name, kind, start_line, end_line, signature, doc_comment, is_exported, layer, generation)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  );
+
+  const symbolIdMap = new Map<string, number>();
+  const pendingParents: Array<{ symId: number; parentName: string }> = [];
+
+  for (const sym of result.symbols) {
+    if (!sym.name) continue;
+    const info = insertSymbol.run(
+      fileId, sym.name, sym.kind, sym.startLine, sym.endLine,
+      sym.signature ?? null, sym.docComment ?? null, sym.isExported ? 1 : 0,
+      layer, generation,
+    ) as { lastInsertRowid: number | bigint };
+    const symId = Number(info.lastInsertRowid);
+    symbolIdMap.set(sym.name, symId);
+    if (sym.parentName) {
+      pendingParents.push({ symId, parentName: sym.parentName });
+    }
+  }
+
+  if (pendingParents.length > 0) {
+    const updateParent = db.prepare('UPDATE symbols SET parent_symbol_id = ? WHERE id = ?');
+    for (const { symId, parentName } of pendingParents) {
+      const parentId = symbolIdMap.get(parentName);
+      if (parentId !== undefined) {
+        updateParent.run(parentId, symId);
+      }
+    }
+  }
+
+  // Insert symbol metrics
+  const insertMetrics = db.prepare(
+    `INSERT OR REPLACE INTO symbol_metrics (symbol_id, line_count, param_count, cyclomatic, max_nesting, layer, generation)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  );
+  for (const sym of result.symbols) {
+    if (!sym.name) continue;
+    const symId = symbolIdMap.get(sym.name);
+    if (symId === undefined) continue;
+    const metrics = computeSymbolMetrics(sym, r.language);
+    insertMetrics.run(symId, metrics.line_count, metrics.param_count, metrics.cyclomatic, metrics.max_nesting, layer, generation);
+  }
+
+  // Insert imports
+  const insertImport = db.prepare(
+    'INSERT INTO file_imports (file_id, raw_import, layer, generation) VALUES (?, ?, ?, ?)',
+  );
+  for (const imp of result.imports) {
+    insertImport.run(fileId, imp.source, layer, generation);
+  }
+
+  // Insert call refs
+  const hasTopLevelCalls = result.callRefs.some(ref => !ref.callerSymbol);
+  if (hasTopLevelCalls && !symbolIdMap.has('')) {
+    const moduleName = path.basename(r.filePath, path.extname(r.filePath));
+    const info = insertSymbol.run(
+      fileId, `<module:${moduleName}>`, 'module',
+      0, r.rootEndRow,
       null, null, 0, layer, generation,
     ) as { lastInsertRowid: number | bigint };
     symbolIdMap.set('', Number(info.lastInsertRowid));

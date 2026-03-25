@@ -1193,8 +1193,11 @@ export class ScipRefStage implements PipelineStage {
         if (!fileId) continue;
 
         // Read source for receiver-chain reconstruction and term-value call detection.
-        let source: string | null = null;
-        try { source = fs.readFileSync(absPath, 'utf8'); } catch { /* skip */ }
+        // Prefer sourceCache (populated by ScipIndexerStage Pass 1) to avoid redundant disk reads.
+        let source: string | null = context.sourceCache.get(absPath) ?? null;
+        if (source === null) {
+          try { source = fs.readFileSync(absPath, 'utf8'); } catch { /* skip */ }
+        }
         const sourceLines = source?.split('\n') ?? [];
 
         // Parse source with tree-sitter for AST-based helpers.
