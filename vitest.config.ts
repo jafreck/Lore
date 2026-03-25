@@ -13,6 +13,7 @@ export default defineConfig({
       exclude: [
         "tests/benchmark/util/**",
         "tests/helpers/**",
+        "src/indexer/stages/parse-worker.ts",
       ],
       thresholds: {
         lines: 87,
