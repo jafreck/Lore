@@ -28,6 +28,9 @@ import type { PipelineContext, PipelineStage } from '../pipeline.js';
 import type { Database } from '../../db/schema.js';
 import { LspEnrichmentCoordinator } from '../../lsp/enrichment.js';
 
+/** Number of files enriched concurrently per LSP request batch. */
+const FILE_CONCURRENCY = 3;
+
 /**
  * Enriches indexed artefacts with LSP-derived metadata.
  *
@@ -209,8 +212,8 @@ export async function enrichProjectRefs(
     for (const fn of updates) fn();
   });
 
-  for (const file of files) {
-    if (!file || !fs.existsSync(file.path)) continue;
+  async function processFile(file: { path: string; language: string }): Promise<Array<() => void>> {
+    if (!file || !fs.existsSync(file.path)) return [];
     let source: string;
     const cached = sourceCache?.get(file.path);
     if (cached !== undefined) {
@@ -219,7 +222,7 @@ export async function enrichProjectRefs(
       try {
         source = fs.readFileSync(file.path, 'utf8');
       } catch {
-        continue;
+        return [];
       }
     }
 
@@ -262,7 +265,7 @@ export async function enrichProjectRefs(
       tagged.push({ table: 'relationship', rowId: r.id, line: r.line, character: r.character ?? 0 });
     }
 
-    if (tagged.length === 0) continue;
+    if (tagged.length === 0) return [];
 
     const metadata = await coordinator.enrich({
       filePath: file.path,
@@ -271,7 +274,6 @@ export async function enrichProjectRefs(
       targets: tagged.map(t => ({ line: t.line, character: t.character })),
     });
 
-    // Batch all per-file writes in a single transaction.
     const updates: Array<() => void> = [];
     for (let i = 0; i < tagged.length; i++) {
       const tag = tagged[i]!;
@@ -327,7 +329,14 @@ export async function enrichProjectRefs(
           break;
       }
     }
-    if (updates.length > 0) runInTransaction(updates);
+    return updates;
+  }
+
+  for (let i = 0; i < files.length; i += FILE_CONCURRENCY) {
+    const batch = files.slice(i, i + FILE_CONCURRENCY);
+    const batchResults = await Promise.all(batch.map(file => processFile(file)));
+    const allUpdates = batchResults.flat();
+    if (allUpdates.length > 0) runInTransaction(allUpdates);
   }
 }
 
@@ -398,8 +407,8 @@ async function enrichUnresolvedScipRefs(
     for (const fn of updates) fn();
   });
 
-  for (const file of files) {
-    if (!file || !fs.existsSync(file.path)) continue;
+  async function processFile(file: { path: string; language: string }): Promise<Array<() => void>> {
+    if (!file || !fs.existsSync(file.path)) return [];
     let source: string;
     const cached = sourceCache?.get(file.path);
     if (cached !== undefined) {
@@ -408,7 +417,7 @@ async function enrichUnresolvedScipRefs(
       try {
         source = fs.readFileSync(file.path, 'utf8');
       } catch {
-        continue;
+        return [];
       }
     }
 
@@ -432,7 +441,7 @@ async function enrichUnresolvedScipRefs(
       tagged.push({ table: 'typeRef', rowId: tr.id, line: tr.ref_line, character: tr.ref_character ?? 0 });
     }
 
-    if (tagged.length === 0) continue;
+    if (tagged.length === 0) return [];
 
     const metadata = await coordinator.enrich({
       filePath: file.path,
@@ -474,6 +483,13 @@ async function enrichUnresolvedScipRefs(
           break;
       }
     }
-    if (updates.length > 0) runInTransaction(updates);
+    return updates;
+  }
+
+  for (let i = 0; i < files.length; i += FILE_CONCURRENCY) {
+    const batch = files.slice(i, i + FILE_CONCURRENCY);
+    const batchResults = await Promise.all(batch.map(file => processFile(file)));
+    const allUpdates = batchResults.flat();
+    if (allUpdates.length > 0) runInTransaction(allUpdates);
   }
 }
