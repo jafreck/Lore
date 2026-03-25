@@ -69,6 +69,8 @@ import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { ParserPool } from '../../parsing/parser.js';
+import type Parser from 'tree-sitter';
 
 // ─── SCIP symbol string → Lore kind mapping ──────────────────────────────────
 
@@ -306,65 +308,22 @@ function extractSignatureFromDoc(doc: string): string {
 // ─── Symbol-span fallback ─────────────────────────────────────────────────────
 
 /**
- * Estimate the end line of a symbol whose `enclosing_range` was absent.
+ * Placeholder for symbol end-line when SCIP's `enclosingRange` is absent.
  *
- * Strategy: from the definition line, scan forward for curly-brace blocks
- * (classes, functions, structs in C-family / Rust / Go / Java / etc.) or
- * indentation-based blocks (Python).  If nothing works, scan to the next
- * definition or EOF.
+ * Returns `defLine` as a conservative default.  `SourceIndexStage` always
+ * overwrites `end_line` with accurate tree-sitter spans before
+ * `ScipRefStage` builds the containment index, so the value returned here
+ * is never used for caller resolution.
  */
 function estimateSymbolEndLine(
-  sourceLines: string[],
+  _sourceLines: string[],
   defLine: number,
-  nextDefLine: number | null,
+  _nextDefLine: number | null,
 ): number {
-  if (defLine >= sourceLines.length) return defLine;
-
-  const src = sourceLines[defLine]!;
-
-  // Python-style: indentation-based scope.
-  // Detect lines ending with ":" (def, class, if, etc.).
-  if (/:\s*(#.*)?$/.test(src)) {
-    // Measure the indentation of the definition line itself.
-    const baseIndent = src.match(/^(\s*)/)![1]!.length;
-    let last = defLine;
-    for (let i = defLine + 1; i < sourceLines.length; i++) {
-      const line = sourceLines[i]!;
-      // Skip blank / comment-only lines
-      if (/^\s*$/.test(line) || /^\s*#/.test(line)) { last = i; continue; }
-      const indent = line.match(/^(\s*)/)![1]!.length;
-      if (indent <= baseIndent) break;
-      last = i;
-    }
-    if (last > defLine) return last;
-  }
-
-  // Brace-counting: scan forward from the first '{' on or after defLine.
-  let braceStart = -1;
-  for (let i = defLine; i < Math.min(defLine + 5, sourceLines.length); i++) {
-    if (sourceLines[i]!.includes('{')) { braceStart = i; break; }
-  }
-  if (braceStart >= 0) {
-    let depth = 0;
-    for (let i = braceStart; i < sourceLines.length; i++) {
-      const line = sourceLines[i]!;
-      // On the first line, start counting from the last '{' to skip
-      // inline type literals like interface{}, struct{}, map[K]V{}
-      // that appear in Go/Java/C function signatures.
-      const startIdx = (i === braceStart) ? line.lastIndexOf('{') : 0;
-      for (let ci = startIdx; ci < line.length; ci++) {
-        const ch = line[ci];
-        if (ch === '{') depth++;
-        else if (ch === '}') { depth--; if (depth === 0) return i; }
-      }
-    }
-  }
-
-  // Fallback: extend to just before the next definition, or EOF.
-  if (nextDefLine !== null && nextDefLine > defLine) {
-    return nextDefLine - 1;
-  }
-  return Math.min(defLine + 20, sourceLines.length - 1);
+  // Tree-sitter (via SourceIndexStage) always overwrites end_line with
+  // accurate spans, so the heuristic estimate is never used for anything
+  // critical.  Return defLine as a conservative placeholder.
+  return defLine;
 }
 
 // ─── Type-ref kind inference ──────────────────────────────────────────────────
@@ -409,6 +368,141 @@ function inferTypeRefKind(sourceLines: string[], refLine: number, refChar: numbe
   }
 
   return 'other';
+}
+
+// ─── Tree-sitter AST helpers ────────────────────────────────────────────────
+
+/** Node types that represent call expressions across languages. */
+const CALL_NODE_TYPES = new Set([
+  'call_expression', 'function_call', 'invocation_expression',
+  'method_invocation', 'call', 'new_expression',
+]);
+
+/** Node types that represent member access across languages. */
+const MEMBER_NODE_TYPES = new Set([
+  'member_expression', 'field_expression', 'attribute',
+  'member_access_expression', 'qualified_identifier',
+  'selector_expression',
+]);
+
+/** Node types that represent import statements across languages. */
+const IMPORT_NODE_TYPES = new Set([
+  'import_statement', 'import_declaration', 'preproc_include',
+  'use_declaration', 'require_call', 'import_from_statement',
+  'using_directive', 'call_expression',
+]);
+
+/**
+ * Infer a `ref_kind` for a type reference from its tree-sitter AST context.
+ *
+ * Walks up the parent chain from the node at `(refLine, refChar)` to find
+ * a recognizable structural context.  Returns `null` if no match is found,
+ * signalling that the regex heuristic should be used instead.
+ */
+function inferTypeRefKindFromTree(
+  tree: Parser.Tree, refLine: number, refChar: number,
+): string | null {
+  let node: Parser.SyntaxNode | null = tree.rootNode.descendantForPosition({ row: refLine, column: refChar });
+  if (!node) return null;
+
+  // Walk up at most 6 levels to find a structural parent.
+  for (let depth = 0; depth < 6 && node; depth++) {
+    const t = node.type;
+    if (t === 'return_type' || (t === 'type_annotation' && node.parent?.type === 'function_declaration')) return 'return';
+    if (t === 'type_parameter_constraint' || t === 'constraint') return 'bound';
+    if (t === 'type_arguments' || t === 'generic_type' || t === 'type_argument_list') return 'generic_arg';
+    if (t === 'required_parameter' || t === 'formal_parameter' || t === 'parameter_declaration' || t === 'typed_parameter') return 'parameter';
+    if (t === 'field_declaration' || t === 'property_declaration' || t === 'field_definition') return 'field';
+    if (t === 'variable_declarator' || t === 'lexical_declaration' || t === 'variable_declaration') return 'variable';
+    node = node.parent;
+  }
+  return null;
+}
+
+/**
+ * Check whether a reference at `(line, char)` is inside a call expression.
+ */
+function isCallExpression(
+  tree: Parser.Tree, line: number, char: number,
+): boolean {
+  let node: Parser.SyntaxNode | null = tree.rootNode.descendantForPosition({ row: line, column: char });
+  for (let depth = 0; depth < 4 && node; depth++) {
+    if (CALL_NODE_TYPES.has(node.type)) return true;
+    node = node.parent;
+  }
+  return false;
+}
+
+/**
+ * Extract the receiver name from a member-access expression containing the
+ * reference at `(line, char)`.  Returns `null` if the reference is not
+ * inside a member expression.
+ */
+function extractReceiverName(
+  tree: Parser.Tree, line: number, char: number,
+): string | null {
+  let node: Parser.SyntaxNode | null = tree.rootNode.descendantForPosition({ row: line, column: char });
+  for (let depth = 0; depth < 4 && node; depth++) {
+    if (MEMBER_NODE_TYPES.has(node.type)) {
+      const obj = node.childForFieldName('object') ?? node.childForFieldName('operand') ?? node.firstChild;
+      if (obj && obj.type !== node.type) {
+        return obj.text;
+      }
+    }
+    node = node.parent;
+  }
+  return null;
+}
+
+/**
+ * Extract an import path from the tree-sitter AST at `importLine`.
+ * Returns `null` if no import node is found, signalling regex fallback.
+ */
+function extractImportPathFromTree(
+  tree: Parser.Tree, importLine: number,
+): string | null {
+  // Find any node on the import line
+  const node = tree.rootNode.descendantForPosition({ row: importLine, column: 0 });
+  if (!node) return null;
+
+  // Walk up to find the import statement node
+  let importNode: Parser.SyntaxNode | null = node;
+  for (let depth = 0; depth < 6 && importNode; depth++) {
+    if (IMPORT_NODE_TYPES.has(importNode.type)) break;
+    importNode = importNode.parent;
+  }
+  if (!importNode || !IMPORT_NODE_TYPES.has(importNode.type)) return null;
+
+  // Look for string literal or dotted-name children (recurse one level
+  // for languages like Go where the path is nested inside an import_spec).
+  const candidates: Parser.SyntaxNode[] = [];
+  for (let i = 0; i < importNode.childCount; i++) {
+    const child = importNode.child(i)!;
+    candidates.push(child);
+    // Recurse into wrapper nodes (e.g. Go's import_spec)
+    for (let j = 0; j < child.childCount; j++) {
+      candidates.push(child.child(j)!);
+    }
+  }
+  for (const child of candidates) {
+    if (child.type === 'string' || child.type === 'string_literal' ||
+        child.type === 'interpreted_string_literal' || child.type === 'system_lib_string') {
+      // Strip surrounding quotes
+      const text = child.text;
+      if ((text.startsWith('"') && text.endsWith('"')) ||
+          (text.startsWith("'") && text.endsWith("'")) ||
+          (text.startsWith('<') && text.endsWith('>'))) {
+        return text.slice(1, -1);
+      }
+      return text;
+    }
+    // Dotted import path (Java/Python/Kotlin): `import foo.bar.Baz`
+    if (child.type === 'dotted_name' || child.type === 'scoped_identifier' ||
+        child.type === 'qualified_identifier') {
+      return child.text;
+    }
+  }
+  return null;
 }
 
 // ─── Stage implementation ────────────────────────────────────────────────────
@@ -571,6 +665,7 @@ export class ScipIndexerStage implements PipelineStage {
 
     // Pass 1: Create files and symbols
     const fileIdMap = new Map<string, number>(); // absPath → file_id
+    const importParserPool = new ParserPool();
 
     const processDocuments = db.transaction(() => {
       for (const doc of scipIndex.documents) {
@@ -709,13 +804,22 @@ export class ScipIndexerStage implements PipelineStage {
         // Insert imports (from Import-role occurrences)
         // Prefer the actual import path from source; fall back to SCIP package.
         // Use symbolDefinitions to pre-resolve imports to target file IDs.
+        // Parse source with tree-sitter for AST-based import path extraction.
+        let importTree: Parser.Tree | null = null;
+        try { importTree = importParserPool.parse(loreLang, source); } catch { /* fall back to regex */ }
+
         const seenImports = new Map<string, number | null>(); // rawImport → resolved file ID
         for (const occ of doc.occurrences) {
           if ((occ.symbolRoles & SymbolRole.Import) !== 0 && occ.symbol) {
             const importLine = occ.range[0] ?? 0;
-            const srcImport = importLine < sourceLines.length
-              ? extractImportPathFromSource(sourceLines[importLine]!)
-              : null;
+            // Try tree-sitter first, fall back to regex-based extraction
+            let srcImport: string | null = null;
+            if (importTree) {
+              srcImport = extractImportPathFromTree(importTree, importLine);
+            }
+            if (!srcImport && importLine < sourceLines.length) {
+              srcImport = extractImportPathFromSource(sourceLines[importLine]!);
+            }
             let rawImport: string;
             if (srcImport) {
               rawImport = srcImport;
@@ -1080,6 +1184,7 @@ export class ScipRefStage implements PipelineStage {
 
     const scipDocs = documents as ScipDocument[];
     const sipInfoMap = symbolInfoMap as Map<string, ScipSymbolInformation>;
+    const parserPool = new ParserPool();
 
     const processRefs = db.transaction(() => {
       for (const doc of scipDocs) {
@@ -1091,6 +1196,13 @@ export class ScipRefStage implements PipelineStage {
         let source: string | null = null;
         try { source = fs.readFileSync(absPath, 'utf8'); } catch { /* skip */ }
         const sourceLines = source?.split('\n') ?? [];
+
+        // Parse source with tree-sitter for AST-based helpers.
+        const loreLang = inferLoreLanguage(doc.language, doc.relativePath);
+        let tree: Parser.Tree | null = null;
+        if (source && loreLang) {
+          try { tree = parserPool.parse(loreLang, source); } catch { /* fall back to heuristics */ }
+        }
 
         // Build a per-line index of all occurrences for receiver lookup.
         const occsByLine = new Map<number, Array<{ startChar: number; endChar: number; symbol: string }>>();
@@ -1115,17 +1227,24 @@ export class ScipRefStage implements PipelineStage {
           let refKind = classifyScipReference(occ.symbol);
           if (refKind === 'skip') {
             // Term-value refs (ending in '.') may be calls to arrow-function
-            // or const-assigned function values.  Check source for '(' after
-            // the identifier to upgrade skip → call.
+            // or const-assigned function values.  Use tree-sitter to check
+            // for call_expression parent; fall back to source char peek.
             const refLine = occ.range[0] ?? 0;
+            const refChar = occ.range[1] ?? 0;
             const refEndChar = occ.range.length >= 4 ? (occ.range[3] ?? 0) : (occ.range[2] ?? 0);
-            if (refLine < sourceLines.length) {
+            let upgraded = false;
+            if (tree) {
+              upgraded = isCallExpression(tree, refLine, refChar);
+            }
+            if (!upgraded && refLine < sourceLines.length) {
               const afterRef = sourceLines[refLine]!.slice(refEndChar).trimStart();
               if (afterRef.startsWith('(')) {
-                refKind = 'call';
+                upgraded = true;
               }
             }
-            if (refKind === 'skip') {
+            if (upgraded) {
+              refKind = 'call';
+            } else {
               refsSkippedNonCall++;
               continue;
             }
@@ -1147,26 +1266,35 @@ export class ScipRefStage implements PipelineStage {
 
           // Reconstruct member-access callee_name (e.g. "db.prepare")
           if (refKind === 'call' && sourceLines.length > line) {
-            const srcLine = sourceLines[line]!;
-            if (character > 0 && srcLine[character - 1] === '.') {
-              const lineOccs = occsByLine.get(line);
-              if (lineOccs) {
-                const receiver = lineOccs.find(o =>
-                  o.endChar >= character - 2 && o.endChar <= character
-                  && o.startChar < character
-                );
-                if (receiver) {
-                  const receiverText = srcLine.slice(receiver.startChar, receiver.endChar);
-                  if (receiverText) {
-                    calleeName = receiverText + '.' + calleeName;
+            // Try tree-sitter first: walk up to member_expression and grab object
+            let receiverText: string | null = null;
+            if (tree) {
+              receiverText = extractReceiverName(tree, line, character);
+            }
+            // Fall back to SCIP occurrence-based approach
+            if (!receiverText) {
+              const srcLine = sourceLines[line]!;
+              if (character > 0 && srcLine[character - 1] === '.') {
+                const lineOccs = occsByLine.get(line);
+                if (lineOccs) {
+                  const receiver = lineOccs.find(o =>
+                    o.endChar >= character - 2 && o.endChar <= character
+                    && o.startChar < character
+                  );
+                  if (receiver) {
+                    receiverText = srcLine.slice(receiver.startChar, receiver.endChar);
                   }
                 }
               }
             }
+            if (receiverText) {
+              calleeName = receiverText + '.' + calleeName;
+            }
           }
 
           if (refKind === 'type') {
-            const typeRefKind = inferTypeRefKind(sourceLines, line, character);
+            const typeRefKind = (tree ? inferTypeRefKindFromTree(tree, line, character) : null)
+              ?? inferTypeRefKind(sourceLines, line, character);
             const refDef = symbolDefinitions.get(occ.symbol);
             const refInfo = sipInfoMap.get(occ.symbol);
             const refSig = refInfo ? extractSignatureFromDoc(refInfo.documentation[0] ?? '') || null : null;
