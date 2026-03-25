@@ -117,17 +117,6 @@ describe('buildLoreStrategy', () => {
     expect(toolNames).toContain('lore_graph');
   });
 
-  it('should use lore_test_map for test mapping questions (4.1)', () => {
-    const task = makeTask({
-      questionId: '4.1',
-      prompt: 'What test files should I run after modifying `src/indexer/parser.ts`?',
-      family: 'testing',
-    });
-    const strategy = buildLoreStrategy(task);
-    const toolNames = strategy.steps.map((s) => s.toolName);
-    expect(toolNames).toContain('lore_test_map');
-  });
-
   it('should use lore_metrics for complexity questions (6.1)', () => {
     const task = makeTask({
       questionId: '6.1',
@@ -201,7 +190,6 @@ describe('buildLoreStrategy', () => {
     const strategy = buildLoreStrategy(task);
     const toolNames = strategy.steps.map((s) => s.toolName);
     expect(toolNames).toContain('lore_lookup');
-    expect(toolNames).toContain('lore_test_map');
     expect(toolNames).toContain('lore_blame');
   });
 
@@ -247,17 +235,6 @@ describe('buildLoreStrategy', () => {
     const strategy = buildLoreStrategy(task);
     const toolNames = strategy.steps.map((s) => s.toolName);
     expect(toolNames).toContain('lore_lookup');
-  });
-
-  it('should use lore_test_map with line for per-test coverage questions (4.2)', () => {
-    const task = makeTask({
-      questionId: '4.2',
-      prompt: 'Which tests exercise line 1 of `src/parsing/parser.ts`?',
-      family: 'testing',
-    });
-    const strategy = buildLoreStrategy(task);
-    const toolNames = strategy.steps.map((s) => s.toolName);
-    expect(toolNames).toContain('lore_test_map');
   });
 
   it('should use lore_diff for API surface diff questions (9.1)', () => {

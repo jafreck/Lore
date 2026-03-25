@@ -13,8 +13,6 @@
  *   lore refresh --db <path> --root <dir> --watch  Watch for changes and refresh automatically.
  *   lore refresh --db <path> --root <dir> --poll   Poll for changes and refresh automatically.
  *   lore hooks --root <dir> --db <path>         Install git hooks for automatic Lore refresh.
- *   lore ingest-coverage --db <path> --root <dir> --file <path> --format <lcov|cobertura>
- *                         Ingest a coverage report file into the knowledge base.
  */
 
 import * as fs from 'node:fs';
@@ -44,8 +42,6 @@ function usage(): never {
   lore refresh --db <path> --root <dir> --poll [--embedding-model <id>]  Poll for file changes and refresh automatically
   lore hooks --db <path> --root <dir> [--history] [--history-depth <n>] [--history-all] [--lsp]
                          Install git hooks for automatic refresh on commit/merge/checkout
-  lore ingest-coverage --db <path> --root <dir> --file <path> --format <lcov|cobertura> [--commit <sha>]
-                         Ingest an explicit coverage report file into the knowledge base
   lore analyze --db <path> [--mode <mode>] [--edge-kinds <kind>] [--branch <name>] [--max-lines <n>]
                          Run graph analysis on the knowledge-base (cycles, components, clusters, summary)
   lore install-scip [--language <lang>] [--list]
@@ -65,16 +61,10 @@ Options:
   --include <glob>         Glob pattern for files to include (repeatable)
   --exclude <glob>         Glob pattern for paths to exclude (repeatable)
   --language <lang>        Language name to filter by, e.g. typescript (repeatable)
-  --docs-include <glob>    Glob pattern for docs to include (repeatable)
-  --docs-exclude <glob>    Glob pattern for docs to exclude (repeatable)
-  --docs-extension <ext>   Documentation extension to include, e.g. .md (repeatable)
   --watch                  Enable fs-event watch mode (low-latency, may miss events on some platforms)
   --poll                   Enable polling mode (reliable but higher CPU/IO cost)
   --lsp                    Enable index-time LSP enrichment (disabled by default)
   --no-scip                Disable index-time SCIP indexing (enabled by default)
-  --file <path>            Coverage report path (required for ingest-coverage)
-  --format <name>          Coverage format: lcov or cobertura (required for ingest-coverage)
-  --commit <sha>           Commit SHA to associate with coverage ingestion (default: HEAD)
   --log-level <level>      Log level: debug, info, warn, error, silent (default: info)
   --log-file <path>        Path to the structured log file (default: lore.log next to the DB)
   --help, -h               Show this help message`,
@@ -229,9 +219,6 @@ async function main(): Promise<void> {
     const includeGlobs = flags(args, '--include');
     const excludeGlobs = flags(args, '--exclude');
     const languageNames = flags(args, '--language');
-    const docsIncludeGlobs = flags(args, '--docs-include');
-    const docsExcludeGlobs = flags(args, '--docs-exclude');
-    const docsExtensions = flags(args, '--docs-extension');
 
     // Static reverse map: language name → extensions (mirrors EXT_TO_LANG in walker.ts)
     const LANG_TO_EXTS: Record<string, string[]> = {
@@ -306,9 +293,6 @@ async function main(): Promise<void> {
         ...(includeGlobs.length > 0 && { includeGlobs }),
         ...(excludeGlobs.length > 0 && { excludeGlobs }),
         ...(extensions && { extensions }),
-        ...(docsIncludeGlobs.length > 0 && { docsIncludeGlobs }),
-        ...(docsExcludeGlobs.length > 0 && { docsExcludeGlobs }),
-        ...(docsExtensions.length > 0 && { docsExtensions }),
       },
       embedder,
       options,
@@ -371,10 +355,6 @@ async function main(): Promise<void> {
     try {
       totalEdges = (db.prepare('SELECT COUNT(*) AS cnt FROM symbol_refs').get() as { cnt: number }).cnt;
     } catch { /* table may not exist */ }
-    let totalDocs = 0;
-    try {
-      totalDocs = (db.prepare('SELECT COUNT(*) AS cnt FROM docs').get() as { cnt: number }).cnt;
-    } catch { /* table may not exist */ }
     let commitCount: number | undefined;
     try {
       commitCount = (db.prepare('SELECT COUNT(*) AS cnt FROM commits').get() as { cnt: number }).cnt;
@@ -415,7 +395,6 @@ async function main(): Promise<void> {
       embeddingReady: !!embedder,
       totalFiles,
       totalSymbols,
-      totalDocs,
       totalEdges,
       commitCount,
     });
@@ -507,15 +486,9 @@ async function main(): Promise<void> {
           ...(historyAll && { all: true }),
         }
       : false;
-    const docsIncludeGlobs = flags(args, '--docs-include');
-    const docsExcludeGlobs = flags(args, '--docs-exclude');
-    const docsExtensions = flags(args, '--docs-extension');
 
     const walkerConfig = {
       rootDir,
-      ...(docsIncludeGlobs.length > 0 && { docsIncludeGlobs }),
-      ...(docsExcludeGlobs.length > 0 && { docsExcludeGlobs }),
-      ...(docsExtensions.length > 0 && { docsExtensions }),
     };
     const refreshOptions = {
       indexDependencies,
@@ -647,28 +620,6 @@ async function main(): Promise<void> {
         hooks: result.installed,
       }) + '\n',
     );
-  } else if (subcommand === 'ingest-coverage') {
-    const dbPath = flag(args, '--db');
-    const rootDir = flag(args, '--root');
-    const reportPath = flag(args, '--file');
-    const format = flag(args, '--format');
-    const commitSha = flag(args, '--commit');
-
-    if (!dbPath || !rootDir || !reportPath || !format) {
-      console.error('Error: --db <path>, --root <dir>, --file <path>, and --format <lcov|cobertura> are required for the ingest-coverage subcommand.\n');
-      usage();
-      return;
-    }
-
-    if (format !== 'lcov' && format !== 'cobertura') {
-      console.error(`Error: unsupported coverage format "${format}". Use "lcov" or "cobertura".\n`);
-      usage();
-      return;
-    }
-
-    const { IndexBuilder } = await import('./indexer/index.js');
-    const builder = new IndexBuilder(dbPath, { rootDir });
-    await builder.ingestCoverage(reportPath, format, commitSha);
   } else if (subcommand === 'analyze') {
     const dbPath = flag(args, '--db');
     if (!dbPath) {

@@ -178,7 +178,6 @@ function queryTestsForSourceFile(
   const fTable = hasView(db, 'effective_files') ? 'effective_files' : 'files';
   const rows = db.prepare(
     `SELECT test_files.path AS test_path, tm.confidence
-     FROM test_mappings tm
      JOIN ${fTable} source_files ON source_files.id = tm.source_file_id
      JOIN ${fTable} test_files ON test_files.id = tm.test_file_id
      WHERE source_files.path = ? AND source_files.branch = ?
@@ -680,7 +679,6 @@ describe('IndexBuilder — branch support in build()', () => {
     expect(queryDocSectionEmbeddingCount(dbPath)).toBeGreaterThan(0);
   });
 
-  it('should persist test mappings after build resolves imports', async () => {
     const sourceFile = join(srcDir, 'math.ts');
     const testDir = join(srcDir, 'tests');
     const testFile = join(testDir, 'math.test.ts');
@@ -1081,7 +1079,6 @@ describe('IndexBuilder — branch support in update()', () => {
     expect(files.length).toBeGreaterThan(0);
   });
 
-  it('should refresh test mappings after update resolves changed imports', async () => {
     const sourceFile = join(srcDir, 'math.ts');
     const replacementSourceFile = join(srcDir, 'math2.ts');
     const testDir = join(srcDir, 'tests');

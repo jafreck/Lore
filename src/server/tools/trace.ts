@@ -12,7 +12,7 @@
  */
 
 import type { Database } from '../../db/read-only.js';
-import { getSymbolsByName, getCoveragePercentBySymbolIds } from '../../db/read-only.js';
+import { getSymbolsByName } from '../../db/read-only.js';
 
 // ─── Tool definition ──────────────────────────────────────────────────────────
 
@@ -87,7 +87,6 @@ export interface TraceStep {
   call_line?: number;
   resolution_method?: string;
   cyclomatic?: number;
-  coverage_percent?: number;
 }
 
 export interface TraceResult {
@@ -226,7 +225,6 @@ function buildStep(
   maxLines: number,
   callLine?: number,
   resolutionMethod?: string,
-  coveragePercent?: number | null,
 ): TraceStep {
   const step: TraceStep = {
     depth: depthLevel,
@@ -242,7 +240,6 @@ function buildStep(
   if (callLine !== undefined) step.call_line = callLine;
   if (resolutionMethod !== undefined) step.resolution_method = resolutionMethod;
   if (sym.cyclomatic !== null && sym.cyclomatic !== undefined) step.cyclomatic = sym.cyclomatic;
-  if (coveragePercent !== undefined && coveragePercent !== null) step.coverage_percent = coveragePercent;
   return step;
 }
 
@@ -260,7 +257,7 @@ function forwardTrace(
   let truncated = false;
 
   // Collect all symbol IDs we'll visit via iterative DFS planning pass
-  // then batch-fetch source and coverage.
+  // then batch-fetch source.
 
   interface DfsFrame {
     symbolId: number;
@@ -304,7 +301,6 @@ function forwardTrace(
   // Batch-fetch all symbols with source
   const allIds = planned.map((f) => f.symbolId);
   const symbolMap = getSymbolsWithSource(db, allIds);
-  const coverageMap = getCoveragePercentBySymbolIds(db, allIds, branch);
 
   // Second pass: replay the planned traversal in order, building steps.
   // Re-run the DFS to ensure correct pre-order.
@@ -318,9 +314,8 @@ function forwardTrace(
     const sym = symbolMap.get(frame.symbolId);
     if (!sym) continue;
 
-    const coverage = coverageMap.get(frame.symbolId) ?? null;
     steps.push(
-      buildStep(sym, frame.depthLevel, maxLines, frame.callLine, frame.resolutionMethod, coverage),
+      buildStep(sym, frame.depthLevel, maxLines, frame.callLine, frame.resolutionMethod),
     );
 
     if (frame.depthLevel < maxDepth) {
@@ -398,18 +393,15 @@ function pointToPointTrace(
   path.push({ id: fromId });
   path.reverse();
 
-  // Batch-fetch symbols and coverage
   const pathIds = path.map((p) => p.id);
   const symbolMap = getSymbolsWithSource(db, pathIds);
-  const coverageMap = getCoveragePercentBySymbolIds(db, pathIds, branch);
 
   const steps: TraceStep[] = [];
   for (let i = 0; i < path.length; i++) {
     const node = path[i]!;
     const sym = symbolMap.get(node.id);
     if (!sym) continue;
-    const coverage = coverageMap.get(node.id) ?? null;
-    steps.push(buildStep(sym, i, maxLines, node.callLine, node.resolutionMethod, coverage));
+    steps.push(buildStep(sym, i, maxLines, node.callLine, node.resolutionMethod));
   }
 
   return { steps, truncated: false, visitedIds: new Set(pathIds) };

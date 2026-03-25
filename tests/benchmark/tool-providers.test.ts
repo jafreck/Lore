@@ -37,7 +37,6 @@ describe('buildToolsForArm – control', () => {
     expect(toolNames).toContain('lore_lookup');
     expect(toolNames).toContain('lore_graph');
     expect(toolNames).toContain('lore_search');
-    expect(toolNames).toContain('lore_test_map');
     expect(toolNames).toContain('lore_metrics');
     expect(toolNames).toContain('lore_blame');
     expect(toolNames).toContain('lore_history');

@@ -39,30 +39,6 @@ function createTestDb(includeEnrichmentColumns = false): Database.Database {
       doc_comment TEXT${symbolEnrichmentColumns}
     );
     CREATE VIRTUAL TABLE symbols_fts USING fts5(name, kind, content=symbols, content_rowid=id);
-    CREATE TABLE docs (
-      id           INTEGER PRIMARY KEY AUTOINCREMENT,
-      path         TEXT    NOT NULL,
-      branch       TEXT    NOT NULL DEFAULT '',
-      kind         TEXT    NOT NULL,
-      title        TEXT    NOT NULL,
-      content      TEXT    NOT NULL,
-      content_hash TEXT    NOT NULL,
-      indexed_at   INTEGER NOT NULL DEFAULT 0,
-      UNIQUE(path, branch)
-    );
-    CREATE TABLE doc_sections (
-      id            INTEGER PRIMARY KEY AUTOINCREMENT,
-      doc_id        INTEGER NOT NULL REFERENCES docs(id) ON DELETE CASCADE,
-      section_index INTEGER NOT NULL,
-      title         TEXT    NOT NULL,
-      depth         INTEGER NOT NULL,
-      heading_path  TEXT    NOT NULL,
-      line_start    INTEGER NOT NULL,
-      line_end      INTEGER NOT NULL,
-      content       TEXT    NOT NULL,
-      content_hash  TEXT    NOT NULL,
-      UNIQUE(doc_id, section_index)
-    );
   `);
   return db;
 }
@@ -113,41 +89,6 @@ function insertSymbol(
   return rowid;
 }
 
-function insertDoc(
-  db: Database.Database,
-  path: string,
-  branch: string,
-  kind: string,
-  title: string,
-  content: string,
-): number {
-  const result = db
-    .prepare(
-      `INSERT INTO docs (path, branch, kind, title, content, content_hash, indexed_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    )
-    .run(path, branch, kind, title, content, `${path}:${branch}`, Date.now());
-  return result.lastInsertRowid as number;
-}
-
-function insertDocSection(
-  db: Database.Database,
-  docId: number,
-  sectionIndex: number,
-  title: string,
-  headingPath: string,
-  content: string,
-): number {
-  const result = db
-    .prepare(
-      `INSERT INTO doc_sections
-        (doc_id, section_index, title, depth, heading_path, line_start, line_end, content, content_hash)
-       VALUES (?, ?, ?, 1, ?, 1, 20, ?, ?)`,
-    )
-    .run(docId, sectionIndex, title, headingPath, content, `${docId}:${sectionIndex}`);
-  return result.lastInsertRowid as number;
-}
-
 function loadVectorTables(db: Database.Database, dims: number): void {
   const sqliteVec = esmRequire('sqlite-vec') as { load(db: Database.Database): void };
   sqliteVec.load(db);
@@ -155,7 +96,6 @@ function loadVectorTables(db: Database.Database, dims: number): void {
     CREATE VIRTUAL TABLE symbol_embeddings USING vec0(
       embedding FLOAT[${dims}]
     );
-    CREATE VIRTUAL TABLE doc_section_embeddings USING vec0(
       embedding FLOAT[${dims}]
     );
   `);
@@ -165,16 +105,6 @@ function insertSymbolEmbedding(db: Database.Database, symbolId: number, embeddin
   db.prepare(
     'INSERT OR REPLACE INTO symbol_embeddings(rowid, embedding) VALUES (CAST(? AS INTEGER), json(?))',
   ).run(symbolId, JSON.stringify(embedding));
-}
-
-function insertDocSectionEmbedding(
-  db: Database.Database,
-  sectionId: number,
-  embedding: number[],
-): void {
-  db.prepare(
-    'INSERT OR REPLACE INTO doc_section_embeddings(rowid, embedding) VALUES (CAST(? AS INTEGER), json(?))',
-  ).run(sectionId, JSON.stringify(embedding));
 }
 
 describe('search toolDef', () => {
@@ -187,10 +117,6 @@ describe('search toolDef', () => {
     expect(props.language?.description).toContain('source language filter');
     expect(props.kind?.type).toBe('string');
     expect(props.kind?.description).toContain('symbol kind filter');
-    expect(props.doc_path_prefix?.type).toBe('string');
-    expect(props.doc_path_prefix?.description).toContain('documentation path prefix filter');
-    expect(props.doc_kind?.type).toBe('string');
-    expect(props.doc_kind?.description).toContain('documentation kind filter');
     expect(toolDef.inputSchema.required).toEqual(['query']);
   });
 });
@@ -300,8 +226,6 @@ describe('search handler – structural mode', () => {
       path_prefix: 'src/',
       language: 'typescript',
       kind: 'function',
-      doc_path_prefix: 'docs/',
-      doc_kind: 'guide',
     };
     const result = await handler(db, args);
     expect(result.mode_used).toBe('structural');
@@ -349,81 +273,6 @@ describe('search handler – semantic/fused fallback without embedder', () => {
       embed: vi.fn(async () => [[0.1, 0.2, 0.3]]),
     };
     const result = await handler(db, { query: 'myFunc', mode: 'fused' }, embedder);
-    expect(result.mode_used).toBe('structural (fallback: no embeddings)');
-    expect(result.results.every((row) => row.result_type === 'symbol')).toBe(true);
-  });
-});
-
-describe('search handler – semantic/fused docs blending', () => {
-  let db: Database.Database;
-
-  beforeEach(() => {
-    db = createTestDb();
-    loadVectorTables(db, 3);
-
-    const mainFileId = insertFile(db, 'src/main.ts', 'main');
-    const symbolId = insertSymbol(db, mainFileId, 'parseConfig');
-    const docId = insertDoc(
-      db,
-      'src/README.md',
-      'main',
-      'readme',
-      'Main README',
-      'Explains parseConfig and setup.',
-    );
-    const sectionId = insertDocSection(
-      db,
-      docId,
-      0,
-      'Configuration',
-      'Configuration',
-      'The parseConfig function handles configuration loading.',
-    );
-
-    insertSymbolEmbedding(db, symbolId, [0.88, 0.12, 0.0]);
-    insertDocSectionEmbedding(db, sectionId, [0.92, 0.08, 0.0]);
-  });
-
-  it('should include both symbol and doc-section hits in semantic mode', async () => {
-    const embedder = {
-      modelName: 'test-embedder',
-      dims: 3,
-      embed: vi.fn(async () => [[0.9, 0.1, 0.0]]),
-    };
-
-    const result = await handler(db, { query: 'parse config', mode: 'semantic', branch: 'main' }, embedder);
-    if (result.mode_used === 'semantic') {
-      const symbolResult = result.results.find((row) => row.result_type === 'symbol');
-      const docResult = result.results.find((row) => row.result_type === 'doc_section');
-
-      expect(symbolResult).toBeDefined();
-      expect(symbolResult?.name).toBe('parseConfig');
-      expect(symbolResult?.file_path).toBe('src/main.ts');
-      expect(docResult).toBeDefined();
-      expect(docResult?.file_path).toBe('src/README.md');
-      expect(docResult?.doc_kind).toBe('readme');
-      expect(docResult?.heading_path).toBe('Configuration');
-      return;
-    }
-
-    expect(result.mode_used).toBe('structural (fallback: no embeddings)');
-    expect(result.results.every((row) => row.result_type === 'symbol')).toBe(true);
-  });
-
-  it('should include docs in fused ranking while preserving symbol entries', async () => {
-    const embedder = {
-      modelName: 'test-embedder',
-      dims: 3,
-      embed: vi.fn(async () => [[0.9, 0.1, 0.0]]),
-    };
-
-    const result = await handler(db, { query: 'parseConfig', mode: 'fused', branch: 'main', limit: 10 }, embedder);
-    if (result.mode_used === 'fused') {
-      expect(result.results.some((row) => row.result_type === 'symbol')).toBe(true);
-      expect(result.results.some((row) => row.result_type === 'doc_section')).toBe(true);
-      return;
-    }
-
     expect(result.mode_used).toBe('structural (fallback: no embeddings)');
     expect(result.results.every((row) => row.result_type === 'symbol')).toBe(true);
   });

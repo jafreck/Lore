@@ -25,7 +25,6 @@ import { openDb } from '../../../src/db/schema.js';
 import { LazyEmbeddingProvider } from '../../../src/embeddings/embedder.js';
 import { resolveEffectiveScipSettings } from '../../../src/scip/config.js';
 import { resolveEffectiveLspSettings } from '../../../src/lsp/config.js';
-import { ingestCoverageReport, ingestPerTestCoverage } from '../../../src/testing/coverage.js';
 import type { WalkerConfig } from '../../../src/discovery/walker.js';
 import type { EmbeddingProvider } from '../../../src/embeddings/embedder.js';
 import type { RepoCoverageConfig, RepoInstance, IndexOptions, IndexMode } from './types.js';
@@ -96,14 +95,6 @@ export async function indexRepo(
 
   const elapsed = Math.round(performance.now() - start);
 
-  if (instance.spec.coverage) {
-    try {
-      await ingestBenchmarkCoverage(instance, dbPath, instance.spec.coverage);
-    } catch (err) {
-      console.warn(`[benchmark] coverage ingestion failed (non-fatal): ${(err as Error).message}`);
-    }
-  }
-
   return {
     ...instance,
     dbPath,
@@ -133,7 +124,6 @@ async function ingestBenchmarkCoverage(
 
   const db = openDb(dbPath);
   try {
-    ingestCoverageReport({
       db,
       rootDir: instance.localPath,
       reportPath,
@@ -148,7 +138,6 @@ async function ingestBenchmarkCoverage(
         throw new Error(`Per-test coverage reports directory not found after benchmark prep: ${reportsDir}`);
       }
 
-      ingestPerTestCoverage({
         db,
         reportsDir,
         rootDir: instance.localPath,

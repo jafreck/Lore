@@ -96,12 +96,10 @@ describe('IndexPipeline', () => {
     // This is the structural enforcement that replaces call-site discipline.
     const pipeline = new IndexPipeline([
       { name: 'source-index', execute: async () => {} },
-      { name: 'docs-index', execute: async () => {} },
       { name: 'import-resolution', execute: async () => {} },
       { name: 'dependency-api', execute: async () => {} },
       { name: 'lsp-enrichment', execute: async () => {} },
       { name: 'symbol-resolution', execute: async () => {} },
-      { name: 'test-map', execute: async () => {} },
       { name: 'git-history', execute: async () => {} },
       { name: 'embedding', execute: async () => {} },
     ]);

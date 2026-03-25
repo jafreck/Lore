@@ -14,7 +14,6 @@
 
 import type { Database } from '../../db/read-only.js';
 import type { EmbeddingProvider } from '../../embeddings/embedder.js';
-import { semanticSearchDocSections } from '../../db/read-only.js';
 
 const queryEmbeddingCache = new Map<string, { vector: number[]; ts: number }>();
 const CACHE_MAX_SIZE = 1000;
@@ -85,14 +84,6 @@ export const toolDef = {
         type: 'string',
         description: 'Optional symbol kind filter for symbol results.',
       },
-      doc_path_prefix: {
-        type: 'string',
-        description: 'Optional documentation path prefix filter for semantic/fused doc-section results.',
-      },
-      doc_kind: {
-        type: 'string',
-        description: 'Optional documentation kind filter for semantic/fused doc-section results.',
-      },
       branch: {
         type: 'string',
         description: 'Optional branch to filter results. Query-time retrieval uses SQLite-only persisted data.',
@@ -112,8 +103,6 @@ export interface SearchArgs {
   path_prefix?: string;
   language?: string;
   kind?: string;
-  doc_path_prefix?: string;
-  doc_kind?: string;
 }
 
 export interface SearchResult {
@@ -133,24 +122,8 @@ export interface SearchSymbolResult {
   branch: string;
 }
 
-export interface SearchDocSectionResult {
-  result_type: 'doc_section';
-  doc_section_id: number;
-  doc_id: number;
-  doc_kind: string;
-  doc_title: string;
-  section_index: number;
-  heading_path: string;
-  name: string;
-  kind: string;
-  file_path: string;
-  start_line: number;
-  end_line: number;
-  score: number;
-  branch: string;
-}
 
-export type SearchResultItem = SearchSymbolResult | SearchDocSectionResult;
+export type SearchResultItem = SearchSymbolResult;
 
 /**
  * Sanitise a user-provided query string for FTS5 MATCH.
@@ -294,46 +267,6 @@ function semanticSymbolSearch(
   }
 }
 
-function semanticDocSectionSearch(
-  db: Database.Database,
-  queryVector: number[],
-  limit: number,
-  branch?: string,
-  docFilters?: { doc_path_prefix?: string; doc_kind?: string },
-): SearchDocSectionResult[] {
-  if (!hasVirtualTable(db, 'doc_section_embeddings')) {
-    return [];
-  }
-
-  try {
-    const rows = semanticSearchDocSections(db, {
-      queryVector,
-      branch,
-      limit,
-      ...(docFilters?.doc_path_prefix && { path: docFilters.doc_path_prefix }),
-      ...(docFilters?.doc_kind && { kind: docFilters.doc_kind }),
-    });
-    return rows.map((row) => ({
-      result_type: 'doc_section',
-      doc_section_id: row.id,
-      doc_id: row.doc_id,
-      doc_kind: row.doc_kind,
-      doc_title: row.doc_title,
-      section_index: row.section_index,
-      heading_path: row.heading_path,
-      name: row.title || row.doc_title,
-      kind: 'doc_section',
-      file_path: row.doc_path,
-      start_line: row.line_start,
-      end_line: row.line_end,
-      score: row.score,
-      branch: row.doc_branch,
-    }));
-  } catch {
-    return [];
-  }
-}
-
 /**
  * Attempt a semantic (cosine) search via the vec0 virtual table.
  * Returns `null` when no embedder is available or the table has no rows.
@@ -344,7 +277,6 @@ async function semanticSearch(
   limit: number,
   embedder: EmbeddingProvider,
   branch?: string,
-  docFilters?: { doc_path_prefix?: string; doc_kind?: string },
 ): Promise<SearchResultItem[] | null> {
   try {
     const cacheKey = query;
@@ -365,11 +297,7 @@ async function semanticSearch(
       queryEmbeddingCache.set(cacheKey, { vector: queryVec, ts: now });
     }
 
-    const symbolRows = semanticSymbolSearch(db, queryVec, limit, branch);
-    const docRows = semanticDocSectionSearch(db, queryVec, limit, branch, docFilters);
-    const rows = [...symbolRows, ...docRows]
-      .sort((a, b) => a.score - b.score)
-      .slice(0, limit);
+    const rows = semanticSymbolSearch(db, queryVec, limit, branch);
 
     return rows.length > 0 ? rows : null;
   } catch {
@@ -391,8 +319,7 @@ function rrfFuse(
   const k = 60;
   const scores = new Map<string, { item: SearchResultItem; score: number }>();
 
-  const resultKey = (item: SearchResultItem): string =>
-    item.result_type === 'symbol' ? `symbol:${item.symbol_id}` : `doc:${item.doc_section_id}`;
+  const resultKey = (item: SearchResultItem): string => `symbol:${item.symbol_id}`;
 
   const addList = (list: SearchResultItem[]): void => {
     list.forEach((item, idx) => {
@@ -441,10 +368,7 @@ export async function handler(
     // No query-time embedder available — callers can detect this degradation.
     result = { results: structural, mode_used: 'structural (no query-time embedder)' };
   } else {
-    const semantic = await semanticSearch(db, args.query, limit, embedder, args.branch, {
-      doc_path_prefix: args.doc_path_prefix,
-      doc_kind: args.doc_kind,
-    });
+    const semantic = await semanticSearch(db, args.query, limit, embedder, args.branch);
 
     if (mode === 'semantic') {
       result = semantic

@@ -7,7 +7,6 @@
 
 import fg from 'fast-glob';
 import { extname } from 'node:path';
-import { discoverDocumentationFiles, type DocumentationFile } from '../docs/docs.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -41,22 +40,8 @@ export interface WalkerConfig {
    */
   branch?: string;
 
-  /**
-   * Glob patterns (relative to `rootDir`) for documentation files to include.
-   * When omitted, docs discovery uses default README/docs/ADR/design patterns.
-   */
-  docsIncludeGlobs?: string[];
 
-  /**
-   * Glob patterns (relative to `rootDir`) for documentation paths to exclude.
-   */
-  docsExcludeGlobs?: string[];
 
-  /**
-   * Explicit documentation extensions to accept (with leading dot).
-   * Defaults to markdown/reStructuredText/AsciiDoc/text when omitted.
-   */
-  docsExtensions?: string[];
 }
 
 /** A single file discovered by `walkFiles`. */
@@ -169,18 +154,6 @@ export async function walkFiles(config: WalkerConfig): Promise<FileEntry[]> {
   return results;
 }
 
-/**
- * Walks `config.rootDir` and returns documentation files discovered using
- * docs-focused defaults (README/docs/ADR/design patterns) and kind inference.
- */
-export async function walkDocumentationFiles(config: WalkerConfig): Promise<DocumentationFile[]> {
-  return discoverDocumentationFiles({
-    rootDir: config.rootDir,
-    includeGlobs: config.docsIncludeGlobs,
-    excludeGlobs: config.docsExcludeGlobs,
-    extensions: config.docsExtensions,
-  });
-}
 
 /**
  * Detect the Lore language for a single file path using extension mapping.
