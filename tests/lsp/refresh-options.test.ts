@@ -20,6 +20,9 @@ const mockWalkFiles = vi.hoisted(() => vi.fn());
 vi.mock('node:fs', () => ({
   watch: mockWatch,
   statSync: mockStatSync,
+  promises: {
+    stat: mockStatSync,
+  },
 }));
 
 vi.mock('../../src/indexer/index.js', () => ({
@@ -44,7 +47,7 @@ describe('refresh option propagation', () => {
     vi.useFakeTimers();
     mockUpdate.mockResolvedValue(undefined);
     mockWalkFiles.mockResolvedValue([]);
-    mockStatSync.mockReturnValue({ mtimeMs: 1000 });
+    mockStatSync.mockResolvedValue({ mtimeMs: 1000 });
   });
 
   afterEach(() => {
@@ -79,7 +82,7 @@ describe('refresh option propagation', () => {
   it('forwards effective LSP and dependency options in FilePoller updates', async () => {
     const { FilePoller } = await import('../../src/discovery/poller.js');
     mockWalkFiles.mockResolvedValue([{ path: '/tmp/testroot/a.ts' }]);
-    mockStatSync.mockReturnValue({ mtimeMs: 2000 });
+    mockStatSync.mockResolvedValue({ mtimeMs: 2000 });
 
     const options: PollerOptions = {
       intervalMs: 25,

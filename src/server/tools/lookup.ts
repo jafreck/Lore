@@ -105,6 +105,15 @@ export interface LookupResult {
 
 const SYMBOL_LIMIT = 20;
 
+const queryEmbeddingCache = new Map<string, { vector: number[]; ts: number }>();
+const CACHE_MAX_SIZE = 1000;
+const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+/** Clear the query embedding cache. Exposed for testing. */
+export function clearQueryEmbeddingCache(): void {
+  queryEmbeddingCache.clear();
+}
+
 function symbolKey(row: Pick<SymbolRow, 'id'>): string {
   return `symbol:${row.id}`;
 }
@@ -132,10 +141,22 @@ async function semanticLookup(
   embedder: EmbeddingProvider,
 ): Promise<SemanticSymbolRow[] | null> {
   try {
+    const cacheKey = query;
+    const now = Date.now();
+    const cached = queryEmbeddingCache.get(cacheKey);
+    if (cached && now - cached.ts < CACHE_TTL_MS) {
+      return semanticSearchSymbols(db, { queryVector: cached.vector, branch, limit: SYMBOL_LIMIT });
+    }
     const [queryVector] = await embedder.embed([query]);
     if (!queryVector || queryVector.length === 0) {
       return null;
     }
+    // Evict oldest if at capacity
+    if (queryEmbeddingCache.size >= CACHE_MAX_SIZE) {
+      const oldestKey = queryEmbeddingCache.keys().next().value;
+      if (oldestKey !== undefined) queryEmbeddingCache.delete(oldestKey);
+    }
+    queryEmbeddingCache.set(cacheKey, { vector: queryVector, ts: now });
     return semanticSearchSymbols(db, { queryVector, branch, limit: SYMBOL_LIMIT });
   } catch {
     return null;
