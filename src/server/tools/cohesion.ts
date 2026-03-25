@@ -63,12 +63,15 @@ function truncateToDepth(filePath: string, depth: number): string {
   return parts.slice(0, depth).join('/');
 }
 
+/** Hard ceiling on the number of symbol-ref edges fetched from the DB. */
+const MAX_EDGES = 10_000;
+
 /** Rank directories by module cohesion. */
 export function handler(db: Database.Database, args: CohesionArgs): CohesionResult {
   const depth = Math.max(1, args.depth ?? 2);
   const limit = Math.min(Math.max(1, args.limit ?? 20), 200);
 
-  // Fetch all resolved edges with their caller/callee file paths.
+  // Fetch resolved edges with their caller/callee file paths, capped to MAX_EDGES.
   const rows = db
     .prepare(
       `SELECT f_caller.path AS caller_path,
@@ -78,9 +81,10 @@ export function handler(db: Database.Database, args: CohesionArgs): CohesionResu
          JOIN files f_caller   ON f_caller.id = s_caller.file_id
          JOIN symbols s_callee ON s_callee.id = sr.callee_id
          JOIN files f_callee   ON f_callee.id = s_callee.file_id
-        WHERE sr.callee_id IS NOT NULL`,
+        WHERE sr.callee_id IS NOT NULL
+        LIMIT ?`,
     )
-    .all() as Array<{ caller_path: string; callee_path: string }>;
+    .all(MAX_EDGES) as Array<{ caller_path: string; callee_path: string }>;
 
   // Accumulate per-directory counters.
   const dirMap = new Map<

@@ -141,6 +141,12 @@ export interface PipelineContext {
   generation: number;
 
   /**
+   * Maximum number of parse worker threads.
+   * If undefined, defaults to `availableParallelism() - 1`.
+   */
+  maxWorkers?: number;
+
+  /**
    * SCIP ref data stashed by `ScipIndexerStage` for deferred processing.
    *
    * The SCIP stage inserts symbols (Pass 1) but defers ref insertion
@@ -157,8 +163,8 @@ export interface PipelineContext {
     symbolInfoMap: Map<string, unknown>;
     /** Absolute path → file_id */
     fileIdMap: Map<string, number>;
-    /** Raw SCIP documents (occurrences + symbols) */
-    documents: unknown[];
+    /** Raw SCIP documents (occurrences + symbols), as a lazy iterable */
+    documents: Iterable<unknown>;
     /** Internal package prefixes for external-symbol detection */
     isExternalSymbol: (sym: string) => boolean;
   };
