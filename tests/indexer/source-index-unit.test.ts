@@ -28,25 +28,25 @@ describe('processFile — sourceCache', () => {
     db?.close();
   });
 
-  it('should populate sourceCache with file contents', () => {
+  it('should populate sourceCache with file contents', async () => {
     const content = 'export function hello(): string { return "hi"; }\n';
     const filePath = createTempFile(content);
     db = openDb(':memory:');
     pool = new ParserPool();
     const cache = new Map<string, string>();
 
-    processFile(db, pool, filePath, 'typescript', 'main', cache);
+    await processFile(db, pool, filePath, 'typescript', 'main', cache);
 
     expect(cache.has(filePath)).toBe(true);
     expect(cache.get(filePath)).toBe(content);
   });
 
-  it('should not error when sourceCache is undefined', () => {
+  it('should not error when sourceCache is undefined', async () => {
     const filePath = createTempFile('export const x = 1;\n');
     db = openDb(':memory:');
     pool = new ParserPool();
 
-    expect(() => processFile(db, pool, filePath, 'typescript', 'main')).not.toThrow();
+    await expect(processFile(db, pool, filePath, 'typescript', 'main')).resolves.toBeUndefined();
   });
 });
 
@@ -58,7 +58,7 @@ describe('processFile — symbol_metrics insertion', () => {
     db?.close();
   });
 
-  it('should insert symbol_metrics for each extracted symbol', () => {
+  it('should insert symbol_metrics for each extracted symbol', async () => {
     const content = `export function simple(): void {}
 export function branchy(x: number): string {
   if (x > 0) {
@@ -73,7 +73,7 @@ export function branchy(x: number): string {
     db = openDb(':memory:');
     pool = new ParserPool();
 
-    processFile(db, pool, filePath, 'typescript', 'main');
+    await processFile(db, pool, filePath, 'typescript', 'main');
 
     const metrics = db
       .prepare(
@@ -93,14 +93,14 @@ export function branchy(x: number): string {
     expect(branchy!.cyclomatic).toBeGreaterThan(simple!.cyclomatic);
   });
 
-  it('should update symbol_metrics on re-index of changed file', () => {
+  it('should update symbol_metrics on re-index of changed file', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'lore-srcidx-'));
     const filePath = join(dir, 'evolve.ts');
     writeFileSync(filePath, 'export function f(): void {}\n');
     db = openDb(':memory:');
     pool = new ParserPool();
 
-    processFile(db, pool, filePath, 'typescript', 'main');
+    await processFile(db, pool, filePath, 'typescript', 'main');
 
     let metrics = db
       .prepare(
@@ -117,7 +117,7 @@ export function branchy(x: number): string {
   return "c";
 }
 `);
-    processFile(db, pool, filePath, 'typescript', 'main');
+    await processFile(db, pool, filePath, 'typescript', 'main');
 
     metrics = db
       .prepare(
@@ -137,13 +137,13 @@ describe('processFile — is_exported persistence', () => {
     db?.close();
   });
 
-  it('should set is_exported = 1 for exported symbols', () => {
+  it('should set is_exported = 1 for exported symbols', async () => {
     const content = 'export function hello(): string { return "hi"; }\n';
     const filePath = createTempFile(content);
     db = openDb(':memory:');
     pool = new ParserPool();
 
-    processFile(db, pool, filePath, 'typescript', 'main');
+    await processFile(db, pool, filePath, 'typescript', 'main');
 
     const row = db.prepare(
       `SELECT s.name, s.is_exported FROM symbols s WHERE s.name = 'hello'`,
@@ -152,13 +152,13 @@ describe('processFile — is_exported persistence', () => {
     expect(row!.is_exported).toBe(1);
   });
 
-  it('should set is_exported = 0 for non-exported symbols', () => {
+  it('should set is_exported = 0 for non-exported symbols', async () => {
     const content = 'function internal(): void {}\nexport function pub(): void {}\n';
     const filePath = createTempFile(content);
     db = openDb(':memory:');
     pool = new ParserPool();
 
-    processFile(db, pool, filePath, 'typescript', 'main');
+    await processFile(db, pool, filePath, 'typescript', 'main');
 
     const rows = db.prepare(
       `SELECT s.name, s.is_exported FROM symbols s ORDER BY s.name`,
