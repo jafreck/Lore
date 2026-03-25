@@ -299,6 +299,12 @@ export class SourceIndexStage implements PipelineStage {
     const generation = context.generation;
 
     db.transaction(() => {
+      // Collect all baseline file IDs to delete in one batch. Doing a single
+      // DELETE FROM files WHERE id IN (...) is faster than N individual deletes,
+      // and ON DELETE CASCADE / ON DELETE SET NULL propagate automatically with
+      // foreign_keys = ON.
+      const baselineFileIdsToDelete: number[] = [];
+
       for (const filePath of changedFiles) {
         // If the file no longer exists, remove it from the DB
         if (!fs.existsSync(filePath)) {
@@ -309,22 +315,20 @@ export class SourceIndexStage implements PipelineStage {
             if (overlayRow) {
               const symRows = db.prepare('SELECT id FROM symbols WHERE file_id = ?').all(overlayRow.id) as Array<{ id: number }>;
               for (const s of symRows) context.staleSymbolIds.push(s.id);
+              // Cascade via file_id FK handles all child rows; ON DELETE SET NULL
+              // handles resolved_id, callee_id, type_id, and target_symbol_id.
               db.prepare('DELETE FROM files WHERE id = ?').run(overlayRow.id);
             }
             // Mark as dirty with a sentinel so effective_files excludes the baseline row
             db.prepare('INSERT OR REPLACE INTO dirty_files (path, dirty_since, overlay_gen) VALUES (?, unixepoch(), ?)').run(filePath, generation);
           } else {
-            // Baseline mode: delete all rows for this file
+            // Baseline mode: queue for batch delete
             const row = db.prepare('SELECT id FROM files WHERE path = ? AND branch = ?').get(filePath, branch) as
               | { id: number } | undefined;
             if (row) {
               const symRows = db.prepare('SELECT id FROM symbols WHERE file_id = ?').all(row.id) as Array<{ id: number }>;
               for (const s of symRows) context.staleSymbolIds.push(s.id);
-              db.prepare('UPDATE file_imports SET resolved_id = NULL WHERE resolved_id = ?').run(row.id);
-              db.prepare('UPDATE symbol_refs SET callee_id = NULL WHERE callee_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(row.id);
-              db.prepare('UPDATE type_refs SET type_id = NULL WHERE type_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(row.id);
-              db.prepare('UPDATE symbol_relationships SET target_symbol_id = NULL WHERE target_symbol_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(row.id);
-              db.prepare('DELETE FROM files WHERE id = ?').run(row.id);
+              baselineFileIdsToDelete.push(row.id);
             }
           }
           continue;
@@ -344,22 +348,32 @@ export class SourceIndexStage implements PipelineStage {
               for (const s of symRows) context.staleSymbolIds.push(s.id);
             }
           } else {
-            // Baseline: delete all data for this path
+            // Baseline: queue the existing row for batch delete
             const existingRow = db.prepare('SELECT id FROM files WHERE path = ? AND branch = ?').get(filePath, branch) as
               | { id: number } | undefined;
             if (existingRow) {
               const symRows = db.prepare('SELECT id FROM symbols WHERE file_id = ?').all(existingRow.id) as Array<{ id: number }>;
               for (const s of symRows) context.staleSymbolIds.push(s.id);
-              db.prepare('UPDATE file_imports SET resolved_id = NULL WHERE resolved_id = ?').run(existingRow.id);
-              db.prepare('UPDATE symbol_refs SET callee_id = NULL WHERE callee_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(existingRow.id);
-              db.prepare('UPDATE type_refs SET type_id = NULL WHERE type_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(existingRow.id);
-              db.prepare('UPDATE symbol_relationships SET target_symbol_id = NULL WHERE target_symbol_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(existingRow.id);
+              baselineFileIdsToDelete.push(existingRow.id);
             }
-            db.prepare('DELETE FROM files WHERE path = ? AND branch = ?').run(filePath, branch);
           }
-
-          processFile(db, pool, filePath, language, branch, context.sourceCache, layer, generation);
         }
+      }
+
+      // Single batch DELETE for all baseline files. Cascade via file_id FK
+      // deletes all child rows (symbols, file_imports, external_deps, annotations,
+      // symbol_relationships, type_refs). Deleting symbols further cascades to
+      // symbol_refs (caller_id), summaries, and metrics; ON DELETE SET NULL
+      // automatically nullifies cross-file callee_id / type_id / resolved_id /
+      // target_symbol_id references.
+      if (baselineFileIdsToDelete.length > 0) {
+        const placeholders = baselineFileIdsToDelete.map(() => '?').join(',');
+        db.prepare(`DELETE FROM files WHERE id IN (${placeholders})`).run(...baselineFileIdsToDelete);
+      }
+
+      // Re-process each changed file that still exists on disk
+      for (const { path: filePath, language } of enrichedFiles) {
+        processFile(db, pool, filePath, language, branch, context.sourceCache, layer, generation);
       }
     })();
 
@@ -484,31 +498,29 @@ function insertFileAndExtractions(
         WHERE id = ?`,
     ).run(language, sizeBytes, hash, source, existing.id);
     fileId = existing.id;
-    // Remove stale symbols / imports / external deps for this baseline row
+    // Remove stale symbols / imports / external deps for this baseline row.
+    // symbol_relationships and type_refs with NULL source/symbol_id must be
+    // deleted explicitly (cascade only fires for non-null FK rows).
+    // Deleting symbols cascades to symbol_refs (caller_id), symbol_summaries,
+    // symbol_metrics, and ON DELETE SET NULL nullifies cross-file callee_id /
+    // type_id / target_symbol_id references automatically.
     db.prepare('DELETE FROM symbol_relationships WHERE file_id = ?').run(fileId);
     db.prepare('DELETE FROM type_refs WHERE file_id = ?').run(fileId);
-    db.prepare('UPDATE symbol_refs SET callee_id = NULL WHERE callee_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(fileId);
-    db.prepare('UPDATE type_refs SET type_id = NULL WHERE type_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(fileId);
-    db.prepare('UPDATE symbol_relationships SET target_symbol_id = NULL WHERE target_symbol_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(fileId);
     db.prepare('DELETE FROM symbols WHERE file_id = ?').run(fileId);
     db.prepare('DELETE FROM file_imports WHERE file_id = ?').run(fileId);
     db.prepare('DELETE FROM external_deps WHERE file_id = ?').run(fileId);
     db.prepare('DELETE FROM annotations WHERE file_id = ?').run(fileId);
   } else if (layer === 'overlay') {
-    // Overlay mode: delete prior overlay rows for this file (not baseline)
+    // Overlay mode: delete prior overlay rows for this file (not baseline).
+    // Deleting the file row cascades (via file_id FK) to symbols, file_imports,
+    // external_deps, annotations, symbol_relationships, and type_refs.
+    // Deleting symbols further cascades to symbol_refs (caller_id), summaries,
+    // and metrics; ON DELETE SET NULL nullifies cross-file callee_id / type_id /
+    // target_symbol_id references automatically.
     const overlayRow = db.prepare(
       'SELECT id FROM files WHERE path = ? AND branch = ? AND layer = ?',
     ).get(filePath, branch, 'overlay') as { id: number } | undefined;
     if (overlayRow) {
-      db.prepare('DELETE FROM symbol_relationships WHERE file_id = ?').run(overlayRow.id);
-      db.prepare('DELETE FROM type_refs WHERE file_id = ?').run(overlayRow.id);
-      db.prepare('UPDATE symbol_refs SET callee_id = NULL WHERE callee_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(overlayRow.id);
-      db.prepare('UPDATE type_refs SET type_id = NULL WHERE type_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(overlayRow.id);
-      db.prepare('UPDATE symbol_relationships SET target_symbol_id = NULL WHERE target_symbol_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(overlayRow.id);
-      db.prepare('DELETE FROM symbols WHERE file_id = ?').run(overlayRow.id);
-      db.prepare('DELETE FROM file_imports WHERE file_id = ?').run(overlayRow.id);
-      db.prepare('DELETE FROM external_deps WHERE file_id = ?').run(overlayRow.id);
-      db.prepare('DELETE FROM annotations WHERE file_id = ?').run(overlayRow.id);
       db.prepare('DELETE FROM files WHERE id = ?').run(overlayRow.id);
     }
     // Insert a new overlay file row (baseline row is untouched)
