@@ -1192,15 +1192,15 @@ export class ScipRefStage implements PipelineStage {
         const fileId = fileIdMap.get(absPath);
         if (!fileId) continue;
 
-        // Read source for receiver-chain reconstruction and term-value call detection.
-        let source: string | null = null;
-        try { source = fs.readFileSync(absPath, 'utf8'); } catch { /* skip */ }
-        const sourceLines = source?.split('\n') ?? [];
+        // Source is already in memory — Pass 1 populated sourceCache for every SCIP document.
+        const source: string | undefined = context.sourceCache.get(absPath);
+        if (!source) continue;
+        const sourceLines = source.split('\n');
 
         // Parse source with tree-sitter for AST-based helpers.
         const loreLang = inferLoreLanguage(doc.language, doc.relativePath);
         let tree: Parser.Tree | null = null;
-        if (source && loreLang) {
+        if (loreLang) {
           try { tree = parserPool.parse(loreLang, source); } catch { /* fall back to heuristics */ }
         }
 
