@@ -195,6 +195,25 @@ function toScipSymbolInfo(sym: ScipSymbolInformation): ScipSymbolInfo {
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 /**
+ * Iterate SCIP documents from a raw protobuf index buffer.
+ *
+ * Decodes the index once and yields each document one at a time, allowing
+ * the caller to process documents without building a second in-memory copy.
+ * The underlying decoded object is kept alive by the generator closure.
+ *
+ * @param buffer       Raw protobuf bytes.
+ * @param _projectRoot Absolute path to the project root.  Provided for API
+ *                     symmetry with `parseScipIndex`; callers use it to
+ *                     resolve document `relative_path` values.
+ */
+export function* iterateScipDocuments(buffer: Uint8Array, _projectRoot: string): Generator<ScipDocument> {
+  const decoded: ScipIndex = fromBinary(IndexSchema, buffer);
+  for (const doc of decoded.documents) {
+    yield doc;
+  }
+}
+
+/**
  * Parse a SCIP protobuf index from raw bytes.
  *
  * @param buffer       The raw protobuf bytes (e.g. `fs.readFileSync(path)`).
