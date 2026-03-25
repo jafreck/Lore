@@ -11,6 +11,9 @@
 
 import type { Database } from '../../db/read-only.js';
 
+/** Hard ceiling on the number of file-import edges fetched from the DB. */
+const MAX_EDGES = 10_000;
+
 // ─── Tool definition ──────────────────────────────────────────────────────────
 
 export const toolDef = {
@@ -147,8 +150,9 @@ function buildDirGraph(db: Database.Database, depth: number, branch?: string): D
        FROM file_imports fi
        JOIN files f_src ON f_src.id = fi.file_id
        JOIN files f_dst ON f_dst.id = fi.resolved_id
-      WHERE ${whereClause}`,
-  ).all(...params) as Array<{ src_path: string; dst_path: string }>;
+      WHERE ${whereClause}
+      LIMIT ?`,
+  ).all(...params, MAX_EDGES) as Array<{ src_path: string; dst_path: string }>;
 
   const directories = new Set<string>();
   const adjacency = new Map<string, Map<string, DirEdge>>();
