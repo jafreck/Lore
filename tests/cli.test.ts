@@ -286,6 +286,62 @@ describe('cli', () => {
     });
   });
 
+  describe('index subcommand — max-workers option', () => {
+    it('should pass maxWorkers to IndexBuilder when --max-workers is provided', async () => {
+      const dbPath = freshDb();
+
+      let capturedOptions: unknown;
+      await loadCli(
+        ['index', '--db', dbPath, '--root', tmpDir, '--max-workers', '2'],
+        () => {
+          mockIndexBuilderWithOptionsCapture((options) => {
+            capturedOptions = options;
+          });
+        },
+      );
+      await vi.waitFor(() => {
+        expect(capturedOptions).toBeDefined();
+      });
+
+      expect(capturedOptions).toMatchObject({ maxWorkers: 2 });
+    });
+
+    it('should not include maxWorkers in options when --max-workers is omitted', async () => {
+      const dbPath = freshDb();
+
+      let capturedOptions: unknown;
+      await loadCli(
+        ['index', '--db', dbPath, '--root', tmpDir],
+        () => {
+          mockIndexBuilderWithOptionsCapture((options) => {
+            capturedOptions = options;
+          });
+        },
+      );
+      await vi.waitFor(() => {
+        expect(capturedOptions).toBeDefined();
+      });
+
+      expect((capturedOptions as Record<string, unknown>).maxWorkers).toBeUndefined();
+    });
+
+    it('should print an error and exit with code 1 for non-integer --max-workers', async () => {
+      await loadCli(['index', '--db', freshDb(), '--root', tmpDir, '--max-workers', 'abc']);
+      expect(exitSpy).toHaveBeenCalledWith(1);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('--max-workers must be a positive integer'),
+      );
+    });
+
+    it('should print an error and exit with code 1 for zero --max-workers', async () => {
+      await loadCli(['index', '--db', freshDb(), '--root', tmpDir, '--max-workers', '0']);
+      expect(exitSpy).toHaveBeenCalledWith(1);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('--max-workers must be a positive integer'),
+      );
+    });
+  });
+
   describe('index subcommand — LSP config defaults', () => {
     it('should apply .lore.config LSP defaults when explicit flags are not provided', async () => {
       const dbPath = freshDb();

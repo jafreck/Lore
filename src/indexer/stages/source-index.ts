@@ -167,7 +167,10 @@ export class SourceIndexStage implements PipelineStage {
 
     // Use worker threads for parallel parse+extract on multi-core machines.
     // Workers own their own ParserPool + extractors; main thread handles all DB writes.
-    const workerCount = Math.max(1, Math.min(remaining.length, availableParallelism() - 1));
+    const workerCount = Math.max(1, Math.min(
+      remaining.length,
+      context.maxWorkers ?? (availableParallelism() - 1),
+    ));
 
     if (workerCount <= 1) {
       // Single-core fallback: use the serial path
@@ -238,11 +241,20 @@ export class SourceIndexStage implements PipelineStage {
       files: tasks.length,
     });
 
-    // Distribute tasks across workers in round-robin chunks
-    const WORKER_BATCH_SIZE = 50;
+    // Sort files by language so each worker receives a contiguous block of
+    // same-language files. This limits the number of tree-sitter grammars
+    // each worker loads (from potentially all grammars to 1–2), reducing
+    // peak worker memory usage significantly on multi-language repos.
+    const sortedTasks = [...tasks].sort((a, b) =>
+      (a.language ?? '').localeCompare(b.language ?? ''),
+    );
+
+    // Distribute contiguous language-sorted blocks to workers
+    const tasksPerWorker = Math.ceil(sortedTasks.length / workerCount);
     const taskChunks: ParseTask[][] = [];
-    for (let i = 0; i < tasks.length; i += WORKER_BATCH_SIZE) {
-      taskChunks.push(tasks.slice(i, i + WORKER_BATCH_SIZE));
+    for (let w = 0; w < workerCount; w++) {
+      const chunk = sortedTasks.slice(w * tasksPerWorker, (w + 1) * tasksPerWorker);
+      if (chunk.length > 0) taskChunks.push(chunk);
     }
 
     // Spawn workers and collect results
