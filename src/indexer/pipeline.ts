@@ -141,6 +141,12 @@ export interface PipelineContext {
   generation: number;
 
   /**
+   * Maximum number of parse worker threads.
+   * If undefined, defaults to `availableParallelism() - 1`.
+   */
+  maxWorkers?: number;
+
+  /**
    * SCIP ref data stashed by `ScipIndexerStage` for deferred processing.
    *
    * The SCIP stage inserts symbols (Pass 1) but defers ref insertion
