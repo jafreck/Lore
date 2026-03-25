@@ -4,7 +4,7 @@
  * MCP tool: line-level git blame, line-range history, and ownership metadata.
  */
 
-import { execFile as execFileCb } from 'node:child_process';
+import { execFile as execFileCb, spawn } from 'node:child_process';
 import { dirname, relative } from 'node:path';
 
 function execFileAsync(
@@ -341,74 +341,7 @@ async function resolveGitPath(filePath: string): Promise<GitPath> {
   return { repoRoot, relPath };
 }
 
-function parseBlamePorcelain(output: string): BlameLine[] {
-  const lines = output.split('\n');
-  const results: BlameLine[] = [];
-
-  const metaBySha = new Map<string, BlameMeta>();
-
-  let currentSha = '';
-  let currentFinalLine = 0;
-  let remainingSourceLines = 0;
-
-  for (const rawLine of lines) {
-    const headerMatch = rawLine.match(/^([^\s]+)\s+\d+\s+(\d+)\s+(\d+)$/);
-    if (headerMatch) {
-      currentSha = headerMatch[1] ?? '';
-      currentFinalLine = parseInt(headerMatch[2] ?? '0', 10);
-      remainingSourceLines = parseInt(headerMatch[3] ?? '0', 10);
-      if (!metaBySha.has(currentSha)) metaBySha.set(currentSha, {});
-      continue;
-    }
-
-    if (!currentSha) continue;
-
-    const meta = metaBySha.get(currentSha) ?? {};
-
-    if (rawLine.startsWith('author ')) {
-      meta.author = rawLine.slice('author '.length);
-      metaBySha.set(currentSha, meta);
-      continue;
-    }
-
-    if (rawLine.startsWith('author-mail ')) {
-      meta.author_email = rawLine.slice('author-mail '.length).replace(/^<|>$/g, '');
-      metaBySha.set(currentSha, meta);
-      continue;
-    }
-
-    if (rawLine.startsWith('author-time ')) {
-      const ts = parseInt(rawLine.slice('author-time '.length), 10);
-      if (Number.isFinite(ts)) meta.timestamp = ts;
-      metaBySha.set(currentSha, meta);
-      continue;
-    }
-
-    if (rawLine.startsWith('summary ')) {
-      meta.summary = rawLine.slice('summary '.length);
-      metaBySha.set(currentSha, meta);
-      continue;
-    }
-
-    if (rawLine.startsWith('\t') && remainingSourceLines > 0) {
-      results.push({
-        line: currentFinalLine,
-        commit_sha: currentSha,
-        author: meta.author ?? 'unknown',
-        author_email: meta.author_email ?? '',
-        timestamp: meta.timestamp ?? 0,
-        summary: meta.summary ?? '',
-        text: rawLine.slice(1),
-      });
-      currentFinalLine += 1;
-      remainingSourceLines -= 1;
-    }
-  }
-
-  return results;
-}
-
-async function runBlamePorcelain(
+function runBlamePorcelain(
   repoRoot: string,
   relPath: string,
   ref: string,
@@ -421,61 +354,97 @@ async function runBlamePorcelain(
   }
   blameArgs.push(ref, '--', relPath);
 
-  let output = '';
-  try {
-    const result = await execFileAsync('git', blameArgs, { encoding: 'utf8' });
-    output = result.stdout;
-  } catch {
-    if (start != null && end != null) {
-      throw new Error(`git blame failed for ${relPath}:${start}-${end} at ref ${ref}.`);
-    }
-    throw new Error(`git blame failed for ${relPath} at ref ${ref}.`);
-  }
+  return new Promise((resolve, reject) => {
+    const child = spawn('git', blameArgs);
+    const results: BlameLine[] = [];
+    const metaBySha = new Map<string, BlameMeta>();
+    let currentSha = '';
+    let currentFinalLine = 0;
+    let remainingSourceLines = 0;
+    let buffer = '';
+    let stderrBuf = '';
 
-  return parseBlamePorcelain(output);
-}
-
-function parseHistoryOutput(output: string): BlameHistoryEntry[] {
-  const entries: BlameHistoryEntry[] = [];
-  const lines = output.split('\n');
-  let current: BlameHistoryEntry | undefined;
-  let patchLines: string[] = [];
-
-  for (const rawLine of lines) {
-    const parts = rawLine.split('\u001f');
-    const looksLikeHeader =
-      parts.length === 5 &&
-      /^[0-9a-f]{7,40}$/i.test(parts[0] ?? '') &&
-      Number.isFinite(Number(parts[3]));
-
-    if (looksLikeHeader) {
-      if (current) {
-        current.patch = patchLines.join('\n').trim();
-        entries.push(current);
+    function processLine(rawLine: string): void {
+      const headerMatch = rawLine.match(/^([^\s]+)\s+\d+\s+(\d+)\s+(\d+)$/);
+      if (headerMatch) {
+        currentSha = headerMatch[1] ?? '';
+        currentFinalLine = parseInt(headerMatch[2] ?? '0', 10);
+        remainingSourceLines = parseInt(headerMatch[3] ?? '0', 10);
+        if (!metaBySha.has(currentSha)) metaBySha.set(currentSha, {});
+        return;
       }
-      current = {
-        commit_sha: parts[0] ?? '',
-        author: parts[1] ?? '',
-        author_email: parts[2] ?? '',
-        timestamp: Number(parts[3] ?? 0),
-        summary: parts[4] ?? '',
-        patch: '',
-      };
-      patchLines = [];
-      continue;
+
+      if (!currentSha) return;
+
+      const meta = metaBySha.get(currentSha) ?? {};
+
+      if (rawLine.startsWith('author ')) {
+        meta.author = rawLine.slice('author '.length);
+        metaBySha.set(currentSha, meta);
+        return;
+      }
+
+      if (rawLine.startsWith('author-mail ')) {
+        meta.author_email = rawLine.slice('author-mail '.length).replace(/^<|>$/g, '');
+        metaBySha.set(currentSha, meta);
+        return;
+      }
+
+      if (rawLine.startsWith('author-time ')) {
+        const ts = parseInt(rawLine.slice('author-time '.length), 10);
+        if (Number.isFinite(ts)) meta.timestamp = ts;
+        metaBySha.set(currentSha, meta);
+        return;
+      }
+
+      if (rawLine.startsWith('summary ')) {
+        meta.summary = rawLine.slice('summary '.length);
+        metaBySha.set(currentSha, meta);
+        return;
+      }
+
+      if (rawLine.startsWith('\t') && remainingSourceLines > 0) {
+        results.push({
+          line: currentFinalLine,
+          commit_sha: currentSha,
+          author: meta.author ?? 'unknown',
+          author_email: meta.author_email ?? '',
+          timestamp: meta.timestamp ?? 0,
+          summary: meta.summary ?? '',
+          text: rawLine.slice(1),
+        });
+        currentFinalLine += 1;
+        remainingSourceLines -= 1;
+      }
     }
 
-    if (current) {
-      patchLines.push(rawLine);
-    }
-  }
+    child.stdout.on('data', (chunk: Buffer) => {
+      buffer += chunk.toString('utf8');
+      const lines = buffer.split('\n');
+      buffer = lines.pop() ?? '';
+      for (const line of lines) processLine(line);
+    });
 
-  if (current) {
-    current.patch = patchLines.join('\n').trim();
-    entries.push(current);
-  }
+    child.stderr.on('data', (chunk: Buffer) => {
+      stderrBuf += chunk.toString('utf8');
+    });
 
-  return entries;
+    child.on('close', (code) => {
+      if (code !== 0) {
+        const detail = stderrBuf.trim() ? `: ${stderrBuf.trim()}` : '';
+        if (start != null && end != null) {
+          reject(new Error(`git blame failed for ${relPath}:${start}-${end} at ref ${ref}${detail}.`));
+        } else {
+          reject(new Error(`git blame failed for ${relPath} at ref ${ref}${detail}.`));
+        }
+        return;
+      }
+      if (buffer) processLine(buffer);
+      resolve(results);
+    });
+
+    child.on('error', reject);
+  });
 }
 
 async function runHistoryLog(
@@ -485,27 +454,78 @@ async function runHistoryLog(
   start: number,
   end: number,
 ): Promise<BlameHistoryEntry[]> {
-  let output = '';
-  try {
-    const result = await execFileAsync(
-      'git',
-      [
-        '-C',
-        repoRoot,
-        'log',
-        '--format=%H%x1f%an%x1f%ae%x1f%at%x1f%s',
-        '-L',
-        `${start},${end}:${relPath}`,
-        ref,
-      ],
-      { encoding: 'utf8' },
-    );
-    output = result.stdout;
-  } catch {
-    throw new Error(`git log -L failed for ${relPath}:${start}-${end} at ref ${ref}.`);
-  }
+  return new Promise((resolve, reject) => {
+    const child = spawn('git', [
+      '-C',
+      repoRoot,
+      'log',
+      '--format=%H%x1f%an%x1f%ae%x1f%at%x1f%s',
+      '-L',
+      `${start},${end}:${relPath}`,
+      ref,
+    ]);
+    const entries: BlameHistoryEntry[] = [];
+    let current: BlameHistoryEntry | undefined;
+    let patchLines: string[] = [];
+    let buffer = '';
+    let stderrBuf = '';
 
-  return parseHistoryOutput(output);
+    function processLine(rawLine: string): void {
+      const parts = rawLine.split('\u001f');
+      const looksLikeHeader =
+        parts.length === 5 &&
+        /^[0-9a-f]{7,40}$/i.test(parts[0] ?? '') &&
+        Number.isFinite(Number(parts[3]));
+
+      if (looksLikeHeader) {
+        if (current) {
+          current.patch = patchLines.join('\n').trim();
+          entries.push(current);
+        }
+        current = {
+          commit_sha: parts[0] ?? '',
+          author: parts[1] ?? '',
+          author_email: parts[2] ?? '',
+          timestamp: Number(parts[3] ?? 0),
+          summary: parts[4] ?? '',
+          patch: '',
+        };
+        patchLines = [];
+        return;
+      }
+
+      if (current) {
+        patchLines.push(rawLine);
+      }
+    }
+
+    child.stdout.on('data', (chunk: Buffer) => {
+      buffer += chunk.toString('utf8');
+      const lines = buffer.split('\n');
+      buffer = lines.pop() ?? '';
+      for (const line of lines) processLine(line);
+    });
+
+    child.stderr.on('data', (chunk: Buffer) => {
+      stderrBuf += chunk.toString('utf8');
+    });
+
+    child.on('close', (code) => {
+      if (code !== 0) {
+        const detail = stderrBuf.trim() ? `: ${stderrBuf.trim()}` : '';
+        reject(new Error(`git log -L failed for ${relPath}:${start}-${end} at ref ${ref}${detail}.`));
+        return;
+      }
+      if (buffer) processLine(buffer);
+      if (current) {
+        current.patch = patchLines.join('\n').trim();
+        entries.push(current);
+      }
+      resolve(entries);
+    });
+
+    child.on('error', reject);
+  });
 }
 
 function buildCommitContextMap(
