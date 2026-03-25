@@ -190,10 +190,9 @@ export class SourceIndexStage implements PipelineStage {
     // Pre-fetch existing file hashes from DB so workers can skip unchanged files.
     const existingRows = new Map<string, { hash: string | null; sizeBytes: number }>();
     const layerForLookup = context.layer === 'overlay' ? 'overlay' : 'baseline';
-    const allExisting = db.prepare(
+    for (const row of db.prepare(
       'SELECT path, last_hash, size_bytes FROM files WHERE branch = ? AND layer = ?',
-    ).all(branch, layerForLookup) as Array<{ path: string; last_hash: string | null; size_bytes: number }>;
-    for (const row of allExisting) {
+    ).iterate(branch, layerForLookup) as Iterable<{ path: string; last_hash: string | null; size_bytes: number }>) {
       existingRows.set(row.path, { hash: row.last_hash, sizeBytes: row.size_bytes });
     }
 

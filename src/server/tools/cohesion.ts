@@ -68,20 +68,6 @@ export function handler(db: Database.Database, args: CohesionArgs): CohesionResu
   const depth = Math.max(1, args.depth ?? 2);
   const limit = Math.min(Math.max(1, args.limit ?? 20), 200);
 
-  // Fetch all resolved edges with their caller/callee file paths.
-  const rows = db
-    .prepare(
-      `SELECT f_caller.path AS caller_path,
-              f_callee.path AS callee_path
-         FROM symbol_refs sr
-         JOIN symbols s_caller ON s_caller.id = sr.caller_id
-         JOIN files f_caller   ON f_caller.id = s_caller.file_id
-         JOIN symbols s_callee ON s_callee.id = sr.callee_id
-         JOIN files f_callee   ON f_callee.id = s_callee.file_id
-        WHERE sr.callee_id IS NOT NULL`,
-    )
-    .all() as Array<{ caller_path: string; callee_path: string }>;
-
   // Accumulate per-directory counters.
   const dirMap = new Map<
     string,
@@ -97,7 +83,18 @@ export function handler(db: Database.Database, args: CohesionArgs): CohesionResu
     return entry;
   }
 
-  for (const row of rows) {
+  // Fetch all resolved edges with their caller/callee file paths.
+  const edgeStmt = db.prepare(
+    `SELECT f_caller.path AS caller_path,
+            f_callee.path AS callee_path
+       FROM symbol_refs sr
+       JOIN symbols s_caller ON s_caller.id = sr.caller_id
+       JOIN files f_caller   ON f_caller.id = s_caller.file_id
+       JOIN symbols s_callee ON s_callee.id = sr.callee_id
+       JOIN files f_callee   ON f_callee.id = s_callee.file_id
+      WHERE sr.callee_id IS NOT NULL`,
+  );
+  for (const row of edgeStmt.iterate() as Iterable<{ caller_path: string; callee_path: string }>) {
     const callerDir = truncateToDepth(row.caller_path, depth);
     const calleeDir = truncateToDepth(row.callee_path, depth);
 

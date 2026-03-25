@@ -142,18 +142,16 @@ function buildDirGraph(db: Database.Database, depth: number, branch?: string): D
 
   const whereClause = conditions.join(' AND ');
 
-  const rows = db.prepare(
+  const directories = new Set<string>();
+  const adjacency = new Map<string, Map<string, DirEdge>>();
+
+  for (const { src_path, dst_path } of db.prepare(
     `SELECT f_src.path AS src_path, f_dst.path AS dst_path
        FROM file_imports fi
        JOIN files f_src ON f_src.id = fi.file_id
        JOIN files f_dst ON f_dst.id = fi.resolved_id
       WHERE ${whereClause}`,
-  ).all(...params) as Array<{ src_path: string; dst_path: string }>;
-
-  const directories = new Set<string>();
-  const adjacency = new Map<string, Map<string, DirEdge>>();
-
-  for (const { src_path, dst_path } of rows) {
+  ).iterate(...params) as Iterable<{ src_path: string; dst_path: string }>) {
     const srcDir = dirPrefix(src_path, depth);
     const dstDir = dirPrefix(dst_path, depth);
 
