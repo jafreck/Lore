@@ -54,6 +54,8 @@ const COVERAGE_REPORT_RELATIVE_PATHS = [
   'coverage.xml',
 ];
 
+const STAT_BATCH_SIZE = 200;
+
 // ─── FilePoller ───────────────────────────────────────────────────────────────
 
 /**
@@ -82,8 +84,7 @@ export class FilePoller {
 
   /** Maps absolute path → last seen mtime (ms since epoch). */
   private snapshot: Map<string, number> = new Map();
-  private timer: ReturnType<typeof setInterval> | null = null;
-  private pollRunning = false;
+  private timer: ReturnType<typeof setTimeout> | null = null;
 
   /** Deferred SCIP baseline rebuild manager. */
   private scipFlush: ScipFlushManager | null = null;
@@ -118,13 +119,21 @@ export class FilePoller {
   /** Begin polling `walkerConfig.rootDir` at the configured interval. */
   start(): void {
     if (!this.enabled || this.timer !== null) return;
-    this.timer = setInterval(() => this.poll(), this.intervalMs);
+    const scheduleNext = () => {
+      this.timer = setTimeout(async () => {
+        await this.poll();
+        if (this.timer !== null) {
+          scheduleNext();
+        }
+      }, this.intervalMs);
+    };
+    scheduleNext();
   }
 
   /** Stop the polling interval. */
   stop(): void {
     if (this.timer !== null) {
-      clearInterval(this.timer);
+      clearTimeout(this.timer);
       this.timer = null;
     }
     this.scipFlush?.cancel();
@@ -133,101 +142,108 @@ export class FilePoller {
   // ─── Private helpers ──────────────────────────────────────────────────────
 
   private async poll(): Promise<void> {
-    if (this.pollRunning) return;
-    this.pollRunning = true;
-    try {
-      let errorCount = 0;
-      const changed: string[] = [];
+    let errorCount = 0;
+    const changed: string[] = [];
 
-      let entries: { path: string }[];
+    let entries: { path: string }[];
+    try {
+      entries = await walkFiles(this.walkerConfig);
+    } catch (err) {
+      process.stderr.write(
+        JSON.stringify({ level: 'error', source: 'FilePoller', message: String(err) }) + '\n',
+      );
+      return;
+    }
+
+    const currentPaths = new Set<string>();
+
+    // Batched async stat for all walked entries
+    const statResults = new Map<string, number>();
+
+    for (let i = 0; i < entries.length; i += STAT_BATCH_SIZE) {
+      const batch = entries.slice(i, i + STAT_BATCH_SIZE);
+      const results = await Promise.allSettled(
+        batch.map(async (entry) => {
+          const stat = await fs.promises.stat(entry.path);
+          return { path: entry.path, mtime: stat.mtimeMs };
+        })
+      );
+      for (const r of results) {
+        if (r.status === 'fulfilled') {
+          statResults.set(r.value.path, r.value.mtime);
+          currentPaths.add(r.value.path);
+        }
+      }
+    }
+
+    for (const [entryPath, mtime] of statResults) {
+      const prev = this.snapshot.get(entryPath);
+      if (prev === undefined || prev !== mtime) {
+        changed.push(entryPath);
+        this.snapshot.set(entryPath, mtime);
+      }
+    }
+
+    // Async stat for coverage report files
+    const coverageStatResults = await Promise.allSettled(
+      COVERAGE_REPORT_RELATIVE_PATHS.map(async (relPath) => {
+        const coveragePath = path.join(this.walkerConfig.rootDir, relPath);
+        const stat = await fs.promises.stat(coveragePath);
+        return { path: coveragePath, mtime: stat.mtimeMs };
+      })
+    );
+    for (const r of coverageStatResults) {
+      if (r.status === 'fulfilled') {
+        currentPaths.add(r.value.path);
+        const prev = this.snapshot.get(r.value.path);
+        if (prev === undefined || prev !== r.value.mtime) {
+          changed.push(r.value.path);
+          this.snapshot.set(r.value.path, r.value.mtime);
+        }
+      }
+    }
+
+    // Detect deletions: paths in snapshot that are no longer on disk
+    for (const [p] of this.snapshot) {
+      if (!currentPaths.has(p)) {
+        changed.push(p);
+        this.snapshot.delete(p);
+      }
+    }
+
+    if (changed.length > 0) {
+      // Overlay update: tree-sitter + LSP only, no SCIP.
+      const builder = new IndexBuilder(this.dbPath, this.walkerConfig, this.embedder, {
+        history: this.history,
+        ...(this.indexDependencies && { indexDependencies: true }),
+        ...(this.lsp && { lsp: this.lsp }),
+        // Note: SCIP is not passed — overlay updates never invoke SCIP.
+      });
       try {
-        entries = await walkFiles(this.walkerConfig);
+        await builder.update(changed);
       } catch (err) {
+        errorCount++;
         process.stderr.write(
           JSON.stringify({ level: 'error', source: 'FilePoller', message: String(err) }) + '\n',
         );
-        return;
       }
 
-      const currentPaths = new Set<string>();
-
-      for (const entry of entries) {
-        currentPaths.add(entry.path);
-        let mtime: number;
-        try {
-          mtime = fs.statSync(entry.path).mtimeMs;
-        } catch {
-          continue; // file vanished between walk and stat
-        }
-
-        const prev = this.snapshot.get(entry.path);
-        if (prev === undefined || prev !== mtime) {
-          changed.push(entry.path);
-          this.snapshot.set(entry.path, mtime);
-        }
+      // If SCIP is configured with throttling, accumulate paths and
+      // schedule a deferred SCIP-enabled update after the quiet period.
+      if (this.scipFlush) {
+        this.scipFlush.accumulate(changed);
       }
-
-      for (const relPath of COVERAGE_REPORT_RELATIVE_PATHS) {
-        const coveragePath = path.join(this.walkerConfig.rootDir, relPath);
-        let mtime: number;
-        try {
-          mtime = fs.statSync(coveragePath).mtimeMs;
-        } catch {
-          continue;
-        }
-
-        currentPaths.add(coveragePath);
-        const prev = this.snapshot.get(coveragePath);
-        if (prev === undefined || prev !== mtime) {
-          changed.push(coveragePath);
-          this.snapshot.set(coveragePath, mtime);
-        }
-      }
-
-      // Detect deletions: paths in snapshot that are no longer on disk
-      for (const [p] of this.snapshot) {
-        if (!currentPaths.has(p)) {
-          changed.push(p);
-          this.snapshot.delete(p);
-        }
-      }
-
-      if (changed.length > 0) {
-        // Overlay update: tree-sitter + LSP only, no SCIP.
-        const builder = new IndexBuilder(this.dbPath, this.walkerConfig, this.embedder, {
-          history: this.history,
-          ...(this.indexDependencies && { indexDependencies: true }),
-          ...(this.lsp && { lsp: this.lsp }),
-          // Note: SCIP is not passed — overlay updates never invoke SCIP.
-        });
-        try {
-          await builder.update(changed);
-        } catch (err) {
-          errorCount++;
-          process.stderr.write(
-            JSON.stringify({ level: 'error', source: 'FilePoller', message: String(err) }) + '\n',
-          );
-        }
-
-        // If SCIP is configured with throttling, accumulate paths and
-        // schedule a deferred SCIP-enabled update after the quiet period.
-        if (this.scipFlush) {
-          this.scipFlush.accumulate(changed);
-        }
-      }
-
-      process.stderr.write(
-        JSON.stringify({
-          level: 'info',
-          source: 'FilePoller',
-          message: 'poll cycle complete',
-          changed: changed.length,
-          errors: errorCount,
-        }) + '\n',
-      );
-    } finally {
-      this.pollRunning = false;
     }
+
+    process.stderr.write(
+      JSON.stringify({
+        level: 'info',
+        source: 'FilePoller',
+        message: 'poll cycle complete',
+        changed: changed.length,
+        errors: errorCount,
+      }) + '\n',
+    );
   }
 
 }

@@ -7,7 +7,9 @@ const mockUpdate = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 const mockBaselineRebuild = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 
 vi.mock('node:fs', () => ({
-  statSync: vi.fn(),
+  promises: {
+    stat: vi.fn(),
+  },
 }));
 
 vi.mock('../../src/indexer/index.js', () => ({
@@ -47,11 +49,9 @@ describe('FilePoller', () => {
     // Reset update mock to default resolved behaviour
     mockUpdate.mockResolvedValue(undefined);
 
-    // Default: empty directory, stats throw (no files present)
+    // Default: empty directory, stats reject (no files present)
     vi.mocked(walkFiles).mockResolvedValue([]);
-    vi.mocked(fs.statSync).mockImplementation(() => {
-      throw new Error('missing file');
-    });
+    vi.mocked(fs.promises.stat).mockRejectedValue(new Error('missing file'));
 
     stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
   });
@@ -120,7 +120,7 @@ describe('FilePoller', () => {
       const file = '/tmp/testroot/overlap.ts';
       vi.mocked(walkFiles).mockResolvedValue([makeEntry(file)]);
       let mtime = 0;
-      vi.mocked(fs.statSync).mockImplementation(() => ({ mtimeMs: ++mtime } as Stats));
+      vi.mocked(fs.promises.stat).mockImplementation(async () => ({ mtimeMs: ++mtime } as Stats));
 
       let resolveUpdate!: () => void;
       const updateGate = new Promise<void>((resolve) => {
@@ -149,7 +149,7 @@ describe('FilePoller', () => {
 
     it('should call IndexBuilder.update for newly created files', async () => {
       vi.mocked(walkFiles).mockResolvedValue([makeEntry('/tmp/testroot/new.ts')]);
-      vi.mocked(fs.statSync).mockReturnValue({ mtimeMs: 1000 } as Stats);
+      vi.mocked(fs.promises.stat).mockResolvedValue({ mtimeMs: 1000 } as Stats);
 
       const poller = new FilePoller('/db.sqlite', walkerConfig, { intervalMs: 100 });
       poller.start();
@@ -163,7 +163,7 @@ describe('FilePoller', () => {
 
     it('should pass the history option to IndexBuilder when applying updates', async () => {
       vi.mocked(walkFiles).mockResolvedValue([makeEntry('/tmp/testroot/new.ts')]);
-      vi.mocked(fs.statSync).mockReturnValue({ mtimeMs: 1000 } as Stats);
+      vi.mocked(fs.promises.stat).mockResolvedValue({ mtimeMs: 1000 } as Stats);
 
       const history = { depth: 3, all: true };
       const poller = new FilePoller('/db.sqlite', walkerConfig, { intervalMs: 100, history });
@@ -176,7 +176,7 @@ describe('FilePoller', () => {
 
     it('should pass the embedder to IndexBuilder when provided', async () => {
       vi.mocked(walkFiles).mockResolvedValue([makeEntry('/tmp/testroot/new.ts')]);
-      vi.mocked(fs.statSync).mockReturnValue({ mtimeMs: 1000 } as Stats);
+      vi.mocked(fs.promises.stat).mockResolvedValue({ mtimeMs: 1000 } as Stats);
 
       const mockEmbedder = { embed: vi.fn(), init: vi.fn(), dispose: vi.fn().mockResolvedValue(undefined), modelName: 'test-model', dims: 128 };
       const poller = new FilePoller('/db.sqlite', walkerConfig, { intervalMs: 100, embedder: mockEmbedder });
@@ -200,14 +200,14 @@ describe('FilePoller', () => {
 
       // First poll — file is new
       vi.mocked(walkFiles).mockResolvedValue([makeEntry(file)]);
-      vi.mocked(fs.statSync).mockReturnValueOnce({ mtimeMs: 1000 } as Stats);
+      vi.mocked(fs.promises.stat).mockResolvedValueOnce({ mtimeMs: 1000 } as Stats);
 
       const poller = new FilePoller('/db.sqlite', walkerConfig, { intervalMs: 100 });
       poller.start();
       await vi.advanceTimersByTimeAsync(100);
 
       // Second poll — mtime has changed
-      vi.mocked(fs.statSync).mockReturnValue({ mtimeMs: 2000 } as Stats);
+      vi.mocked(fs.promises.stat).mockResolvedValue({ mtimeMs: 2000 } as Stats);
       await vi.advanceTimersByTimeAsync(100);
       poller.stop();
 
@@ -218,7 +218,7 @@ describe('FilePoller', () => {
       const file = '/tmp/testroot/stable.ts';
 
       vi.mocked(walkFiles).mockResolvedValue([makeEntry(file)]);
-      vi.mocked(fs.statSync).mockReturnValue({ mtimeMs: 1000 } as Stats);
+      vi.mocked(fs.promises.stat).mockResolvedValue({ mtimeMs: 1000 } as Stats);
 
       const poller = new FilePoller('/db.sqlite', walkerConfig, { intervalMs: 100 });
       poller.start();
@@ -235,7 +235,7 @@ describe('FilePoller', () => {
 
       // First poll — file exists
       vi.mocked(walkFiles).mockResolvedValueOnce([makeEntry(file)]);
-      vi.mocked(fs.statSync).mockReturnValue({ mtimeMs: 1000 } as Stats);
+      vi.mocked(fs.promises.stat).mockResolvedValue({ mtimeMs: 1000 } as Stats);
 
       const poller = new FilePoller('/db.sqlite', walkerConfig, { intervalMs: 100 });
       poller.start();
@@ -254,7 +254,7 @@ describe('FilePoller', () => {
     it('should detect newly created coverage reports', async () => {
       const coverageFile = '/tmp/testroot/coverage/lcov.info';
       vi.mocked(walkFiles).mockResolvedValue([]);
-      vi.mocked(fs.statSync).mockImplementation((filePath) => {
+      vi.mocked(fs.promises.stat).mockImplementation(async (filePath) => {
         if (filePath === coverageFile) return { mtimeMs: 1000 } as Stats;
         throw new Error('missing file');
       });
@@ -273,7 +273,7 @@ describe('FilePoller', () => {
       const coverageFile = '/tmp/testroot/coverage/lcov.info';
       vi.mocked(walkFiles).mockResolvedValue([]);
       let mtime = 1000;
-      vi.mocked(fs.statSync).mockImplementation((filePath) => {
+      vi.mocked(fs.promises.stat).mockImplementation(async (filePath) => {
         if (filePath === coverageFile) return { mtimeMs: mtime } as Stats;
         throw new Error('missing file');
       });
@@ -294,7 +294,7 @@ describe('FilePoller', () => {
       const coverageFile = '/tmp/testroot/coverage/lcov.info';
       vi.mocked(walkFiles).mockResolvedValue([]);
       let exists = true;
-      vi.mocked(fs.statSync).mockImplementation((filePath) => {
+      vi.mocked(fs.promises.stat).mockImplementation(async (filePath) => {
         if (filePath === coverageFile && exists) return { mtimeMs: 1000 } as Stats;
         throw new Error('missing file');
       });
@@ -360,7 +360,7 @@ describe('FilePoller', () => {
       vi.mocked(walkFiles)
         .mockRejectedValueOnce(new Error('walk failed'))
         .mockResolvedValueOnce([makeEntry(file)]);
-      vi.mocked(fs.statSync).mockReturnValue({ mtimeMs: 1000 } as Stats);
+      vi.mocked(fs.promises.stat).mockResolvedValue({ mtimeMs: 1000 } as Stats);
 
       const poller = new FilePoller('/db.sqlite', walkerConfig, { intervalMs: 100 });
       poller.start();
@@ -375,7 +375,7 @@ describe('FilePoller', () => {
     it('should log an error when IndexBuilder.update throws', async () => {
       const file = '/tmp/testroot/a.ts';
       vi.mocked(walkFiles).mockResolvedValue([makeEntry(file)]);
-      vi.mocked(fs.statSync).mockReturnValue({ mtimeMs: 1000 } as Stats);
+      vi.mocked(fs.promises.stat).mockResolvedValue({ mtimeMs: 1000 } as Stats);
       mockUpdate.mockRejectedValueOnce(new Error('update failed'));
 
       const poller = new FilePoller('/db.sqlite', walkerConfig, { intervalMs: 100 });
@@ -402,7 +402,7 @@ describe('FilePoller', () => {
       const file = '/tmp/testroot/recovered-after-update-failure.ts';
       vi.mocked(walkFiles).mockResolvedValue([makeEntry(file)]);
       let mtime = 0;
-      vi.mocked(fs.statSync).mockImplementation(() => ({ mtimeMs: ++mtime } as Stats));
+      vi.mocked(fs.promises.stat).mockImplementation(async () => ({ mtimeMs: ++mtime } as Stats));
       mockUpdate.mockRejectedValueOnce(new Error('update failed'));
 
       const poller = new FilePoller('/db.sqlite', walkerConfig, { intervalMs: 100 });
@@ -419,7 +419,7 @@ describe('FilePoller', () => {
 
     it('should not include SCIP on immediate poll when scipQuietPeriodMs > 0', async () => {
       vi.mocked(walkFiles).mockResolvedValue([makeEntry('/tmp/testroot/a.ts')]);
-      vi.mocked(fs.statSync).mockReturnValue({ mtimeMs: 1000 } as Stats);
+      vi.mocked(fs.promises.stat).mockResolvedValue({ mtimeMs: 1000 } as Stats);
 
       const poller = new FilePoller('/db.sqlite', walkerConfig, {
         intervalMs: 100,
@@ -437,7 +437,7 @@ describe('FilePoller', () => {
 
     it('should schedule a baseline rebuild after the quiet period', async () => {
       vi.mocked(walkFiles).mockResolvedValue([makeEntry('/tmp/testroot/a.ts')]);
-      vi.mocked(fs.statSync).mockReturnValue({ mtimeMs: 1000 } as Stats);
+      vi.mocked(fs.promises.stat).mockResolvedValue({ mtimeMs: 1000 } as Stats);
 
       const poller = new FilePoller('/db.sqlite', walkerConfig, {
         intervalMs: 100,
@@ -460,7 +460,7 @@ describe('FilePoller', () => {
 
     it('should cancel SCIP timer on stop()', async () => {
       vi.mocked(walkFiles).mockResolvedValue([makeEntry('/tmp/testroot/a.ts')]);
-      vi.mocked(fs.statSync).mockReturnValue({ mtimeMs: 1000 } as Stats);
+      vi.mocked(fs.promises.stat).mockResolvedValue({ mtimeMs: 1000 } as Stats);
 
       const poller = new FilePoller('/db.sqlite', walkerConfig, {
         intervalMs: 100,
@@ -479,7 +479,7 @@ describe('FilePoller', () => {
 
     it('should not schedule baseline rebuilds when scipQuietPeriodMs is 0', async () => {
       vi.mocked(walkFiles).mockResolvedValue([makeEntry('/tmp/testroot/a.ts')]);
-      vi.mocked(fs.statSync).mockReturnValue({ mtimeMs: 1000 } as Stats);
+      vi.mocked(fs.promises.stat).mockResolvedValue({ mtimeMs: 1000 } as Stats);
 
       const poller = new FilePoller('/db.sqlite', walkerConfig, {
         intervalMs: 100,
