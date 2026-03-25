@@ -1,0 +1,1030 @@
+{
+  "metadata": {
+    "model": "claude-opus-4.6",
+    "repo": "lore-self",
+    "indexMode": "scip",
+    "embeddingModel": "none",
+    "lsp": false,
+    "tasks": 13,
+    "iterations": 1,
+    "completedRuns": 13,
+    "totalExpectedRuns": 13,
+    "timestamp": "2026-03-21T17:38:56.224Z"
+  },
+  "tasks": [
+    {
+      "taskId": "lore-self-1.1-openDb",
+      "family": "localization",
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 8,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 39065,
+          "tokensUsed": 1288,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 5,
+            "bash": 1
+          }
+        },
+        "tools": "view×5, report_intent×1, grep×1, bash×1",
+        "answer": "Now I have all the information. The functions/methods that directly call `openDb` in the source code are:  - `build` (method in IndexBuilder, line 128/131) - `update` (method in IndexBuilder, line 200/201) - `ingestSummary` (method in IndexBuilder, line 248/249) - `ingestCoverage` (method in IndexBu…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 10,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 66906,
+          "tokensUsed": 3273,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 2,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "lore_graph": 1,
+            "grep": 2,
+            "view": 5
+          }
+        },
+        "tools": "view×5, grep×2, report_intent×1, lore_dependents×1, lore_graph×1",
+        "loreToolArgs": "lore_dependents(query=openDb, kind=symbol, compact=true), lore_graph(kind=call, target_id=409, compact=true)",
+        "answer": "build update ingestSummary ingestCoverage main createDb createTestDb",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 1985,
+        "tokensPct": 154.11490683229815,
+        "wallTimeMs": 27841,
+        "wallTimePct": 71.26839882247536
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "lore-self-1.2-build",
+      "family": "localization",
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.9,
+          "firstPassAccurate": false,
+          "toolCallCount": 5,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 33189,
+          "tokensUsed": 764,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 3,
+            "view": 1
+          }
+        },
+        "tools": "grep×3, report_intent×1, view×1",
+        "answer": "Based on the `build()` method body, the direct callees are:  getLogger performance.now openDb this.resolveBranch log.indexing IndexPipeline ScipSourceStage SourceIndexStage DocsIndexStage ImportResolutionStage DependencyApiStage LspEnrichmentStage resolutionStage testMapStage historyStage EmbeddingS…",
+        "missedParts": [],
+        "missedAnswerLines": [
+          "<constructor>"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 4,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 24497,
+          "tokensUsed": 541,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 2,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 1,
+            "lore_graph": 1,
+            "bash": 1
+          }
+        },
+        "tools": "report_intent×1, lore_lookup×1, lore_graph×1, bash×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=build, mode=exact), lore_graph(kind=call, source_id=1839, compact=true)",
+        "answer": "getLogger openDb resolveBranch <constructor> resolutionStage testMapStage historyStage pipeline.run saveLastKnownHead gatherDbStats log.startup",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0.09999999999999998,
+        "tokens": -223,
+        "tokensPct": -29.18848167539267,
+        "wallTimeMs": -8692,
+        "wallTimePct": -26.18940010244358
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "lore-self-1.4-resolveSymbolEdges",
+      "family": "modification",
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 41,
+          "uniqueFilesRead": 8,
+          "wallTimeMs": 126023,
+          "tokensUsed": 8781,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "view": 10,
+            "grep": 5,
+            "bash": 24,
+            "task": 1
+          }
+        },
+        "tools": "bash×24, view×10, grep×5, report_intent×1, task×1",
+        "answer": "src/indexer/index.ts: resolutionStage src/indexer/index.ts: IndexBuilder.build src/indexer/index.ts: IndexBuilder.update src/cli.ts: main src/discovery/watcher.ts: FileWatcher.flush src/discovery/poller.ts: FilePoller.poll src/index.ts: (re-export) tests/resolution/call-graph.test.ts: (test cases) t…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 2,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 23486,
+          "tokensUsed": 682,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1
+          }
+        },
+        "tools": "report_intent×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=resolveSymbolEdges, kind=symbol, compact=true)",
+        "answer": "src/indexer/index.ts — resolutionStage src/indexer/index.ts — build src/indexer/index.ts — update src/discovery/watcher.ts — flush src/discovery/watcher.ts — scheduleFlush src/discovery/watcher.ts — start src/discovery/watcher.ts — errors0 src/discovery/poller.ts — poll src/discovery/poller.ts — sta…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -8099,
+        "tokensPct": -92.23323083931216,
+        "wallTimeMs": -102537,
+        "wallTimePct": -81.36371932107632
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "lore-self-1.3-build",
+      "family": "explanation",
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 6,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 103399,
+          "tokensUsed": 5537,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 3
+          }
+        },
+        "tools": "view×3, grep×2, report_intent×1",
+        "answer": "getLogger() performance.now() openDb(this.dbPath) this.resolveBranch() log.indexing('build started', { dbPath: this.dbPath, branch, rootDir: this.walkerConfig.rootDir }) new ScipSourceStage() new SourceIndexStage() new DocsIndexStage() new ImportResolutionStage() new DependencyApiStage() new LspEnri…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 5,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 84994,
+          "tokensUsed": 5066,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 3,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_snippet",
+            "lore_graph"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 1,
+            "lore_snippet": 1,
+            "lore_graph": 1,
+            "bash": 1
+          }
+        },
+        "tools": "report_intent×1, lore_lookup×1, lore_snippet×1, lore_graph×1, bash×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=build, mode=exact), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-1Bhbju/lore-self/src/indexer/index.ts, start_line=127, end_line=189), lore_graph(kind=call, source_id=1839, compact=false)",
+        "answer": "getLogger() openDb(this.dbPath) resolveBranch() resolutionStage() testMapStage() historyStage() IndexPipeline([new ScipSourceStage(), new SourceIndexStage(), new DocsIndexStage(), new ImportResolutionStage(), new DependencyApiStage(), new LspEnrichmentStage(), resolutionStage(), testMapStage(), hist…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -471,
+        "tokensPct": -8.506411414123171,
+        "wallTimeMs": -18405,
+        "wallTimePct": -17.799978723198485
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "lore-self-1.5-openDb",
+      "family": "localization",
+      "control": {
+        "score": {
+          "taskSuccess": 0.5,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 5,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 27229,
+          "tokensUsed": 545,
+          "answerCoverage": 0.5,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 3,
+            "view": 1
+          }
+        },
+        "tools": "grep×3, report_intent×1, view×1",
+        "answer": "build — opens the database and resolves the current branch, then threads both into a PipelineContext that drives a full indexing pipeline update — opens the database and resolves the current branch, then threads both into a PipelineContext that drives an incremental re-index of changed files",
+        "missedParts": [
+          "openDb",
+          "resolveBranch"
+        ],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 7,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 41621,
+          "tokensUsed": 1636,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 6,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_graph",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 2,
+            "lore_graph": 2,
+            "lore_snippet": 2
+          }
+        },
+        "tools": "lore_dependents×2, lore_graph×2, lore_snippet×2, report_intent×1",
+        "loreToolArgs": "lore_dependents(query=openDb, kind=symbol, compact=true), lore_dependents(query=resolveBranch, kind=symbol, compact=true), lore_graph(kind=call, target_id=409, compact=true), lore_graph(kind=call, target_id=1852, compact=true), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-1Bhbju/lore-self/src/indexer/index.ts, symbol=build), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-1Bhbju/lore-self/src/indexer/index.ts, symbol=update)",
+        "answer": "build — calls openDb() to open the SQLite database and resolveBranch() to get the current branch, then passes both into a PipelineContext to run the full indexing pipeline from scratch update — calls openDb() to open the SQLite database and resolveBranch() to get the current branch, then passes both…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 1091,
+        "tokensPct": 200.1834862385321,
+        "wallTimeMs": 14392,
+        "wallTimePct": 52.855411509787366
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "lore-self-1.7-build",
+      "family": "explanation",
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 10,
+          "uniqueFilesRead": 3,
+          "wallTimeMs": 55920,
+          "tokensUsed": 4931,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 4,
+            "glob": 1,
+            "view": 3,
+            "task": 1
+          }
+        },
+        "tools": "grep×4, view×3, report_intent×1, glob×1, task×1",
+        "answer": "1. `build` — creates the index pipeline and runs it against the database 2. `IndexPipeline.run` — iterates each stage in order, calling `stage.execute()` 3. `resolutionStage` — returns a pipeline stage whose execute callback calls `resolveSymbolEdges` 4. `resolveSymbolEdges` — resolves unresolved sy…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 2,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 15098,
+          "tokensUsed": 261,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_trace"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_trace": 1
+          }
+        },
+        "tools": "report_intent×1, lore_trace×1",
+        "loreToolArgs": "lore_trace(from_name=build, to_name=resolveSymbolEdges)",
+        "answer": "1. `build` — orchestrates the full indexing pipeline by assembling and running all stages in dependency order 2. `resolutionStage` — creates a pipeline stage that invokes symbol-edge resolution after LSP enrichment 3. `resolveSymbolEdges` — resolves unresolved call, type, and inheritance edges via c…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": -4670,
+        "tokensPct": -94.70695599269925,
+        "wallTimeMs": -40822,
+        "wallTimePct": -73.00071530758227
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "lore-self-1.8-openDb",
+      "family": "modification",
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 8,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 71164,
+          "tokensUsed": 2716,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 5
+          }
+        },
+        "tools": "view×5, grep×2, report_intent×1",
+        "answer": "Handle: None Propagate: build update ingestSummary ingestCoverage main",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 38,
+          "uniqueFilesRead": 6,
+          "wallTimeMs": 124706,
+          "tokensUsed": 9906,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 3,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_lookup",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "lore_lookup": 1,
+            "task": 1,
+            "lore_snippet": 1,
+            "view": 19,
+            "grep": 5,
+            "bash": 8,
+            "read_agent": 1
+          }
+        },
+        "tools": "view×19, bash×8, grep×5, report_intent×1, lore_dependents×1, lore_lookup×1, task×1, lore_snippet×1, read_agent×1",
+        "loreToolArgs": "lore_dependents(query=openDb, kind=symbol, compact=true), lore_lookup(kind=symbol, query=openDb), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-1Bhbju/lore-self/src/db/schema.ts, symbol=openDb)",
+        "answer": "  The explore agent's analysis shows that `openDb` is called directly in **src/indexer/index.ts** (methods: `build`, `update`, `ingestSummary`, `ingestCoverage`) and **src/cli.ts** (`main`). The watcher, poller, and runtime files only call it **indirectly** via `IndexBuilder` methods, so they are no…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 7190,
+        "tokensPct": 264.7275405007364,
+        "wallTimeMs": 53542,
+        "wallTimePct": 75.23747962452926
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "lore-self-7.2-openDb",
+      "family": "localization",
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 9,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 38843,
+          "tokensUsed": 1514,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 6
+          }
+        },
+        "tools": "view×6, grep×2, report_intent×1",
+        "answer": "The `openDb` call at line 534 is inside `main()` (starts at line 133). Now here are the results:  build → src/indexer/index.ts — stores the db in a local variable and passes it into an IndexPipeline run as part of the IndexContext update → src/indexer/index.ts — stores the db in a local variable and…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 44,
+          "uniqueFilesRead": 13,
+          "wallTimeMs": 196115,
+          "tokensUsed": 15236,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "grep": 9,
+            "view": 26,
+            "bash": 5,
+            "task": 2
+          }
+        },
+        "tools": "view×26, grep×9, bash×5, task×2, report_intent×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=openDb, kind=symbol, compact=true)",
+        "answer": "build → src/indexer/index.ts — assigns to local `db`, passes it into an IndexPipeline context for the full build run, gathers DB stats, then closes it update → src/indexer/index.ts — assigns to local `db`, passes it into an IndexPipeline context for an incremental update on changed files, then close…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 13722,
+        "tokensPct": 906.3408190224571,
+        "wallTimeMs": 157272,
+        "wallTimePct": 404.8914862394769
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "lore-self-7.3-resolutionStage",
+      "family": "localization",
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 4,
+          "uniqueFilesRead": 1,
+          "wallTimeMs": 22266,
+          "tokensUsed": 454,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 1
+          }
+        },
+        "tools": "grep×2, report_intent×1, view×1",
+        "answer": "`resolutionStage` is a wrapper that delegates to a single concrete function:  resolveSymbolEdges → src/resolution/call-graph.ts",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 5,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 20762,
+          "tokensUsed": 483,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 4,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_snippet",
+            "lore_trace"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 2,
+            "lore_snippet": 1,
+            "lore_trace": 1
+          }
+        },
+        "tools": "lore_lookup×2, report_intent×1, lore_snippet×1, lore_trace×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=resolutionStage), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-1Bhbju/lore-self/src/indexer/index.ts, start_line=327, end_line=332), lore_trace(from=1862, depth=2), lore_lookup(kind=symbol, query=resolveSymbolEdges)",
+        "answer": "resolveSymbolEdges → src/resolution/call-graph.ts",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 29,
+        "tokensPct": 6.387665198237885,
+        "wallTimeMs": -1504,
+        "wallTimePct": -6.75469325428905
+      },
+      "warnings": []
+    },
+    {
+      "taskId": "lore-self-10.1-openDb",
+      "family": "explanation",
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.8333333333333334,
+          "firstPassAccurate": false,
+          "toolCallCount": 8,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 36143,
+          "tokensUsed": 1670,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 5
+          }
+        },
+        "tools": "view×5, grep×2, report_intent×1",
+        "answer": "2 build → src/indexer/index.ts update → src/indexer/index.ts ingestSummary → src/indexer/index.ts ingestCoverage → src/indexer/index.ts main → src/cli.ts",
+        "missedParts": [],
+        "missedAnswerLines": [
+          "baselineRebuild → src/indexer/index.ts"
+        ]
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 0.8333333333333334,
+          "firstPassAccurate": false,
+          "toolCallCount": 10,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 55247,
+          "tokensUsed": 2458,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "grep": 4,
+            "view": 4
+          }
+        },
+        "tools": "grep×4, view×4, report_intent×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=openDb, kind=symbol, compact=true)",
+        "answer": "Now I have the complete picture. The `openDb` call at line 534 in `src/cli.ts` is inside `main()`.  **Direct callers of `openDb` in non-test source files:**  1. `src/indexer/index.ts`: `build` (L131), `update` (L201), `ingestSummary` (L249), `ingestCoverage` (L268) 2. `src/cli.ts`: `main` (L534)  2 …",
+        "missedParts": [],
+        "missedAnswerLines": [
+          "baselineRebuild → src/indexer/index.ts"
+        ]
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 788,
+        "tokensPct": 47.185628742514965,
+        "wallTimeMs": 19104,
+        "wallTimePct": 52.856708076252666
+      },
+      "warnings": [
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "lore-self-10.3-openDb",
+      "family": "explanation",
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 12,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 80777,
+          "tokensUsed": 2440,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "bash": 10
+          }
+        },
+        "tools": "bash×10, report_intent×1, grep×1",
+        "answer": "Here are the calling patterns grouped:  **`openDb(this.dbPath)` with `try/finally { db.close() }` — long-lived session in a method:** - `build` in `src/indexer/index.ts` - `update` in `src/indexer/index.ts` - `ingestSummary` in `src/indexer/index.ts` - `ingestCoverage` in `src/indexer/index.ts`  **`…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 59,
+          "uniqueFilesRead": 15,
+          "wallTimeMs": 193431,
+          "tokensUsed": 13440,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 2,
+          "loreToolsUsed": [
+            "lore_dependents",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "task": 1,
+            "lore_snippet": 1,
+            "bash": 21,
+            "grep": 7,
+            "view": 25,
+            "read_agent": 2
+          }
+        },
+        "tools": "view×25, bash×21, grep×7, read_agent×2, report_intent×1, lore_dependents×1, task×1, lore_snippet×1",
+        "loreToolArgs": "lore_dependents(query=openDb, kind=symbol, compact=true), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-1Bhbju/lore-self/src/db/schema.ts, symbol=openDb)",
+        "answer": "Here are all direct callers of `openDb` grouped by calling pattern:  **One-shot with try/finally { db.close() } — file path arg (production open-use-close pattern):** - `build` in src/indexer/index.ts - `update` in src/indexer/index.ts - `ingestSummary` in src/indexer/index.ts - `ingestCoverage` in …",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 11000,
+        "tokensPct": 450.8196721311475,
+        "wallTimeMs": 112654,
+        "wallTimePct": 139.46296594327595
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "lore-self-11.2-openDb",
+      "family": "modification",
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 8,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 33013,
+          "tokensUsed": 1126,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 2,
+            "view": 5
+          }
+        },
+        "tools": "view×5, grep×2, report_intent×1",
+        "answer": "build in src/indexer/index.ts — `const db = openDb(this.dbPath);` update in src/indexer/index.ts — `const db = openDb(this.dbPath);` ingestSummary in src/indexer/index.ts — `const db = openDb(this.dbPath);` ingestCoverage in src/indexer/index.ts — `const db = openDb(this.dbPath);` main in src/cli.ts…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 15,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 165105,
+          "tokensUsed": 9674,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 1,
+          "loreToolsUsed": [
+            "lore_dependents"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_dependents": 1,
+            "grep": 9,
+            "view": 4
+          }
+        },
+        "tools": "grep×9, view×4, report_intent×1, lore_dependents×1",
+        "loreToolArgs": "lore_dependents(query=openDb, kind=symbol, compact=true)",
+        "answer": "build in src/indexer/index.ts — const db = openDb(this.dbPath); update in src/indexer/index.ts — const db = openDb(this.dbPath); ingestSummary in src/indexer/index.ts — const db = openDb(this.dbPath); ingestCoverage in src/indexer/index.ts — const db = openDb(this.dbPath); main in src/cli.ts — const…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 8548,
+        "tokensPct": 759.1474245115453,
+        "wallTimeMs": 132092,
+        "wallTimePct": 400.1211643897858
+      },
+      "warnings": [
+        "lore 50%+ more tokens",
+        "lore 50%+ slower"
+      ]
+    },
+    {
+      "taskId": "lore-self-11.3-resolveSymbolEdges",
+      "family": "refactoring",
+      "control": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": false,
+          "toolCallCount": 5,
+          "uniqueFilesRead": 2,
+          "wallTimeMs": 30707,
+          "tokensUsed": 801,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 0,
+          "loreToolsUsed": [],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "grep": 1,
+            "view": 3
+          }
+        },
+        "tools": "view×3, report_intent×1, grep×1",
+        "answer": "Now I have all the information needed. Let me identify the **production** callers (non-test, non-re-export):  **Callers: 1**  **Verdict:** No — the function is 72 lines (98–170) containing a multi-pass transactional resolution strategy with 7 inner calls, prepared SQL statements, and database side e…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "lore": {
+        "score": {
+          "taskSuccess": 1,
+          "correctness": 1,
+          "firstPassAccurate": true,
+          "toolCallCount": 6,
+          "uniqueFilesRead": 0,
+          "wallTimeMs": 35222,
+          "tokensUsed": 1136,
+          "answerCoverage": 1,
+          "fileCoverage": 1,
+          "symbolCoverage": 1,
+          "loreToolCallCount": 5,
+          "loreToolsUsed": [
+            "lore_lookup",
+            "lore_dependents",
+            "lore_graph",
+            "lore_snippet"
+          ],
+          "toolCallCounts": {
+            "report_intent": 1,
+            "lore_lookup": 1,
+            "lore_dependents": 1,
+            "lore_graph": 1,
+            "lore_snippet": 2
+          }
+        },
+        "tools": "lore_snippet×2, report_intent×1, lore_lookup×1, lore_dependents×1, lore_graph×1",
+        "loreToolArgs": "lore_lookup(kind=symbol, query=resolveSymbolEdges), lore_dependents(query=resolveSymbolEdges, kind=symbol, compact=true), lore_graph(kind=call, target_id=437, compact=true), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-1Bhbju/lore-self/src/resolution/call-graph.ts, start_line=97, end_line=169), lore_snippet(path=/var/folders/_p/cvzkrpzx3qsgpy1wzwxfpldm0000gp/T/lore-copilot-bench-1Bhbju/lore-self/src/indexer/index.ts, symbol=resolutionStage)",
+        "answer": "**Callers:** 1 (only `resolutionStage` in `src/indexer/index.ts`)  **Verdict:** No — the function is 73 lines with heavy side effects (multiple SQL UPDATEs across 3 tables via `resolveByContainment` and `resolveByNameFallback`, all wrapped in a transaction). Inlining would not duplicate logic (singl…",
+        "missedParts": [],
+        "missedAnswerLines": []
+      },
+      "delta": {
+        "correctness": 0,
+        "tokens": 335,
+        "tokensPct": 41.8227215980025,
+        "wallTimeMs": 4515,
+        "wallTimePct": 14.703487804083759
+      },
+      "warnings": []
+    }
+  ],
+  "aggregate": {
+    "control": {
+      "arm": "control",
+      "totalRuns": 13,
+      "successRate": 0.9230769230769231,
+      "partialRate": 0.07692307692307693,
+      "failRate": 0,
+      "meanCorrectness": 0.9794871794871796,
+      "meanToolCalls": 9.923076923076923,
+      "meanUniqueFiles": 2.076923076923077,
+      "meanWallTimeMs": 53672.153846153844,
+      "meanTokens": 2505.153846153846,
+      "meanAnswerCoverage": 0.9615384615384616,
+      "meanFileCoverage": 1,
+      "meanSymbolCoverage": 1,
+      "firstPassAccuracyRate": 0,
+      "meanLoreToolCalls": 0,
+      "loreToolUsageRate": 0,
+      "allLoreToolsUsed": [],
+      "toolCallCounts": {
+        "report_intent": 13,
+        "grep": 30,
+        "view": 48,
+        "bash": 35,
+        "task": 2,
+        "glob": 1
+      },
+      "stdCorrectness": 0.051887452166277076,
+      "stdToolCalls": 9.613025351587106,
+      "stdWallTimeMs": 32343.190594121854,
+      "stdTokens": 2475.8896665695024,
+      "stdAnswerCoverage": 0.13867504905630731,
+      "stdFileCoverage": 0,
+      "stdSymbolCoverage": 0
+    },
+    "lore": {
+      "arm": "lore-enabled",
+      "totalRuns": 13,
+      "successRate": 1,
+      "partialRate": 0,
+      "failRate": 0,
+      "meanCorrectness": 0.9871794871794872,
+      "meanToolCalls": 15.923076923076923,
+      "meanUniqueFiles": 3.076923076923077,
+      "meanWallTimeMs": 80553.07692307692,
+      "meanTokens": 4907.076923076923,
+      "meanAnswerCoverage": 1,
+      "meanFileCoverage": 1,
+      "meanSymbolCoverage": 1,
+      "firstPassAccuracyRate": 0.38461538461538464,
+      "meanLoreToolCalls": 2.4615384615384617,
+      "loreToolUsageRate": 1,
+      "allLoreToolsUsed": [
+        "lore_dependents",
+        "lore_graph",
+        "lore_lookup",
+        "lore_snippet",
+        "lore_trace"
+      ],
+      "toolCallCounts": {
+        "report_intent": 13,
+        "lore_dependents": 10,
+        "lore_graph": 6,
+        "grep": 36,
+        "view": 83,
+        "lore_lookup": 6,
+        "bash": 36,
+        "lore_snippet": 8,
+        "lore_trace": 2,
+        "task": 4,
+        "read_agent": 3
+      },
+      "stdCorrectness": 0.04622501635210242,
+      "stdToolCalls": 18.594181609944272,
+      "stdWallTimeMs": 67001.08337614343,
+      "stdTokens": 5314.265494270092,
+      "stdAnswerCoverage": 0,
+      "stdFileCoverage": 0,
+      "stdSymbolCoverage": 0
+    },
+    "comparison": {
+      "successRateDelta": 0.07692307692307687,
+      "correctnessDelta": 0.007692307692307665,
+      "firstPassAccuracyDelta": 0.38461538461538464,
+      "answerCoverageDelta": 0.038461538461538436,
+      "toolCallsDelta": 6,
+      "tokensDelta": 2401.9230769230767,
+      "tokensPct": 95.8792642859336,
+      "wallTimeDelta": 26880.923076923078,
+      "wallTimePct": 50.083555718622186
+    },
+    "significance": {
+      "t": 0.39911406314264225,
+      "df": 23.686504869377032,
+      "p": 0.6933848108323243,
+      "significant": false
+    }
+  }
+}
