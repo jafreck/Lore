@@ -18,6 +18,18 @@ function escapeLikeWildcards(value: string): string {
   return value.replace(/[%_]/g, (ch) => `\\${ch}`);
 }
 
+/** Hard ceiling applied to all result-set limits to prevent OOM on unbounded queries. */
+const MAX_RESULT_LIMIT = 10_000;
+
+/**
+ * Clamp a caller-supplied limit to the hard ceiling.
+ * When no limit is given, `defaultLimit` is used (default: 1 000).
+ */
+function clampLimit(limit: number | undefined, defaultLimit = 1000): number {
+  if (limit === undefined) return defaultLimit;
+  return Math.min(limit, MAX_RESULT_LIMIT);
+}
+
 // ─── Connection helpers ───────────────────────────────────────────────────────
 
 /**
@@ -472,19 +484,17 @@ export function getFileByPath(db: Database.Database, path: string, branch?: stri
 /**
  * Return all indexed files, optionally filtered and paginated.
  *
- * By default no row limit is applied — consumers receive the full file list
- * without needing to know about an internal pagination ceiling.  Pass an
- * explicit `limit` to cap the result set.
+ * A hard cap of {@link MAX_RESULT_LIMIT} is applied even when no explicit
+ * `limit` is passed, using a default of 1 000 rows to prevent unbounded
+ * result sets from consuming excessive memory.  Pass an explicit `limit`
+ * to retrieve a different number of rows (still subject to the hard cap).
  */
 export function listFiles(db: Database.Database, limit?: number, branch?: string): FileRow[] {
+  const effectiveLimit = clampLimit(limit);
   if (branch !== undefined) {
-    return limit !== undefined
-      ? db.prepare('SELECT * FROM files WHERE branch = ? LIMIT ?').all(branch, limit) as FileRow[]
-      : db.prepare('SELECT * FROM files WHERE branch = ?').all(branch) as FileRow[];
+    return db.prepare('SELECT * FROM files WHERE branch = ? LIMIT ?').all(branch, effectiveLimit) as FileRow[];
   }
-  return limit !== undefined
-    ? db.prepare('SELECT * FROM files LIMIT ?').all(limit) as FileRow[]
-    : db.prepare('SELECT * FROM files').all() as FileRow[];
+  return db.prepare('SELECT * FROM files LIMIT ?').all(effectiveLimit) as FileRow[];
 }
 
 /** Return indexed files matching an exact path or directory prefix. */
@@ -1521,15 +1531,17 @@ export function listCommitCadence(
         ? "strftime('%Y-W%W', c.timestamp, 'unixepoch')"
         : "strftime('%Y-%m-%d', c.timestamp, 'unixepoch')";
   const { where, params } = buildCommitStatsWhere(filters);
+  const limit = clampStatsLimit(filters.limit);
   return db
     .prepare(
       `SELECT ${bucketExpr} AS bucket, COUNT(*) AS commits
        FROM commits c
        ${where}
        GROUP BY bucket
-       ORDER BY bucket ASC`,
+       ORDER BY bucket ASC
+       LIMIT ?`,
     )
-    .all(...params) as CommitCadenceRow[];
+    .all(...params, limit) as CommitCadenceRow[];
 }
 
 export function listCommitSizes(db: Database.Database, filters: CommitStatsFilters = {}): CommitSizeRow[] {

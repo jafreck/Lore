@@ -438,23 +438,59 @@ function expandCallers(
   depth: number,
   limit: number,
 ): RawCallerRow[] {
-  const all: RawCallerRow[] = [];
-  const seen = new Set<number>();
-  let frontier = seedIds;
+  if (seedIds.length === 0) return [];
 
-  for (let hop = 0; hop < depth && frontier.length > 0 && all.length < limit; hop++) {
-    const remaining = limit - all.length;
-    const rows = queryCallers(db, frontier, branch, remaining);
-    const nextFrontier: number[] = [];
-    for (const row of rows) {
-      if (seen.has(row.caller_id)) continue;
-      seen.add(row.caller_id);
-      all.push(row);
-      nextFrontier.push(row.caller_id);
-    }
-    frontier = nextFrontier;
-  }
-  return all;
+  const seedPlaceholders = seedIds.map(() => '(?)').join(', ');
+  const params: Array<string | number> = [...seedIds];
+
+  // Branch filter applied in recursive step (filter callers by their file's branch)
+  const recursiveBranchJoin = branch !== undefined ? 'JOIN files f_r ON f_r.id = s_r.file_id' : '';
+  const recursiveBranchCond = branch !== undefined ? 'AND f_r.branch = ?' : '';
+
+  params.push(depth); // max depth for WHERE r.depth < ? (must come before branch in SQL)
+  if (branch !== undefined) params.push(branch);
+
+  // Branch filter applied in outer query
+  const outerBranchCond = branch !== undefined ? 'AND f.branch = ?' : '';
+  if (branch !== undefined) params.push(branch);
+
+  params.push(limit);
+
+  return db
+    .prepare(
+      `WITH RECURSIVE
+         seeds(id) AS (VALUES ${seedPlaceholders}),
+         reachable(symbol_id, depth) AS (
+           SELECT id, 0 FROM seeds
+           UNION
+           SELECT sr.caller_id, r.depth + 1
+             FROM reachable r
+             JOIN symbol_refs sr ON sr.callee_id = r.symbol_id
+             JOIN symbols s_r ON s_r.id = sr.caller_id
+             ${recursiveBranchJoin}
+            WHERE r.depth < ?
+              ${recursiveBranchCond}
+         )
+       SELECT
+         e.symbol_id AS caller_id,
+         s.name AS caller_name,
+         s.kind AS caller_kind,
+         f.path AS caller_file,
+         s.parent_symbol_id AS caller_parent_symbol_id,
+         sp.name AS enclosing_name,
+         MIN(sr.call_line) + 1 AS line,
+         CASE WHEN MIN(sr.call_character) IS NULL THEN NULL ELSE MIN(sr.call_character) + 1 END AS character,
+         MIN(sr.resolution_method) AS resolution_method
+       FROM (SELECT symbol_id FROM reachable WHERE depth > 0 GROUP BY symbol_id) e
+       JOIN symbols s ON s.id = e.symbol_id
+       JOIN files f ON f.id = s.file_id
+       LEFT JOIN symbols sp ON sp.id = s.parent_symbol_id
+       JOIN symbol_refs sr ON sr.caller_id = e.symbol_id
+       WHERE 1=1 ${outerBranchCond}
+       GROUP BY e.symbol_id, s.name, s.kind, f.path, s.parent_symbol_id, sp.name
+       LIMIT ?`,
+    )
+    .all(...params) as RawCallerRow[];
 }
 
 function expandImporters(
@@ -464,23 +500,49 @@ function expandImporters(
   depth: number,
   limit: number,
 ): RawImporterRow[] {
-  const all: RawImporterRow[] = [];
-  const seen = new Set<number>();
-  let frontier = seedIds;
+  if (seedIds.length === 0) return [];
 
-  for (let hop = 0; hop < depth && frontier.length > 0 && all.length < limit; hop++) {
-    const remaining = limit - all.length;
-    const rows = queryImporters(db, frontier, branch, remaining);
-    const nextFrontier: number[] = [];
-    for (const row of rows) {
-      if (seen.has(row.file_id)) continue;
-      seen.add(row.file_id);
-      all.push(row);
-      nextFrontier.push(row.file_id);
-    }
-    frontier = nextFrontier;
-  }
-  return all;
+  const seedPlaceholders = seedIds.map(() => '(?)').join(', ');
+  const params: Array<string | number> = [...seedIds];
+
+  // Branch filter applied in recursive step (filter importers by their file's branch)
+  const recursiveBranchCond = branch !== undefined ? 'AND f_r.branch = ?' : '';
+
+  params.push(depth); // max depth for WHERE r.depth < ? (must come before branch in SQL)
+  if (branch !== undefined) params.push(branch);
+
+  // Branch filter applied in outer query
+  const outerBranchCond = branch !== undefined ? 'AND f.branch = ?' : '';
+  if (branch !== undefined) params.push(branch);
+
+  params.push(limit);
+
+  return db
+    .prepare(
+      `WITH RECURSIVE
+         seeds(id) AS (VALUES ${seedPlaceholders}),
+         reachable(file_id, depth) AS (
+           SELECT id, 0 FROM seeds
+           UNION
+           SELECT fi.file_id, r.depth + 1
+             FROM reachable r
+             JOIN file_imports fi ON fi.resolved_id = r.file_id
+             JOIN files f_r ON f_r.id = fi.file_id
+            WHERE r.depth < ?
+              ${recursiveBranchCond}
+         )
+       SELECT
+         e.file_id,
+         f.path AS file_path,
+         MIN(fi.raw_import) AS raw_import
+       FROM (SELECT file_id FROM reachable WHERE depth > 0 GROUP BY file_id) e
+       JOIN files f ON f.id = e.file_id
+       JOIN file_imports fi ON fi.file_id = e.file_id
+       WHERE 1=1 ${outerBranchCond}
+       GROUP BY e.file_id, f.path
+       LIMIT ?`,
+    )
+    .all(...params) as RawImporterRow[];
 }
 
 function expandSubclasses(
@@ -490,23 +552,58 @@ function expandSubclasses(
   depth: number,
   limit: number,
 ): RawSubclassRow[] {
-  const all: RawSubclassRow[] = [];
-  const seen = new Set<number>();
-  let frontier = seedIds;
+  if (seedIds.length === 0) return [];
 
-  for (let hop = 0; hop < depth && frontier.length > 0 && all.length < limit; hop++) {
-    const remaining = limit - all.length;
-    const rows = querySubclasses(db, frontier, branch, remaining);
-    const nextFrontier: number[] = [];
-    for (const row of rows) {
-      if (seen.has(row.symbol_id)) continue;
-      seen.add(row.symbol_id);
-      all.push(row);
-      nextFrontier.push(row.symbol_id);
-    }
-    frontier = nextFrontier;
-  }
-  return all;
+  const seedPlaceholders = seedIds.map(() => '(?)').join(', ');
+  const params: Array<string | number> = [...seedIds];
+
+  // Branch filter applied in recursive step (filter subclasses by their file's branch)
+  const recursiveBranchJoin = branch !== undefined ? 'JOIN files f_r ON f_r.id = s_r.file_id' : '';
+  const recursiveBranchCond = branch !== undefined ? 'AND f_r.branch = ?' : '';
+
+  params.push(depth); // max depth for WHERE r.depth < ? (must come before branch in SQL)
+  if (branch !== undefined) params.push(branch);
+
+  // Branch filter applied in outer query
+  const outerBranchCond = branch !== undefined ? 'AND f.branch = ?' : '';
+  if (branch !== undefined) params.push(branch);
+
+  params.push(limit);
+
+  return db
+    .prepare(
+      `WITH RECURSIVE
+         seeds(id) AS (VALUES ${seedPlaceholders}),
+         reachable(symbol_id, depth) AS (
+           SELECT id, 0 FROM seeds
+           UNION
+           SELECT rel.source_symbol_id, r.depth + 1
+             FROM reachable r
+             JOIN symbol_relationships rel ON rel.target_symbol_id = r.symbol_id
+             JOIN symbols s_r ON s_r.id = rel.source_symbol_id
+             ${recursiveBranchJoin}
+            WHERE r.depth < ?
+              AND rel.relationship_type IN ('extends', 'implements')
+              ${recursiveBranchCond}
+         )
+       SELECT
+         e.symbol_id,
+         s.name AS symbol_name,
+         s.kind AS symbol_kind,
+         f.path AS file,
+         MIN(rel.relationship_type) AS relationship_type,
+         CASE WHEN MIN(rel.line) IS NULL THEN NULL ELSE MIN(rel.line) + 1 END AS line,
+         CASE WHEN MIN(rel.character) IS NULL THEN NULL ELSE MIN(rel.character) + 1 END AS character,
+         MIN(rel.resolution_method) AS resolution_method
+       FROM (SELECT symbol_id FROM reachable WHERE depth > 0 GROUP BY symbol_id) e
+       JOIN symbols s ON s.id = e.symbol_id
+       JOIN files f ON f.id = s.file_id
+       JOIN symbol_relationships rel ON rel.source_symbol_id = e.symbol_id
+       WHERE rel.relationship_type IN ('extends', 'implements') ${outerBranchCond}
+       GROUP BY e.symbol_id, s.name, s.kind, f.path
+       LIMIT ?`,
+    )
+    .all(...params) as RawSubclassRow[];
 }
 
 // ─── Handler ──────────────────────────────────────────────────────────────────
