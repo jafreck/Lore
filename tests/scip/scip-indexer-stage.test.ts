@@ -19,7 +19,7 @@ import {
   SymbolRole,
 } from '../../src/scip/scip_pb.js';
 import { openDb } from '../../src/db/schema.js';
-import { ScipIndexerStage } from '../../src/indexer/stages/scip-indexer.js';
+import { ScipIndexerStage, ScipRefStage } from '../../src/indexer/stages/scip-indexer.js';
 import { SourceIndexStage } from '../../src/indexer/stages/source-index.js';
 import type { PipelineContext } from '../../src/indexer/pipeline.js';
 import { initLogger, LogLevel } from '../../src/logger.js';
@@ -43,7 +43,7 @@ afterEach(() => {
 function buildScipIndexBytes(docs: Array<{
   relativePath: string;
   language: string;
-  occurrences: Array<{ range: number[]; symbol: string; symbolRoles: number }>;
+  occurrences: Array<{ range: number[]; symbol: string; symbolRoles: number; enclosingRange?: number[] }>;
   symbols?: Array<{
     symbol: string;
     documentation?: string[];
@@ -59,6 +59,7 @@ function buildScipIndexBytes(docs: Array<{
         range: o.range,
         symbol: o.symbol,
         symbolRoles: o.symbolRoles,
+        enclosingRange: o.enclosingRange ?? [],
       })),
       symbols: (d.symbols ?? []).map(s => create(SymbolInformationSchema, {
         symbol: s.symbol,
@@ -116,8 +117,8 @@ describe('ScipIndexerStage', () => {
       relativePath: 'main.ts',
       language: 'TypeScript',
       occurrences: [
-        { range: [0, 9, 0, 14], symbol: symGreet, symbolRoles: SymbolRole.Definition },
-        { range: [3, 9, 3, 13], symbol: symMain, symbolRoles: SymbolRole.Definition },
+        { range: [0, 9, 0, 14], symbol: symGreet, symbolRoles: SymbolRole.Definition, enclosingRange: [0, 0, 2, 1] },
+        { range: [3, 9, 3, 13], symbol: symMain, symbolRoles: SymbolRole.Definition, enclosingRange: [3, 0, 5, 1] },
         // Call to greet inside main()
         { range: [4, 2, 4, 7], symbol: symGreet, symbolRoles: 0 },
       ],
@@ -133,6 +134,7 @@ describe('ScipIndexerStage', () => {
 
     const stage = new ScipIndexerStage();
     await stage.execute(ctx, 'build');
+    await new ScipRefStage().execute(ctx, 'build');
 
     // Symbol should have enrichment columns populated
     const sym = ctx.db.prepare('SELECT resolved_type_signature, resolved_return_type, definition_uri, definition_path FROM symbols WHERE name = ?').get('greet') as any;
@@ -187,6 +189,7 @@ describe('ScipIndexerStage', () => {
 
     const stage = new ScipIndexerStage();
     await stage.execute(ctx, 'build');
+    await new ScipRefStage().execute(ctx, 'build');
 
     // Type ref should have enrichment columns populated
     const typeRef = ctx.db.prepare('SELECT resolved_type_signature, definition_path, definition_line FROM type_refs LIMIT 1').get() as any;
@@ -398,7 +401,9 @@ describe('ScipIndexerStage', () => {
     ).get('HandleRequest') as { start_line: number; end_line: number } | undefined;
     expect(beforePatch).toBeDefined();
     expect(beforePatch!.start_line).toBe(6);
-    // SCIP provides no enclosingRange, so end_line should still be the definition line
+    // With estimateSymbolEndLine now returning defLine (tree-sitter
+    // patches accurate spans via SourceIndexStage), the initial end_line
+    // equals the definition line when no enclosingRange is provided.
     expect(beforePatch!.end_line).toBe(6);
 
     // Step 2: Run SourceIndexStage — tree-sitter should patch end_line

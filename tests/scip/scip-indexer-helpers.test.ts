@@ -25,145 +25,47 @@ import {
 // ─── estimateSymbolEndLine ──────────────────────────────────────────────────
 
 describe('estimateSymbolEndLine', () => {
-  describe('brace-counted blocks (C-family, Rust, Go, Java)', () => {
-    it('finds the closing brace of a single function', () => {
-      const lines = [
-        'function foo() {',   // 0
-        '  const x = 1;',     // 1
-        '  return x;',        // 2
-        '}',                   // 3
-      ];
-      expect(estimateSymbolEndLine(lines, 0, null)).toBe(3);
-    });
+  // After the tree-sitter refactor, estimateSymbolEndLine simply returns
+  // defLine as a conservative placeholder.  Tree-sitter (via SourceIndexStage)
+  // always overwrites end_line with accurate spans, so the heuristic was
+  // removed.  These tests verify the simplified contract.
 
-    it('handles nested braces', () => {
-      const lines = [
-        'function outer() {',  // 0
-        '  if (true) {',       // 1
-        '    doThing();',      // 2
-        '  }',                 // 3
-        '  return 1;',         // 4
-        '}',                   // 5
-      ];
-      expect(estimateSymbolEndLine(lines, 0, null)).toBe(5);
-    });
-
-    it('handles opening brace on next line', () => {
-      const lines = [
-        'void foo()',  // 0
-        '{',           // 1
-        '  int x;',    // 2
-        '}',           // 3
-      ];
-      expect(estimateSymbolEndLine(lines, 0, null)).toBe(3);
-    });
-
-    it('handles Go function', () => {
-      const lines = [
-        'func main() {',         // 0
-        '\tfmt.Println("hi")',   // 1
-        '}',                      // 2
-      ];
-      expect(estimateSymbolEndLine(lines, 0, null)).toBe(2);
-    });
-
-    it('handles Rust function', () => {
-      const lines = [
-        'fn process(x: i32) -> bool {',  // 0
-        '    let y = x + 1;',            // 1
-        '    y > 0',                      // 2
-        '}',                              // 3
-      ];
-      expect(estimateSymbolEndLine(lines, 0, null)).toBe(3);
-    });
-
-    it('handles Java class', () => {
-      const lines = [
-        'public class Foo {',             // 0
-        '    private int x;',             // 1
-        '    public void bar() {',        // 2
-        '        System.out.println();',  // 3
-        '    }',                          // 4
-        '}',                              // 5
-      ];
-      expect(estimateSymbolEndLine(lines, 0, null)).toBe(5);
-    });
+  it('returns defLine for brace-counted blocks', () => {
+    const lines = [
+      'function foo() {',
+      '  const x = 1;',
+      '  return x;',
+      '}',
+    ];
+    expect(estimateSymbolEndLine(lines, 0, null)).toBe(0);
   });
 
-  describe('indentation-based blocks (Python)', () => {
-    it('finds the end of a Python function', () => {
-      const lines = [
-        'def foo():',        // 0
-        '    x = 1',         // 1
-        '    return x',      // 2
-        '',                  // 3
-        'def bar():',        // 4
-      ];
-      expect(estimateSymbolEndLine(lines, 0, null)).toBe(3);
-    });
-
-    it('handles nested Python blocks', () => {
-      const lines = [
-        'def foo():',           // 0
-        '    if True:',         // 1
-        '        x = 1',        // 2
-        '    return x',         // 3
-        'class Bar:',           // 4
-      ];
-      expect(estimateSymbolEndLine(lines, 0, null)).toBe(3);
-    });
-
-    it('handles Python class with methods', () => {
-      const lines = [
-        'class MyClass:',       // 0
-        '    def __init__(self):',  // 1
-        '        self.x = 1',   // 2
-        '    def method(self):', // 3
-        '        return self.x', // 4
-        '',                      // 5
-        'other = 1',            // 6
-      ];
-      expect(estimateSymbolEndLine(lines, 0, null)).toBe(5);
-    });
-
-    it('skips blank lines and comments in Python', () => {
-      const lines = [
-        'def foo():',       // 0
-        '    x = 1',        // 1
-        '',                  // 2
-        '    # comment',    // 3
-        '    return x',     // 4
-        'y = 2',            // 5
-      ];
-      expect(estimateSymbolEndLine(lines, 0, null)).toBe(4);
-    });
+  it('returns defLine for indentation-based blocks', () => {
+    const lines = [
+      'def foo():',
+      '    x = 1',
+      '    return x',
+    ];
+    expect(estimateSymbolEndLine(lines, 0, null)).toBe(0);
   });
 
-  describe('fallback to next definition', () => {
-    it('falls back to next def line minus 1 when no braces or indent', () => {
-      const lines = [
-        'const x = 1',     // 0
-        'const y = 2',     // 1
-        'const z = 3',     // 2
-      ];
-      expect(estimateSymbolEndLine(lines, 0, 2)).toBe(1);
-    });
-
-    it('caps at defLine + 20 when no next def', () => {
-      const lines = Array.from({ length: 50 }, (_, i) => `line ${i}`);
-      expect(estimateSymbolEndLine(lines, 0, null)).toBe(20);
-    });
+  it('returns defLine when nextDefLine is provided', () => {
+    const lines = ['const x = 1', 'const y = 2', 'const z = 3'];
+    expect(estimateSymbolEndLine(lines, 0, 2)).toBe(0);
   });
 
-  describe('edge cases', () => {
-    it('returns defLine when beyond source length', () => {
-      expect(estimateSymbolEndLine([], 5, null)).toBe(5);
-    });
+  it('returns defLine when beyond source length', () => {
+    expect(estimateSymbolEndLine([], 5, null)).toBe(5);
+  });
 
-    it('handles single-line file', () => {
-      const lines = ['const x = 1;'];
-      expect(estimateSymbolEndLine(lines, 0, null)).toBe(0);
-    });
+  it('returns defLine for large files', () => {
+    const lines = Array.from({ length: 50 }, (_, i) => `line ${i}`);
+    expect(estimateSymbolEndLine(lines, 0, null)).toBe(0);
+  });
+
+  it('returns non-zero defLine correctly', () => {
+    const lines = ['a', 'b', 'c'];
+    expect(estimateSymbolEndLine(lines, 2, null)).toBe(2);
   });
 });
 
