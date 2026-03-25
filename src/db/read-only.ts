@@ -1449,6 +1449,26 @@ export function listCommitRefs(db: Database.Database, commitSha: string): Commit
     .all(commitSha) as CommitRefRow[];
 }
 
+/** Return all files touched by a batch of commit SHAs in a single query. */
+export function listCommitFilesBatch(db: Database.Database, shas: string[]): CommitFileRow[] {
+  if (shas.length === 0) return [];
+  const placeholders = shas.map(() => '?').join(',');
+  return db
+    .prepare(`SELECT * FROM commit_files WHERE commit_sha IN (${placeholders})`)
+    .all(...shas) as CommitFileRow[];
+}
+
+/** Return refs (branches/tags) for a batch of commit SHAs in a single query. */
+export function listCommitRefsBatch(db: Database.Database, shas: string[]): CommitRefRow[] {
+  if (shas.length === 0) return [];
+  const placeholders = shas.map(() => '?').join(',');
+  return db
+    .prepare(
+      `SELECT * FROM commit_refs WHERE commit_sha IN (${placeholders}) ORDER BY ref_type ASC, ref_name ASC`,
+    )
+    .all(...shas) as CommitRefRow[];
+}
+
 /** Return commits associated with a branch/tag ref name or prefix. */
 export function listCommitsByRef(db: Database.Database, refQuery: string, limit = 50): CommitRow[] {
   const exact = refQuery;

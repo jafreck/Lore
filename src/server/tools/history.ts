@@ -13,8 +13,8 @@ import {
   listCommitsByRef,
   hasCommitEmbeddings,
   listCommitsBySemanticQuery,
-  listCommitFiles,
-  listCommitRefs,
+  listCommitFilesBatch,
+  listCommitRefsBatch,
   type CommitRow,
   type CommitFileRow,
   type CommitRefRow,
@@ -99,13 +99,35 @@ export function enrichCommitsWithContext(
   commits: CommitRow[],
   options: CommitEnrichmentOptions = {},
 ): CommitWithFiles[] {
+  if (commits.length === 0) return [];
+
   const includeFiles = options.includeFiles ?? true;
   const includeRefs = options.includeRefs ?? true;
 
+  const shas = commits.map((c) => c.sha);
+
+  const filesBySha = new Map<string, CommitFileRow[]>();
+  if (includeFiles) {
+    for (const f of listCommitFilesBatch(db, shas)) {
+      const list = filesBySha.get(f.commit_sha) ?? [];
+      list.push(f);
+      filesBySha.set(f.commit_sha, list);
+    }
+  }
+
+  const refsBySha = new Map<string, CommitRefRow[]>();
+  if (includeRefs) {
+    for (const r of listCommitRefsBatch(db, shas)) {
+      const list = refsBySha.get(r.commit_sha) ?? [];
+      list.push(r);
+      refsBySha.set(r.commit_sha, list);
+    }
+  }
+
   return commits.map((commit) => ({
     ...commit,
-    ...(includeFiles ? { files: listCommitFiles(db, commit.sha) } : {}),
-    ...(includeRefs ? { refs: listCommitRefs(db, commit.sha) } : {}),
+    ...(includeFiles ? { files: filesBySha.get(commit.sha) ?? [] } : {}),
+    ...(includeRefs ? { refs: refsBySha.get(commit.sha) ?? [] } : {}),
   }));
 }
 
