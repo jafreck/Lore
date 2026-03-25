@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import Database from 'better-sqlite3';
-import { handler, toolDef } from '../../../src/server/tools/blame.js';
+import { handler, toolDef, gitRootCache } from '../../../src/server/tools/blame.js';
 
 const { mockExecFileSync } = vi.hoisted(() => ({
   mockExecFileSync: vi.fn(),
@@ -138,6 +138,7 @@ describe('lore_blame handler', () => {
     insertFile(db, filePath);
     insertFile(db, utilPath);
     vi.clearAllMocks();
+    gitRootCache.clear();
   });
 
   it('should throw if file is not present in the index', () => {
@@ -382,7 +383,7 @@ describe('lore_blame handler', () => {
     insertCommitFile(db, '5555555555555555555555555555555555555555', 'src/util.ts', 10, 2);
 
     mockExecFileSync
-      // file ownership call
+      // file ownership call: rev-parse + blame
       .mockReturnValueOnce('/repo\n')
       .mockReturnValueOnce(
         [
@@ -395,8 +396,7 @@ describe('lore_blame handler', () => {
           '\tline two',
         ].join('\n'),
       )
-      // directory ownership call: src/main.ts
-      .mockReturnValueOnce('/repo\n')
+      // directory ownership call: src/main.ts blame (rev-parse cached)
       .mockReturnValueOnce(
         [
           '4444444444444444444444444444444444444444 1 1 1',
@@ -407,8 +407,7 @@ describe('lore_blame handler', () => {
           '\tline one',
         ].join('\n'),
       )
-      // directory ownership call: src/util.ts
-      .mockReturnValueOnce('/repo\n')
+      // directory ownership call: src/util.ts blame (rev-parse cached)
       .mockReturnValueOnce(
         [
           '5555555555555555555555555555555555555555 1 1 2',

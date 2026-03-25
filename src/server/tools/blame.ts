@@ -296,14 +296,23 @@ function resolveFileTarget(
   };
 }
 
+export const gitRootCache = new Map<string, string>();
+
 function resolveGitPath(filePath: string): GitPath {
-  let repoRoot = '';
-  try {
-    repoRoot = execFileSync('git', ['-C', dirname(filePath), 'rev-parse', '--show-toplevel'], {
-      encoding: 'utf8',
-    }).trim();
-  } catch {
-    throw new Error(`Unable to resolve git repository root for path: ${filePath}`);
+  const dir = dirname(filePath);
+  const cached = gitRootCache.get(dir);
+  let repoRoot: string;
+  if (cached !== undefined) {
+    repoRoot = cached;
+  } else {
+    try {
+      repoRoot = execFileSync('git', ['-C', dir, 'rev-parse', '--show-toplevel'], {
+        encoding: 'utf8',
+      }).trim();
+      gitRootCache.set(dir, repoRoot);
+    } catch {
+      throw new Error(`Unable to resolve git repository root for path: ${filePath}`);
+    }
   }
 
   const relPath = relative(repoRoot, filePath);
