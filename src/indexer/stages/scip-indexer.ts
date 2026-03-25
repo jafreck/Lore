@@ -611,15 +611,19 @@ export class ScipIndexerStage implements PipelineStage {
         const loreLang = inferLoreLanguage(doc.language, doc.relativePath);
         if (!loreLang) continue;
 
-        // Read source file
+        // Read source file (prefer cache from prior pipeline stages)
         let source: string;
-        try {
-          source = fs.readFileSync(absPath, 'utf8');
-        } catch {
-          continue;
+        const cached = context.sourceCache?.get(absPath);
+        if (cached !== undefined) {
+          source = cached;
+        } else {
+          try {
+            source = fs.readFileSync(absPath, 'utf8');
+          } catch {
+            continue;
+          }
+          context.sourceCache?.set(absPath, source);
         }
-        // Cache for downstream stages (metrics computation, enrichment).
-        context.sourceCache.set(absPath, source);
 
         const sizeBytes = Buffer.byteLength(source, 'utf8');
         const hash = crypto.createHash('sha256').update(source).digest('hex');
