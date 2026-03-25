@@ -1,13 +1,13 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import Database from 'better-sqlite3';
-import { handler, toolDef } from '../../../src/server/tools/blame.js';
+import { handler, toolDef, clearGitRootCache } from '../../../src/server/tools/blame.js';
 
-const { mockExecFileSync } = vi.hoisted(() => ({
-  mockExecFileSync: vi.fn(),
+const { mockExecFile } = vi.hoisted(() => ({
+  mockExecFile: vi.fn(),
 }));
 
 vi.mock('node:child_process', () => ({
-  execFileSync: mockExecFileSync,
+  execFile: mockExecFile,
 }));
 
 function createTestDb(): Database.Database {
@@ -138,15 +138,16 @@ describe('lore_blame handler', () => {
     insertFile(db, filePath);
     insertFile(db, utilPath);
     vi.clearAllMocks();
+    clearGitRootCache();
   });
 
-  it('should throw if file is not present in the index', () => {
-    expect(() => handler(db, { path: '/repo/src/missing.ts', line: 3 })).toThrow(
+  it('should throw if file is not present in the index', async () => {
+    await expect(handler(db, { path: '/repo/src/missing.ts', line: 3 })).rejects.toThrow(
       'File not found in index: /repo/src/missing.ts',
     );
   });
 
-  it('should parse blame metadata for a single line with commit context and risk signals', () => {
+  it('should parse blame metadata for a single line with commit context and risk signals', async () => {
     insertCommit(
       db,
       'abcdef1234567890abcdef1234567890abcdef12',
@@ -158,20 +159,20 @@ describe('lore_blame handler', () => {
     insertCommitFile(db, 'abcdef1234567890abcdef1234567890abcdef12', 'src/main.ts', 12, 3);
     insertCommitRef(db, 'abcdef1234567890abcdef1234567890abcdef12', 'refs/heads/main');
 
-    mockExecFileSync
-      .mockReturnValueOnce('/repo\n')
-      .mockReturnValueOnce(
-        [
+    mockExecFile
+      .mockImplementationOnce((_cmd, _args, _opts, cb) => { if (typeof cb === 'function') cb(null, '/repo\n', ''); })
+      .mockImplementationOnce((_cmd, _args, _opts, cb) => {
+        if (typeof cb === 'function') cb(null, [
           'abcdef1234567890abcdef1234567890abcdef12 7 7 1',
           'author Alice',
           'author-mail <alice@example.com>',
           'author-time 1700000100',
           'summary Add parser',
           '\tconst x = 1;',
-        ].join('\n'),
-      );
+        ].join('\n'), '');
+      });
 
-    const result = handler(db, { path: filePath, line: 7, ref: 'HEAD' });
+    const result = await handler(db, { path: filePath, line: 7, ref: 'HEAD' });
 
     expect('mode' in result).toBe(false);
     expect(result.path).toBe(filePath);
@@ -205,11 +206,11 @@ describe('lore_blame handler', () => {
     );
   });
 
-  it('should support line ranges and pass -L start,end to git blame (legacy behavior)', () => {
-    mockExecFileSync
-      .mockReturnValueOnce('/repo\n')
-      .mockReturnValueOnce(
-        [
+  it('should support line ranges and pass -L start,end to git blame (legacy behavior)', async () => {
+    mockExecFile
+      .mockImplementationOnce((_cmd, _args, _opts, cb) => { if (typeof cb === 'function') cb(null, '/repo\n', ''); })
+      .mockImplementationOnce((_cmd, _args, _opts, cb) => {
+        if (typeof cb === 'function') cb(null, [
           'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb 10 10 2',
           'author Bob',
           'author-mail <bob@example.com>',
@@ -217,37 +218,38 @@ describe('lore_blame handler', () => {
           'summary Range change',
           '\tline 10',
           '\tline 11',
-        ].join('\n'),
-      );
+        ].join('\n'), '');
+      });
 
-    const result = handler(db, { path: filePath, start_line: 10, end_line: 11 });
+    const result = await handler(db, { path: filePath, start_line: 10, end_line: 11 });
 
     expect(result.lines).toHaveLength(2);
     expect(result.lines.map((l) => l.line)).toEqual([10, 11]);
-    expect(mockExecFileSync).toHaveBeenLastCalledWith(
+    expect(mockExecFile).toHaveBeenLastCalledWith(
       'git',
       expect.arrayContaining(['-L', '10,11', 'HEAD', '--', 'src/main.ts']),
       { encoding: 'utf8' },
+      expect.any(Function),
     );
   });
 
-  it('should resolve symbol-only requests to a concrete blame line range', () => {
+  it('should resolve symbol-only requests to a concrete blame line range', async () => {
     const fileId = db.prepare('SELECT id FROM files WHERE path = ?').get(filePath) as { id: number };
     insertSymbol(db, fileId.id, 'handleAuth', 20, 24);
-    mockExecFileSync
-      .mockReturnValueOnce('/repo\n')
-      .mockReturnValueOnce(
-        [
+    mockExecFile
+      .mockImplementationOnce((_cmd, _args, _opts, cb) => { if (typeof cb === 'function') cb(null, '/repo\n', ''); })
+      .mockImplementationOnce((_cmd, _args, _opts, cb) => {
+        if (typeof cb === 'function') cb(null, [
           'cccccccccccccccccccccccccccccccccccccccc 20 20 1',
           'author Carol',
           'author-mail <carol@example.com>',
           'author-time 1700000400',
           'summary Add auth handler',
           '\tfunction handleAuth() {}',
-        ].join('\n'),
-      );
+        ].join('\n'), '');
+      });
 
-    const result = handler(db, { symbol: 'handleAuth', branch: 'HEAD' });
+    const result = await handler(db, { symbol: 'handleAuth', branch: 'HEAD' });
 
     expect(result.path).toBe(filePath);
     expect(result.start_line).toBe(20);
@@ -260,31 +262,32 @@ describe('lore_blame handler', () => {
         end_line: 24,
       }),
     );
-    expect(mockExecFileSync).toHaveBeenLastCalledWith(
+    expect(mockExecFile).toHaveBeenLastCalledWith(
       'git',
       expect.arrayContaining(['-L', '20,24', 'HEAD', '--', 'src/main.ts']),
       { encoding: 'utf8' },
+      expect.any(Function),
     );
   });
 
-  it('should throw when symbol resolution yields no indexed match', () => {
-    expect(() => handler(db, { symbol: 'missingSymbol' })).toThrow(
+  it('should throw when symbol resolution yields no indexed match', async () => {
+    await expect(handler(db, { symbol: 'missingSymbol' })).rejects.toThrow(
       'Symbol not found in index: missingSymbol',
     );
   });
 
-  it('should throw when symbol resolution is ambiguous', () => {
+  it('should throw when symbol resolution is ambiguous', async () => {
     const mainFileId = db.prepare('SELECT id FROM files WHERE path = ?').get(filePath) as { id: number };
     const utilFileId = db.prepare('SELECT id FROM files WHERE path = ?').get(utilPath) as { id: number };
     insertSymbol(db, mainFileId.id, 'duplicateSymbol', 5, 7);
     insertSymbol(db, utilFileId.id, 'duplicateSymbol', 10, 12);
 
-    expect(() => handler(db, { symbol: 'duplicateSymbol' })).toThrow(
+    await expect(handler(db, { symbol: 'duplicateSymbol' })).rejects.toThrow(
       'Symbol is ambiguous: duplicateSymbol.',
     );
   });
 
-  it('should return full line-range history in history mode', () => {
+  it('should return full line-range history in history mode', async () => {
     insertCommit(db, '1111111111111111111111111111111111111111', 'Alice', 'alice@example.com', 1700000001, 'old impl');
     insertCommit(db, '2222222222222222222222222222222222222222', 'Bob', 'bob@example.com', 1700001000, 'new impl');
     insertCommitFile(db, '1111111111111111111111111111111111111111', 'src/main.ts', 2, 1);
@@ -306,11 +309,11 @@ describe('lore_blame handler', () => {
       '+old',
     ].join('\n');
 
-    mockExecFileSync
-      .mockReturnValueOnce('/repo\n')
-      .mockReturnValueOnce(historyOutput);
+    mockExecFile
+      .mockImplementationOnce((_cmd, _args, _opts, cb) => { if (typeof cb === 'function') cb(null, '/repo\n', ''); })
+      .mockImplementationOnce((_cmd, _args, _opts, cb) => { if (typeof cb === 'function') cb(null, historyOutput, ''); });
 
-    const result = handler(db, { mode: 'history', path: filePath, start_line: 10, end_line: 10 });
+    const result = await handler(db, { mode: 'history', path: filePath, start_line: 10, end_line: 10 });
 
     expect(result.mode).toBe('history');
     expect(result.path).toBe(filePath);
@@ -334,7 +337,7 @@ describe('lore_blame handler', () => {
         churn: expect.objectContaining({ total_churn: 15 }),
       }),
     );
-    expect(mockExecFileSync).toHaveBeenLastCalledWith(
+    expect(mockExecFile).toHaveBeenLastCalledWith(
       'git',
       expect.arrayContaining([
         'log',
@@ -344,19 +347,20 @@ describe('lore_blame handler', () => {
         'HEAD',
       ]),
       { encoding: 'utf8' },
+      expect.any(Function),
     );
   });
 
-  it('should compose symbol targeting with history mode', () => {
+  it('should compose symbol targeting with history mode', async () => {
     const fileId = db.prepare('SELECT id FROM files WHERE path = ?').get(filePath) as { id: number };
     insertSymbol(db, fileId.id, 'handleAuth', 20, 24);
-    mockExecFileSync
-      .mockReturnValueOnce('/repo\n')
-      .mockReturnValueOnce(
-        '3333333333333333333333333333333333333333\x1fCarol\x1fcarol@example.com\x1f1700001500\x1fauth change\n\n',
-      );
+    mockExecFile
+      .mockImplementationOnce((_cmd, _args, _opts, cb) => { if (typeof cb === 'function') cb(null, '/repo\n', ''); })
+      .mockImplementationOnce((_cmd, _args, _opts, cb) => {
+        if (typeof cb === 'function') cb(null, '3333333333333333333333333333333333333333\x1fCarol\x1fcarol@example.com\x1f1700001500\x1fauth change\n\n', '');
+      });
 
-    const result = handler(db, { mode: 'history', symbol: 'handleAuth', branch: 'HEAD' });
+    const result = await handler(db, { mode: 'history', symbol: 'handleAuth', branch: 'HEAD' });
 
     expect(result.mode).toBe('history');
     expect(result.start_line).toBe(20);
@@ -368,24 +372,25 @@ describe('lore_blame handler', () => {
         end_line: 24,
       }),
     );
-    expect(mockExecFileSync).toHaveBeenLastCalledWith(
+    expect(mockExecFile).toHaveBeenLastCalledWith(
       'git',
       expect.arrayContaining(['-L', '20,24:src/main.ts', 'HEAD']),
       { encoding: 'utf8' },
+      expect.any(Function),
     );
   });
 
-  it('should aggregate ownership for file and directory scopes', () => {
+  it('should aggregate ownership for file and directory scopes', async () => {
     insertCommit(db, '4444444444444444444444444444444444444444', 'Alice', 'alice@example.com', 1700002000, 'file work');
     insertCommit(db, '5555555555555555555555555555555555555555', 'Bob', 'bob@example.com', 1700003000, 'dir work');
     insertCommitFile(db, '4444444444444444444444444444444444444444', 'src/main.ts', 4, 1);
     insertCommitFile(db, '5555555555555555555555555555555555555555', 'src/util.ts', 10, 2);
 
-    mockExecFileSync
-      // file ownership call
-      .mockReturnValueOnce('/repo\n')
-      .mockReturnValueOnce(
-        [
+    mockExecFile
+      // file ownership call: resolveGitPath + runBlamePorcelain
+      .mockImplementationOnce((_cmd: string, _args: string[], _opts: unknown, cb: Function) => { if (typeof cb === 'function') cb(null, '/repo\n', ''); })
+      .mockImplementationOnce((_cmd: string, _args: string[], _opts: unknown, cb: Function) => {
+        if (typeof cb === 'function') cb(null, [
           '4444444444444444444444444444444444444444 1 1 2',
           'author Alice',
           'author-mail <alice@example.com>',
@@ -393,24 +398,24 @@ describe('lore_blame handler', () => {
           'summary file work',
           '\tline one',
           '\tline two',
-        ].join('\n'),
-      )
-      // directory ownership call: src/main.ts
-      .mockReturnValueOnce('/repo\n')
-      .mockReturnValueOnce(
-        [
+        ].join('\n'), '');
+      })
+      // directory ownership: git root is cached from above, so only blame calls needed
+      // directory ownership call: runBlamePorcelain for src/main.ts
+      .mockImplementationOnce((_cmd: string, _args: string[], _opts: unknown, cb: Function) => {
+        if (typeof cb === 'function') cb(null, [
           '4444444444444444444444444444444444444444 1 1 1',
           'author Alice',
           'author-mail <alice@example.com>',
           'author-time 1700002000',
           'summary file work',
           '\tline one',
-        ].join('\n'),
-      )
-      // directory ownership call: src/util.ts
-      .mockReturnValueOnce('/repo\n')
-      .mockReturnValueOnce(
-        [
+        ].join('\n'), '');
+      })
+      // directory ownership call: resolveGitPath for src/util.ts (different dir key, but same parent — actually same dir)
+      // Note: src/util.ts has dirname '/repo/src' which is already cached, so this is runBlamePorcelain for src/util.ts
+      .mockImplementationOnce((_cmd: string, _args: string[], _opts: unknown, cb: Function) => {
+        if (typeof cb === 'function') cb(null, [
           '5555555555555555555555555555555555555555 1 1 2',
           'author Bob',
           'author-mail <bob@example.com>',
@@ -418,10 +423,10 @@ describe('lore_blame handler', () => {
           'summary dir work',
           '\tutil one',
           '\tutil two',
-        ].join('\n'),
-      );
+        ].join('\n'), '');
+      });
 
-    const fileOwnership = handler(db, { mode: 'ownership', path: filePath });
+    const fileOwnership = await handler(db, { mode: 'ownership', path: filePath });
     expect(fileOwnership.mode).toBe('ownership');
     expect(fileOwnership.scope).toBe('file');
     expect(fileOwnership.files_analyzed).toBe(1);
@@ -434,7 +439,7 @@ describe('lore_blame handler', () => {
       }),
     );
 
-    const dirOwnership = handler(db, {
+    const dirOwnership = await handler(db, {
       mode: 'ownership',
       path: '/repo/src',
       scope: 'directory',
@@ -453,14 +458,14 @@ describe('lore_blame handler', () => {
     );
   });
 
-  it('should force file ownership scope when symbol targeting is provided', () => {
+  it('should force file ownership scope when symbol targeting is provided', async () => {
     const fileId = db.prepare('SELECT id FROM files WHERE path = ?').get(filePath) as { id: number };
     insertSymbol(db, fileId.id, 'handleAuth', 20, 21);
 
-    mockExecFileSync
-      .mockReturnValueOnce('/repo\n')
-      .mockReturnValueOnce(
-        [
+    mockExecFile
+      .mockImplementationOnce((_cmd, _args, _opts, cb) => { if (typeof cb === 'function') cb(null, '/repo\n', ''); })
+      .mockImplementationOnce((_cmd, _args, _opts, cb) => {
+        if (typeof cb === 'function') cb(null, [
           '6666666666666666666666666666666666666666 20 20 2',
           'author Dana',
           'author-mail <dana@example.com>',
@@ -468,10 +473,10 @@ describe('lore_blame handler', () => {
           'summary symbol ownership',
           '\tline one',
           '\tline two',
-        ].join('\n'),
-      );
+        ].join('\n'), '');
+      });
 
-    const result = handler(db, {
+    const result = await handler(db, {
       mode: 'ownership',
       symbol: 'handleAuth',
       scope: 'directory',
@@ -490,25 +495,26 @@ describe('lore_blame handler', () => {
         path: filePath,
       }),
     );
-    expect(mockExecFileSync).toHaveBeenLastCalledWith(
+    expect(mockExecFile).toHaveBeenLastCalledWith(
       'git',
       expect.arrayContaining(['-L', '20,21', 'HEAD', '--', 'src/main.ts']),
       { encoding: 'utf8' },
+      expect.any(Function),
     );
   });
 
-  it('should require a path for ownership mode when no symbol or range is provided', () => {
-    expect(() => handler(db, { mode: 'ownership' })).toThrow('`path` is required for ownership mode.');
+  it('should require a path for ownership mode when no symbol or range is provided', async () => {
+    await expect(handler(db, { mode: 'ownership' })).rejects.toThrow('`path` is required for ownership mode.');
   });
 
-  it('should throw when ownership is forced to file scope for an unknown file path', () => {
-    expect(() =>
+  it('should throw when ownership is forced to file scope for an unknown file path', async () => {
+    await expect(
       handler(db, { mode: 'ownership', path: '/repo/src/missing.ts', scope: 'file', branch: 'HEAD' }),
-    ).toThrow('File not found in index: /repo/src/missing.ts');
+    ).rejects.toThrow('File not found in index: /repo/src/missing.ts');
   });
 
-  it('should throw if neither line/range nor symbol is provided for default blame mode', () => {
-    expect(() => handler(db, { path: filePath })).toThrow(
+  it('should throw if neither line/range nor symbol is provided for default blame mode', async () => {
+    await expect(handler(db, { path: filePath })).rejects.toThrow(
       'Provide either `line`, `start_line`/`end_line`, or `symbol`.',
     );
   });
