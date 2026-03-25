@@ -348,7 +348,12 @@ function estimateSymbolEndLine(
     let depth = 0;
     for (let i = braceStart; i < sourceLines.length; i++) {
       const line = sourceLines[i]!;
-      for (const ch of line) {
+      // On the first line, start counting from the last '{' to skip
+      // inline type literals like interface{}, struct{}, map[K]V{}
+      // that appear in Go/Java/C function signatures.
+      const startIdx = (i === braceStart) ? line.lastIndexOf('{') : 0;
+      for (let ci = startIdx; ci < line.length; ci++) {
+        const ch = line[ci];
         if (ch === '{') depth++;
         else if (ch === '}') { depth--; if (depth === 0) return i; }
       }
@@ -811,245 +816,23 @@ export class ScipIndexerStage implements PipelineStage {
       symbols: scipToLoreId.size,
     });
 
-    // Pass 2: Build a containment index for caller resolution
-    // For each file, sort symbols by span so we can find the narrowest
-    // enclosing symbol for any position.
-    const fileSymbolSpans = new Map<number, Array<{ id: number; startLine: number; endLine: number }>>();
-    {
-      const rows = db.prepare(
-        `SELECT s.id, s.file_id, s.start_line, s.end_line
-         FROM symbols s
-         JOIN files f ON f.id = s.file_id
-         WHERE f.branch = ?
-         ORDER BY s.file_id, (s.end_line - s.start_line) ASC`,
-      ).all(branch) as Array<{ id: number; file_id: number; start_line: number; end_line: number }>;
-
-      for (const row of rows) {
-        let spans = fileSymbolSpans.get(row.file_id);
-        if (!spans) {
-          spans = [];
-          fileSymbolSpans.set(row.file_id, spans);
-        }
-        spans.push({ id: row.id, startLine: row.start_line, endLine: row.end_line });
-      }
-    }
-
-    /** Find the narrowest enclosing symbol for a given line in a file. */
-    function findContainingSymbol(fileId: number, line: number): number | null {
-      const spans = fileSymbolSpans.get(fileId);
-      if (!spans) return null;
-      // Spans are sorted narrowest-first, so first match is best
-      for (const span of spans) {
-        if (line >= span.startLine && line <= span.endLine) {
-          return span.id;
-        }
-      }
-      return null;
-    }
-
-    // Pass 3: Insert call refs and type refs from reference occurrences
-    //
-    // SCIP tracks every identifier occurrence (calls, reads, type annotations,
-    // namespace imports, etc.).  Only a subset belongs in Lore's graph:
-    //   - Method/function refs  → symbol_refs  (call edges)
-    //   - Type refs             → type_refs    (type usage edges)
-    //   - Everything else       → skipped      (reads, imports, namespaces)
-    let refsInserted = 0;
-    let refsExternal = 0;
-    let refsNoCaller = 0;
-    let refsLocal = 0;
-    let refsSkippedNonCall = 0;
-    let typeRefsInserted = 0;
-
-    const processRefs = db.transaction(() => {
-      for (const doc of scipIndex.documents) {
-        const absPath = resolve(rootDir, doc.relativePath);
-        const fileId = fileIdMap.get(absPath);
-        if (!fileId) continue;
-
-        // Read source for receiver-chain reconstruction.
-        let source: string | null = null;
-        try { source = fs.readFileSync(absPath, 'utf8'); } catch { /* skip */ }
-        const sourceLines = source?.split('\n') ?? [];
-
-        // Build a per-line index of all occurrences for receiver lookup.
-        const occsByLine = new Map<number, Array<{ startChar: number; endChar: number; symbol: string }>>();
-        for (const o of doc.occurrences) {
-          const ln = o.range[0] ?? 0;
-          const sc = o.range[1] ?? 0;
-          const ec = o.range.length >= 4 ? (o.range[3] ?? 0) : (o.range[2] ?? 0);
-          let list = occsByLine.get(ln);
-          if (!list) { list = []; occsByLine.set(ln, list); }
-          list.push({ startChar: sc, endChar: ec, symbol: o.symbol });
-        }
-
-        for (const occ of doc.occurrences) {
-          // Skip definitions — we only want references
-          if ((occ.symbolRoles & SymbolRole.Definition) !== 0) continue;
-          if (!occ.symbol) continue;
-
-          // Skip locals
-          if (occ.symbol.startsWith('local ')) {
-            refsLocal++;
-            continue;
-          }
-
-          // Classify the reference by the SCIP descriptor suffix
-          const refKind = classifyScipReference(occ.symbol);
-          if (refKind === 'skip') {
-            refsSkippedNonCall++;
-            continue;
-          }
-
-          const line = occ.range[0] ?? 0;
-          const character = occ.range[1] ?? 0;
-
-          // Find the caller (containing symbol)
-          const callerId = findContainingSymbol(fileId, line);
-          if (!callerId) {
-            refsNoCaller++;
-            continue;
-          }
-
-          // Find the callee (definition of the referenced symbol)
-          const calleeId = scipToLoreId.get(occ.symbol) ?? null;
-          let calleeName = extractNameFromScipSymbol(occ.symbol);
-          const isExternal = !calleeId && isExternalSymbol(occ.symbol);
-          const method = calleeId ? 'scip_definition' : (isExternal ? 'external_definition' : 'unresolved');
-
-          // Reconstruct member-access callee_name (e.g. "db.prepare")
-          // by checking if there's a receiver occurrence immediately before
-          // the method on the same line (receiver ends at or near char-1).
-          if (refKind === 'call' && sourceLines.length > line) {
-            const srcLine = sourceLines[line]!;
-            // The dot is at character-1 (e.g., `db.prepare` → dot at char 2, method at char 3)
-            if (character > 0 && srcLine[character - 1] === '.') {
-              const lineOccs = occsByLine.get(line);
-              if (lineOccs) {
-                // Find the occurrence ending right before the dot
-                const receiver = lineOccs.find(o =>
-                  o.endChar >= character - 2 && o.endChar <= character
-                  && o.startChar < character
-                );
-                if (receiver) {
-                  // Extract the receiver text from source
-                  const receiverText = srcLine.slice(receiver.startChar, receiver.endChar);
-                  if (receiverText) {
-                    calleeName = receiverText + '.' + calleeName;
-                  }
-                }
-              }
-            }
-          }
-
-          if (refKind === 'type') {
-            const typeRefKind = inferTypeRefKind(sourceLines, line, character);
-
-            // Resolve enrichment metadata for the referenced type
-            const refDef = symbolDefinitions.get(occ.symbol);
-            const refInfo = symbolInfoMap.get(occ.symbol);
-            const refSig = refInfo ? extractSignatureFromDoc(refInfo.documentation[0] ?? '') || null : null;
-            const refDefUri = refDef ? pathToFileURL(refDef.filePath).toString() : null;
-
-            try {
-              insertTypeRef.run(
-                fileId,
-                callerId,
-                calleeId ?? null,
-                calleeName,
-                normalizeTypeName(calleeName),
-                typeRefKind,
-                line,
-                character,
-                method,
-                refSig,
-                refDefUri,
-                refDef?.filePath ?? null,
-                refDef?.line ?? null,
-                refDef?.character ?? null,
-                layer, generation,
-              );
-              typeRefsInserted++;
-            } catch {
-              // FK constraint failure — skip this ref
-              refsNoCaller++;
-            }
-          } else {
-            // refKind === 'call'
-
-            // Skip if callee can't be resolved — FK constraint requires valid callee_id
-            if (!calleeId) {
-              refsNoCaller++;
-              continue;
-            }
-
-            // Resolve enrichment metadata for the callee
-            const refDef = symbolDefinitions.get(occ.symbol);
-            const refInfo = symbolInfoMap.get(occ.symbol);
-            const refSig = refInfo ? extractSignatureFromDoc(refInfo.documentation[0] ?? '') || null : null;
-            const refReturnType = extractReturnType(refSig);
-            const refDefUri = refDef ? pathToFileURL(refDef.filePath).toString() : null;
-
-            try {
-              insertCallRef.run(
-                callerId,
-                fileId,
-                calleeId,
-                calleeName,
-                line,
-                character,
-                'direct',
-                method,
-                refSig,
-                refReturnType,
-                refDefUri,
-                refDef?.filePath ?? null,
-                refDef?.line ?? null,
-                refDef?.character ?? null,
-                layer, generation,
-              );
-              refsInserted++;
-              if (isExternal) refsExternal++;
-            } catch {
-              // FK constraint failure — skip this ref
-              refsNoCaller++;
-            }
-          }
-        }
-      }
-    });
-    processRefs();
-
-    log.indexing('scip-indexer: refs inserted', {
-      callRefs: refsInserted,
-      typeRefs: typeRefsInserted,
-      external: refsExternal,
-      noCaller: refsNoCaller,
-      skippedLocal: refsLocal,
-      skippedNonCall: refsSkippedNonCall,
-    });
-
-    // Pass 4: Materialize virtual dispatch edges
-    //
-    // When a caller invokes an interface method (e.g., `builder.Build()`),
-    // SCIP records a call edge to the *interface* method symbol. Concrete
-    // implementations (e.g., `contextImpl.Build()`) are linked via
-    // `implements` relationships at the type level but have no direct
-    // call edges from callers that go through the interface.
-    //
-    // This pass bridges that gap: for each `implements` relationship
-    // between types, it matches methods by name and inserts additional
-    // `symbol_refs` rows with `call_kind = 'virtual_dispatch'` so that
-    // both `lore_graph` and `lore_dependents` surface these edges.
-    const virtualDispatchEdges = materializeVirtualDispatch(
-      db, scipToLoreId, symbolInfoMap, symbolDefinitions, layer, generation, log,
-    );
+    // ── Stash data for deferred ref processing ────────────────────────────
+    // Pass 2+3 (containment index + ref insertion) are deferred to
+    // ScipRefStage, which runs AFTER SourceIndexStage patches symbol
+    // end_line values with accurate tree-sitter spans.  This avoids the
+    // brittle estimateSymbolEndLine heuristic for caller resolution.
+    context.scipRefData = {
+      scipToLoreId,
+      symbolDefinitions,
+      symbolInfoMap,
+      fileIdMap,
+      documents: scipIndex.documents,
+      isExternalSymbol,
+    };
 
     // Communicate coverage to downstream stages
     context.scipSourcedLanguages = coveredLanguages;
     context.scipSourcedFiles = coveredFiles;
-    // Also set scipCoveredLanguages so that LspEnrichmentStage skips
-    // languages already fully enriched by this single SCIP pass.
     context.scipCoveredLanguages = coveredLanguages;
 
     // Add SCIP-sourced files to context.files so later stages process them
@@ -1209,7 +992,248 @@ export class ScipIndexerStage implements PipelineStage {
   }
 }
 
-// ─── Temporary tsconfig for broad SCIP indexing ─────────────────────────────
+// ─── ScipRefStage ─────────────────────────────────────────────────────────────
+
+/**
+ * Deferred SCIP ref insertion stage.
+ *
+ * Runs AFTER `SourceIndexStage` so that symbol `end_line` values have been
+ * patched with accurate tree-sitter spans. This ensures the containment
+ * index used for `caller_id` resolution is correct, avoiding the brittle
+ * `estimateSymbolEndLine` brace-counting heuristic.
+ *
+ * Reads `context.scipRefData` (stashed by `ScipIndexerStage`) and:
+ *  1. Builds a containment index from the DB (with patched spans)
+ *  2. Inserts `symbol_refs` and `type_refs` from SCIP occurrences
+ *  3. Materializes virtual dispatch edges
+ */
+export class ScipRefStage implements PipelineStage {
+  readonly name = 'ScipRefStage';
+
+  async execute(context: PipelineContext, _mode: string): Promise<void> {
+    const data = context.scipRefData;
+    if (!data) return; // No SCIP data — nothing to do
+
+    const { scipToLoreId, symbolDefinitions, symbolInfoMap, fileIdMap, documents, isExternalSymbol } = data;
+    const db = context.db;
+    const branch = context.branch;
+    const layer = context.layer;
+    const generation = context.generation;
+    const log = context.log;
+    const rootDir = context.walkerConfig.rootDir;
+
+    // Prepared statements
+    const insertCallRef = db.prepare(
+      `INSERT INTO symbol_refs (caller_id, file_id, callee_id, callee_name, call_line, call_character, call_kind, resolution_method, resolved_type_signature, resolved_return_type, definition_uri, definition_path, definition_line, definition_character, layer, generation)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    );
+    const insertTypeRef = db.prepare(
+      `INSERT INTO type_refs (file_id, symbol_id, type_id, type_name, type_name_bare, ref_kind, ref_line, ref_character, resolution_method, resolved_type_signature, definition_uri, definition_path, definition_line, definition_character, layer, generation)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    );
+
+    // Build a containment index for caller resolution.
+    // Because this stage runs AFTER SourceIndexStage, symbol end_line
+    // values have been patched with accurate tree-sitter spans.
+    // Only callable kinds (function, method, class, constructor, variable)
+    // are included — properties and other non-callable symbols should not
+    // be assigned as callers even when they lexically contain a call site.
+    const fileSymbolSpans = new Map<number, Array<{ id: number; startLine: number; endLine: number }>>();
+    {
+      const rows = db.prepare(
+        `SELECT s.id, s.file_id, s.start_line, s.end_line
+         FROM symbols s
+         JOIN files f ON f.id = s.file_id
+         WHERE f.branch = ?
+           AND s.kind IN ('function', 'method', 'class', 'constructor', 'variable')
+         ORDER BY s.file_id, (s.end_line - s.start_line) ASC`,
+      ).all(branch) as Array<{ id: number; file_id: number; start_line: number; end_line: number }>;
+
+      for (const row of rows) {
+        let spans = fileSymbolSpans.get(row.file_id);
+        if (!spans) {
+          spans = [];
+          fileSymbolSpans.set(row.file_id, spans);
+        }
+        spans.push({ id: row.id, startLine: row.start_line, endLine: row.end_line });
+      }
+    }
+
+    function findContainingSymbol(fileId: number, line: number): number | null {
+      const spans = fileSymbolSpans.get(fileId);
+      if (!spans) return null;
+      for (const span of spans) {
+        if (line >= span.startLine && line <= span.endLine) {
+          return span.id;
+        }
+      }
+      return null;
+    }
+
+    // Insert call refs and type refs from SCIP reference occurrences
+    let refsInserted = 0;
+    let refsExternal = 0;
+    let refsNoCaller = 0;
+    let refsLocal = 0;
+    let refsSkippedNonCall = 0;
+    let typeRefsInserted = 0;
+
+    const scipDocs = documents as ScipDocument[];
+    const sipInfoMap = symbolInfoMap as Map<string, ScipSymbolInformation>;
+
+    const processRefs = db.transaction(() => {
+      for (const doc of scipDocs) {
+        const absPath = resolve(rootDir, doc.relativePath);
+        const fileId = fileIdMap.get(absPath);
+        if (!fileId) continue;
+
+        // Read source for receiver-chain reconstruction and term-value call detection.
+        let source: string | null = null;
+        try { source = fs.readFileSync(absPath, 'utf8'); } catch { /* skip */ }
+        const sourceLines = source?.split('\n') ?? [];
+
+        // Build a per-line index of all occurrences for receiver lookup.
+        const occsByLine = new Map<number, Array<{ startChar: number; endChar: number; symbol: string }>>();
+        for (const o of doc.occurrences) {
+          const ln = o.range[0] ?? 0;
+          const sc = o.range[1] ?? 0;
+          const ec = o.range.length >= 4 ? (o.range[3] ?? 0) : (o.range[2] ?? 0);
+          let list = occsByLine.get(ln);
+          if (!list) { list = []; occsByLine.set(ln, list); }
+          list.push({ startChar: sc, endChar: ec, symbol: o.symbol });
+        }
+
+        for (const occ of doc.occurrences) {
+          if ((occ.symbolRoles & SymbolRole.Definition) !== 0) continue;
+          if (!occ.symbol) continue;
+
+          if (occ.symbol.startsWith('local ')) {
+            refsLocal++;
+            continue;
+          }
+
+          let refKind = classifyScipReference(occ.symbol);
+          if (refKind === 'skip') {
+            // Term-value refs (ending in '.') may be calls to arrow-function
+            // or const-assigned function values.  Check source for '(' after
+            // the identifier to upgrade skip → call.
+            const refLine = occ.range[0] ?? 0;
+            const refEndChar = occ.range.length >= 4 ? (occ.range[3] ?? 0) : (occ.range[2] ?? 0);
+            if (refLine < sourceLines.length) {
+              const afterRef = sourceLines[refLine]!.slice(refEndChar).trimStart();
+              if (afterRef.startsWith('(')) {
+                refKind = 'call';
+              }
+            }
+            if (refKind === 'skip') {
+              refsSkippedNonCall++;
+              continue;
+            }
+          }
+
+          const line = occ.range[0] ?? 0;
+          const character = occ.range[1] ?? 0;
+
+          const callerId = findContainingSymbol(fileId, line);
+          if (!callerId) {
+            refsNoCaller++;
+            continue;
+          }
+
+          const calleeId = scipToLoreId.get(occ.symbol) ?? null;
+          let calleeName = extractNameFromScipSymbol(occ.symbol);
+          const isExternal = !calleeId && isExternalSymbol(occ.symbol);
+          const method = calleeId ? 'scip_definition' : (isExternal ? 'external_definition' : 'unresolved');
+
+          // Reconstruct member-access callee_name (e.g. "db.prepare")
+          if (refKind === 'call' && sourceLines.length > line) {
+            const srcLine = sourceLines[line]!;
+            if (character > 0 && srcLine[character - 1] === '.') {
+              const lineOccs = occsByLine.get(line);
+              if (lineOccs) {
+                const receiver = lineOccs.find(o =>
+                  o.endChar >= character - 2 && o.endChar <= character
+                  && o.startChar < character
+                );
+                if (receiver) {
+                  const receiverText = srcLine.slice(receiver.startChar, receiver.endChar);
+                  if (receiverText) {
+                    calleeName = receiverText + '.' + calleeName;
+                  }
+                }
+              }
+            }
+          }
+
+          if (refKind === 'type') {
+            const typeRefKind = inferTypeRefKind(sourceLines, line, character);
+            const refDef = symbolDefinitions.get(occ.symbol);
+            const refInfo = sipInfoMap.get(occ.symbol);
+            const refSig = refInfo ? extractSignatureFromDoc(refInfo.documentation[0] ?? '') || null : null;
+            const refDefUri = refDef ? pathToFileURL(refDef.filePath).toString() : null;
+
+            try {
+              insertTypeRef.run(
+                fileId, callerId, calleeId ?? null,
+                calleeName, normalizeTypeName(calleeName), typeRefKind,
+                line, character, method, refSig,
+                refDefUri, refDef?.filePath ?? null, refDef?.line ?? null, refDef?.character ?? null,
+                layer, generation,
+              );
+              typeRefsInserted++;
+            } catch {
+              refsNoCaller++;
+            }
+          } else {
+            if (!calleeId) {
+              refsNoCaller++;
+              continue;
+            }
+
+            const refDef = symbolDefinitions.get(occ.symbol);
+            const refInfo = sipInfoMap.get(occ.symbol);
+            const refSig = refInfo ? extractSignatureFromDoc(refInfo.documentation[0] ?? '') || null : null;
+            const refReturnType = extractReturnType(refSig);
+            const refDefUri = refDef ? pathToFileURL(refDef.filePath).toString() : null;
+
+            try {
+              insertCallRef.run(
+                callerId, fileId, calleeId, calleeName,
+                line, character, 'direct', method, refSig, refReturnType,
+                refDefUri, refDef?.filePath ?? null, refDef?.line ?? null, refDef?.character ?? null,
+                layer, generation,
+              );
+              refsInserted++;
+              if (isExternal) refsExternal++;
+            } catch {
+              refsNoCaller++;
+            }
+          }
+        }
+      }
+    });
+    processRefs();
+
+    log.indexing('scip-refs: refs inserted', {
+      callRefs: refsInserted,
+      typeRefs: typeRefsInserted,
+      external: refsExternal,
+      noCaller: refsNoCaller,
+      skippedLocal: refsLocal,
+      skippedNonCall: refsSkippedNonCall,
+    });
+
+    // Materialize virtual dispatch edges
+    materializeVirtualDispatch(
+      db, scipToLoreId, sipInfoMap, symbolDefinitions, layer, generation, log,
+    );
+
+    // Free the stashed data
+    context.scipRefData = undefined;
+  }
+
+  async dispose(): Promise<void> {}
+}
 
 /** Fields that only affect build output, not type-checking or SCIP indexing. */
 const TSCONFIG_BUILD_ONLY_FIELDS = [

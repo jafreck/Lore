@@ -20,7 +20,7 @@ import {
   SymbolRole,
 } from '../../src/scip/scip_pb.js';
 import { openDb } from '../../src/db/schema.js';
-import { ScipIndexerStage } from '../../src/indexer/stages/scip-indexer.js';
+import { ScipIndexerStage, ScipRefStage } from '../../src/indexer/stages/scip-indexer.js';
 import type { PipelineContext } from '../../src/indexer/pipeline.js';
 import { initLogger, LogLevel } from '../../src/logger.js';
 import { resolveEffectiveScipSettings } from '../../src/scip/config.js';
@@ -295,6 +295,7 @@ describe('ScipIndexerStage virtual dispatch materialization', () => {
     (stage as any).loadScipIndexes = async () => [bytes];
 
     await stage.execute(ctx, 'build');
+    await new ScipRefStage().execute(ctx, 'build');
 
     const db = ctx.db;
 
@@ -432,6 +433,7 @@ describe('ScipIndexerStage virtual dispatch materialization', () => {
     (stage as any).loadScipIndexes = async () => [bytes];
 
     await stage.execute(ctx, 'build');
+    await new ScipRefStage().execute(ctx, 'build');
 
     const db = ctx.db;
 

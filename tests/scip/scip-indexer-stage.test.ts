@@ -19,7 +19,7 @@ import {
   SymbolRole,
 } from '../../src/scip/scip_pb.js';
 import { openDb } from '../../src/db/schema.js';
-import { ScipIndexerStage } from '../../src/indexer/stages/scip-indexer.js';
+import { ScipIndexerStage, ScipRefStage } from '../../src/indexer/stages/scip-indexer.js';
 import { SourceIndexStage } from '../../src/indexer/stages/source-index.js';
 import type { PipelineContext } from '../../src/indexer/pipeline.js';
 import { initLogger, LogLevel } from '../../src/logger.js';
@@ -133,6 +133,7 @@ describe('ScipIndexerStage', () => {
 
     const stage = new ScipIndexerStage();
     await stage.execute(ctx, 'build');
+    await new ScipRefStage().execute(ctx, 'build');
 
     // Symbol should have enrichment columns populated
     const sym = ctx.db.prepare('SELECT resolved_type_signature, resolved_return_type, definition_uri, definition_path FROM symbols WHERE name = ?').get('greet') as any;
@@ -187,6 +188,7 @@ describe('ScipIndexerStage', () => {
 
     const stage = new ScipIndexerStage();
     await stage.execute(ctx, 'build');
+    await new ScipRefStage().execute(ctx, 'build');
 
     // Type ref should have enrichment columns populated
     const typeRef = ctx.db.prepare('SELECT resolved_type_signature, definition_path, definition_line FROM type_refs LIMIT 1').get() as any;
@@ -398,8 +400,9 @@ describe('ScipIndexerStage', () => {
     ).get('HandleRequest') as { start_line: number; end_line: number } | undefined;
     expect(beforePatch).toBeDefined();
     expect(beforePatch!.start_line).toBe(6);
-    // SCIP provides no enclosingRange, so end_line should still be the definition line
-    expect(beforePatch!.end_line).toBe(6);
+    // With the lastIndexOf('{') fix, the brace counter skips the interface{}
+    // in the signature and correctly finds the function body end
+    expect(beforePatch!.end_line).toBe(10);
 
     // Step 2: Run SourceIndexStage — tree-sitter should patch end_line
     // ScipIndexerStage sets ctx.scipSourcedFiles; verify it was set
