@@ -50,6 +50,7 @@ import { ingestGitHistory } from '../git/history.js';
 import { getLogger } from '../logger.js';
 import { IndexPipeline } from './pipeline.js';
 import type { PipelineContext, PipelineStage } from './pipeline.js';
+import { ByteBudgetLRU } from './byte-budget-lru.js';
 import {
   ScipIndexerStage,
   ScipRefStage,
@@ -187,7 +188,7 @@ export class IndexBuilder {
       staleSymbolIds: [],
       changedSourcePaths: [],
       changedDocPaths: [],
-      sourceCache: new Map(),
+      sourceCache: new ByteBudgetLRU(),
       layer: 'baseline',
       generation,
       ...(this.maxWorkers !== undefined && { maxWorkers: this.maxWorkers }),
@@ -259,7 +260,7 @@ export class IndexBuilder {
       staleSymbolIds: [],
       changedSourcePaths: [],
       changedDocPaths: [],
-      sourceCache: new Map(),
+      sourceCache: new ByteBudgetLRU(),
       layer: 'overlay',
       generation: 0,
       ...(this.maxWorkers !== undefined && { maxWorkers: this.maxWorkers }),
@@ -325,7 +326,7 @@ export class IndexBuilder {
       staleSymbolIds: [],
       changedSourcePaths: [],
       changedDocPaths: [],
-      sourceCache: new Map(),
+      sourceCache: new ByteBudgetLRU(),
       layer: 'baseline',
       generation: newGeneration,
       ...(this.maxWorkers !== undefined && { maxWorkers: this.maxWorkers }),
