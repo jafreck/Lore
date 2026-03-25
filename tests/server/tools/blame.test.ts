@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { EventEmitter } from 'node:events';
 import Database from 'better-sqlite3';
-import { handler, toolDef } from '../../../src/server/tools/blame.js';
+import { handler, toolDef, clearGitRootCache } from '../../../src/server/tools/blame.js';
 
 const { mockExecFileSync, mockSpawn } = vi.hoisted(() => ({
   mockExecFileSync: vi.fn(),
@@ -162,6 +162,7 @@ describe('lore_blame handler', () => {
     insertFile(db, filePath);
     insertFile(db, utilPath);
     vi.clearAllMocks();
+    clearGitRootCache();
   });
 
   it('should throw if file is not present in the index', async () => {

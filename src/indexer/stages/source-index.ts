@@ -167,12 +167,15 @@ export class SourceIndexStage implements PipelineStage {
 
     // Use worker threads for parallel parse+extract on multi-core machines.
     // Workers own their own ParserPool + extractors; main thread handles all DB writes.
-    const workerCount = Math.max(1, Math.min(remaining.length, availableParallelism() - 1));
+    const workerCount = Math.max(1, Math.min(
+      remaining.length,
+      context.maxWorkers ?? (availableParallelism() - 1),
+    ));
 
     if (workerCount <= 1) {
       // Single-core fallback: use the serial path
       const pool = this.pool!;
-      const BATCH_SIZE = 200;
+      const BATCH_SIZE = 1000;
       for (let batchStart = resumeAt; batchStart < files.length; batchStart += BATCH_SIZE) {
         const batchEnd = Math.min(batchStart + BATCH_SIZE, files.length);
         db.transaction(() => {
@@ -182,7 +185,9 @@ export class SourceIndexStage implements PipelineStage {
             processFile(db, pool, file.path, file.language, branch, context.sourceCache, context.layer, context.generation);
           }
         })();
+        if (batchEnd >= files.length || batchEnd % (BATCH_SIZE * 5) < BATCH_SIZE) {
         saveBuildCheckpoint(db, branch, context.walkerConfig.rootDir, batchEnd, files.length);
+      }
       }
       return;
     }
@@ -190,10 +195,9 @@ export class SourceIndexStage implements PipelineStage {
     // Pre-fetch existing file hashes from DB so workers can skip unchanged files.
     const existingRows = new Map<string, { hash: string | null; sizeBytes: number }>();
     const layerForLookup = context.layer === 'overlay' ? 'overlay' : 'baseline';
-    const allExisting = db.prepare(
+    for (const row of db.prepare(
       'SELECT path, last_hash, size_bytes FROM files WHERE branch = ? AND layer = ?',
-    ).all(branch, layerForLookup) as Array<{ path: string; last_hash: string | null; size_bytes: number }>;
-    for (const row of allExisting) {
+    ).iterate(branch, layerForLookup) as Iterable<{ path: string; last_hash: string | null; size_bytes: number }>) {
       existingRows.set(row.path, { hash: row.last_hash, sizeBytes: row.size_bytes });
     }
 
@@ -217,7 +221,7 @@ export class SourceIndexStage implements PipelineStage {
     if (!fs.existsSync(workerScript)) {
       // Serial fallback when worker script is unavailable
       const pool = this.pool!;
-      const BATCH_SIZE = 200;
+      const BATCH_SIZE = 1000;
       for (let batchStart = resumeAt; batchStart < files.length; batchStart += BATCH_SIZE) {
         const batchEnd = Math.min(batchStart + BATCH_SIZE, files.length);
         db.transaction(() => {
@@ -227,7 +231,9 @@ export class SourceIndexStage implements PipelineStage {
             processFile(db, pool, file.path, file.language, branch, context.sourceCache, context.layer, context.generation);
           }
         })();
+        if (batchEnd >= files.length || batchEnd % (BATCH_SIZE * 5) < BATCH_SIZE) {
         saveBuildCheckpoint(db, branch, context.walkerConfig.rootDir, batchEnd, files.length);
+      }
       }
       return;
     }
@@ -238,11 +244,20 @@ export class SourceIndexStage implements PipelineStage {
       files: tasks.length,
     });
 
-    // Distribute tasks across workers in round-robin chunks
-    const WORKER_BATCH_SIZE = 50;
+    // Sort files by language so each worker receives a contiguous block of
+    // same-language files. This limits the number of tree-sitter grammars
+    // each worker loads (from potentially all grammars to 1–2), reducing
+    // peak worker memory usage significantly on multi-language repos.
+    const sortedTasks = [...tasks].sort((a, b) =>
+      (a.language ?? '').localeCompare(b.language ?? ''),
+    );
+
+    // Distribute contiguous language-sorted blocks to workers
+    const tasksPerWorker = Math.ceil(sortedTasks.length / workerCount);
     const taskChunks: ParseTask[][] = [];
-    for (let i = 0; i < tasks.length; i += WORKER_BATCH_SIZE) {
-      taskChunks.push(tasks.slice(i, i + WORKER_BATCH_SIZE));
+    for (let w = 0; w < workerCount; w++) {
+      const chunk = sortedTasks.slice(w * tasksPerWorker, (w + 1) * tasksPerWorker);
+      if (chunk.length > 0) taskChunks.push(chunk);
     }
 
     // Spawn workers and collect results
@@ -257,7 +272,7 @@ export class SourceIndexStage implements PipelineStage {
     }
 
     // Insert results into DB in batched transactions, in original file order
-    const BATCH_SIZE = 200;
+    const BATCH_SIZE = 1000;
     let processed = 0;
     let skipped = 0;
     let errors = 0;
@@ -277,7 +292,9 @@ export class SourceIndexStage implements PipelineStage {
           processed++;
         }
       })();
-      saveBuildCheckpoint(db, branch, context.walkerConfig.rootDir, batchEnd, files.length);
+      if (batchEnd >= files.length || batchEnd % (BATCH_SIZE * 5) < BATCH_SIZE) {
+        saveBuildCheckpoint(db, branch, context.walkerConfig.rootDir, batchEnd, files.length);
+      }
     }
 
     context.log.indexing('parallel parse: complete', {
@@ -299,6 +316,12 @@ export class SourceIndexStage implements PipelineStage {
     const generation = context.generation;
 
     db.transaction(() => {
+      // Collect all baseline file IDs to delete in one batch. Doing a single
+      // DELETE FROM files WHERE id IN (...) is faster than N individual deletes,
+      // and ON DELETE CASCADE / ON DELETE SET NULL propagate automatically with
+      // foreign_keys = ON.
+      const baselineFileIdsToDelete: number[] = [];
+
       for (const filePath of changedFiles) {
         // If the file no longer exists, remove it from the DB
         if (!fs.existsSync(filePath)) {
@@ -309,22 +332,20 @@ export class SourceIndexStage implements PipelineStage {
             if (overlayRow) {
               const symRows = db.prepare('SELECT id FROM symbols WHERE file_id = ?').all(overlayRow.id) as Array<{ id: number }>;
               for (const s of symRows) context.staleSymbolIds.push(s.id);
+              // Cascade via file_id FK handles all child rows; ON DELETE SET NULL
+              // handles resolved_id, callee_id, type_id, and target_symbol_id.
               db.prepare('DELETE FROM files WHERE id = ?').run(overlayRow.id);
             }
             // Mark as dirty with a sentinel so effective_files excludes the baseline row
             db.prepare('INSERT OR REPLACE INTO dirty_files (path, dirty_since, overlay_gen) VALUES (?, unixepoch(), ?)').run(filePath, generation);
           } else {
-            // Baseline mode: delete all rows for this file
+            // Baseline mode: queue for batch delete
             const row = db.prepare('SELECT id FROM files WHERE path = ? AND branch = ?').get(filePath, branch) as
               | { id: number } | undefined;
             if (row) {
               const symRows = db.prepare('SELECT id FROM symbols WHERE file_id = ?').all(row.id) as Array<{ id: number }>;
               for (const s of symRows) context.staleSymbolIds.push(s.id);
-              db.prepare('UPDATE file_imports SET resolved_id = NULL WHERE resolved_id = ?').run(row.id);
-              db.prepare('UPDATE symbol_refs SET callee_id = NULL WHERE callee_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(row.id);
-              db.prepare('UPDATE type_refs SET type_id = NULL WHERE type_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(row.id);
-              db.prepare('UPDATE symbol_relationships SET target_symbol_id = NULL WHERE target_symbol_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(row.id);
-              db.prepare('DELETE FROM files WHERE id = ?').run(row.id);
+              baselineFileIdsToDelete.push(row.id);
             }
           }
           continue;
@@ -344,22 +365,32 @@ export class SourceIndexStage implements PipelineStage {
               for (const s of symRows) context.staleSymbolIds.push(s.id);
             }
           } else {
-            // Baseline: delete all data for this path
+            // Baseline: queue the existing row for batch delete
             const existingRow = db.prepare('SELECT id FROM files WHERE path = ? AND branch = ?').get(filePath, branch) as
               | { id: number } | undefined;
             if (existingRow) {
               const symRows = db.prepare('SELECT id FROM symbols WHERE file_id = ?').all(existingRow.id) as Array<{ id: number }>;
               for (const s of symRows) context.staleSymbolIds.push(s.id);
-              db.prepare('UPDATE file_imports SET resolved_id = NULL WHERE resolved_id = ?').run(existingRow.id);
-              db.prepare('UPDATE symbol_refs SET callee_id = NULL WHERE callee_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(existingRow.id);
-              db.prepare('UPDATE type_refs SET type_id = NULL WHERE type_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(existingRow.id);
-              db.prepare('UPDATE symbol_relationships SET target_symbol_id = NULL WHERE target_symbol_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(existingRow.id);
+              baselineFileIdsToDelete.push(existingRow.id);
             }
-            db.prepare('DELETE FROM files WHERE path = ? AND branch = ?').run(filePath, branch);
           }
-
-          processFile(db, pool, filePath, language, branch, context.sourceCache, layer, generation);
         }
+      }
+
+      // Single batch DELETE for all baseline files. Cascade via file_id FK
+      // deletes all child rows (symbols, file_imports, external_deps, annotations,
+      // symbol_relationships, type_refs). Deleting symbols further cascades to
+      // symbol_refs (caller_id), summaries, and metrics; ON DELETE SET NULL
+      // automatically nullifies cross-file callee_id / type_id / resolved_id /
+      // target_symbol_id references.
+      if (baselineFileIdsToDelete.length > 0) {
+        const placeholders = baselineFileIdsToDelete.map(() => '?').join(',');
+        db.prepare(`DELETE FROM files WHERE id IN (${placeholders})`).run(...baselineFileIdsToDelete);
+      }
+
+      // Re-process each changed file that still exists on disk
+      for (const { path: filePath, language } of enrichedFiles) {
+        processFile(db, pool, filePath, language, branch, context.sourceCache, layer, generation);
       }
     })();
 
@@ -484,31 +515,29 @@ function insertFileAndExtractions(
         WHERE id = ?`,
     ).run(language, sizeBytes, hash, source, existing.id);
     fileId = existing.id;
-    // Remove stale symbols / imports / external deps for this baseline row
+    // Remove stale symbols / imports / external deps for this baseline row.
+    // symbol_relationships and type_refs with NULL source/symbol_id must be
+    // deleted explicitly (cascade only fires for non-null FK rows).
+    // Deleting symbols cascades to symbol_refs (caller_id), symbol_summaries,
+    // symbol_metrics, and ON DELETE SET NULL nullifies cross-file callee_id /
+    // type_id / target_symbol_id references automatically.
     db.prepare('DELETE FROM symbol_relationships WHERE file_id = ?').run(fileId);
     db.prepare('DELETE FROM type_refs WHERE file_id = ?').run(fileId);
-    db.prepare('UPDATE symbol_refs SET callee_id = NULL WHERE callee_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(fileId);
-    db.prepare('UPDATE type_refs SET type_id = NULL WHERE type_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(fileId);
-    db.prepare('UPDATE symbol_relationships SET target_symbol_id = NULL WHERE target_symbol_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(fileId);
     db.prepare('DELETE FROM symbols WHERE file_id = ?').run(fileId);
     db.prepare('DELETE FROM file_imports WHERE file_id = ?').run(fileId);
     db.prepare('DELETE FROM external_deps WHERE file_id = ?').run(fileId);
     db.prepare('DELETE FROM annotations WHERE file_id = ?').run(fileId);
   } else if (layer === 'overlay') {
-    // Overlay mode: delete prior overlay rows for this file (not baseline)
+    // Overlay mode: delete prior overlay rows for this file (not baseline).
+    // Deleting the file row cascades (via file_id FK) to symbols, file_imports,
+    // external_deps, annotations, symbol_relationships, and type_refs.
+    // Deleting symbols further cascades to symbol_refs (caller_id), summaries,
+    // and metrics; ON DELETE SET NULL nullifies cross-file callee_id / type_id /
+    // target_symbol_id references automatically.
     const overlayRow = db.prepare(
       'SELECT id FROM files WHERE path = ? AND branch = ? AND layer = ?',
     ).get(filePath, branch, 'overlay') as { id: number } | undefined;
     if (overlayRow) {
-      db.prepare('DELETE FROM symbol_relationships WHERE file_id = ?').run(overlayRow.id);
-      db.prepare('DELETE FROM type_refs WHERE file_id = ?').run(overlayRow.id);
-      db.prepare('UPDATE symbol_refs SET callee_id = NULL WHERE callee_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(overlayRow.id);
-      db.prepare('UPDATE type_refs SET type_id = NULL WHERE type_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(overlayRow.id);
-      db.prepare('UPDATE symbol_relationships SET target_symbol_id = NULL WHERE target_symbol_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(overlayRow.id);
-      db.prepare('DELETE FROM symbols WHERE file_id = ?').run(overlayRow.id);
-      db.prepare('DELETE FROM file_imports WHERE file_id = ?').run(overlayRow.id);
-      db.prepare('DELETE FROM external_deps WHERE file_id = ?').run(overlayRow.id);
-      db.prepare('DELETE FROM annotations WHERE file_id = ?').run(overlayRow.id);
       db.prepare('DELETE FROM files WHERE id = ?').run(overlayRow.id);
     }
     // Insert a new overlay file row (baseline row is untouched)

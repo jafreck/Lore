@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import Database from 'better-sqlite3';
-import { handler, toolDef } from '../../../src/server/tools/lookup.js';
+import { handler, toolDef, clearQueryEmbeddingCache } from '../../../src/server/tools/lookup.js';
 import { createRequire } from 'node:module';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -375,6 +375,7 @@ describe('lookup handler – semantic symbol modes', () => {
   let db: Database.Database;
 
   beforeEach(() => {
+    clearQueryEmbeddingCache();
     db = createTestDb();
     loadSymbolVectorTable(db, 3);
     const mainId = insertFile(db, 'src/main.ts', 'main');

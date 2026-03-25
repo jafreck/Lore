@@ -6,6 +6,26 @@
 
 import { execFileSync, spawn } from 'node:child_process';
 import { dirname, relative } from 'node:path';
+
+function execFileAsync(
+  cmd: string,
+  args: string[],
+  opts: { encoding: BufferEncoding },
+): Promise<{ stdout: string }> {
+  return new Promise((resolve, reject) => {
+    execFileCb(cmd, args, opts, (err, stdout) => {
+      if (err) reject(err);
+      else resolve({ stdout: String(stdout) });
+    });
+  });
+}
+
+const gitRootCache = new Map<string, string>();
+
+/** Clear the cached git root lookups. Exposed for testing. */
+export function clearGitRootCache(): void {
+  gitRootCache.clear();
+}
 import type { Database } from '../../db/read-only.js';
 import {
   getCommitBySha,
@@ -296,14 +316,22 @@ function resolveFileTarget(
   };
 }
 
-function resolveGitPath(filePath: string): GitPath {
+async function resolveGitPath(filePath: string): Promise<GitPath> {
+  const dir = dirname(filePath);
+  const cached = gitRootCache.get(dir);
   let repoRoot = '';
-  try {
-    repoRoot = execFileSync('git', ['-C', dirname(filePath), 'rev-parse', '--show-toplevel'], {
-      encoding: 'utf8',
-    }).trim();
-  } catch {
-    throw new Error(`Unable to resolve git repository root for path: ${filePath}`);
+  if (cached) {
+    repoRoot = cached;
+  } else {
+    try {
+      const { stdout } = await execFileAsync('git', ['-C', dir, 'rev-parse', '--show-toplevel'], {
+        encoding: 'utf8',
+      });
+      repoRoot = stdout.trim();
+    } catch {
+      throw new Error(`Unable to resolve git repository root for path: ${filePath}`);
+    }
+    gitRootCache.set(dir, repoRoot);
   }
 
   const relPath = relative(repoRoot, filePath);
@@ -419,7 +447,7 @@ function runBlamePorcelain(
   });
 }
 
-function runHistoryLog(
+async function runHistoryLog(
   repoRoot: string,
   relPath: string,
   ref: string,
