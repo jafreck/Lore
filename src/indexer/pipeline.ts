@@ -163,8 +163,8 @@ export interface PipelineContext {
     symbolInfoMap: Map<string, unknown>;
     /** Absolute path → file_id */
     fileIdMap: Map<string, number>;
-    /** Raw SCIP documents (occurrences + symbols) */
-    documents: unknown[];
+    /** Raw SCIP documents (occurrences + symbols), as a lazy iterable */
+    documents: Iterable<unknown>;
     /** Internal package prefixes for external-symbol detection */
     isExternalSymbol: (sym: string) => boolean;
   };
