@@ -109,6 +109,7 @@ describe.skipIf(SKIP)(`Copilot agent benchmark: ${TARGET_REPO}`, () => {
   const repoManager = new RepoManager(WORK_DIR);
   let repoPath: string;
   let dbPath: string;
+  let indexTimeMs: number | undefined;
 
   beforeAll(async () => {
     // Ensure Lore MCP server is built (used by lore-enabled arm)
@@ -129,6 +130,7 @@ describe.skipIf(SKIP)(`Copilot agent benchmark: ${TARGET_REPO}`, () => {
       lsp: ENABLE_LSP,
     });
     dbPath = indexed.dbPath!;
+    indexTimeMs = indexed.indexTimeMs;
 
     expect(indexed.indexed).toBe(true);
     console.log(`\n${TARGET_REPO} cloned at ${repoSpec.sha.slice(0, 8)}, indexed in ${indexed.indexTimeMs}ms`);
@@ -277,6 +279,9 @@ describe.skipIf(SKIP)(`Copilot agent benchmark: ${TARGET_REPO}`, () => {
     console.log(`Tasks: ${COPILOT_TASKS.length}`);
     console.log(`Iterations: ${ITERATIONS}`);
     console.log(`Arm filter: ${ARM_FILTER ?? 'both'}`);
+    if (indexTimeMs != null) {
+      console.log(`Index time: ${(indexTimeMs / 1000).toFixed(1)}s`);
+    }
 
     // Single-arm mode: report only the requested arm
     if (ARM_FILTER === 'control' && controlScores.length > 0) {
@@ -316,6 +321,7 @@ describe.skipIf(SKIP)(`Copilot agent benchmark: ${TARGET_REPO}`, () => {
           completedRuns: controlScores.length,
           totalExpectedRuns,
           timestamp: new Date().toISOString(),
+          ...(indexTimeMs != null ? { indexTimeMs } : {}),
         },
         structuredTasks,
         controlReport,
