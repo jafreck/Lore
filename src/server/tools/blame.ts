@@ -4,7 +4,7 @@
  * MCP tool: line-level git blame, line-range history, and ownership metadata.
  */
 
-import { execFileSync, spawn } from 'node:child_process';
+import { execFile as execFileCb, spawn } from 'node:child_process';
 import { dirname, relative } from 'node:path';
 
 function execFileAsync(
@@ -701,7 +701,7 @@ async function handleBlameMode(db: Database.Database, args: BlameArgs): Promise<
     throw new Error('Failed to resolve blame line range.');
   }
 
-  const { repoRoot, relPath } = resolveGitPath(target.path);
+  const { repoRoot, relPath } = await resolveGitPath(target.path);
   const parsed = await runBlamePorcelain(repoRoot, relPath, target.ref, start_line, end_line);
   const commitMap = buildCommitContextMap(
     db,
@@ -734,7 +734,7 @@ async function handleHistoryMode(db: Database.Database, args: BlameArgs): Promis
     throw new Error('Failed to resolve history line range.');
   }
 
-  const { repoRoot, relPath } = resolveGitPath(target.path);
+  const { repoRoot, relPath } = await resolveGitPath(target.path);
   const history = await runHistoryLog(repoRoot, relPath, target.ref, start_line, end_line);
   const commitMap = buildCommitContextMap(
     db,
@@ -826,7 +826,7 @@ async function handleOwnershipMode(
   const commitShas = new Set<string>();
 
   for (const filePath of files) {
-    const { repoRoot, relPath } = resolveGitPath(filePath);
+    const { repoRoot, relPath } = await resolveGitPath(filePath);
     const lines = await runBlamePorcelain(repoRoot, relPath, ref, startLine, endLine);
     for (const line of lines) {
       const key = `${line.author}\u0000${line.author_email}`;

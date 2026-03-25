@@ -3,15 +3,24 @@ import { EventEmitter } from 'node:events';
 import Database from 'better-sqlite3';
 import { handler, toolDef, clearGitRootCache } from '../../../src/server/tools/blame.js';
 
-const { mockExecFileSync, mockSpawn } = vi.hoisted(() => ({
-  mockExecFileSync: vi.fn(),
+const { mockExecFile, mockSpawn } = vi.hoisted(() => ({
+  mockExecFile: vi.fn(),
   mockSpawn: vi.fn(),
 }));
 
 vi.mock('node:child_process', () => ({
-  execFileSync: mockExecFileSync,
+  execFile: mockExecFile,
   spawn: mockSpawn,
 }));
+
+/** Schedule one execFile call (callback-based) to resolve with the given stdout. */
+function mockExecFileOnce(stdout: string): void {
+  mockExecFile.mockImplementationOnce(
+    (_cmd: string, _args: string[], _opts: unknown, cb: (err: Error | null, stdout: string) => void) => {
+      process.nextTick(() => cb(null, stdout));
+    },
+  );
+}
 
 /** Schedule one spawn call to emit the given stdout then close. */
 function mockSpawnOnce(stdout: string, exitCode = 0): void {
@@ -183,7 +192,7 @@ describe('lore_blame handler', () => {
     insertCommitFile(db, 'abcdef1234567890abcdef1234567890abcdef12', 'src/main.ts', 12, 3);
     insertCommitRef(db, 'abcdef1234567890abcdef1234567890abcdef12', 'refs/heads/main');
 
-    mockExecFileSync.mockReturnValueOnce('/repo\n');
+    mockExecFileOnce('/repo\n');
     mockSpawnOnce(
         [
           'abcdef1234567890abcdef1234567890abcdef12 7 7 1',
@@ -230,7 +239,7 @@ describe('lore_blame handler', () => {
   });
 
   it('should support line ranges and pass -L start,end to git blame (legacy behavior)', async () => {
-    mockExecFileSync.mockReturnValueOnce('/repo\n');
+    mockExecFileOnce('/repo\n');
     mockSpawnOnce(
         [
           'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb 10 10 2',
@@ -256,7 +265,7 @@ describe('lore_blame handler', () => {
   it('should resolve symbol-only requests to a concrete blame line range', async () => {
     const fileId = db.prepare('SELECT id FROM files WHERE path = ?').get(filePath) as { id: number };
     insertSymbol(db, fileId.id, 'handleAuth', 20, 24);
-    mockExecFileSync.mockReturnValueOnce('/repo\n');
+    mockExecFileOnce('/repo\n');
     mockSpawnOnce(
         [
           'cccccccccccccccccccccccccccccccccccccccc 20 20 1',
@@ -326,7 +335,7 @@ describe('lore_blame handler', () => {
       '+old',
     ].join('\n');
 
-    mockExecFileSync.mockReturnValueOnce('/repo\n');
+    mockExecFileOnce('/repo\n');
     mockSpawnOnce(historyOutput);
 
     const result = await handler(db, { mode: 'history', path: filePath, start_line: 10, end_line: 10 });
@@ -368,7 +377,7 @@ describe('lore_blame handler', () => {
   it('should compose symbol targeting with history mode', async () => {
     const fileId = db.prepare('SELECT id FROM files WHERE path = ?').get(filePath) as { id: number };
     insertSymbol(db, fileId.id, 'handleAuth', 20, 24);
-    mockExecFileSync.mockReturnValueOnce('/repo\n');
+    mockExecFileOnce('/repo\n');
     mockSpawnOnce(
         '3333333333333333333333333333333333333333\x1fCarol\x1fcarol@example.com\x1f1700001500\x1fauth change\n\n',
     );
@@ -398,7 +407,7 @@ describe('lore_blame handler', () => {
     insertCommitFile(db, '5555555555555555555555555555555555555555', 'src/util.ts', 10, 2);
 
     // file ownership call: rev-parse + blame
-    mockExecFileSync.mockReturnValueOnce('/repo\n');
+    mockExecFileOnce('/repo\n');
     mockSpawnOnce(
         [
           '4444444444444444444444444444444444444444 1 1 2',
@@ -411,7 +420,7 @@ describe('lore_blame handler', () => {
         ].join('\n'),
     );
     // directory ownership call: src/main.ts — rev-parse + blame
-    mockExecFileSync.mockReturnValueOnce('/repo\n');
+    mockExecFileOnce('/repo\n');
     mockSpawnOnce(
         [
           '4444444444444444444444444444444444444444 1 1 1',
@@ -423,7 +432,7 @@ describe('lore_blame handler', () => {
         ].join('\n'),
     );
     // directory ownership call: src/util.ts — rev-parse + blame
-    mockExecFileSync.mockReturnValueOnce('/repo\n');
+    mockExecFileOnce('/repo\n');
     mockSpawnOnce(
         [
           '5555555555555555555555555555555555555555 1 1 2',
@@ -472,7 +481,7 @@ describe('lore_blame handler', () => {
     const fileId = db.prepare('SELECT id FROM files WHERE path = ?').get(filePath) as { id: number };
     insertSymbol(db, fileId.id, 'handleAuth', 20, 21);
 
-    mockExecFileSync.mockReturnValueOnce('/repo\n');
+    mockExecFileOnce('/repo\n');
     mockSpawnOnce(
         [
           '6666666666666666666666666666666666666666 20 20 2',
