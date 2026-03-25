@@ -29,12 +29,12 @@ describe('processFile — overlay mode', () => {
     db?.close();
   });
 
-  it('should write overlay file row with layer=overlay', () => {
+  it('should write overlay file row with layer=overlay', async () => {
     const { path } = createTempFile('export function hello(): string { return "hi"; }\n');
     db = openDb(':memory:');
     pool = new ParserPool();
 
-    processFile(db, pool, path, 'typescript', 'main', undefined, 'overlay', 0);
+    await processFile(db, pool, path, 'typescript', 'main', undefined, 'overlay', 0);
 
     const row = db.prepare("SELECT layer, generation FROM files WHERE path = ? AND layer = 'overlay'").get(path) as
       | { layer: string; generation: number } | undefined;
@@ -43,12 +43,12 @@ describe('processFile — overlay mode', () => {
     expect(row!.generation).toBe(0);
   });
 
-  it('should mark file as dirty in dirty_files table', () => {
+  it('should mark file as dirty in dirty_files table', async () => {
     const { path } = createTempFile('export const x = 1;\n');
     db = openDb(':memory:');
     pool = new ParserPool();
 
-    processFile(db, pool, path, 'typescript', 'main', undefined, 'overlay', 0);
+    await processFile(db, pool, path, 'typescript', 'main', undefined, 'overlay', 0);
 
     const dirty = db.prepare('SELECT * FROM dirty_files WHERE path = ?').get(path) as
       | { path: string; overlay_gen: number } | undefined;
@@ -56,19 +56,19 @@ describe('processFile — overlay mode', () => {
     expect(dirty!.path).toBe(path);
   });
 
-  it('should preserve baseline rows when writing overlay', () => {
+  it('should preserve baseline rows when writing overlay', async () => {
     const { path } = createTempFile('export function baseline(): void {}\n');
     db = openDb(':memory:');
     pool = new ParserPool();
 
     // First write as baseline
-    processFile(db, pool, path, 'typescript', 'main', undefined, 'baseline', 1);
+    await processFile(db, pool, path, 'typescript', 'main', undefined, 'baseline', 1);
     const baselineCount = (db.prepare("SELECT COUNT(*) AS cnt FROM files WHERE layer = 'baseline'").get() as { cnt: number }).cnt;
     expect(baselineCount).toBe(1);
 
     // Now write overlay (update the file)
     writeFileSync(path, 'export function overlay(): void {}\n');
-    processFile(db, pool, path, 'typescript', 'main', undefined, 'overlay', 0);
+    await processFile(db, pool, path, 'typescript', 'main', undefined, 'overlay', 0);
 
     // Both layers should exist
     const baselineRow = db.prepare("SELECT source FROM files WHERE path = ? AND layer = 'baseline'").get(path) as { source: string } | undefined;
@@ -79,12 +79,12 @@ describe('processFile — overlay mode', () => {
     expect(overlayRow!.source).toContain('overlay');
   });
 
-  it('should write symbols with correct layer and generation', () => {
+  it('should write symbols with correct layer and generation', async () => {
     const { path } = createTempFile('export function myFunc(): void {}\nexport const myConst = 42;\n');
     db = openDb(':memory:');
     pool = new ParserPool();
 
-    processFile(db, pool, path, 'typescript', 'main', undefined, 'overlay', 0);
+    await processFile(db, pool, path, 'typescript', 'main', undefined, 'overlay', 0);
 
     const symbols = db.prepare("SELECT name, layer, generation FROM symbols WHERE layer = 'overlay'").all() as
       Array<{ name: string; layer: string; generation: number }>;
@@ -95,30 +95,30 @@ describe('processFile — overlay mode', () => {
     }
   });
 
-  it('should write symbol_refs with correct layer', () => {
+  it('should write symbol_refs with correct layer', async () => {
     const { path } = createTempFile('function caller() { callee(); }\nfunction callee() {}\n');
     db = openDb(':memory:');
     pool = new ParserPool();
 
-    processFile(db, pool, path, 'typescript', 'main', undefined, 'overlay', 0);
+    await processFile(db, pool, path, 'typescript', 'main', undefined, 'overlay', 0);
 
     const refs = db.prepare("SELECT layer FROM symbol_refs WHERE layer = 'overlay'").all();
     // Should have at least one overlay ref
     expect(refs.length).toBeGreaterThanOrEqual(0); // may be 0 for simple cases
   });
 
-  it('should replace prior overlay rows on re-index', () => {
+  it('should replace prior overlay rows on re-index', async () => {
     const { path } = createTempFile('export function v1(): void {}\n');
     db = openDb(':memory:');
     pool = new ParserPool();
 
-    processFile(db, pool, path, 'typescript', 'main', undefined, 'overlay', 0);
+    await processFile(db, pool, path, 'typescript', 'main', undefined, 'overlay', 0);
     const count1 = (db.prepare("SELECT COUNT(*) AS cnt FROM files WHERE layer = 'overlay'").get() as { cnt: number }).cnt;
     expect(count1).toBe(1);
 
     // Re-index the same file with different content
     writeFileSync(path, 'export function v2(): void {}\n');
-    processFile(db, pool, path, 'typescript', 'main', undefined, 'overlay', 0);
+    await processFile(db, pool, path, 'typescript', 'main', undefined, 'overlay', 0);
 
     // Should still have exactly one overlay row
     const count2 = (db.prepare("SELECT COUNT(*) AS cnt FROM files WHERE layer = 'overlay'").get() as { cnt: number }).cnt;
@@ -128,35 +128,35 @@ describe('processFile — overlay mode', () => {
     expect(row.source).toContain('v2');
   });
 
-  it('should write file_imports with correct layer', () => {
+  it('should write file_imports with correct layer', async () => {
     const { path } = createTempFile("import { foo } from './foo';\nexport const bar = foo;\n");
     db = openDb(':memory:');
     pool = new ParserPool();
 
-    processFile(db, pool, path, 'typescript', 'main', undefined, 'overlay', 0);
+    await processFile(db, pool, path, 'typescript', 'main', undefined, 'overlay', 0);
 
     const imports = db.prepare("SELECT layer FROM file_imports WHERE layer = 'overlay'").all();
     expect(imports.length).toBeGreaterThan(0);
   });
 
-  it('should default to baseline layer when not specified', () => {
+  it('should default to baseline layer when not specified', async () => {
     const { path } = createTempFile('export const x = 1;\n');
     db = openDb(':memory:');
     pool = new ParserPool();
 
-    processFile(db, pool, path, 'typescript', 'main');
+    await processFile(db, pool, path, 'typescript', 'main');
 
     const row = db.prepare('SELECT layer FROM files WHERE path = ?').get(path) as { layer: string };
     expect(row.layer).toBe('baseline');
   });
 
-  it('should clean up prior overlay symbols, imports, type_refs, and relationships on re-index', () => {
+  it('should clean up prior overlay symbols, imports, type_refs, and relationships on re-index', async () => {
     const { path } = createTempFile("import { foo } from './foo';\nexport function bar() { foo(); }\n");
     db = openDb(':memory:');
     pool = new ParserPool();
 
     // First overlay index
-    processFile(db, pool, path, 'typescript', 'main', undefined, 'overlay', 0);
+    await processFile(db, pool, path, 'typescript', 'main', undefined, 'overlay', 0);
     const symCount1 = (db.prepare("SELECT COUNT(*) AS cnt FROM symbols WHERE layer = 'overlay'").get() as { cnt: number }).cnt;
     const importCount1 = (db.prepare("SELECT COUNT(*) AS cnt FROM file_imports WHERE layer = 'overlay'").get() as { cnt: number }).cnt;
     expect(symCount1).toBeGreaterThan(0);
@@ -164,7 +164,7 @@ describe('processFile — overlay mode', () => {
 
     // Re-index with different content
     writeFileSync(path, 'export function baz(): void {}\n');
-    processFile(db, pool, path, 'typescript', 'main', undefined, 'overlay', 0);
+    await processFile(db, pool, path, 'typescript', 'main', undefined, 'overlay', 0);
 
     // Only one file row in overlay
     const fileCount = (db.prepare("SELECT COUNT(*) AS cnt FROM files WHERE layer = 'overlay'").get() as { cnt: number }).cnt;
@@ -176,12 +176,12 @@ describe('processFile — overlay mode', () => {
     expect(symNames).not.toContain('bar');
   });
 
-  it('should write symbol_metrics with correct layer in overlay mode', () => {
+  it('should write symbol_metrics with correct layer in overlay mode', async () => {
     const { path } = createTempFile('export function complexFn(a: number, b: number): number {\n  if (a > 0) {\n    return a + b;\n  }\n  return b;\n}\n');
     db = openDb(':memory:');
     pool = new ParserPool();
 
-    processFile(db, pool, path, 'typescript', 'main', undefined, 'overlay', 0);
+    await processFile(db, pool, path, 'typescript', 'main', undefined, 'overlay', 0);
 
     const metrics = db.prepare(
       "SELECT sm.layer FROM symbol_metrics sm JOIN symbols s ON s.id = sm.symbol_id WHERE s.layer = 'overlay'",
@@ -192,12 +192,12 @@ describe('processFile — overlay mode', () => {
     }
   });
 
-  it('should write annotations with correct layer in overlay mode', () => {
+  it('should write annotations with correct layer in overlay mode', async () => {
     const { path } = createTempFile('// TODO: implement this\nexport function stub(): void {}\n');
     db = openDb(':memory:');
     pool = new ParserPool();
 
-    processFile(db, pool, path, 'typescript', 'main', undefined, 'overlay', 0);
+    await processFile(db, pool, path, 'typescript', 'main', undefined, 'overlay', 0);
 
     // Annotations may or may not be extracted depending on extractor
     const annotations = db.prepare("SELECT layer FROM annotations WHERE layer = 'overlay'").all();

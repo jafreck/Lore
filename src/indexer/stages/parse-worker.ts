@@ -41,6 +41,9 @@ import type { SymbolExtractor } from '../../parsing/extractors/types.js';
 
 // ─── Types shared between main thread and worker ──────────────────────────────
 
+/** Files larger than this threshold are not transferred back to the main thread to avoid clone overhead. */
+const SOURCE_SIZE_THRESHOLD = 1 * 1024 * 1024; // 1 MB
+
 export interface ParseTask {
   filePath: string;
   language: string;
@@ -62,7 +65,8 @@ export interface ParseResultSuccess {
   kind: 'success';
   filePath: string;
   language: string;
-  source: string;
+  /** Raw source text. Omitted for files larger than SOURCE_SIZE_THRESHOLD to reduce clone overhead. */
+  source?: string;
   hash: string;
   sizeBytes: number;
   result: ExtractionResult;
@@ -194,13 +198,14 @@ function parseAndExtract(
   if (!extractor) return null;
 
   const result = extractor.extract(tree, source, filePath);
+  const sizeBytes = Buffer.byteLength(source, 'utf8');
   return {
     kind: 'success',
     filePath,
     language,
-    source,
+    source: sizeBytes < SOURCE_SIZE_THRESHOLD ? source : undefined,
     hash,
-    sizeBytes: Buffer.byteLength(source, 'utf8'),
+    sizeBytes,
     result,
     rootEndRow: tree.rootNode.endPosition.row,
   };

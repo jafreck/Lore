@@ -170,18 +170,16 @@ export class SourceIndexStage implements PipelineStage {
     const workerCount = Math.max(1, Math.min(remaining.length, availableParallelism() - 1));
 
     if (workerCount <= 1) {
-      // Single-core fallback: use the serial path
+      // Single-core fallback: use the serial async path
       const pool = this.pool!;
       const BATCH_SIZE = 200;
       for (let batchStart = resumeAt; batchStart < files.length; batchStart += BATCH_SIZE) {
         const batchEnd = Math.min(batchStart + BATCH_SIZE, files.length);
-        db.transaction(() => {
-          for (let i = batchStart; i < batchEnd; i++) {
-            const file = files[i];
-            if (!file) continue;
-            processFile(db, pool, file.path, file.language, branch, context.sourceCache, context.layer, context.generation);
-          }
-        })();
+        for (let i = batchStart; i < batchEnd; i++) {
+          const file = files[i];
+          if (!file) continue;
+          await processFile(db, pool, file.path, file.language, branch, context.sourceCache, context.layer, context.generation);
+        }
         saveBuildCheckpoint(db, branch, context.walkerConfig.rootDir, batchEnd, files.length);
       }
       return;
@@ -220,13 +218,11 @@ export class SourceIndexStage implements PipelineStage {
       const BATCH_SIZE = 200;
       for (let batchStart = resumeAt; batchStart < files.length; batchStart += BATCH_SIZE) {
         const batchEnd = Math.min(batchStart + BATCH_SIZE, files.length);
-        db.transaction(() => {
-          for (let i = batchStart; i < batchEnd; i++) {
-            const file = files[i];
-            if (!file) continue;
-            processFile(db, pool, file.path, file.language, branch, context.sourceCache, context.layer, context.generation);
-          }
-        })();
+        for (let i = batchStart; i < batchEnd; i++) {
+          const file = files[i];
+          if (!file) continue;
+          await processFile(db, pool, file.path, file.language, branch, context.sourceCache, context.layer, context.generation);
+        }
         saveBuildCheckpoint(db, branch, context.walkerConfig.rootDir, batchEnd, files.length);
       }
       return;
@@ -298,6 +294,8 @@ export class SourceIndexStage implements PipelineStage {
     const layer = context.layer;
     const generation = context.generation;
 
+    // Phase 1: handle deletions and pre-cleanup in a synchronous transaction.
+    const filesToProcess: Array<{ filePath: string; language: string }> = [];
     db.transaction(() => {
       for (const filePath of changedFiles) {
         // If the file no longer exists, remove it from the DB
@@ -358,10 +356,15 @@ export class SourceIndexStage implements PipelineStage {
             db.prepare('DELETE FROM files WHERE path = ? AND branch = ?').run(filePath, branch);
           }
 
-          processFile(db, pool, filePath, language, branch, context.sourceCache, layer, generation);
+          filesToProcess.push({ filePath, language });
         }
       }
     })();
+
+    // Phase 2: parse and index changed files with async I/O (outside the transaction).
+    for (const { filePath, language } of filesToProcess) {
+      await processFile(db, pool, filePath, language, branch, context.sourceCache, layer, generation);
+    }
 
     // In update mode, context.files = only the changed/enriched files
     context.files = enrichedFiles;
@@ -374,7 +377,7 @@ export class SourceIndexStage implements PipelineStage {
  * Parse one file, extract symbols/imports/callRefs/typeRefs/relationships/
  * routes/annotations, and insert into the DB.
  */
-export function processFile(
+export async function processFile(
   db: Database.Database,
   pool: ParserPool,
   filePath: string,
@@ -383,7 +386,7 @@ export function processFile(
   sourceCache?: Map<string, string>,
   layer: 'baseline' | 'overlay' = 'baseline',
   generation = 0,
-): void {
+): Promise<void> {
   // P3: fast-path — check file size via stat before reading+hashing.
   // In overlay mode, look up existing baseline row for hash comparison;
   // overlay rows are always re-created.
@@ -392,12 +395,12 @@ export function processFile(
   ) as FileRow | undefined;
   if (existing) {
     try {
-      const stat = fs.statSync(filePath);
+      const stat = await fs.promises.stat(filePath);
       if (stat.size === existing.size_bytes && existing.last_hash !== null) {
         // Size matches — read and hash to confirm.
         let source: string;
         try {
-          source = fs.readFileSync(filePath, 'utf8');
+          source = await fs.promises.readFile(filePath, 'utf8');
         } catch {
           return;
         }
@@ -414,7 +417,7 @@ export function processFile(
 
   let source: string;
   try {
-    source = fs.readFileSync(filePath, 'utf8');
+    source = await fs.promises.readFile(filePath, 'utf8');
   } catch {
     return;
   }
@@ -725,8 +728,14 @@ function insertParsedFile(
   layer: 'baseline' | 'overlay' = 'baseline',
   generation = 0,
 ): void {
-  if (sourceCache) sourceCache.set(r.filePath, r.source);
-  insertFileAndExtractions(db, r.filePath, r.language, branch, r.source, r.hash, r.sizeBytes, existing, r.result, r.rootEndRow, layer, generation);
+  // Workers omit source for large files (>1 MB) to reduce structured-clone overhead.
+  // For those files, the source was already read on the worker thread; the main thread
+  // lazily re-reads it here only to persist it in the DB's `files.source` column.
+  // This sync read is intentional — it runs on the main thread while inside a DB
+  // transaction, where async I/O is not possible anyway.
+  const source = r.source ?? fs.readFileSync(r.filePath, 'utf8');
+  if (sourceCache) sourceCache.set(r.filePath, source);
+  insertFileAndExtractions(db, r.filePath, r.language, branch, source, r.hash, r.sizeBytes, existing, r.result, r.rootEndRow, layer, generation);
 }
 
 // ─── Metrics-only pass for SCIP-sourced files ─────────────────────────────────
