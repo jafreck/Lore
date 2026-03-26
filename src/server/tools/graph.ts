@@ -8,7 +8,7 @@
  */
 
 import type { Database } from '../../db/read-only.js';
-import { getCoveragePercentBySymbolIds, semanticSearchSymbols } from '../../db/read-only.js';
+import { semanticSearchSymbols } from '../../db/read-only.js';
 import type { ResolutionMethod } from '../../resolution/resolution-method.js';
 
 // ─── Tool definition ──────────────────────────────────────────────────────────
@@ -107,7 +107,6 @@ export interface GraphEdge {
   target_id: number | null;
   target_name: string;
   target_file_path?: string | null;
-  callee_coverage_percent?: number | null;
   ref_kind?: string;
   line?: number;
   character?: number | null;
@@ -127,7 +126,6 @@ export interface CompactGraphEdge {
   target_id: number | null;
   target_name: string;
   target_file_path?: string | null;
-  callee_coverage_percent?: number | null;
   ref_kind?: string;
 }
 
@@ -212,17 +210,7 @@ function getStructuralEdges(
         LIMIT ?`;
 
     const edges = db.prepare(sql).all(...params) as GraphEdge[];
-    const calleeIds = Array.from(
-      new Set(edges.map((edge) => edge.target_id).filter((id): id is number => id !== null)),
-    );
-    const coverageBySymbolId = getCoveragePercentBySymbolIds(db, calleeIds, args.branch);
-    const edgesWithCoverage = edges.map((edge) => ({
-      ...edge,
-      callee_coverage_percent:
-        edge.target_id !== null ? (coverageBySymbolId.get(edge.target_id) ?? null) : null,
-    }));
-
-    return edgesWithCoverage;
+    return edges;
   } else if (args.kind === 'import') {
     // File-level: file_imports rows
     const conditions: string[] = [];
@@ -371,7 +359,6 @@ function compactEdge(edge: GraphEdge): CompactGraphEdge {
   if (edge.source_parent_name != null) compact.source_parent_name = edge.source_parent_name;
   if (edge.source_file_path != null) compact.source_file_path = edge.source_file_path;
   if (edge.target_file_path != null) compact.target_file_path = edge.target_file_path;
-  if (edge.callee_coverage_percent !== undefined) compact.callee_coverage_percent = edge.callee_coverage_percent;
   if (edge.ref_kind !== undefined) compact.ref_kind = edge.ref_kind;
   return compact;
 }

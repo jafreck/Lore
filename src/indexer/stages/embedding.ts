@@ -42,13 +42,10 @@ export class EmbeddingStage implements PipelineStage {
 
       // Resolve scoped file/doc IDs for incremental embedding.
       const changedFileIds = resolveFileIds(db, context.changedSourcePaths, context.branch);
-      const changedDocIds = resolveDocIds(db, context.changedDocPaths, context.branch);
 
       await embedStructural(db, embedder, changedFileIds, /* skipUnchanged */ true);
-      await embedDocumentation(db, embedder, changedDocIds, /* skipUnchanged */ true);
     } else {
       await embedStructural(db, embedder);
-      await embedDocumentation(db, embedder);
     }
 
     if (context.history) {
@@ -158,104 +155,6 @@ async function embedStructural(
       await flushBatch();
     }
     currentBatch.push({ sym, text, hash });
-    currentBatchTokens += itemTokens;
-  }
-
-  // Flush remaining items and drain the last pending batch.
-  await flushBatch();
-  if (pendingEmbed) {
-    const embeddings = await pendingEmbed;
-    writeBatch(pendingBatch, embeddings);
-  }
-}
-
-// ─── Documentation section embeddings ─────────────────────────────────────────
-
-async function embedDocumentation(
-  db: Database.Database,
-  embedder: EmbeddingProvider,
-  docIds?: number[],
-  skipUnchanged = false,
-): Promise<void> {
-  db.exec(`
-    CREATE VIRTUAL TABLE IF NOT EXISTS doc_section_embeddings USING vec0(
-      embedding FLOAT[${embedder.dims}]
-    );
-  `);
-
-  ensureEmbeddingHashColumn(db, 'doc_section_embeddings');
-
-  let sections: Array<{ id: number; title: string; content: string }>;
-  if (docIds && docIds.length > 0) {
-    sections = db.prepare(
-      `SELECT id, title, content
-       FROM doc_sections
-       WHERE doc_id IN (${docIds.map(() => '?').join(', ')})
-       ORDER BY id`,
-    ).all(...docIds) as typeof sections;
-  } else {
-    sections = db.prepare(
-      `SELECT id, title, content
-       FROM doc_sections
-       ORDER BY id`,
-    ).all() as typeof sections;
-  }
-  if (sections.length === 0) return;
-
-  // Build texts incrementally and flush into embedding batches as they fill.
-  // This avoids holding all embedding text in memory simultaneously.
-  const existingHashes = skipUnchanged ? loadExistingHashes(db, 'doc_section_embeddings', sections.map(s => s.id)) : new Map<number, string>();
-
-  const insertEmbed = db.prepare(
-    'INSERT OR REPLACE INTO doc_section_embeddings(rowid, embedding) VALUES (CAST(? AS INTEGER), json(?))',
-  );
-  const insertHash = db.prepare(
-    'INSERT OR REPLACE INTO doc_section_embeddings_hashes(rowid, content_hash) VALUES (?, ?)',
-  );
-
-  type SectionItem = { section: typeof sections[number]; text: string; hash: string };
-
-  const writeBatch = (batch: SectionItem[], embeddings: number[][]) => {
-    db.transaction(() => {
-      for (let j = 0; j < batch.length; j++) {
-        const item = batch[j];
-        if (item) {
-          insertEmbed.run(item.section.id, JSON.stringify(embeddings[j]));
-          insertHash.run(item.section.id, item.hash);
-        }
-      }
-    })();
-  };
-
-  let currentBatch: SectionItem[] = [];
-  let currentBatchTokens = 0;
-  let pendingEmbed: Promise<number[][]> | null = null;
-  let pendingBatch: SectionItem[] = [];
-
-  // Double-buffered flush: starts embedding currentBatch while the previous
-  // batch's results are being written to the DB.
-  const flushBatch = async () => {
-    if (currentBatch.length === 0) return;
-    if (pendingEmbed) {
-      const embeddings = await pendingEmbed;
-      writeBatch(pendingBatch, embeddings);
-    }
-    pendingEmbed = embedder.embed(currentBatch.map(item => item.text));
-    pendingBatch = currentBatch;
-    currentBatch = [];
-    currentBatchTokens = 0;
-  };
-
-  for (const section of sections) {
-    const text = section.content || section.title;
-    const hash = hashEmbeddingText(text);
-    if (skipUnchanged && existingHashes.get(section.id) === hash) continue;
-
-    const itemTokens = estimateTokens(text);
-    if (currentBatch.length >= MAX_BATCH_ITEMS || currentBatchTokens + itemTokens > MAX_BATCH_TOKENS) {
-      await flushBatch();
-    }
-    currentBatch.push({ section, text, hash });
     currentBatchTokens += itemTokens;
   }
 
@@ -403,15 +302,6 @@ function resolveFileIds(db: Database.Database, paths: string[], branch: string):
   const ids: number[] = [];
   for (const p of paths) {
     const row = db.prepare('SELECT id FROM files WHERE path = ? AND branch = ?').get(p, branch) as { id: number } | undefined;
-    if (row) ids.push(row.id);
-  }
-  return ids;
-}
-
-function resolveDocIds(db: Database.Database, paths: string[], branch: string): number[] {
-  const ids: number[] = [];
-  for (const p of paths) {
-    const row = db.prepare('SELECT id FROM docs WHERE path = ? AND branch = ?').get(p, branch) as { id: number } | undefined;
     if (row) ids.push(row.id);
   }
   return ids;

@@ -10,13 +10,11 @@ LoreRuntime              ← lifecycle owner (DB, embedder, LSP, watcher/poller)
        └─ IndexPipeline  ← ordered, composable stage chain
             ├─ ScipSourceStage        (default source)
             ├─ SourceIndexStage       (tree-sitter fallback)
-            ├─ DocsIndexStage
             ├─ ImportResolutionStage
             ├─ DependencyApiStage
             ├─ ScipEnrichmentStage
             ├─ LspEnrichmentStage
             ├─ ResolutionStage        (inline)
-            ├─ TestMapStage           (inline)
             ├─ HistoryStage           (inline)
             └─ EmbeddingStage
   └─ GraphAnalysis       ← SCC, connected components, clustering, summary
@@ -42,9 +40,7 @@ and wires them into the MCP server from each module's exported `toolDef` /
 flowchart LR
     subgraph Codebase
         SRC[Source Files]
-        DOCSRC[Documentation Files]
         GIT[Git Repo]
-        COVREP[Coverage Reports]
     end
 
     subgraph Lore Indexer
@@ -55,10 +51,8 @@ flowchart LR
         RESOLVE[ImportResolver<br/>internal ↔ external]
         DEPAPI[Dependency API Indexer<br/>direct deps · TS/Py/Go/Rust declarations]
         CALLGRAPH[Relationship Resolver<br/>3-tier resolution · topo sort]
-        DOCINGEST[Docs Ingest<br/>discover · classify · chunk]
         SCIPENRICH[SCIP Enrichment<br/>definition + type metadata from SCIP]
         LSP[LSP Enrichment<br/>batch-pipelined hover + definition<br/>persisted metadata]
-        COVER[Coverage Ingest<br/>LCOV · Cobertura]
         EMBED[Embedder<br/>Transformers.js ONNX<br/>async init · overlapped batches]
         GITHIST[Git History Ingest<br/>commits · diffs · refs]
     end
@@ -71,9 +65,7 @@ flowchart LR
         REFS[(symbol_refs)]
         TYPES[(symbol_relationships · type_refs)]
         ANN[(annotations)]
-        DOCS[(docs · doc_sections)]
-        COV[(coverage_runs · coverage_files<br/>coverage_lines)]
-        VEC[(symbol_embeddings · symbol_semantic_embeddings<br/>doc_section_embeddings · commit_embeddings)]
+        VEC[(symbol_embeddings · symbol_semantic_embeddings<br/>commit_embeddings)]
         HIST[(commits · commit_files<br/>commit_refs)]
         META[(lore_meta · symbol_summaries)]
     end
@@ -81,10 +73,8 @@ flowchart LR
     subgraph MCP Server
         LOOKUP[lore_lookup]
         SEARCH[lore_search<br/>BM25 · vector · fused]
-        DOCS_TOOL[lore_docs]
         GRAPH[lore_graph]
         SNIPPET[lore_snippet]
-        TESTMAP[lore_test_map]
         BLAME[lore_blame]
         HISTORY[lore_history]
         METRICS[lore_metrics]
@@ -126,15 +116,12 @@ flowchart LR
     LSP --> TYPES
     LSP --> EXT
     EXTRACT --> FILES & SYM
-    DOCSRC --> DOCINGEST --> DOCS
-    COVER --> COV
-    COVREP --> COVER
     EMBED -.->|optional| VEC
     GIT --> GITHIST --> HIST
 
-    FILES & SYM & IMP & EXT & REFS & TYPES & ANN & DOCS & COV & VEC & HIST & META --- LOOKUP & SEARCH & DOCS_TOOL & GRAPH & SNIPPET & TESTMAP & BLAME & HISTORY & METRICS & TRACE & DIFF & COHESION & DEPENDENTS
+    FILES & SYM & IMP & EXT & REFS & TYPES & ANN & VEC & HIST & META --- LOOKUP & SEARCH_TOOL & GRAPH & SNIPPET & BLAME & HISTORY & METRICS & TRACE & DIFF & COHESION & DEPENDENTS
 
-    LOOKUP & SEARCH & DOCS_TOOL & GRAPH & SNIPPET & TESTMAP & BLAME & HISTORY & METRICS & TRACE & DIFF & COHESION & DEPENDENTS <--> LLM_AGENTS
+    LOOKUP & SEARCH_TOOL & GRAPH & SNIPPET & BLAME & HISTORY & METRICS & TRACE & DIFF & COHESION & DEPENDENTS <--> LLM_AGENTS
 
     LLM_AGENTS <--- ENTRY
 ```
@@ -184,18 +171,13 @@ during enrichment stages (SCIP enrichment and/or LSP enrichment).
 | `resolution/call-graph.ts` | 3-tier symbol resolution with SCIP/LSP-first ref resolution and name-based fallback; supports topo sort and cycle detection |
 | `resolution/graph-analysis.ts` | Higher-level graph primitives: Tarjan SCC on symbol adjacency, union-find connected components, SCC-contracted bounded clustering, and condensed codebase summary |
 | `scip/*` | SCIP index reading, enrichment coordinator, indexer config, and protobuf definitions |
-| `docs/docs.ts` | Discovers docs from default/configured globs, infers kind/title, chunks by heading hierarchy |
-| `testing/coverage.ts` | Parses LCOV/Cobertura reports, normalizes per-file/per-line hit data, persists runs linked to commit SHA/source mtime |
 | `embeddings/embedder.ts` | Optional — uses `@huggingface/transformers` (Transformers.js) to run ONNX embedding models natively in Node.js; default model `Qwen/Qwen3-Embedding-0.6B`; supports CoreML/WebGPU hardware acceleration, quantized ONNX dtype (fp32/fp16/q8/q4), skip-unchanged hash-based re-embedding, and lazy on-demand initialization |
 | `process-tracker.ts` | Global registry of spawned child processes; `killAllTracked()` ensures cleanup on SIGINT/SIGTERM/exit |
 | `git/history.ts` | Ingests commits, per-file diffs, and branch/tag refs via `simple-git` |
 | `resolution/resolution-method.ts` | Authoritative taxonomy for `resolution_method` column values shared by writers and readers |
 
-Coverage ingestion accepts reports from auto-detected paths (`coverage/lcov.info`, `coverage/cobertura-coverage.xml`, `coverage.xml`) during build/update/refresh, plus manual CLI ingestion from an explicit `--file` and `--format`. LCOV/Cobertura inputs are normalized into a run (`coverage_runs`), per-file totals (`coverage_files`), and per-line hits (`coverage_lines`), which are then consumed by MCP coverage-aware tools.
 
-Documentation ingestion runs during build and update. Defaults cover README variants, `docs/**`, ADR-style paths, and top-level architecture/design/guide/changelog files across `.md`, `.rst`, `.adoc`, and `.txt`. Markdown docs are chunked by heading hierarchy (stored with `heading_path`, line ranges, and content hashes in `doc_sections`), while non-Markdown files are stored as a single retrievable chunk.
 
-When docs auto-notes are enabled (default), `DocsIndexStage` seeds/updates notes for README, architecture, and ADR docs with deterministic keys and `doc:<path>@<branch>` scopes. Each seeded note writes `source_hash = docs.content_hash`, which allows staleness checks to tie note freshness directly to indexed doc content.
 
 ## Resolution method taxonomy
 
@@ -221,7 +203,7 @@ Key optimizations in the indexing pipeline (v0.3.0):
 - **Batch-pipelined LSP requests** — hover + definition fire in parallel per position; all targets within a file are processed in concurrent batches of 30 instead of sequential round-trips
 - **Hoisted prepared statements** — 21 prepared statements created once per build/update via `initPreparedStatements()` instead of re-compiled per file
 - **Stat-based change detection** — `fs.statSync().size` checked against stored `size_bytes` before reading and hashing full file content on re-index
-- **Overlapped embedding batches** — all three embedding methods (structural, docs, commits) fire the next batch `embed()` while writing the current batch to DB
+- **Overlapped embedding batches** — embedding methods (structural symbols and commit messages) fire the next batch `embed()` while writing the current batch to DB
 - **Bulk file ID map** — single `Map<path, fileId>` built from one query instead of N individual `SELECT` lookups per import
 - **Batched containment resolution** — refs grouped by `definition_path`, file + symbols loaded once per path instead of 2 queries per ref
 - **Async embedder initialization** — `EmbedderRef` mutable container lets MCP server start and emit READY immediately while embedding model loads in background (`--blocking-embedder` available for full capability at startup)
@@ -236,9 +218,7 @@ Key optimizations in the indexing pipeline (v0.3.0):
 | Dependency APIs | `external_symbols` | Exported/public declarations from direct dependency APIs across npm, Python, Go, and Rust (ecosystem/source/package/version + symbol metadata), stored separately from in-repo symbols; includes optional persisted LSP enrichment metadata |
 | Relationships | `symbol_refs`, `symbol_relationships`, `type_refs` | Call-site edges, inheritance/implements-style relationships, and symbol → referenced-type edges, including optional persisted LSP enrichment metadata |
 | Annotations | `annotations` | Indexed TODO/FIXME/HACK/NOTE-style source annotations with file and line metadata |
-| Docs | `docs`, `doc_sections` | Indexed docs keyed by `(path, branch)` plus chunked sections with heading metadata |
-| Coverage | `coverage_runs`, `coverage_files`, `coverage_lines` | Coverage ingestion run metadata plus normalized per-file and per-line hit data |
-| Embeddings | `symbol_embeddings`, `symbol_semantic_embeddings`, `doc_section_embeddings`, `commit_embeddings` | vec0 virtual tables for semantic symbol/doc-section retrieval and semantic commit-message history retrieval |
+| Embeddings | `symbol_embeddings`, `symbol_semantic_embeddings`, `commit_embeddings` | vec0 virtual tables for semantic symbol retrieval and semantic commit-message history retrieval |
 | History | `commits`, `commit_files`, `commit_refs` | Git commit metadata, touched files, and named refs |
 | Metadata | `lore_meta`, `symbol_summaries`, `modules`, `file_modules` | Key-value config, LLM summaries, logical module groupings |
 
@@ -247,18 +227,16 @@ Key optimizations in the indexing pipeline (v0.3.0):
 | Tool | Purpose |
 |------|---------|
 | `lore_lookup` | Find symbols by name or files by path (optional branch filter), including external API symbol matches from `external_symbols` and persisted LSP-enrichment metadata when available |
-| `lore_search` | Structural BM25, semantic vector, or fused RRF search; semantic/fused modes can return docs section hits and structural results are augmented by external symbol-name matches from `external_symbols`; returns persisted LSP-enrichment metadata fields when available |
-| `lore_docs` | List indexed docs, fetch full docs with optional sections, or search indexed sections |
-| `lore_graph` | Query call, import, inheritance, or type-dependency edges with automatic transitive traversal (up to 5 hops); supports `source_id` for outbound and `target_id` for inbound/reverse queries; materializes virtual dispatch edges (`call` edges include `callee_coverage_percent`) |
+| `lore_search` | Structural BM25, semantic vector, or fused RRF search; structural results are augmented by external symbol-name matches from `external_symbols`; returns persisted LSP-enrichment metadata fields when available |
+| `lore_graph` | Query call, import, inheritance, or type-dependency edges with automatic transitive traversal (up to 5 hops); supports `source_id` for outbound and `target_id` for inbound/reverse queries; materializes virtual dispatch edges  |
 | `lore_trace` | Trace execution paths between two symbols through the call graph |
 | `lore_diff` | Diff exported API surfaces between branches |
 | `lore_cohesion` | Compute module cohesion metrics for a file or directory |
 | `lore_dependents` | Unified reverse-dependency / blast-radius query with automatic transitive traversal (up to 5 hops) across callers, importers, subclasses, and type refs |
 | `lore_snippet` | Return snippets from indexed DB-backed file snapshots by file path + line range or by symbol name; path/symbol resolution is branch-aware and responses include containing-symbol context metadata when available |
-| `lore_test_map` | Return mapped test files (with confidence) for a given source file path |
 | `lore_blame` | Query blame (`mode: "blame"`), line-range evolution (`mode: "history"`), or ownership aggregates (`mode: "ownership"`), including symbol-targeted range resolution |
 | `lore_history` | Query history by file, commit, author, ref, recency, or semantic commit-message similarity (with graceful fallback to recent mode when vectors are unavailable) |
-| `lore_metrics` | Return aggregate index metrics plus global coverage totals and staleness metadata (`coverage_commit`, `current_commit`, `commits_behind`, `stale`) |
+| `lore_metrics` | Return aggregate index metrics |
 
 `lore_blame` response enrichment:
 - Supports legacy `line`/`start_line`/`end_line` requests and symbol-driven targeting (`symbol` + optional `path`/`branch`), returning `resolved_symbol` when symbol resolution is used.

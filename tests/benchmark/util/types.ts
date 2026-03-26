@@ -126,7 +126,6 @@ export type TaskFamily =
   | 'refactoring'
   | 'testing'
   | 'history'
-  | 'coverage';
 
 /** A single benchmark task (question/instruction) for an agent. */
 export interface BenchmarkTask {

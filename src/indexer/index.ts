@@ -7,9 +7,9 @@
  * For full builds, `build()` delegates entirely to the pipeline which
  * enforces the data-dependency chain:
  * ```
- * ScipIndexerStage → SourceIndexStage → DocsIndexStage
+ * ScipIndexerStage → SourceIndexStage
  *   → ImportResolutionStage → DependencyApiStage
- *   → LspEnrichmentStage → ResolutionStage → TestMapStage
+ *   → LspEnrichmentStage → ResolutionStage
  *   → HistoryStage → EmbeddingStage
  * ```
  *
@@ -34,18 +34,14 @@ import {
   LORE_META_GENERATION,
   LORE_META_GENERATION_PENDING,
   LORE_META_BASELINE_HEAD_SHA,
-  LORE_META_COVERAGE_LAST_SOURCE_PATH,
-  LORE_META_COVERAGE_LAST_SOURCE_MTIME,
 } from '../db/schema.js';
 import type { Database } from '../db/schema.js';
 import type { WalkerConfig } from '../discovery/walker.js';
 import type { EmbeddingProvider } from '../embeddings/embedder.js';
 import { DEFAULT_EMBEDDING_MODEL } from '../embeddings/embedder.js';
-import { ingestCoverageReport, type CoverageFormat } from '../testing/coverage.js';
 import type { EffectiveLspSettings } from '../lsp/config.js';
 import type { EffectiveScipSettings } from '../scip/config.js';
 import { resolveSymbolEdges } from '../resolution/call-graph.js';
-import { refreshTestMappings } from '../testing/test-mapper.js';
 import { ingestGitHistory } from '../git/history.js';
 import { getLogger } from '../logger.js';
 import { IndexPipeline } from './pipeline.js';
@@ -55,7 +51,6 @@ import {
   ScipIndexerStage,
   ScipRefStage,
   SourceIndexStage,
-  DocsIndexStage,
   ImportResolutionStage,
   DependencyApiStage,
   LspEnrichmentStage,
@@ -153,19 +148,17 @@ export class IndexBuilder {
     // index and insert refs.
     //
     // Stages in arrays run concurrently:
-    //   - SourceIndexStage + DocsIndexStage: write to disjoint tables.
     //   - HistoryStage + LspEnrichment: history writes to
     //     commits/commit_files (disjoint from enrichment targets).
     const pipeline = new IndexPipeline([
       new ScipIndexerStage(),
-      [new SourceIndexStage(), new DocsIndexStage()],
+      new SourceIndexStage(),
       new ScipRefStage(),
       new ImportResolutionStage(),
       new DependencyApiStage(),
       [new LspEnrichmentStage(), historyStage()],
       ftsRefreshStage(),
       resolutionStage(),
-      testMapStage(),
       new ReverseDepsStage(),
       new EmbeddingStage(),
     ]);
@@ -187,7 +180,6 @@ export class IndexBuilder {
       history: this.history,
       staleSymbolIds: [],
       changedSourcePaths: [],
-      changedDocPaths: [],
       sourceCache: new ByteBudgetLRU(),
       layer: 'baseline',
       generation,
@@ -232,14 +224,13 @@ export class IndexBuilder {
     // No SCIP stage — tree-sitter is the primary incremental indexer.
     const pipeline = new IndexPipeline([
       new ScipIndexerStage(),
-      [new SourceIndexStage(), new DocsIndexStage()],
+      new SourceIndexStage(),
       new ScipRefStage(),
       new ImportResolutionStage(),
       new DependencyApiStage(),
       [new LspEnrichmentStage(), historyStage()],
       ftsRefreshStage(),
       resolutionStage(),
-      testMapStage(),
       new ReverseDepsStage(),
       new EmbeddingStage(),
     ]);
@@ -259,7 +250,6 @@ export class IndexBuilder {
       changedFiles,
       staleSymbolIds: [],
       changedSourcePaths: [],
-      changedDocPaths: [],
       sourceCache: new ByteBudgetLRU(),
       layer: 'overlay',
       generation: 0,
@@ -295,14 +285,13 @@ export class IndexBuilder {
 
     const pipeline = new IndexPipeline([
       new ScipIndexerStage(),
-      [new SourceIndexStage(), new DocsIndexStage()],
+      new SourceIndexStage(),
       new ScipRefStage(),
       new ImportResolutionStage(),
       new DependencyApiStage(),
       [new LspEnrichmentStage(), historyStage()],
       ftsRefreshStage(),
       resolutionStage(),
-      testMapStage(),
       new EmbeddingStage(),
       new OverlayCleanupStage({
         newGeneration,
@@ -325,7 +314,6 @@ export class IndexBuilder {
       history: this.history,
       staleSymbolIds: [],
       changedSourcePaths: [],
-      changedDocPaths: [],
       sourceCache: new ByteBudgetLRU(),
       layer: 'baseline',
       generation: newGeneration,
@@ -365,26 +353,6 @@ export class IndexBuilder {
     }
   }
 
-  async ingestCoverage(reportPath: string, format: CoverageFormat, commitSha?: string): Promise<void> {
-    const db = openDb(this.dbPath);
-    try {
-      const resolvedCommitSha = commitSha ?? this.readGitValue(['rev-parse', 'HEAD']) ?? 'HEAD';
-      const sourceMtime = Math.floor(fs.statSync(reportPath).mtimeMs / 1000);
-      ingestCoverageReport({
-        db,
-        rootDir: this.walkerConfig.rootDir,
-        reportPath,
-        format,
-        commitSha: resolvedCommitSha,
-        sourceMtime,
-      });
-      setLoreMeta(db, LORE_META_COVERAGE_LAST_SOURCE_PATH, reportPath);
-      setLoreMeta(db, LORE_META_COVERAGE_LAST_SOURCE_MTIME, String(sourceMtime));
-    } finally {
-      db.close();
-    }
-  }
-
   // ─── Private helpers (minimal — most logic lives in stages) ─────────────
 
   private resolveBranch(): string {
@@ -414,11 +382,9 @@ export class IndexBuilder {
     try { totalSymbols = (db.prepare('SELECT COUNT(*) AS cnt FROM symbols').get() as { cnt: number }).cnt; } catch { /* */ }
     let totalEdges = 0;
     try { totalEdges = (db.prepare('SELECT COUNT(*) AS cnt FROM symbol_refs').get() as { cnt: number }).cnt; } catch { /* */ }
-    let totalDocs = 0;
-    try { totalDocs = (db.prepare('SELECT COUNT(*) AS cnt FROM docs').get() as { cnt: number }).cnt; } catch { /* */ }
     let commitCount: number | undefined;
     try { commitCount = (db.prepare('SELECT COUNT(*) AS cnt FROM commits').get() as { cnt: number }).cnt; } catch { /* */ }
-    return { totalSymbols, totalEdges, totalDocs, commitCount };
+    return { totalSymbols, totalEdges, commitCount };
   }
 }
 
@@ -435,13 +401,6 @@ function resolutionStage(): PipelineStage {
   };
 }
 
-/** Refresh test-to-source file mappings. */
-function testMapStage(): PipelineStage {
-  return {
-    name: 'test-map',
-    execute: async (ctx) => { refreshTestMappings(ctx.db, ctx.branch); },
-  };
-}
 
 /**
  * Bulk-refresh the FTS5 index from the enriched `symbols` table.

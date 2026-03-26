@@ -159,29 +159,6 @@ describe('cli', () => {
 
   // ── MCP startup stat queries — regression for wrong table names ─────────
 
-  describe('mcp startup stat queries', () => {
-    it('should query symbol_refs and docs tables without error against a real schema', async () => {
-      // Regression: cli.ts previously used non-existent table names
-      // "call_graph" and "documentation", silently reporting 0 edges/docs.
-      const { openDb } = await import('../../src/db/schema.js');
-      const dbPath = freshDb();
-      const db = openDb(dbPath);
-
-      // These are the exact queries from the MCP startup path in cli.ts.
-      // They must not throw against the real schema.
-      const totalFiles = (db.prepare('SELECT COUNT(*) AS cnt FROM files').get() as { cnt: number }).cnt;
-      const totalSymbols = (db.prepare('SELECT COUNT(*) AS cnt FROM symbols').get() as { cnt: number }).cnt;
-      const totalEdges = (db.prepare('SELECT COUNT(*) AS cnt FROM symbol_refs').get() as { cnt: number }).cnt;
-      const totalDocs = (db.prepare('SELECT COUNT(*) AS cnt FROM docs').get() as { cnt: number }).cnt;
-
-      expect(totalFiles).toBe(0);
-      expect(totalSymbols).toBe(0);
-      expect(totalEdges).toBe(0);
-      expect(totalDocs).toBe(0);
-
-      db.close();
-    });
-  });
 
   // ── Usage / help ───────────────────────────────────────────────────────────
 
@@ -223,52 +200,6 @@ describe('cli', () => {
   });
 
   // ── index subcommand — docs config flags ───────────────────────────────────
-
-  describe('index subcommand — docs config flags', () => {
-    it('should apply docs filters and persist explicit auto-notes disable in index mode', async () => {
-      const dbPath = freshDb();
-      const docsDir = nodePath.join(tmpDir, 'docs');
-      nodeFs.mkdirSync(nodePath.join(docsDir, 'skip'), { recursive: true });
-      const includedDoc = nodePath.join(docsDir, 'README.md');
-      const excludedByPath = nodePath.join(docsDir, 'skip', 'ignored.md');
-      const excludedByExtension = nodePath.join(docsDir, 'design.rst');
-      nodeFs.writeFileSync(includedDoc, '# Guide\n\n## Intro\nhello\n', 'utf8');
-      nodeFs.writeFileSync(excludedByPath, '# Ignored\n', 'utf8');
-      nodeFs.writeFileSync(excludedByExtension, 'Guide\n=====\n', 'utf8');
-
-      await loadCli([
-        'index',
-        '--db', dbPath,
-        '--root', tmpDir,
-        '--docs-include', 'docs/**/*',
-        '--docs-exclude', '**/draft/**',
-        '--docs-exclude', '**/skip/**',
-        '--docs-extension', '.md',
-      ]);
-
-      await waitForFile(dbPath);
-      await waitForCondition(
-        () => readDocsPaths(dbPath).length === 1,
-        'index docs ingestion to complete',
-      );
-      expect(readDocsPaths(dbPath)).toEqual([includedDoc]);
-    });
-
-    it('should index documentation files by default', async () => {
-      const dbPath = freshDb();
-      const readmePath = nodePath.join(tmpDir, 'README.md');
-      nodeFs.writeFileSync(readmePath, '# Lore\n', 'utf8');
-
-      await loadCli(['index', '--db', dbPath, '--root', tmpDir]);
-      await waitForFile(dbPath);
-      await waitForCondition(
-        () => readDocsPaths(dbPath).length >= 1,
-        'index docs ingestion to complete',
-      );
-
-      expect(readDocsPaths(dbPath).length).toBeGreaterThanOrEqual(1);
-    });
-  });
 
   describe('index subcommand — dependency indexing option', () => {
     it('should complete indexing when --index-deps is omitted', async () => {
@@ -563,107 +494,6 @@ describe('cli', () => {
 
   // ── ingest-coverage subcommand ─────────────────────────────────────────────
 
-  describe('ingest-coverage subcommand', () => {
-    it('should print an error and exit with code 1 when required flags are missing', async () => {
-      await loadCli(['ingest-coverage', '--db', freshDb(), '--root', tmpDir]);
-      expect(exitSpy).toHaveBeenCalledWith(1);
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        expect.stringContaining('--file'),
-      );
-    });
-
-    it('should print an error and exit with code 1 for an unsupported format', async () => {
-      const reportPath = nodePath.join(tmpDir, 'coverage.info');
-      nodeFs.writeFileSync(reportPath, '', 'utf8');
-      await loadCli([
-        'ingest-coverage',
-        '--db', freshDb(),
-        '--root', tmpDir,
-        '--file', reportPath,
-        '--format', 'json',
-      ]);
-      expect(exitSpy).toHaveBeenCalledWith(1);
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        expect.stringContaining('unsupported coverage format'),
-      );
-    });
-
-    it('should ingest an explicit LCOV report with a commit override', async () => {
-      const dbPath = freshDb();
-      const reportPath = nodePath.join(tmpDir, 'lcov.info');
-      nodeFs.writeFileSync(
-        reportPath,
-        ['TN:', 'SF:src/a.ts', 'DA:1,1', 'DA:2,0', 'end_of_record', ''].join('\n'),
-        'utf8',
-      );
-
-      await loadCli([
-        'ingest-coverage',
-        '--db', dbPath,
-        '--root', tmpDir,
-        '--file', reportPath,
-        '--format', 'lcov',
-        '--commit', 'deadbeef',
-      ]);
-      await waitForFile(dbPath);
-
-      const db = new Database(dbPath, { readonly: true });
-      const run = db
-        .prepare('SELECT commit_sha, format, source_path FROM coverage_runs ORDER BY id DESC LIMIT 1')
-        .get() as { commit_sha: string; format: string; source_path: string } | undefined;
-      db.close();
-
-      expect(run).toBeDefined();
-      expect(run?.commit_sha).toBe('deadbeef');
-      expect(run?.format).toBe('lcov');
-      expect(run?.source_path).toBe(reportPath);
-    });
-
-    it('should default commit SHA to HEAD when --commit is omitted', async () => {
-      const dbPath = freshDb();
-      const reportPath = nodePath.join(tmpDir, 'coverage.xml');
-      nodeFs.writeFileSync(
-        reportPath,
-        [
-          '<coverage>',
-          '  <packages>',
-          '    <package name="x">',
-          '      <classes>',
-          '        <class name="A" filename="src/a.ts">',
-          '          <lines>',
-          '            <line number="1" hits="1"/>',
-          '          </lines>',
-          '        </class>',
-          '      </classes>',
-          '    </package>',
-          '  </packages>',
-          '</coverage>',
-          '',
-        ].join('\n'),
-        'utf8',
-      );
-
-      await loadCli([
-        'ingest-coverage',
-        '--db', dbPath,
-        '--root', tmpDir,
-        '--file', reportPath,
-        '--format', 'cobertura',
-      ]);
-      await waitForFile(dbPath);
-
-      const db = new Database(dbPath, { readonly: true });
-      const run = db
-        .prepare('SELECT commit_sha, format FROM coverage_runs ORDER BY id DESC LIMIT 1')
-        .get() as { commit_sha: string; format: string } | undefined;
-      db.close();
-
-      expect(run).toBeDefined();
-      expect(run?.commit_sha).toBe('HEAD');
-      expect(run?.format).toBe('cobertura');
-    });
-  });
-
   // ── hooks subcommand ───────────────────────────────────────────────────────
 
   describe('hooks subcommand', () => {
@@ -799,40 +629,6 @@ describe('cli', () => {
   // ── refresh subcommand — manual mode ──────────────────────────────────────
 
   describe('refresh subcommand — manual mode', () => {
-    it('should apply docs filters and explicit auto-notes enable in manual refresh mode', async () => {
-      const dbPath = freshDb();
-      const docsDir = nodePath.join(tmpDir, 'docs');
-      nodeFs.mkdirSync(nodePath.join(docsDir, 'skip'), { recursive: true });
-      const includedDoc = nodePath.join(docsDir, 'README.md');
-      const excludedByPath = nodePath.join(docsDir, 'skip', 'ignored.md');
-      const excludedByExtension = nodePath.join(docsDir, 'refresh.txt');
-      nodeFs.writeFileSync(includedDoc, '# Refresh\n', 'utf8');
-      nodeFs.writeFileSync(excludedByPath, '# Ignored\n', 'utf8');
-      nodeFs.writeFileSync(excludedByExtension, 'ignored text', 'utf8');
-
-      await loadCli([
-        'refresh',
-        '--db', dbPath,
-        '--root', tmpDir,
-        '--docs-include', 'docs/**/*',
-        '--docs-exclude', '**/draft/**',
-        '--docs-exclude', '**/skip/**',
-        '--docs-extension', '.md',
-      ]);
-      await waitForStderr(stderrSpy, 'refresh complete');
-      await waitForFile(dbPath);
-      expect(readDocsPaths(dbPath)).toEqual([includedDoc]);
-    });
-
-    it('should default docs to enabled in manual refresh when unspecified', async () => {
-      const dbPath = freshDb();
-      const readmePath = nodePath.join(tmpDir, 'README.md');
-      nodeFs.writeFileSync(readmePath, '# Lore\n', 'utf8');
-      await loadCli(['refresh', '--db', dbPath, '--root', tmpDir]);
-      await waitForStderr(stderrSpy, 'refresh complete');
-      await waitForFile(dbPath);
-      expect(readDocsPaths(dbPath).length).toBeGreaterThanOrEqual(1);
-    });
 
     it('should complete refresh when --index-deps is provided', async () => {
       const dbPath = freshDb();

@@ -252,66 +252,6 @@ describe('FilePoller', () => {
       expect(secondCallPaths).toContain(file);
     });
 
-    it('should detect newly created coverage reports', async () => {
-      const coverageFile = '/tmp/testroot/coverage/lcov.info';
-      vi.mocked(walkFiles).mockResolvedValue([]);
-      mockStat.mockImplementation(async (filePath) => {
-        if (filePath === coverageFile) return { mtimeMs: 1000 } as Stats;
-        throw new Error('missing file');
-      });
-
-      const poller = new FilePoller('/db.sqlite', walkerConfig, { intervalMs: 100 });
-      poller.start();
-      await vi.advanceTimersByTimeAsync(100);
-      poller.stop();
-
-      expect(mockUpdate).toHaveBeenCalledOnce();
-      const paths = mockUpdate.mock.calls[0]?.[0] as string[];
-      expect(paths).toContain(coverageFile);
-    });
-
-    it('should detect modified coverage reports', async () => {
-      const coverageFile = '/tmp/testroot/coverage/lcov.info';
-      vi.mocked(walkFiles).mockResolvedValue([]);
-      let mtime = 1000;
-      mockStat.mockImplementation(async (filePath) => {
-        if (filePath === coverageFile) return { mtimeMs: mtime } as Stats;
-        throw new Error('missing file');
-      });
-
-      const poller = new FilePoller('/db.sqlite', walkerConfig, { intervalMs: 100 });
-      poller.start();
-      await vi.advanceTimersByTimeAsync(100);
-      mtime = 2000;
-      await vi.advanceTimersByTimeAsync(100);
-      poller.stop();
-
-      expect(mockUpdate).toHaveBeenCalledTimes(2);
-      const secondCallPaths = mockUpdate.mock.calls[1]?.[0] as string[];
-      expect(secondCallPaths).toContain(coverageFile);
-    });
-
-    it('should detect deleted coverage reports', async () => {
-      const coverageFile = '/tmp/testroot/coverage/lcov.info';
-      vi.mocked(walkFiles).mockResolvedValue([]);
-      let exists = true;
-      mockStat.mockImplementation(async (filePath) => {
-        if (filePath === coverageFile && exists) return { mtimeMs: 1000 } as Stats;
-        throw new Error('missing file');
-      });
-
-      const poller = new FilePoller('/db.sqlite', walkerConfig, { intervalMs: 100 });
-      poller.start();
-      await vi.advanceTimersByTimeAsync(100);
-      exists = false;
-      await vi.advanceTimersByTimeAsync(100);
-      poller.stop();
-
-      expect(mockUpdate).toHaveBeenCalledTimes(2);
-      const secondCallPaths = mockUpdate.mock.calls[1]?.[0] as string[];
-      expect(secondCallPaths).toContain(coverageFile);
-    });
-
     it('should not call IndexBuilder.update when nothing has changed', async () => {
       vi.mocked(walkFiles).mockResolvedValue([]);
 

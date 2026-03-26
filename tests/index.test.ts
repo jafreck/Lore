@@ -57,7 +57,6 @@ describe('src/index.ts — public exports', () => {
     expect(typeof mod.IndexPipeline).toBe('function');
     expect(typeof mod.ScipIndexerStage).toBe('function');
     expect(typeof mod.SourceIndexStage).toBe('function');
-    expect(typeof mod.DocsIndexStage).toBe('function');
     expect(typeof mod.ImportResolutionStage).toBe('function');
     expect(typeof mod.DependencyApiStage).toBe('function');
     expect(typeof mod.LspEnrichmentStage).toBe('function');
@@ -101,7 +100,6 @@ describe('src/indexer/stages/index.ts — re-exports', () => {
   it('should export all stage constructors', async () => {
     const mod = await import('../src/indexer/stages/index.js');
     expect(typeof mod.SourceIndexStage).toBe('function');
-    expect(typeof mod.DocsIndexStage).toBe('function');
     expect(typeof mod.ImportResolutionStage).toBe('function');
     expect(typeof mod.DependencyApiStage).toBe('function');
     expect(typeof mod.LspEnrichmentStage).toBe('function');

@@ -77,14 +77,6 @@ CREATE TABLE IF NOT EXISTS file_imports (
   generation  INTEGER NOT NULL DEFAULT 0
 );
 
--- Test file to source file mappings derived during indexing.
-CREATE TABLE IF NOT EXISTS test_mappings (
-  test_file_id   INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
-  source_file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
-  confidence     TEXT    NOT NULL DEFAULT 'heuristic',
-  UNIQUE(test_file_id, source_file_id)
-);
-
 -- Call-site references from one symbol to another.
 CREATE TABLE IF NOT EXISTS symbol_refs (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -227,34 +219,6 @@ CREATE TABLE IF NOT EXISTS lore_meta (
   value TEXT NOT NULL
 );
 
--- Indexed documentation files.
-CREATE TABLE IF NOT EXISTS docs (
-  id           INTEGER PRIMARY KEY AUTOINCREMENT,
-  path         TEXT    NOT NULL,
-  branch       TEXT    NOT NULL DEFAULT '',
-  kind         TEXT    NOT NULL,
-  title        TEXT    NOT NULL,
-  content      TEXT    NOT NULL,
-  content_hash TEXT    NOT NULL,
-  indexed_at   INTEGER NOT NULL DEFAULT (unixepoch()),
-  UNIQUE(path, branch)
-);
-
--- Heading-based documentation chunks.
-CREATE TABLE IF NOT EXISTS doc_sections (
-  id            INTEGER PRIMARY KEY AUTOINCREMENT,
-  doc_id        INTEGER NOT NULL REFERENCES docs(id) ON DELETE CASCADE,
-  section_index INTEGER NOT NULL,
-  title         TEXT    NOT NULL,
-  depth         INTEGER NOT NULL,
-  heading_path  TEXT    NOT NULL,
-  line_start    INTEGER NOT NULL,
-  line_end      INTEGER NOT NULL,
-  content       TEXT    NOT NULL,
-  content_hash  TEXT    NOT NULL,
-  UNIQUE(doc_id, section_index)
-);
-
 -- Full-text search index over symbol names, signatures, and kinds (BM25 via FTS5).
 CREATE VIRTUAL TABLE IF NOT EXISTS symbols_fts USING fts5(
   name, signature, kind
@@ -287,63 +251,8 @@ CREATE TABLE IF NOT EXISTS commit_refs (
   PRIMARY KEY (commit_sha, ref_name)
 );
 
--- Coverage ingestion runs.
-CREATE TABLE IF NOT EXISTS coverage_runs (
-  id            INTEGER PRIMARY KEY AUTOINCREMENT,
-  commit_sha    TEXT    NOT NULL,
-  source_path   TEXT    NOT NULL,
-  format        TEXT    NOT NULL,
-  ingested_at   INTEGER NOT NULL DEFAULT (unixepoch()),
-  source_mtime  INTEGER
-);
-
--- Per-file coverage aggregates for each ingestion run.
-CREATE TABLE IF NOT EXISTS coverage_files (
-  run_id        INTEGER NOT NULL REFERENCES coverage_runs(id) ON DELETE CASCADE,
-  file_path     TEXT    NOT NULL,
-  lines_found   INTEGER NOT NULL DEFAULT 0,
-  lines_hit     INTEGER NOT NULL DEFAULT 0,
-  PRIMARY KEY (run_id, file_path)
-);
-
--- Per-line hit counts for each file in an ingestion run.
-CREATE TABLE IF NOT EXISTS coverage_lines (
-  run_id        INTEGER NOT NULL REFERENCES coverage_runs(id) ON DELETE CASCADE,
-  file_path     TEXT    NOT NULL,
-  line_number   INTEGER NOT NULL,
-  hit_count     INTEGER NOT NULL DEFAULT 0,
-  PRIMARY KEY (run_id, file_path, line_number),
-  FOREIGN KEY (run_id, file_path) REFERENCES coverage_files(run_id, file_path) ON DELETE CASCADE
-);
-
--- Per-test coverage run metadata.
-CREATE TABLE IF NOT EXISTS test_coverage_runs (
-  id            INTEGER PRIMARY KEY AUTOINCREMENT,
-  commit_sha    TEXT    NOT NULL,
-  test_file     TEXT    NOT NULL,
-  test_name     TEXT,
-  source_path   TEXT    NOT NULL,
-  format        TEXT    NOT NULL,
-  ingested_at   INTEGER NOT NULL DEFAULT (unixepoch())
-);
-
--- Per-line hit counts attributed to a specific test coverage run.
-CREATE TABLE IF NOT EXISTS test_coverage_lines (
-  run_id        INTEGER NOT NULL REFERENCES test_coverage_runs(id) ON DELETE CASCADE,
-  file_path     TEXT    NOT NULL,
-  line_number   INTEGER NOT NULL,
-  hit_count     INTEGER NOT NULL DEFAULT 0,
-  PRIMARY KEY (run_id, file_path, line_number)
-);
-
 CREATE INDEX IF NOT EXISTS idx_annotations_kind ON annotations(kind);
 CREATE INDEX IF NOT EXISTS idx_annotations_file_id ON annotations(file_id);
-CREATE INDEX IF NOT EXISTS idx_coverage_runs_ingested_at ON coverage_runs(ingested_at);
-CREATE INDEX IF NOT EXISTS idx_coverage_files_path ON coverage_files(file_path);
-CREATE INDEX IF NOT EXISTS idx_coverage_lines_path_line ON coverage_lines(file_path, line_number);
-CREATE INDEX IF NOT EXISTS idx_test_coverage_lines_path_line ON test_coverage_lines(file_path, line_number);
-CREATE INDEX IF NOT EXISTS idx_docs_branch_kind ON docs(branch, kind);
-CREATE INDEX IF NOT EXISTS idx_doc_sections_doc_id ON doc_sections(doc_id);
 CREATE INDEX IF NOT EXISTS idx_external_symbols_dependency_ecosystem ON external_symbols(dependency_ecosystem);
 CREATE INDEX IF NOT EXISTS idx_external_symbols_package_name ON external_symbols(package_name);
 CREATE INDEX IF NOT EXISTS idx_external_symbols_symbol_name ON external_symbols(symbol_name);
@@ -489,8 +398,6 @@ function ensureIncrementalSchema(db: Database.Database): void {
 
 export const LORE_META_INDEX_CHECKPOINT = 'index_checkpoint';
 export const LORE_META_LAST_HEAD_SHA = 'last_known_head_sha';
-export const LORE_META_COVERAGE_LAST_SOURCE_PATH = 'coverage_last_source_path';
-export const LORE_META_COVERAGE_LAST_SOURCE_MTIME = 'coverage_last_source_mtime';
 
 // Incremental indexing metadata keys
 export const LORE_META_GENERATION = 'generation';

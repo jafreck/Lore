@@ -61,7 +61,6 @@ export type { PipelineContext, PipelineStage } from './indexer/pipeline.js';
 export {
   ScipIndexerStage,
   SourceIndexStage,
-  DocsIndexStage,
   ImportResolutionStage,
   DependencyApiStage,
   LspEnrichmentStage,

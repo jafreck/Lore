@@ -40,7 +40,7 @@ export interface WatcherOptions {
   scipQuietPeriodMs?: number;
   /**
    * Optional long-lived embedding provider. When supplied, each incremental
-   * update cycle will generate embeddings for changed symbols and docs.
+   * update cycle will generate embeddings for changed symbols.
    * The caller is responsible for the provider's lifecycle (init/dispose).
    */
   embedder?: EmbeddingProvider;
