@@ -59,9 +59,15 @@ describe('SourceIndexStage — SCIP-sourced build files', () => {
     const filePath = join(rootDir, 'branchy.ts');
     writeFileSync(
       filePath,
-      `export function branchy(x: number): string {
+      `type Response = string;
+
+function helper(x: number): Response {
+  return x > 0 ? 'positive' : 'zero';
+}
+
+export function branchy(x: number): Response {
   if (x > 0) {
-    return 'positive';
+    return helper(x);
   }
   return 'zero';
 }
@@ -107,5 +113,33 @@ describe('SourceIndexStage — SCIP-sourced build files', () => {
     expect(metrics).toBeDefined();
     expect(metrics!.cyclomatic).toBeGreaterThan(1);
     expect(metrics!.line_count).toBeGreaterThan(0);
+
+    const treeData = ctx.scipTreeSitterData?.get(filePath);
+    expect(treeData).toBeDefined();
+    const callRefs = [...treeData!.callRefsByLine.values()].flat();
+    const typeRefs = [...treeData!.typeRefsByLine.values()].flat();
+    expect(callRefs.map((ref) => ref.calleeRaw)).toContain('helper');
+    expect(typeRefs.map((ref) => ref.typeRaw)).toContain('Response');
+  });
+
+  it('falls back to serial build parsing when the worker script is unavailable', async () => {
+    const rootDir = makeTmpDir('lore-srcstage-build-');
+    const alphaPath = join(rootDir, 'alpha.ts');
+    const betaPath = join(rootDir, 'beta.ts');
+    writeFileSync(alphaPath, 'export function alpha(): number { return 1; }\n', 'utf8');
+    writeFileSync(betaPath, 'export function beta(): number { return alpha(); }\n', 'utf8');
+
+    db = openDb(':memory:');
+    const stage = new SourceIndexStage();
+    const ctx = makeContext(db, rootDir, {
+      maxWorkers: 2,
+    });
+
+    await stage.execute(ctx, 'build');
+    await stage.dispose?.();
+
+    const fileCount = (db.prepare('SELECT COUNT(*) AS count FROM files').get() as { count: number }).count;
+    expect(fileCount).toBe(2);
+    expect(ctx.files.map((file) => file.path).sort()).toEqual([alphaPath, betaPath]);
   });
 });
