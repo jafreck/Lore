@@ -93,7 +93,6 @@ function makeContext(rootDir: string, dbPath: string): PipelineContext {
     history: false,
     staleSymbolIds: [],
     changedSourcePaths: [],
-    changedDocPaths: [],
     sourceCache: new Map(),
     layer: 'baseline',
     generation: 1,

@@ -7,10 +7,10 @@
  * ## Stage ordering (data-dependency chain)
  *
  * ```
- * ScipIndexerStage → SourceIndexStage → DocsIndexStage
+ * ScipIndexerStage → SourceIndexStage
  *   → ImportResolutionStage → DependencyApiStage
  *   → LspEnrichmentStage → ResolutionStage
- *   → TestMapStage → HistoryStage → EmbeddingStage
+ *   → HistoryStage → EmbeddingStage
  * ```
  *
  * `ScipIndexerStage` runs first for SCIP-covered languages, populating
@@ -90,11 +90,6 @@ export interface PipelineContext {
    */
   changedSourcePaths: string[];
 
-  /**
-   * Paths of changed doc files — used to look up new doc IDs for scoped
-   * embedding.  Accumulated by DocsIndexStage in update mode.
-   */
-  changedDocPaths: string[];
 
   /**
    * Languages for which SCIP enrichment already provided data.
@@ -218,7 +213,7 @@ export type PipelineEntry = PipelineStage | PipelineStage[];
  * ```ts
  * const pipeline = new IndexPipeline([
  *   new ScipIndexerStage(),
- *   [new SourceIndexStage(), new DocsIndexStage()],  // run in parallel
+ *   new SourceIndexStage(),
  *   new ImportResolutionStage(),
  *   new EmbeddingStage(),
  * ]);

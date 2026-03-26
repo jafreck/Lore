@@ -41,9 +41,6 @@ export function buildControlStrategy(task: BenchmarkTask): ScriptedAgentConfig {
     case 'history':
       steps.push(...historyGrepSteps(task));
       break;
-    case 'coverage':
-      steps.push(...coverageGrepSteps(task));
-      break;
     default:
       steps.push(...genericGrepSteps(task));
       break;
@@ -344,7 +341,6 @@ function importGraphLoreSteps(
 function testMapLoreSteps(task: BenchmarkTask): ScriptedStep[] {
   const files = extractFilesFromPrompt(task.prompt);
   return files.map((file) => ({
-    toolName: 'lore_test_map' as const,
     args: { file_path: file },
   }));
 }
@@ -416,7 +412,6 @@ function compositeModifyLoreSteps(task: BenchmarkTask): ScriptedStep[] {
     });
     // Step 2: Find test mapping
     steps.push({
-      toolName: 'lore_test_map',
       args: { file_path: '' }, // Would be filled from step 1
     });
     // Step 3: Check ownership
@@ -473,7 +468,6 @@ function dependencyIsolationLoreSteps(_task: BenchmarkTask): ScriptedStep[] {
 function perTestCoverageLoreSteps(task: BenchmarkTask): ScriptedStep[] {
   const files = extractFilesFromPrompt(task.prompt);
   return files.map((file) => ({
-    toolName: 'lore_test_map' as const,
     args: { source_path: file, line: 1 },
   }));
 }
@@ -632,7 +626,6 @@ export function buildDynamicLoreStrategy(task: BenchmarkTask): ProgrammaticAgent
             if (symbolId != null) return { toolName: 'lore_graph', args: { kind: 'inheritance', target_id: symbolId } };
             break;
           case '4.1':
-            if (filePath) return { toolName: 'lore_test_map', args: { file_path: filePath } };
             break;
           case '6.1':
             return { toolName: 'lore_metrics', args: { limit: 5 } };
@@ -646,7 +639,6 @@ export function buildDynamicLoreStrategy(task: BenchmarkTask): ProgrammaticAgent
             if (filePath) return { toolName: 'lore_lookup', args: { kind: 'symbol', path_prefix: filePath } };
             break;
           case '11.1':
-            if (filePath) return { toolName: 'lore_test_map', args: { file_path: filePath } };
             if (symbolId != null) return { toolName: 'lore_graph', args: { symbol_id: symbolId, direction: 'incoming', edge_kind: 'call' } };
             break;
           case '11.4':
@@ -660,7 +652,6 @@ export function buildDynamicLoreStrategy(task: BenchmarkTask): ProgrammaticAgent
           case '3.5':
             return { toolName: 'lore_lookup', args: { kind: 'symbol', query: 'external', mode: 'contains' } };
           case '4.2':
-            if (filePath) return { toolName: 'lore_test_map', args: { source_path: filePath, line: 1 } };
             break;
           case '9.1':
             return { toolName: 'lore_diff', args: { old_branch: 'main' } };
@@ -675,7 +666,6 @@ export function buildDynamicLoreStrategy(task: BenchmarkTask): ProgrammaticAgent
 
       // Phase 3: Additional chain steps for composite questions
       if (task.questionId === '11.1') {
-        const testMapDone = history.some((h) => h.toolName === 'lore_test_map');
         const blameDone = history.some((h) => h.toolName === 'lore_blame');
 
         // Get file path from any previous result
@@ -686,7 +676,6 @@ export function buildDynamicLoreStrategy(task: BenchmarkTask): ProgrammaticAgent
         }
 
         if (!testMapDone && filePath) {
-          return { toolName: 'lore_test_map', args: { file_path: filePath } };
         }
         if (!blameDone && filePath) {
           return { toolName: 'lore_blame', args: { file_path: filePath, mode: 'ownership' } };

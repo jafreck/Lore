@@ -33,7 +33,7 @@ describe('LORE_SELF_TASKS', () => {
 
   it('should cover multiple task families', () => {
     const families = new Set(LORE_SELF_TASKS.map((t) => t.family));
-    expect(families.size).toBeGreaterThanOrEqual(4);
+    expect(families.size).toBeGreaterThanOrEqual(3);
   });
 
   it('should cover multiple question categories', () => {

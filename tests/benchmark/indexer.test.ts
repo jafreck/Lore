@@ -47,45 +47,4 @@ describe('benchmark indexer', () => {
       db.close();
     }
   });
-
-  it('runs configured coverage prep and ingests the generated report', async () => {
-    const { repoPath, sha } = createLocalRepo();
-    writeFileSync(
-      join(repoPath, 'generate-coverage.mjs'),
-      [
-        "import { mkdirSync, writeFileSync } from 'node:fs';",
-        "mkdirSync('coverage', { recursive: true });",
-        "writeFileSync('coverage/lcov.info', " + JSON.stringify('TN:\nSF:index.ts\nDA:1,1\nDA:2,1\nend_of_record\n') + ");",
-      ].join('\n'),
-    );
-    mkdirSync(join(repoPath, 'coverage'), { recursive: true });
-
-    const spec: RepoSpec = {
-      name: 'local-coverage',
-      url: repoPath,
-      sha,
-      languages: ['typescript'],
-      size: 'small',
-      structure: 'cli',
-      coverage: {
-        commands: [
-          { command: 'node', args: ['generate-coverage.mjs'] },
-        ],
-        reportPath: 'coverage/lcov.info',
-        format: 'lcov',
-      },
-    };
-
-    const instance: RepoInstance = { spec, localPath: repoPath, indexed: false };
-    const indexed = await indexRepo(instance, { mode: 'tree-sitter', historyDepth: 10 });
-    const db = openReadOnly(indexed.dbPath!);
-    try {
-      const runs = db.prepare('SELECT COUNT(*) AS n FROM coverage_runs').get() as { n: number };
-      const lines = db.prepare('SELECT COUNT(*) AS n FROM coverage_lines').get() as { n: number };
-      expect(runs.n).toBe(1);
-      expect(lines.n).toBeGreaterThanOrEqual(2);
-    } finally {
-      db.close();
-    }
-  });
 });

@@ -245,8 +245,6 @@ export async function buildToolModules(): Promise<ToolModule[]> {
     lookup,
     graph,
     search,
-    docsMod,
-    testMap,
     snippet,
     blame,
     metrics,
@@ -260,8 +258,6 @@ export async function buildToolModules(): Promise<ToolModule[]> {
     import('./tools/lookup.js'),
     import('./tools/graph.js'),
     import('./tools/search.js'),
-    import('./tools/docs.js'),
-    import('./tools/test-map.js'),
     import('./tools/snippet.js'),
     import('./tools/blame.js'),
     import('./tools/metrics.js'),
@@ -285,14 +281,6 @@ export async function buildToolModules(): Promise<ToolModule[]> {
     {
       def: search.toolDef,
       handlerFactory: (deps) => (args) => search.handler(deps.db, args, deps.embedder, deps.searchObserver),
-    },
-    {
-      def: docsMod.toolDef,
-      handlerFactory: (deps) => (args) => docsMod.handler(deps.db, args, deps.embedder),
-    },
-    {
-      def: testMap.toolDef,
-      handlerFactory: (deps) => (args) => testMap.handler(deps.db, args),
     },
     {
       def: snippet.toolDef,

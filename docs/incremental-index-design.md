@@ -224,9 +224,9 @@ CREATE INDEX idx_reverse_deps_dependent ON reverse_deps(dependent_id);
 Trigger: `lore build` or first-time MCP server start.
 
 ```
-ScipSourceStage → SourceIndexStage → DocsIndexStage
+ScipSourceStage → SourceIndexStage
   → ImportResolutionStage → DependencyApiStage
-  → LspEnrichmentStage → ResolutionStage → TestMapStage
+  → LspEnrichmentStage → ResolutionStage
   → HistoryStage → EmbeddingStage → ReverseDepsStage
 ```
 

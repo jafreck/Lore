@@ -47,28 +47,6 @@ function insertCallEdge(
   ).run(callerId, calleeId, calleeName, callLine, resolutionMethod);
 }
 
-function insertCoverage(db: Database.Database, filePath: string, lines: Array<[number, number]>): void {
-  const runId = db
-    .prepare(
-      'INSERT INTO coverage_runs (commit_sha, source_path, format, ingested_at) VALUES (?, ?, ?, ?)',
-    )
-    .run('abc123', 'coverage/lcov.info', 'lcov', 100).lastInsertRowid as number;
-  db.prepare('INSERT INTO coverage_files (run_id, file_path, lines_found, lines_hit) VALUES (?, ?, ?, ?)').run(
-    runId,
-    filePath,
-    lines.length,
-    lines.filter(([, hit]) => hit > 0).length,
-  );
-  for (const [lineNum, hitCount] of lines) {
-    db.prepare('INSERT INTO coverage_lines (run_id, file_path, line_number, hit_count) VALUES (?, ?, ?, ?)').run(
-      runId,
-      filePath,
-      lineNum,
-      hitCount,
-    );
-  }
-}
-
 // ─── Source fixtures ──────────────────────────────────────────────────────────
 
 const MAIN_SOURCE = [
@@ -309,24 +287,6 @@ describe('trace handler – errors', () => {
 
 // ─── Coverage enrichment ──────────────────────────────────────────────────────
 
-describe('trace handler – coverage enrichment', () => {
-  it('includes coverage_percent when coverage data is available', () => {
-    const db = createTestDb();
-    const fileId = insertFile(db, 'src/main.ts', 'main', MAIN_SOURCE);
-    const mainId = insertSymbol(db, fileId, 'main', 'function', 3, 6);
-    insertCoverage(db, 'src/main.ts', [
-      [3, 1],
-      [4, 1],
-      [5, 0],
-      [6, 1],
-    ]);
-
-    const result = handler(db, { from: mainId });
-
-    expect(result.steps[0]!.coverage_percent).toBeDefined();
-    expect(typeof result.steps[0]!.coverage_percent).toBe('number');
-  });
-});
 
 // ─── Metrics enrichment ──────────────────────────────────────────────────────
 

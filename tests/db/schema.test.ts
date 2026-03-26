@@ -7,8 +7,6 @@ import {
   createVec0Tables,
   LORE_META_INDEX_CHECKPOINT,
   LORE_META_LAST_HEAD_SHA,
-  LORE_META_COVERAGE_LAST_SOURCE_PATH,
-  LORE_META_COVERAGE_LAST_SOURCE_MTIME,
 } from '../../src/db/schema.js';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -75,112 +73,7 @@ describe('openDb', () => {
     expect(tables).toContain('symbols');
     expect(tables).toContain('external_symbols');
     expect(tables).toContain('lore_meta');
-    expect(tables).toContain('test_mappings');
     expect(tables).toContain('commit_refs');
-    expect(tables).toContain('coverage_runs');
-    expect(tables).toContain('coverage_files');
-    expect(tables).toContain('coverage_lines');
-    expect(tables).toContain('test_coverage_runs');
-    expect(tables).toContain('test_coverage_lines');
-    expect(tables).toContain('docs');
-    expect(tables).toContain('doc_sections');
-  });
-
-  it('should create docs and doc_sections with expected unique constraints', () => {
-    db = openDb(dbPath);
-    const docsTable = db
-      .prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='docs'")
-      .get() as { sql: string } | undefined;
-    const sectionsTable = db
-      .prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='doc_sections'")
-      .get() as { sql: string } | undefined;
-
-    expect(docsTable?.sql).toContain('UNIQUE(path, branch)');
-    expect(sectionsTable?.sql).toContain('UNIQUE(doc_id, section_index)');
-
-    const insertDoc = db.prepare(
-      `INSERT INTO docs (path, branch, kind, title, content, content_hash)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-    );
-    const docInfo = insertDoc.run('README.md', 'main', 'readme', 'Readme', '# Readme', 'hash-1');
-    const docId = Number(docInfo.lastInsertRowid);
-    expect(() =>
-      insertDoc.run('README.md', 'main', 'readme', 'Readme', '# Readme', 'hash-1'),
-    ).toThrow();
-
-    const insertSection = db.prepare(
-      `INSERT INTO doc_sections (
-         doc_id, section_index, title, depth, heading_path, line_start, line_end, content, content_hash
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    );
-    insertSection.run(docId, 0, 'Readme', 1, '["Readme"]', 1, 3, '# Readme', 'chunk-hash-1');
-    expect(() =>
-      insertSection.run(docId, 0, 'Readme', 1, '["Readme"]', 1, 3, '# Readme', 'chunk-hash-1'),
-    ).toThrow();
-    expect(() =>
-      insertSection.run(docId, 1, 'Intro', 2, '["Readme","Intro"]', 4, 6, 'Intro', 'chunk-hash-2'),
-    ).not.toThrow();
-  });
-
-  it('should create docs retrieval indexes during bootstrap', () => {
-    db = openDb(dbPath);
-    const indexes = (
-      db
-        .prepare("SELECT name FROM sqlite_master WHERE type='index'")
-        .all() as { name: string }[]
-    ).map((row) => row.name);
-
-    expect(indexes).toContain('idx_docs_branch_kind');
-    expect(indexes).toContain('idx_doc_sections_doc_id');
-  });
-
-  it('should create test_mappings with expected columns and unique pair constraint', () => {
-    db = openDb(dbPath);
-
-    const columns = db.pragma('table_info(test_mappings)') as Array<{ name: string }>;
-    expect(columns.map((column) => column.name)).toEqual(
-      expect.arrayContaining(['test_file_id', 'source_file_id', 'confidence']),
-    );
-
-    const firstTestFile = db.prepare(
-      "INSERT INTO files (path, branch, language) VALUES ('tests/a.test.ts', 'main', 'typescript')",
-    ).run() as { lastInsertRowid: number | bigint };
-    const firstSourceFile = db.prepare(
-      "INSERT INTO files (path, branch, language) VALUES ('src/a.ts', 'main', 'typescript')",
-    ).run() as { lastInsertRowid: number | bigint };
-
-    db.prepare(
-      "INSERT INTO test_mappings (test_file_id, source_file_id, confidence) VALUES (?, ?, 'import')",
-    ).run(firstTestFile.lastInsertRowid, firstSourceFile.lastInsertRowid);
-
-    expect(() =>
-      db.prepare(
-        "INSERT INTO test_mappings (test_file_id, source_file_id, confidence) VALUES (?, ?, 'import')",
-      ).run(firstTestFile.lastInsertRowid, firstSourceFile.lastInsertRowid),
-    ).toThrow();
-  });
-
-  it('should cascade delete test_mappings when either linked file is deleted', () => {
-    db = openDb(dbPath);
-
-    const testFile = db.prepare(
-      "INSERT INTO files (path, branch, language) VALUES ('tests/a.test.ts', 'main', 'typescript')",
-    ).run() as { lastInsertRowid: number | bigint };
-    const sourceFile = db.prepare(
-      "INSERT INTO files (path, branch, language) VALUES ('src/a.ts', 'main', 'typescript')",
-    ).run() as { lastInsertRowid: number | bigint };
-
-    db.prepare(
-      "INSERT INTO test_mappings (test_file_id, source_file_id, confidence) VALUES (?, ?, 'import')",
-    ).run(testFile.lastInsertRowid, sourceFile.lastInsertRowid);
-    expect(
-      (db.prepare('SELECT COUNT(*) AS count FROM test_mappings').get() as { count: number }).count,
-    ).toBe(1);
-
-    db.prepare('DELETE FROM files WHERE id = ?').run(sourceFile.lastInsertRowid);
-    expect(
-      (db.prepare('SELECT COUNT(*) AS count FROM test_mappings').get() as { count: number }).count,
-    ).toBe(0);
   });
 
   it('should create external_symbols with expected columns and indexes', () => {
@@ -383,113 +276,6 @@ describe('openDb', () => {
     ).not.toThrow();
   });
 
-  it('should enforce foreign keys from coverage tables to coverage runs', () => {
-    db = openDb(dbPath);
-    const coverageFilesFks = db.pragma('foreign_key_list(coverage_files)') as Array<{
-      from: string;
-      table: string;
-    }>;
-    const coverageLinesFks = db.pragma('foreign_key_list(coverage_lines)') as Array<{
-      from: string;
-      table: string;
-    }>;
-
-    expect(
-      coverageFilesFks.some((fk) => fk.from === 'run_id' && fk.table === 'coverage_runs'),
-    ).toBe(true);
-    expect(
-      coverageLinesFks.some((fk) => fk.from === 'run_id' && fk.table === 'coverage_runs'),
-    ).toBe(true);
-  });
-
-  it('should reject coverage rows when the referenced run does not exist', () => {
-    db = openDb(dbPath);
-
-    expect(() =>
-      db.prepare(
-        "INSERT INTO coverage_files (run_id, file_path, lines_found, lines_hit) VALUES (999, 'src/a.ts', 1, 1)",
-      ).run(),
-    ).toThrow();
-
-    expect(() =>
-      db.prepare(
-        "INSERT INTO coverage_lines (run_id, file_path, line_number, hit_count) VALUES (999, 'src/a.ts', 1, 1)",
-      ).run(),
-    ).toThrow();
-  });
-
-  it('should reject coverage line rows when the matching coverage file row is missing', () => {
-    db = openDb(dbPath);
-    const run = db
-      .prepare(
-        "INSERT INTO coverage_runs (commit_sha, source_path, format) VALUES ('abc123', 'coverage/lcov.info', 'lcov')",
-      )
-      .run();
-
-    expect(() =>
-      db.prepare(
-        "INSERT INTO coverage_lines (run_id, file_path, line_number, hit_count) VALUES (?, 'src/a.ts', 10, 3)",
-      ).run(run.lastInsertRowid),
-    ).toThrow();
-  });
-
-  it('should create test_coverage_runs with expected columns', () => {
-    db = openDb(dbPath);
-    const columns = (db.pragma('table_info(test_coverage_runs)') as Array<{ name: string }>).map(
-      (col) => col.name,
-    );
-    expect(columns).toEqual(
-      expect.arrayContaining([
-        'id', 'commit_sha', 'test_file', 'test_name', 'source_path', 'format', 'ingested_at',
-      ]),
-    );
-  });
-
-  it('should create test_coverage_lines with expected columns and composite PK', () => {
-    db = openDb(dbPath);
-    const columns = (db.pragma('table_info(test_coverage_lines)') as Array<{ name: string }>).map(
-      (col) => col.name,
-    );
-    expect(columns).toEqual(
-      expect.arrayContaining(['run_id', 'file_path', 'line_number', 'hit_count']),
-    );
-  });
-
-  it('should enforce foreign key from test_coverage_lines to test_coverage_runs', () => {
-    db = openDb(dbPath);
-    const fks = db.pragma('foreign_key_list(test_coverage_lines)') as Array<{
-      from: string;
-      table: string;
-    }>;
-    expect(fks.some((fk) => fk.from === 'run_id' && fk.table === 'test_coverage_runs')).toBe(true);
-  });
-
-  it('should reject test_coverage_lines rows when the referenced run does not exist', () => {
-    db = openDb(dbPath);
-    expect(() =>
-      db.prepare(
-        "INSERT INTO test_coverage_lines (run_id, file_path, line_number, hit_count) VALUES (999, 'src/a.ts', 1, 1)",
-      ).run(),
-    ).toThrow();
-  });
-
-  it('should create idx_test_coverage_lines_path_line index', () => {
-    db = openDb(dbPath);
-    const indexes = (
-      db.prepare("SELECT name FROM sqlite_master WHERE type = 'index'").all() as Array<{ name: string }>
-    ).map((idx) => idx.name);
-    expect(indexes).toContain('idx_test_coverage_lines_path_line');
-  });
-
-  it('should allow nullable test_name in test_coverage_runs', () => {
-    db = openDb(dbPath);
-    expect(() =>
-      db.prepare(
-        "INSERT INTO test_coverage_runs (commit_sha, test_file, test_name, source_path, format) VALUES ('sha', 'test.ts', NULL, '/r', 'lcov')",
-      ).run(),
-    ).not.toThrow();
-  });
-
   it('should be idempotent — calling openDb twice on the same path is safe', () => {
     db = openDb(dbPath);
     db.close();
@@ -534,8 +320,6 @@ describe('setLoreMeta / getLoreMeta', () => {
   it('should export expected lore_meta key constants', () => {
     expect(LORE_META_INDEX_CHECKPOINT).toBe('index_checkpoint');
     expect(LORE_META_LAST_HEAD_SHA).toBe('last_known_head_sha');
-    expect(LORE_META_COVERAGE_LAST_SOURCE_PATH).toBe('coverage_last_source_path');
-    expect(LORE_META_COVERAGE_LAST_SOURCE_MTIME).toBe('coverage_last_source_mtime');
   });
 });
 

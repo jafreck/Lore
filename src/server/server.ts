@@ -10,8 +10,6 @@
  *   lore_lookup    — symbol / file lookup
  *   lore_graph     — call / import graph queries
  *   lore_search    — structural, semantic, and fused search
- *   lore_docs      — indexed documentation list/get/search
- *   lore_test_map  — source-file to mapped-test lookup
  *   lore_snippet   — source-code snippet extraction
  *   lore_blame     — git blame metadata for file lines
  *   lore_metrics   — aggregate code metrics

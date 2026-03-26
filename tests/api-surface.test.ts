@@ -40,7 +40,6 @@ describe('public API surface', () => {
 
   it('should export all pipeline stages', () => {
     expect(publicApi.SourceIndexStage).toBeDefined();
-    expect(publicApi.DocsIndexStage).toBeDefined();
     expect(publicApi.ImportResolutionStage).toBeDefined();
     expect(publicApi.DependencyApiStage).toBeDefined();
     expect(publicApi.LspEnrichmentStage).toBeDefined();

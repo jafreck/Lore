@@ -42,17 +42,12 @@ export interface PollerOptions {
   scipQuietPeriodMs?: number;
   /**
    * Optional long-lived embedding provider. When supplied, each incremental
-   * update cycle will generate embeddings for changed symbols and docs.
+   * update cycle will generate embeddings for changed symbols.
    * The caller is responsible for the provider's lifecycle (init/dispose).
    */
   embedder?: EmbeddingProvider;
 }
 
-const COVERAGE_REPORT_RELATIVE_PATHS = [
-  'coverage/lcov.info',
-  'coverage/cobertura-coverage.xml',
-  'coverage.xml',
-];
 
 // ─── FilePoller ───────────────────────────────────────────────────────────────
 
@@ -172,27 +167,6 @@ export class FilePoller {
             changed.push(filePath);
             this.snapshot.set(filePath, mtime);
           }
-        }
-      }
-
-      const coverageStats = await Promise.all(
-        COVERAGE_REPORT_RELATIVE_PATHS.map(async (relPath) => {
-          const coveragePath = path.join(this.walkerConfig.rootDir, relPath);
-          try {
-            const stat = await fs.promises.stat(coveragePath);
-            return { path: coveragePath, mtime: stat.mtimeMs };
-          } catch {
-            return { path: coveragePath, mtime: null };
-          }
-        }),
-      );
-      for (const { path: coveragePath, mtime } of coverageStats) {
-        if (mtime === null) continue;
-        currentPaths.add(coveragePath);
-        const prev = this.snapshot.get(coveragePath);
-        if (prev === undefined || prev !== mtime) {
-          changed.push(coveragePath);
-          this.snapshot.set(coveragePath, mtime);
         }
       }
 

@@ -108,90 +108,6 @@ describe('createLoreMcpServer', () => {
     expect(graphSchema.semantic_max_distance.safeParse(0.4).success).toBe(true);
   });
 
-  it('should register lore_test_map with expected schema fields', async () => {
-    const db = new Database(':memory:');
-
-    await createLoreMcpServer(db, '/tmp/test.db');
-
-    const testMapToolCall = mockTool.mock.calls.find((call) => call[0] === 'lore_test_map');
-    expect(testMapToolCall).toBeDefined();
-
-    const testMapSchema = testMapToolCall?.[2] as {
-      source_path: { safeParse: (v: unknown) => { success: boolean } };
-      branch: { safeParse: (v: unknown) => { success: boolean } };
-    };
-    expect(testMapSchema.source_path.safeParse('src/main.ts').success).toBe(true);
-    expect(testMapSchema.branch.safeParse('feat').success).toBe(true);
-    expect(testMapSchema.source_path.safeParse(42).success).toBe(false);
-  });
-
-  it('should register lore_docs with list/get/search schema fields', async () => {
-    const db = new Database(':memory:');
-
-    await createLoreMcpServer(db, '/tmp/test.db');
-
-    const docsToolCall = mockTool.mock.calls.find((call) => call[0] === 'lore_docs');
-    expect(docsToolCall).toBeDefined();
-
-    const docsSchema = docsToolCall?.[2] as {
-      action: { safeParse: (v: unknown) => { success: boolean } };
-      path: { safeParse: (v: unknown) => { success: boolean } };
-      query: { safeParse: (v: unknown) => { success: boolean } };
-      mode: { safeParse: (v: unknown) => { success: boolean } };
-      section_index: { safeParse: (v: unknown) => { success: boolean } };
-      include_sections: { safeParse: (v: unknown) => { success: boolean } };
-      kinds: { safeParse: (v: unknown) => { success: boolean } };
-    };
-    expect(docsSchema.action.safeParse('list').success).toBe(true);
-    expect(docsSchema.action.safeParse('get').success).toBe(true);
-    expect(docsSchema.action.safeParse('search').success).toBe(true);
-    expect(docsSchema.path.safeParse('README.md').success).toBe(true);
-    expect(docsSchema.query.safeParse('install').success).toBe(true);
-    expect(docsSchema.mode.safeParse('text').success).toBe(true);
-    expect(docsSchema.mode.safeParse('semantic').success).toBe(true);
-    expect(docsSchema.mode.safeParse('fused').success).toBe(true);
-    expect(docsSchema.mode.safeParse('invalid').success).toBe(false);
-    expect(docsSchema.section_index.safeParse(1).success).toBe(true);
-    expect(docsSchema.include_sections.safeParse(true).success).toBe(true);
-    expect(docsSchema.kinds.safeParse(['readme', 'guide']).success).toBe(true);
-    expect(docsSchema.action.safeParse('invalid').success).toBe(false);
-  });
-
-  it('should route lore_docs tool calls through docs.handler', async () => {
-    const db = new Database(':memory:');
-    const embedder = createStubEmbedder();
-    const docsResult = { action: 'list', docs: [], count: 0 };
-    const docsHandlerSpy = vi.spyOn(docs, 'handler').mockResolvedValue(docsResult);
-    await createLoreMcpServer(db, '/tmp/test.db', embedder);
-
-    const docsToolCall = mockTool.mock.calls.find((call) => call[0] === 'lore_docs');
-    expect(docsToolCall).toBeDefined();
-
-    const docsCallback = docsToolCall?.[3] as (args: unknown) => Promise<{
-      content: Array<{ type: string; text: string }>;
-    }>;
-    const args = { action: 'list', limit: 5 };
-    const response = await docsCallback(args);
-
-    expect(docsHandlerSpy).toHaveBeenCalledWith(db, args, embedder);
-    expect(response).toEqual({
-      content: [{ type: 'text', text: JSON.stringify(docsResult) }],
-    });
-  });
-
-  it('should reject lore_docs tool calls when docs.handler fails', async () => {
-    const db = new Database(':memory:');
-    const docsHandlerSpy = vi.spyOn(docs, 'handler').mockRejectedValue(new Error('docs failed'));
-    await createLoreMcpServer(db, '/tmp/test.db');
-
-    const docsToolCall = mockTool.mock.calls.find((call) => call[0] === 'lore_docs');
-    expect(docsToolCall).toBeDefined();
-    const docsCallback = docsToolCall?.[3] as (args: unknown) => Promise<unknown>;
-
-    await expect(docsCallback({ action: 'search', query: 'architecture' })).rejects.toThrow('docs failed');
-    expect(docsHandlerSpy).toHaveBeenCalledWith(db, { action: 'search', query: 'architecture' }, undefined);
-  });
-
   it('should route lore_search tool calls through search.handler with filter args and observer', async () => {
     const db = new Database(':memory:');
     const observer = vi.fn();
@@ -220,8 +136,6 @@ describe('createLoreMcpServer', () => {
         path_prefix: 'src/',
         language: 'typescript',
         kind: 'function',
-        doc_path_prefix: 'docs/',
-        doc_kind: 'guide',
         branch: 'main',
       };
       const response = await searchCallback(args);
@@ -497,21 +411,15 @@ describe('createLoreMcpServer', () => {
       path_prefix: { safeParse: (v: unknown) => { success: boolean } };
       language: { safeParse: (v: unknown) => { success: boolean } };
       kind: { safeParse: (v: unknown) => { success: boolean } };
-      doc_path_prefix: { safeParse: (v: unknown) => { success: boolean } };
-      doc_kind: { safeParse: (v: unknown) => { success: boolean } };
     };
 
     expect(searchSchema.path_prefix.safeParse('src/lore-server').success).toBe(true);
     expect(searchSchema.language.safeParse('typescript').success).toBe(true);
     expect(searchSchema.kind.safeParse('function').success).toBe(true);
-    expect(searchSchema.doc_path_prefix.safeParse('docs/').success).toBe(true);
-    expect(searchSchema.doc_kind.safeParse('guide').success).toBe(true);
 
     expect(searchSchema.path_prefix.safeParse(1).success).toBe(false);
     expect(searchSchema.language.safeParse(false).success).toBe(false);
     expect(searchSchema.kind.safeParse({}).success).toBe(false);
-    expect(searchSchema.doc_path_prefix.safeParse([]).success).toBe(false);
-    expect(searchSchema.doc_kind.safeParse(5).success).toBe(false);
   });
 
   it('should route lore_history tool calls through history.handler', async () => {
