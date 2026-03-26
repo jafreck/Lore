@@ -1186,18 +1186,8 @@ export class ScipRefStage implements PipelineStage {
           }
 
           const calleeId = scipToLoreId.get(occ.symbol) ?? null;
-          let resolvedCalleeName = calleeName;
           const isExternal = !calleeId && isExternalSymbol(occ.symbol);
           const method = calleeId ? 'scip_definition' : (isExternal ? 'external_definition' : 'unresolved');
-
-          if (matchedCallRef?.calleeRaw) {
-            resolvedCalleeName = matchedCallRef.calleeRaw;
-          } else if (tree) {
-            const receiverText = extractReceiverName(tree, line, character);
-            if (receiverText) {
-              resolvedCalleeName = `${receiverText}.${calleeName}`;
-            }
-          }
 
           if (refKind === 'type') {
             const typeRefKind = findMatchingTypeRefKind(treeData, line, character, calleeName)
@@ -1211,7 +1201,7 @@ export class ScipRefStage implements PipelineStage {
             try {
               insertTypeRef.run(
                 fileId, callerId, calleeId ?? null,
-                resolvedCalleeName, normalizeTypeName(resolvedCalleeName), typeRefKind,
+                calleeName, normalizeTypeName(calleeName), typeRefKind,
                 line, character, method, refSig,
                 refDefUri, refDef?.filePath ?? null, refDef?.line ?? null, refDef?.character ?? null,
                 layer, generation,
@@ -1224,6 +1214,16 @@ export class ScipRefStage implements PipelineStage {
             if (!calleeId) {
               refsNoCaller++;
               continue;
+            }
+
+            let resolvedCalleeName = calleeName;
+            if (matchedCallRef?.calleeRaw) {
+              resolvedCalleeName = matchedCallRef.calleeRaw;
+            } else if (tree) {
+              const receiverText = extractReceiverName(tree, line, character);
+              if (receiverText) {
+                resolvedCalleeName = `${receiverText}.${calleeName}`;
+              }
             }
 
             const refDef = symbolDefinitions.get(occ.symbol);

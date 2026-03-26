@@ -621,4 +621,76 @@ describe('ScipIndexerStage', () => {
 
     ctx.db.close();
   });
+
+  it('does not rewrite type refs with same-line cached call metadata', async () => {
+    const rootDir = makeTmpDir('lore-scip-type-call-collision-');
+    const indexDir = join(rootDir, '.scip-indexes');
+    mkdirSync(indexDir, { recursive: true });
+
+    const payloadSym = 'typescript npm test 1.0 `main`/Payload#';
+    const factorySym = 'typescript npm test 1.0 `main`/Factory#';
+    const factoryPayloadSym = 'typescript npm test 1.0 `main`/Factory#Payload().';
+    const runSym = 'typescript npm test 1.0 `main`/run().';
+    const sourceContent = [
+      'interface Payload { value: string; }',
+      'class Factory {',
+      '  static Payload(): Payload { return { value: \"ok\" }; }',
+      '}',
+      'export function run(): Payload { const value: Payload = Factory.Payload(); return value; }',
+      '',
+    ].join('\n');
+    writeFileSync(join(rootDir, 'main.ts'), sourceContent);
+
+    const bytes = buildScipIndexBytes([{
+      relativePath: 'main.ts',
+      language: 'TypeScript',
+      occurrences: [
+        { range: [0, 10, 0, 17], symbol: payloadSym, symbolRoles: SymbolRole.Definition, enclosingRange: [0, 0, 0, 33] },
+        { range: [1, 6, 1, 13], symbol: factorySym, symbolRoles: SymbolRole.Definition, enclosingRange: [1, 0, 3, 1] },
+        { range: [2, 9, 2, 16], symbol: factoryPayloadSym, symbolRoles: SymbolRole.Definition, enclosingRange: [2, 2, 2, 56] },
+        { range: [2, 20, 2, 27], symbol: payloadSym, symbolRoles: 0 },
+        { range: [4, 16, 4, 19], symbol: runSym, symbolRoles: SymbolRole.Definition, enclosingRange: [4, 0, 4, 84] },
+        { range: [4, 23, 4, 30], symbol: payloadSym, symbolRoles: 0 },
+        { range: [4, 46, 4, 53], symbol: payloadSym, symbolRoles: 0 },
+        { range: [4, 64, 4, 71], symbol: factoryPayloadSym, symbolRoles: 0 },
+      ],
+      symbols: [
+        { symbol: payloadSym, displayName: 'Payload', documentation: ['```ts\ninterface Payload { value: string }\n```'] },
+        { symbol: factorySym, displayName: 'Factory', documentation: ['```ts\nclass Factory\n```'] },
+        { symbol: factoryPayloadSym, displayName: 'Payload', documentation: ['```ts\nstatic Payload(): Payload\n```'] },
+        { symbol: runSym, displayName: 'run', documentation: ['```ts\nfunction run(): Payload\n```'] },
+      ],
+    }]);
+    writeFileSync(join(indexDir, 'typescript.scip'), bytes);
+
+    const ctx = makeContext(rootDir, join(rootDir, 'test.db'));
+    await new ScipIndexerStage().execute(ctx, 'build');
+    await new SourceIndexStage().execute(ctx, 'build');
+
+    ctx.sourceCache.clear();
+    await new ScipRefStage().execute(ctx, 'build');
+
+    const runTypeRefs = ctx.db.prepare(
+      `SELECT tr.type_name, tr.type_name_bare, tr.ref_kind, tr.ref_line
+       FROM type_refs tr
+       JOIN symbols caller ON caller.id = tr.symbol_id
+       WHERE caller.name = 'run'
+       ORDER BY tr.ref_line, tr.ref_character`,
+    ).all() as Array<{ type_name: string; type_name_bare: string; ref_kind: string; ref_line: number }>;
+    expect(runTypeRefs).toEqual([
+      { type_name: 'Payload', type_name_bare: 'Payload', ref_kind: 'return', ref_line: 4 },
+      { type_name: 'Payload', type_name_bare: 'Payload', ref_kind: 'variable', ref_line: 4 },
+    ]);
+
+    const callRef = ctx.db.prepare(
+      `SELECT sr.callee_name
+       FROM symbol_refs sr
+       JOIN symbols caller ON caller.id = sr.caller_id
+       JOIN symbols callee ON callee.id = sr.callee_id
+       WHERE caller.name = 'run' AND callee.name = 'Payload'`,
+    ).get() as { callee_name: string } | undefined;
+    expect(callRef?.callee_name).toBe('Factory.Payload');
+
+    ctx.db.close();
+  });
 });
