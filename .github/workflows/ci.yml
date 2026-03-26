@@ -6,15 +6,19 @@ on:
       - main
   pull_request:
 
+permissions:
+  id-token: write
+  contents: read
+
 jobs:
   ci:
     name: ci
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '22'
           cache: 'npm'
@@ -33,19 +37,10 @@ jobs:
       - name: Coverage
         run: npm run coverage
 
-      - name: Verify CODECOV_TOKEN is set
-        run: |
-          if [ -z "$CODECOV_TOKEN" ]; then
-            echo "::error::CODECOV_TOKEN secret is not set — coverage upload will be skipped"
-            exit 1
-          fi
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5.4.3
+        uses: codecov/codecov-action@v6.0.0
         with:
+          use_oidc: true
           files: ./coverage/coverage-final.json
           fail_ci_if_error: true
           verbose: true
-          token: ${{ secrets.CODECOV_TOKEN }}
