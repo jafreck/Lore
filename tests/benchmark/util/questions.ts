@@ -257,12 +257,32 @@ export const QUESTION_CATALOG: QuestionTemplate[] = [
       'Example format:\nWith error handling:\n  foo in src/a.ts\n  bar in src/b.ts\nFire-and-forget:\n  baz in src/c.ts',
   },
 
-  // ── Complexity metrics ──────────────────────────────────────────────────
+];
+
+// ─── Lookup helpers ─────────────────────────────────────────────────────────────────────
+
+const CATALOG_MAP = new Map(QUESTION_CATALOG.map((q) => [q.questionId, q]));
+
+/** Look up a question template by ID. */
+export function getQuestion(questionId: string): QuestionTemplate | undefined {
+  return CATALOG_MAP.get(questionId);
+}
+
+/** Get all question IDs in catalog order. */
+export function getQuestionIds(): string[] {
+  return QUESTION_CATALOG.map((q) => q.questionId);
+}
+
+/** Get all unique category names in catalog order. */
+export function getCategories(): string[] {
+  const seen = new Set<string>();
+  return QUESTION_CATALOG.filter((q) => {
     if (seen.has(q.category)) return false;
     seen.add(q.category);
     return true;
   }).map((q) => q.category);
 }
+
 
 // ─── Prompt rendering ───────────────────────────────────────────────────────
 

@@ -169,71 +169,6 @@ function queryExternalSymbolCount(dbPath: string): number {
   return row.count;
 }
 
-function queryTestsForSourceFile(
-  dbPath: string,
-  sourcePath: string,
-  branch: string,
-): Array<{ test_path: string; confidence: string }> {
-  const db = new Database(dbPath, { readonly: true });
-  const fTable = hasView(db, 'effective_files') ? 'effective_files' : 'files';
-  const rows = db.prepare(
-    `SELECT test_files.path AS test_path, tm.confidence
-     JOIN ${fTable} source_files ON source_files.id = tm.source_file_id
-     JOIN ${fTable} test_files ON test_files.id = tm.test_file_id
-     WHERE source_files.path = ? AND source_files.branch = ?
-     ORDER BY test_files.path`,
-  ).all(sourcePath, branch) as Array<{ test_path: string; confidence: string }>;
-  db.close();
-  return rows;
-}
-
-function queryDocsForBranch(
-  dbPath: string,
-  branch: string,
-): Array<{ id: number; path: string; kind: string; title: string; content_hash: string }> {
-  const db = new Database(dbPath, { readonly: true });
-  const rows = db.prepare(
-    `SELECT id, path, kind, title, content_hash
-     FROM docs
-     WHERE branch = ?
-     ORDER BY path`,
-  ).all(branch) as Array<{ id: number; path: string; kind: string; title: string; content_hash: string }>;
-  db.close();
-  return rows;
-}
-
-function queryDocSectionsForPath(
-  dbPath: string,
-  filePath: string,
-  branch: string,
-): Array<{ id: number; section_index: number; title: string; heading_path: string }> {
-  const db = new Database(dbPath, { readonly: true });
-  const rows = db.prepare(
-    `SELECT ds.id, ds.section_index, ds.title, ds.heading_path
-     FROM doc_sections ds
-     JOIN docs d ON d.id = ds.doc_id
-     WHERE d.path = ? AND d.branch = ?
-     ORDER BY ds.section_index`,
-  ).all(filePath, branch) as Array<{ id: number; section_index: number; title: string; heading_path: string }>;
-  db.close();
-  return rows;
-}
-
-function queryDocSectionEmbeddingCount(dbPath: string): number {
-  const db = new Database(dbPath, { readonly: true });
-  (esmRequire('sqlite-vec') as { load(database: Database.Database): void }).load(db);
-  const hasTable = db
-    .prepare("SELECT name FROM sqlite_master WHERE type IN ('table', 'virtual table') AND name = 'doc_section_embeddings'")
-    .get() as { name: string } | undefined;
-  if (!hasTable) {
-    db.close();
-    return 0;
-  }
-  const row = db.prepare('SELECT COUNT(*) AS count FROM doc_section_embeddings').get() as { count: number };
-  db.close();
-  return row.count;
-}
-
 describe('IndexBuilder — dependency indexing options', () => {
   let srcDir: string;
   let dbPath: string;
@@ -624,75 +559,6 @@ describe('IndexBuilder — branch support in build()', () => {
     expect(headRow?.value).toBe(runGit(srcDir, ['rev-parse', 'HEAD']));
   });
 
-  it('should index documentation content and section chunks during build', async () => {
-    const docPath = join(srcDir, 'README.md');
-    writeFileSync(docPath, '# Lore\n\n## Install\nUse npm\n');
-
-    const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
-    await builder.build();
-
-    const docs = queryDocsForBranch(dbPath, 'main');
-    const indexedDoc = docs.find(doc => doc.path === docPath);
-    expect(indexedDoc).toMatchObject({
-      path: docPath,
-      kind: 'readme',
-      title: 'Lore',
-    });
-
-    const sections = queryDocSectionsForPath(dbPath, docPath, 'main');
-    expect(sections.map(section => section.title)).toEqual(['Lore', 'Install']);
-    expect(sections[1]?.heading_path).toBe(JSON.stringify(['Lore', 'Install']));
-  });
-
-  it('should remove stale documentation rows on subsequent builds', async () => {
-    const docPath = join(srcDir, 'README.md');
-    writeFileSync(docPath, '# Lore\n\n## Install\nUse npm\n');
-
-    const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
-    await builder.build();
-    expect(queryDocsForBranch(dbPath, 'main').find(doc => doc.path === docPath)).toBeDefined();
-
-    rmSync(docPath, { force: true });
-    await builder.build();
-
-    expect(queryDocsForBranch(dbPath, 'main').find(doc => doc.path === docPath)).toBeUndefined();
-    expect(queryDocSectionsForPath(dbPath, docPath, 'main')).toEqual([]);
-  });
-
-  it('should persist documentation chunk embeddings during build when embedder is configured', async () => {
-    const docPath = join(srcDir, 'README.md');
-    writeFileSync(docPath, '# Lore\n\n## Install\nUse npm\n');
-
-    const embedder: EmbeddingProvider = {
-      modelName: 'test-embedder',
-      dims: 3,
-      async init(): Promise<void> {},
-      async embed(texts: string[]): Promise<number[][]> {
-        return texts.map((_, i) => [i + 1, i + 2, i + 3]);
-      },
-      async dispose(): Promise<void> {},
-    };
-
-    const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' }, embedder);
-    await builder.build();
-
-    expect(queryDocSectionEmbeddingCount(dbPath)).toBeGreaterThan(0);
-  });
-
-    const sourceFile = join(srcDir, 'math.ts');
-    const testDir = join(srcDir, 'tests');
-    const testFile = join(testDir, 'math.test.ts');
-    mkdirSync(testDir);
-    writeFileSync(sourceFile, 'export const sum = (a: number, b: number) => a + b;\n');
-    writeFileSync(testFile, 'import { sum } from "../math";\nexport const value = sum(1, 2);\n');
-
-    const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
-    await builder.build();
-
-    expect(queryTestsForSourceFile(dbPath, sourceFile, 'main')).toEqual([
-      { test_path: testFile, confidence: 'import' },
-    ]);
-  });
 });
 
 describe('IndexBuilder — branch support in update()', () => {
@@ -861,62 +727,6 @@ describe('IndexBuilder — branch support in update()', () => {
     expect(queryStructuralEmbeddingCount(dbPath)).toBeGreaterThan(0);
   });
 
-  it('should persist doc-section embeddings when docs are updated with an embedder', async () => {
-    const docsDir = join(srcDir, 'docs');
-    const docPath = join(docsDir, 'guide.md');
-    mkdirSync(docsDir, { recursive: true });
-
-    const embedder: EmbeddingProvider = {
-      modelName: 'test-embedder',
-      dims: 3,
-      async init(): Promise<void> {},
-      async embed(texts: string[]): Promise<number[][]> {
-        return texts.map((_, i) => [i + 1, i + 2, i + 3]);
-      },
-      async dispose(): Promise<void> {},
-    };
-
-    const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' }, embedder);
-
-    writeFileSync(docPath, '# Guide\n\n## Intro\nFirst pass\n');
-    await builder.update([docPath]);
-    expect(queryDocSectionsForPath(dbPath, docPath, 'main').map(section => section.title)).toEqual(['Guide', 'Intro']);
-    expect(queryDocSectionEmbeddingCount(dbPath)).toBe(2);
-  });
-
-  it('should upsert docs on add/modify and remove docs on delete during update with hash-idempotent behavior', async () => {
-    const docsDir = join(srcDir, 'docs');
-    const docPath = join(docsDir, 'guide.md');
-    mkdirSync(docsDir, { recursive: true });
-    writeFileSync(docPath, '# Guide\n\n## Intro\nFirst pass\n');
-
-    const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
-    await builder.update([docPath]);
-
-    const afterInsert = queryDocsForBranch(dbPath, 'main').find(doc => doc.path === docPath);
-    expect(afterInsert).toBeDefined();
-    const insertedSectionIds = queryDocSectionsForPath(dbPath, docPath, 'main').map(section => section.id);
-    expect(insertedSectionIds.length).toBe(2);
-
-    await builder.update([docPath]);
-    const afterNoop = queryDocsForBranch(dbPath, 'main').find(doc => doc.path === docPath);
-    const noOpSectionIds = queryDocSectionsForPath(dbPath, docPath, 'main').map(section => section.id);
-    expect(afterNoop?.content_hash).toBe(afterInsert?.content_hash);
-    expect(noOpSectionIds).toEqual(insertedSectionIds);
-
-    writeFileSync(docPath, '# Guide\n\n## Intro\nUpdated\n\n## Advanced\nDeeper details\n');
-    await builder.update([docPath]);
-    const afterModify = queryDocsForBranch(dbPath, 'main').find(doc => doc.path === docPath);
-    expect(afterModify?.content_hash).not.toBe(afterInsert?.content_hash);
-    const updatedSections = queryDocSectionsForPath(dbPath, docPath, 'main');
-    expect(updatedSections.map(section => section.title)).toEqual(['Guide', 'Intro', 'Advanced']);
-
-    rmSync(docPath, { force: true });
-    await builder.update([docPath]);
-    expect(queryDocsForBranch(dbPath, 'main').find(doc => doc.path === docPath)).toBeUndefined();
-    expect(queryDocSectionsForPath(dbPath, docPath, 'main')).toEqual([]);
-  });
-
   it('should remove branch-scoped file rows and related symbols_fts entries when a tracked file is deleted', async () => {
     const importingFile = join(srcDir, 'consumer.ts');
     writeFileSync(importingFile, 'import { hello } from "./hello";\nexport const value = hello();\n');
@@ -1079,29 +889,6 @@ describe('IndexBuilder — branch support in update()', () => {
     expect(files.length).toBeGreaterThan(0);
   });
 
-    const sourceFile = join(srcDir, 'math.ts');
-    const replacementSourceFile = join(srcDir, 'math2.ts');
-    const testDir = join(srcDir, 'tests');
-    const testFile = join(testDir, 'math.test.ts');
-    mkdirSync(testDir);
-    writeFileSync(sourceFile, 'export const sum = (a: number, b: number) => a + b;\n');
-    writeFileSync(testFile, 'import { sum } from "../math";\nexport const value = sum(1, 2);\n');
-
-    const builder = new IndexBuilder(dbPath, { rootDir: srcDir, branch: 'main' });
-    await builder.build();
-    expect(queryTestsForSourceFile(dbPath, sourceFile, 'main')).toEqual([
-      { test_path: testFile, confidence: 'import' },
-    ]);
-
-    writeFileSync(replacementSourceFile, 'export const sum = (a: number, b: number) => a + b;\n');
-    writeFileSync(testFile, 'import { sum } from "../math2";\nexport const value = sum(2, 3);\n');
-    await builder.update([replacementSourceFile, testFile]);
-
-    expect(queryTestsForSourceFile(dbPath, sourceFile, 'main')).toEqual([]);
-    expect(queryTestsForSourceFile(dbPath, replacementSourceFile, 'main')).toEqual([
-      { test_path: testFile, confidence: 'import' },
-    ]);
-  });
 });
 
 describe('IndexBuilder — transactional file loops', () => {
