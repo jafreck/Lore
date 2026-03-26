@@ -88,9 +88,9 @@ specific branching conditions within each function. **Partially answered.**
 
 ### 10. Which tests actually exercise this specific line or branch of code?
 
-`test_mappings` maps test files → source files, and `coverage_files` stores
-line-level hit counts, but Lore can't attribute individual lines to individual
-test cases. See [issue: per-test line coverage attribution].
+Lore does not currently map test cases to source lines. This would require
+per-test coverage attribution, which is beyond static indexing.
+**Not currently answered.**
 
 ### 11. What is the public API surface of this package, and has it changed since the last release?
 

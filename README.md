@@ -36,9 +36,7 @@ Lore-enabled agents achieve up to **+10pp higher correctness**, up to **84% fewe
 flowchart LR
     subgraph Codebase
         SRC[Source Files]
-        DOCS[Documentation<br/>md · rst · adoc · txt]
         GIT[Git Repo]
-        COV[Coverage Reports]
     end
 
     subgraph INDEXER[Lore Indexer]
@@ -47,16 +45,12 @@ flowchart LR
         EXTRACT --> RESOLVE[Import Resolver<br/>internal ↔ external]
         EXTRACT --> CALLGRAPH[Relationship Resolver]
         EXTRACT -.-> LSPENRICH[LSP Enrichment<br/>type signatures · definition locations]
-        DOCSINGEST[Docs Ingest<br/>sections · headings]
         GITHIST[Git History Ingest<br/>commits · diffs · refs]
-        COVINGEST[Coverage Ingest<br/>lcov · cobertura]
     end
 
     SRC --> SCIPDIRECT
     SRC --> WALK
-    DOCS --> DOCSINGEST
     GIT --> GITHIST
-    COV --> COVINGEST
 
     DB[(SQL DB)]
     EMBED([Embedding Model])
@@ -64,14 +58,12 @@ flowchart LR
     subgraph MCP_SERVER[MCP Server]
         LOOKUP[lore_lookup]
         SEARCH[lore_search]
-        DOCS_TOOL[lore_docs]
         GRAPH[lore_graph]
         DEPENDENTS[lore_dependents]
         TRACE[lore_trace]
         DIFF[lore_diff]
         COHESION[lore_cohesion]
         STRUCTURE[lore_structure]
-        TESTMAP[lore_test_map]
         SNIPPET[lore_snippet]
         BLAME[lore_blame]
         HISTORY[lore_history]
@@ -86,19 +78,17 @@ flowchart LR
         CLAUDE_CODE ~~~ COPILOT ~~~ CURSOR ~~~ CUSTOM
     end
 
-    DOCSINGEST --> DB
     GITHIST --> DB
-    COVINGEST --> DB
 
     RESOLVE & CALLGRAPH --> DB
     LSPENRICH -.->|optional| DB
     RESOLVE -.->|optional| EMBED
     EMBED -.-> DB
 
-    DB --- LOOKUP & SEARCH & DOCS_TOOL & GRAPH & DEPENDENTS & TRACE & DIFF & COHESION & STRUCTURE & TESTMAP & SNIPPET & BLAME & HISTORY & METRICS
+    DB --- LOOKUP & SEARCH & GRAPH & DEPENDENTS & TRACE & DIFF & COHESION & STRUCTURE & SNIPPET & BLAME & HISTORY & METRICS
     EMBED <-.->|semantic/fused| SEARCH
 
-    LOOKUP & SEARCH & DOCS_TOOL & GRAPH & DEPENDENTS & TRACE & DIFF & COHESION & STRUCTURE & TESTMAP & SNIPPET & BLAME & HISTORY & METRICS <--> MCP_CLIENTS
+    LOOKUP & SEARCH & GRAPH & DEPENDENTS & TRACE & DIFF & COHESION & STRUCTURE & SNIPPET & BLAME & HISTORY & METRICS <--> MCP_CLIENTS
 ```
 
 Lore sits between your codebase and any LLM-powered tool. The indexer uses a SCIP-first strategy with tree-sitter fallback to extract symbols, imports, and relationships, then persists everything to a normalized SQL database. The MCP server auto-discovers tool modules and exposes the database to any MCP-compatible client. The index stays fresh via git hooks, watch mode, or poll mode — each refresh only re-processes files whose content hash has changed.
@@ -155,18 +145,16 @@ await builder.build();
 |------|----------|
 | `lore_lookup` | Find symbols by name or files by path, including external dependency API symbols and LSP-resolved metadata when available |
 | `lore_search` | Structural BM25, semantic vector, or fused RRF search across symbols and doc sections |
-| `lore_docs` | List, fetch, or search indexed documentation with branch, kind, and path filters |
 | `lore_dependents` | Find everything affected by changing a symbol or file — callers, importers, subclasses, and type references with automatic transitive traversal (up to 5 hops) in one call |
 | `lore_trace` | Trace an execution path from an entry point and return an ordered call sequence with source code for each step |
 | `lore_diff` | Compare exported symbols between two indexed branches; returns added, removed, and changed symbols |
 | `lore_cohesion` | Rank directories by module cohesion (ratio of internal to external symbol references) |
 | `lore_structure` | Detect structural anomalies — import cycles (Tarjan SCC), layering violations (Kahn toposort), and outlier couplings |
-| `lore_graph` | Query call/import/inheritance/type-dependency edges with automatic transitive traversal (up to 5 hops); supports `source_id` for outbound and `target_id` for inbound/reverse queries; materializes virtual dispatch edges for polymorphic call resolution; call edges include `callee_coverage_percent` |
+| `lore_graph` | Query call/import/inheritance/type-dependency edges with automatic transitive traversal (up to 5 hops); supports `source_id` for outbound and `target_id` for inbound/reverse queries; materializes virtual dispatch edges for polymorphic call resolution |
 | `lore_snippet` | Return snippets from indexed source snapshots by file path + line range or by symbol name; path/symbol resolution is branch-aware and responses include containing-symbol context metadata (name, kind, start/end lines) when available |
-| `lore_test_map` | Return mapped test files (with confidence) for a given source file path |
 | `lore_blame` | Query blame, line-range history, or ownership aggregates with optional symbol targeting, commit-context enrichment, and risk signals |
 | `lore_history` | Query commit history by file, commit, author, ref, recency, or semantic commit-message similarity |
-| `lore_metrics` | Aggregate index metrics plus coverage/staleness fields |
+| `lore_metrics` | Aggregate index metrics |
 
 ### lore_lookup query options
 
@@ -199,30 +187,20 @@ Example symbol lookup requests:
 }
 ```
 
-### lore_docs examples
-
-```json
-{ "action": "list", "branch": "main", "kinds": ["readme", "architecture"] }
-{ "action": "get", "path": "/repo/docs/architecture.md", "branch": "main", "include_sections": true }
-{ "action": "search", "query": "incremental refresh", "kinds": ["guide", "architecture"], "limit": 10 }
-```
 
 ### lore_search filter parameters
 
-`lore_search` supports additional optional filters to narrow symbol and documentation hits:
+`lore_search` supports additional optional filters to narrow symbol hits:
 
 | Parameter | Applies to | Description |
 |-----------|------------|-------------|
 | `path_prefix` | Symbol results | Restrict symbol hits to files whose source path starts with the prefix |
 | `language` | Symbol results | Restrict symbol hits to indexed file language (for example `typescript`, `python`) |
 | `kind` | Symbol results | Restrict symbol hits to a symbol kind (for example `function`, `class`) |
-| `doc_path_prefix` | Doc-section results | Restrict semantic/fused doc hits to docs whose path starts with the prefix |
-| `doc_kind` | Doc-section results | Restrict semantic/fused doc hits to a documentation kind (for example `readme`, `architecture`) |
 
 Mode behavior:
 
 - `structural`: returns symbol hits only; applies `path_prefix`, `language`, and `kind`.
-- `semantic`: may return symbol and doc-section hits; symbol filters (`path_prefix`, `language`, `kind`) apply to symbol results, while `doc_path_prefix` and `doc_kind` apply to doc-section results before ranking output.
 - `fused`: combines structural and semantic candidates; symbol filters apply to symbol candidates and doc filters apply to semantic doc-section candidates before final fused ranking.
 
 ### lore_history modes
@@ -276,34 +254,6 @@ await new IndexBuilder('./lore.db', {
 }).build();
 ```
 
-### Documentation
-
-Lore discovers and indexes documentation files (`.md`, `.rst`, `.adoc`, `.txt`)
-during both `index` and `refresh` flows. By default it scans:
-
-- `README*` variants
-- `docs/**/*.{md,rst,adoc,txt}`
-- ADR-style paths (`**/{adr,adrs,ADR,ADRS}/**/*` and `**/{ADR,adr}-*`)
-- Top-level architecture/design/overview/changelog/guide files
-
-Indexed docs are stored per `(path, branch)` in `docs`, with heading-based
-chunks in `doc_sections`. When embeddings are enabled, section vectors are stored
-in `doc_section_embeddings`.
-
-CLI discovery controls:
-
-- `--docs-include <glob>` / `--docs-exclude <glob>` — repeatable include/exclude filters
-- `--docs-extension <ext>` — repeatable extension filter (e.g. `.md`)
-Programmatic example:
-
-```ts
-await new IndexBuilder('./lore.db', {
-  rootDir: './my-project',
-  docsIncludeGlobs: ['**/README*', 'handbook/**/*.rst'],
-  docsExcludeGlobs: ['**/docs/private/**'],
-  docsExtensions: ['.md', '.rst'],
-}).build();
-```
 
 ### Git history
 
@@ -328,18 +278,6 @@ await new IndexBuilder('./lore.db', {
 }).build();
 ```
 
-### Coverage
-
-Coverage reports are auto-detected during build/update/refresh from known paths
-(`coverage/lcov.info`, `coverage/cobertura-coverage.xml`, `coverage.xml`) and
-only ingested when newer than the last stored coverage run.
-
-For non-standard report locations, use `lore ingest-coverage`:
-
-```bash
-npx @jafreck/lore ingest-coverage --db ./lore.db --root ./my-project \
-  --file ./custom/coverage.xml --format cobertura
-```
 
 ### Embeddings
 
@@ -477,7 +415,7 @@ are fast even on large repositories.
 Build or update a knowledge base.
 
 ```bash
-npx @jafreck/lore index --root <dir> --db <path> [--embedding-model <id>] [--blocking-embedder] [--index-deps] [--history] [--history-depth <n>] [--history-all] [--include <glob>] [--exclude <glob>] [--language <lang>] [--docs-include <glob>] [--docs-exclude <glob>] [--docs-extension <ext>] [--lsp] [--no-scip]
+npx @jafreck/lore index --root <dir> --db <path> [--embedding-model <id>] [--blocking-embedder] [--index-deps] [--history] [--history-depth <n>] [--history-all] [--include <glob>] [--exclude <glob>] [--language <lang>] [--lsp] [--no-scip]
 ```
 
 ### lore refresh
@@ -485,9 +423,9 @@ npx @jafreck/lore index --root <dir> --db <path> [--embedding-model <id>] [--blo
 Incremental refresh (one-shot, watch, or poll).
 
 ```bash
-npx @jafreck/lore refresh --db <path> --root <dir> [--index-deps] [--history] [--history-depth <n>] [--history-all] [--docs-include <glob>] [--docs-exclude <glob>] [--docs-extension <ext>] [--lsp] [--no-scip]
-npx @jafreck/lore refresh --db <path> --root <dir> --watch [--index-deps] [--history] [--docs-include <glob>] [--docs-exclude <glob>] [--docs-extension <ext>] [--lsp] [--no-scip]
-npx @jafreck/lore refresh --db <path> --root <dir> --poll [--index-deps] [--history] [--docs-include <glob>] [--docs-exclude <glob>] [--docs-extension <ext>] [--lsp] [--no-scip]
+npx @jafreck/lore refresh --db <path> --root <dir> [--index-deps] [--history] [--history-depth <n>] [--history-all] [--lsp] [--no-scip]
+npx @jafreck/lore refresh --db <path> --root <dir> --watch [--index-deps] [--history] [--lsp] [--no-scip]
+npx @jafreck/lore refresh --db <path> --root <dir> --poll [--index-deps] [--history] [--lsp] [--no-scip]
 ```
 
 ### lore hooks
@@ -498,13 +436,6 @@ Install repo-local git hooks for automatic refresh.
 npx @jafreck/lore hooks --root <repo> --db <path> [--history] [--lsp] [--no-scip]
 ```
 
-### lore ingest-coverage
-
-Manually ingest a coverage report.
-
-```bash
-npx @jafreck/lore ingest-coverage --db <path> --root <dir> --file <path> --format <lcov|cobertura> [--commit <sha>]
-```
 
 ### lore mcp
 
