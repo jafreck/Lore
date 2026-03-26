@@ -14,6 +14,7 @@ import { availableParallelism } from 'node:os';
 import { Worker } from 'node:worker_threads';
 import { fileURLToPath } from 'node:url';
 import type { PipelineContext, PipelineStage } from '../pipeline.js';
+import type { ScipTreeSitterFileData } from '../pipeline.js';
 import type { Database } from '../../db/schema.js';
 import {
   setLoreMeta,
@@ -26,7 +27,9 @@ import { normalizeTypeName } from '../../resolution/call-graph.js';
 import { computeSymbolMetrics } from '../../parsing/complexity.js';
 import {
   type ExtractionResult,
+  type RawCallRef,
   type RawSymbol,
+  type RawTypeRef,
   type SymbolExtractor,
 } from '../../parsing/extractors/types.js';
 import { CExtractor } from '../../parsing/extractors/c.js';
@@ -52,7 +55,7 @@ import { HaskellExtractor } from '../../parsing/extractors/haskell.js';
 import { JuliaExtractor } from '../../parsing/extractors/julia.js';
 import { ElmExtractor } from '../../parsing/extractors/elm.js';
 import { ObjcExtractor } from '../../parsing/extractors/objc.js';
-import type { ParseTask, ParseResult, ParseResultSuccess, WorkerMessage } from './parse-worker.js';
+import type { ParseTask, ParseResult, ParseResultSuccess, WorkerMessage, WorkerSymbolMetrics } from './parse-worker.js';
 
 // ─── Extractor registry ───────────────────────────────────────────────────────
 
@@ -130,7 +133,7 @@ export class SourceIndexStage implements PipelineStage {
         // Compute symbol metrics for SCIP-sourced files (SCIP doesn't provide
         // cyclomatic complexity data, but tree-sitter can compute it).
         if (scipFiles.length > 0) {
-          computeMetricsForScipFiles(context.db, this.pool!, scipFiles, context.branch, context.sourceCache, context.layer, context.generation);
+          await computeMetricsForScipFiles(context, this.pool!, scipFiles);
         }
       } else {
         files = allFiles;
@@ -213,10 +216,9 @@ export class SourceIndexStage implements PipelineStage {
     // Resolve worker script path (compiled JS alongside this file).
     // Fall back to serial path if the compiled worker script isn't available
     // (e.g., running from TypeScript source via vitest).
-    const thisFile = fileURLToPath(import.meta.url);
-    const workerScript = path.join(path.dirname(thisFile), 'parse-worker.js');
+    const workerScript = resolveParseWorkerScript();
 
-    if (!fs.existsSync(workerScript)) {
+    if (!workerScript) {
       // Serial fallback when worker script is unavailable
       const pool = this.pool!;
       const BATCH_SIZE = 1000;
@@ -244,17 +246,7 @@ export class SourceIndexStage implements PipelineStage {
     // same-language files. This limits the number of tree-sitter grammars
     // each worker loads (from potentially all grammars to 1–2), reducing
     // peak worker memory usage significantly on multi-language repos.
-    const sortedTasks = [...tasks].sort((a, b) =>
-      (a.language ?? '').localeCompare(b.language ?? ''),
-    );
-
-    // Distribute contiguous language-sorted blocks to workers
-    const tasksPerWorker = Math.ceil(sortedTasks.length / workerCount);
-    const taskChunks: ParseTask[][] = [];
-    for (let w = 0; w < workerCount; w++) {
-      const chunk = sortedTasks.slice(w * tasksPerWorker, (w + 1) * tasksPerWorker);
-      if (chunk.length > 0) taskChunks.push(chunk);
-    }
+    const taskChunks = buildTaskChunks(tasks, workerCount);
 
     // Spawn workers and collect results
     const allResults = await runParseWorkers(workerScript, workerCount, taskChunks);
@@ -504,6 +496,7 @@ function insertFileAndExtractions(
   rootEndRow: number,
   layer: 'baseline' | 'overlay' = 'baseline',
   generation = 0,
+  workerSymbolMetrics?: WorkerSymbolMetrics[],
 ): void {
 
   // Upsert the file row
@@ -613,11 +606,15 @@ function insertFileAndExtractions(
     `INSERT OR REPLACE INTO symbol_metrics (symbol_id, line_count, param_count, cyclomatic, max_nesting, layer, generation)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
   );
+  const workerMetricsByKey = workerSymbolMetrics
+    ? new Map(workerSymbolMetrics.map((entry) => [symbolMetricKey(entry.name, entry.startLine, entry.endLine), entry.metrics]))
+    : null;
   for (const sym of result.symbols) {
     if (!sym.name) continue;
     const symId = symbolIdMap.get(sym.name);
     if (symId === undefined) continue;
-    const metrics = computeSymbolMetrics(sym, language);
+    const metrics = workerMetricsByKey?.get(symbolMetricKey(sym.name, sym.startLine, sym.endLine))
+      ?? computeSymbolMetrics(sym, language);
     insertMetrics.run(symId, metrics.line_count, metrics.param_count, metrics.cyclomatic, metrics.max_nesting, layer, generation);
   }
 
@@ -761,34 +758,95 @@ function insertParsedFile(
   // transaction, where async I/O is not possible anyway.
   const source = r.source ?? fs.readFileSync(r.filePath, 'utf8');
   if (sourceCache) sourceCache.set(r.filePath, source);
-  insertFileAndExtractions(db, r.filePath, r.language, branch, source, r.hash, r.sizeBytes, existing, r.result, r.rootEndRow, layer, generation);
+  insertFileAndExtractions(db, r.filePath, r.language, branch, source, r.hash, r.sizeBytes, existing, r.result, r.rootEndRow, layer, generation, r.symbolMetrics);
 }
 
 // ─── Metrics-only pass for SCIP-sourced files ─────────────────────────────────
 
 /**
- * Parse SCIP-sourced files with tree-sitter to compute symbol metrics
- * (cyclomatic complexity, nesting depth, etc.) and insert them into
- * the `symbol_metrics` table. SCIP provides accurate cross-references but
- * not complexity data, so tree-sitter fills the gap.
+ * Parse SCIP-sourced files with tree-sitter exactly once to compute symbol
+ * metrics and stash call/type lookup data for the deferred SCIP ref stage.
+ *
+ * When the compiled worker script is available, the parse+extract work runs
+ * through the same worker pool used by the main source-index stage so this
+ * metrics pass does not become a serial bottleneck on SCIP-heavy repos.
  */
-function computeMetricsForScipFiles(
-  db: Database.Database,
+async function computeMetricsForScipFiles(
+  context: PipelineContext,
   pool: ParserPool,
   files: Array<{ path: string; language: string }>,
-  branch: string,
-  sourceCache?: Map<string, string>,
-  layer: 'baseline' | 'overlay' = 'baseline',
-  generation = 0,
-): void {
-  const insertMetrics = db.prepare(
-    `INSERT OR REPLACE INTO symbol_metrics (symbol_id, line_count, param_count, cyclomatic, max_nesting, layer, generation)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-  );
+): Promise<void> {
+  const { db, branch, sourceCache, layer, generation, log } = context;
+  const scipTreeSitterData = context.scipTreeSitterData ?? new Map<string, ScipTreeSitterFileData>();
+  context.scipTreeSitterData = scipTreeSitterData;
+
+  const workerScript = resolveParseWorkerScript();
+  const workerCount = Math.max(1, Math.min(
+    files.length,
+    context.maxWorkers ?? (availableParallelism() - 1),
+  ));
+
+  if (workerScript && workerCount > 1) {
+    log.indexing('parallel scip metrics: starting workers', {
+      workers: workerCount,
+      files: files.length,
+    });
+
+    const tasks: ParseTask[] = files.map((file) => ({
+      filePath: file.path,
+      language: file.language,
+      existingHash: null,
+      existingSizeBytes: 0,
+    }));
+    const taskChunks = buildTaskChunks(tasks, workerCount);
+    const results = await runParseWorkers(workerScript, taskChunks.length, taskChunks);
+    const resultsByPath = new Map(results.map((result) => [result.filePath, result]));
+
+    let processed = 0;
+    let errors = 0;
+    db.transaction(() => {
+      for (const file of files) {
+        const result = resultsByPath.get(file.path);
+        if (!result || result.kind === 'error' || result.kind === 'skipped') {
+          errors++;
+          continue;
+        }
+
+        let source = result.source;
+        if (source === undefined) {
+          source = sourceCache?.get(result.filePath);
+        }
+        if (source === undefined) {
+          try {
+            source = fs.readFileSync(result.filePath, 'utf8');
+          } catch {
+            errors++;
+            continue;
+          }
+        }
+
+        sourceCache?.set(result.filePath, source);
+        applyScipMetricsAndExtractionData(
+          db,
+          result.filePath,
+          file.language,
+          branch,
+          result.result,
+          scipTreeSitterData,
+          layer,
+          generation,
+          result.symbolMetrics,
+        );
+        processed++;
+      }
+    })();
+
+    log.indexing('parallel scip metrics: complete', { processed, errors });
+    return;
+  }
 
   db.transaction(() => {
     for (const file of files) {
-      // Prefer sourceCache (populated by ScipIndexerStage) to avoid re-reading.
       let source = sourceCache?.get(file.path);
       if (source === undefined) {
         try {
@@ -805,50 +863,120 @@ function computeMetricsForScipFiles(
       if (!extractor) continue;
 
       const result = extractor.extract(tree, source, file.path);
-
-      // Look up existing symbol IDs (inserted by ScipIndexerStage)
-      const fileRow = db.prepare(
-        'SELECT id FROM files WHERE path = ? AND branch = ?',
-      ).get(file.path, branch) as { id: number } | undefined;
-      if (!fileRow) continue;
-
-      const existingSymbols = db.prepare(
-        'SELECT id, name, start_line, end_line FROM symbols WHERE file_id = ?',
-      ).all(fileRow.id) as Array<{ id: number; name: string; start_line: number; end_line: number }>;
-
-      // Build a name+line → id map for matching tree-sitter symbols to SCIP symbols
-      const symbolMap = new Map<string, { id: number; end_line: number }>();
-      for (const sym of existingSymbols) {
-        // Key by name; if duplicate names, prefer earlier id
-        if (!symbolMap.has(sym.name)) {
-          symbolMap.set(sym.name, { id: sym.id, end_line: sym.end_line });
-        }
-      }
-
-      const patchEndLine = db.prepare(
-        'UPDATE symbols SET end_line = ? WHERE id = ?',
+      applyScipMetricsAndExtractionData(
+        db,
+        file.path,
+        file.language,
+        branch,
+        result,
+        scipTreeSitterData,
+        layer,
+        generation,
       );
-
-      for (const sym of result.symbols) {
-        if (!sym.name) continue;
-        // Try exact match first, then bare name (strip receiver prefix like "Server.HandleRequest" → "HandleRequest")
-        let existing = symbolMap.get(sym.name);
-        if (!existing) {
-          const dotIdx = sym.name.lastIndexOf('.');
-          if (dotIdx >= 0) existing = symbolMap.get(sym.name.slice(dotIdx + 1));
-        }
-        if (!existing) continue;
-
-        // Patch symbol end_line if tree-sitter provides a wider range than SCIP
-        if (sym.endLine > existing.end_line) {
-          patchEndLine.run(sym.endLine, existing.id);
-        }
-
-        const metrics = computeSymbolMetrics(sym, file.language);
-        insertMetrics.run(existing.id, metrics.line_count, metrics.param_count, metrics.cyclomatic, metrics.max_nesting, layer, generation);
-      }
     }
   })();
+}
+
+function applyScipMetricsAndExtractionData(
+  db: Database.Database,
+  filePath: string,
+  language: string,
+  branch: string,
+  result: ExtractionResult,
+  scipTreeSitterData: Map<string, ScipTreeSitterFileData>,
+  layer: 'baseline' | 'overlay' = 'baseline',
+  generation = 0,
+  workerSymbolMetrics?: WorkerSymbolMetrics[],
+): void {
+  const insertMetrics = db.prepare(
+    `INSERT OR REPLACE INTO symbol_metrics (symbol_id, line_count, param_count, cyclomatic, max_nesting, layer, generation)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  );
+  const workerMetricsByKey = workerSymbolMetrics
+    ? new Map(workerSymbolMetrics.map((entry) => [symbolMetricKey(entry.name, entry.startLine, entry.endLine), entry.metrics]))
+    : null;
+
+  const fileRow = db.prepare(
+    'SELECT id FROM files WHERE path = ? AND branch = ?',
+  ).get(filePath, branch) as { id: number } | undefined;
+  if (!fileRow) return;
+
+  const existingSymbols = db.prepare(
+    'SELECT id, name, start_line, end_line FROM symbols WHERE file_id = ?',
+  ).all(fileRow.id) as Array<{ id: number; name: string; start_line: number; end_line: number }>;
+
+  const symbolMap = new Map<string, { id: number; end_line: number }>();
+  for (const sym of existingSymbols) {
+    if (!symbolMap.has(sym.name)) {
+      symbolMap.set(sym.name, { id: sym.id, end_line: sym.end_line });
+    }
+  }
+
+  const patchEndLine = db.prepare(
+    'UPDATE symbols SET end_line = ? WHERE id = ?',
+  );
+
+  for (const sym of result.symbols) {
+    if (!sym.name) continue;
+    let existing = symbolMap.get(sym.name);
+    if (!existing) {
+      const dotIdx = sym.name.lastIndexOf('.');
+      if (dotIdx >= 0) existing = symbolMap.get(sym.name.slice(dotIdx + 1));
+    }
+    if (!existing) continue;
+
+    if (sym.endLine > existing.end_line) {
+      patchEndLine.run(sym.endLine, existing.id);
+    }
+
+    const metrics = workerMetricsByKey?.get(symbolMetricKey(sym.name, sym.startLine, sym.endLine))
+      ?? computeSymbolMetrics(sym, language);
+    insertMetrics.run(existing.id, metrics.line_count, metrics.param_count, metrics.cyclomatic, metrics.max_nesting, layer, generation);
+  }
+
+  scipTreeSitterData.set(filePath, buildScipTreeSitterFileData(result));
+}
+
+function symbolMetricKey(name: string, startLine: number, endLine: number): string {
+  return `${name}:${startLine}:${endLine}`;
+}
+
+function buildScipTreeSitterFileData(result: ExtractionResult): ScipTreeSitterFileData {
+  const callRefsByLine = new Map<number, RawCallRef[]>();
+  for (const ref of result.callRefs) {
+    const refs = callRefsByLine.get(ref.line) ?? [];
+    refs.push(ref);
+    callRefsByLine.set(ref.line, refs);
+  }
+
+  const typeRefsByLine = new Map<number, RawTypeRef[]>();
+  for (const ref of result.typeRefs) {
+    const refs = typeRefsByLine.get(ref.line) ?? [];
+    refs.push(ref);
+    typeRefsByLine.set(ref.line, refs);
+  }
+
+  return { callRefsByLine, typeRefsByLine };
+}
+
+function resolveParseWorkerScript(): string | null {
+  const thisFile = fileURLToPath(import.meta.url);
+  const workerScript = path.join(path.dirname(thisFile), 'parse-worker.js');
+  return fs.existsSync(workerScript) ? workerScript : null;
+}
+
+function buildTaskChunks(tasks: ParseTask[], workerCount: number): ParseTask[][] {
+  const sortedTasks = [...tasks].sort((a, b) =>
+    (a.language ?? '').localeCompare(b.language ?? ''),
+  );
+
+  const tasksPerWorker = Math.ceil(sortedTasks.length / workerCount);
+  const taskChunks: ParseTask[][] = [];
+  for (let workerIndex = 0; workerIndex < workerCount; workerIndex++) {
+    const chunk = sortedTasks.slice(workerIndex * tasksPerWorker, (workerIndex + 1) * tasksPerWorker);
+    if (chunk.length > 0) taskChunks.push(chunk);
+  }
+  return taskChunks;
 }
 
 // ─── Checkpoint helpers ───────────────────────────────────────────────────────

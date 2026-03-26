@@ -13,6 +13,7 @@ import { parentPort } from 'node:worker_threads';
 import * as fs from 'node:fs';
 import * as crypto from 'node:crypto';
 import { ParserPool } from '../../parsing/parser.js';
+import { computeSymbolMetrics, type SymbolMetrics } from '../../parsing/complexity.js';
 import type { ExtractionResult } from '../../parsing/extractors/types.js';
 import { CExtractor } from '../../parsing/extractors/c.js';
 import { RustExtractor } from '../../parsing/extractors/rust.js';
@@ -70,7 +71,15 @@ export interface ParseResultSuccess {
   hash: string;
   sizeBytes: number;
   result: ExtractionResult;
+  symbolMetrics: WorkerSymbolMetrics[];
   rootEndRow: number;
+}
+
+export interface WorkerSymbolMetrics {
+  name: string;
+  startLine: number;
+  endLine: number;
+  metrics: SymbolMetrics;
 }
 
 export type ParseResult = ParseResultSkipped | ParseResultError | ParseResultSuccess;
@@ -198,6 +207,18 @@ function parseAndExtract(
   if (!extractor) return null;
 
   const result = extractor.extract(tree, source, filePath);
+  const symbolMetrics = result.symbols
+    .filter((symbol) => !!symbol.name)
+    .map((symbol) => ({
+      name: symbol.name,
+      startLine: symbol.startLine,
+      endLine: symbol.endLine,
+      metrics: computeSymbolMetrics(symbol, language),
+    }));
+  const sanitizedResult: ExtractionResult = {
+    ...result,
+    symbols: result.symbols.map(({ astNode: _astNode, ...symbol }) => symbol),
+  };
   const sizeBytes = Buffer.byteLength(source, 'utf8');
   return {
     kind: 'success',
@@ -206,7 +227,8 @@ function parseAndExtract(
     source: sizeBytes < SOURCE_SIZE_THRESHOLD ? source : undefined,
     hash,
     sizeBytes,
-    result,
+    result: sanitizedResult,
+    symbolMetrics,
     rootEndRow: tree.rootNode.endPosition.row,
   };
 }
