@@ -795,4 +795,434 @@ describe('cli', () => {
       await vi.waitFor(() => expect(exitSpy).toHaveBeenCalledWith(0));
     });
   });
+
+  // ── index subcommand — error paths ─────────────────────────────────────────
+
+  describe('index subcommand — error paths', () => {
+    it('should error when --root is missing', async () => {
+      await loadCli(['index', '--db', freshDb()]);
+      expect(exitSpy).toHaveBeenCalledWith(1);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('--root'),
+      );
+    });
+
+    it('should error when --db is missing', async () => {
+      await loadCli(['index', '--root', tmpDir]);
+      expect(exitSpy).toHaveBeenCalledWith(1);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('--db'),
+      );
+    });
+
+    it('should error when --embeddings and --no-embeddings are both specified', async () => {
+      await loadCli(['index', '--db', freshDb(), '--root', tmpDir, '--embeddings', '--no-embeddings']);
+      expect(exitSpy).toHaveBeenCalledWith(1);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('--embeddings and --no-embeddings cannot be used together'),
+      );
+    });
+
+    it('should error when --history-depth has an invalid value', async () => {
+      await loadCli(['index', '--db', freshDb(), '--root', tmpDir, '--history-depth', 'abc']);
+      expect(exitSpy).toHaveBeenCalledWith(1);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('--history-depth must be a positive number'),
+      );
+    });
+
+    it('should error when --history-depth is zero', async () => {
+      await loadCli(['index', '--db', freshDb(), '--root', tmpDir, '--history-depth', '0']);
+      expect(exitSpy).toHaveBeenCalledWith(1);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('--history-depth must be a positive number'),
+      );
+    });
+
+    it('should error when --history-depth is negative', async () => {
+      await loadCli(['index', '--db', freshDb(), '--root', tmpDir, '--history-depth', '-5']);
+      expect(exitSpy).toHaveBeenCalledWith(1);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('--history-depth must be a positive number'),
+      );
+    });
+
+    it('should error when --language specifies an unknown language', async () => {
+      await loadCli(['index', '--db', freshDb(), '--root', tmpDir, '--language', 'brainfuck']);
+      expect(exitSpy).toHaveBeenCalledWith(1);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('unknown language "brainfuck"'),
+      );
+    });
+
+    it('should pass language extensions when --language is valid', async () => {
+      const dbPath = freshDb();
+      let capturedWalker: unknown;
+      await loadCli(
+        ['index', '--db', dbPath, '--root', tmpDir, '--language', 'typescript'],
+        () => {
+          const factory = () => ({
+            IndexBuilder: class {
+              constructor(_dbPath: string, walkerConfig: unknown) {
+                capturedWalker = walkerConfig;
+              }
+              async build(): Promise<void> {}
+            },
+          });
+          for (const moduleId of INDEXER_MODULE_IDS) {
+            vi.doMock(moduleId, factory);
+          }
+        },
+      );
+      await vi.waitFor(() => {
+        expect(capturedWalker).toBeDefined();
+      });
+      expect((capturedWalker as Record<string, unknown>).extensions).toEqual(['.ts', '.tsx']);
+    });
+
+    it('should pass history options when --history and --history-depth are provided', async () => {
+      const dbPath = freshDb();
+      let capturedOptions: unknown;
+      await loadCli(
+        ['index', '--db', dbPath, '--root', tmpDir, '--history', '--history-depth', '10'],
+        () => {
+          mockIndexBuilderWithOptionsCapture((options) => {
+            capturedOptions = options;
+          });
+        },
+      );
+      await vi.waitFor(() => {
+        expect(capturedOptions).toBeDefined();
+      });
+      expect(capturedOptions).toMatchObject({
+        history: { depth: 10 },
+      });
+    });
+
+    it('should pass history.all when --history-all is provided', async () => {
+      const dbPath = freshDb();
+      let capturedOptions: unknown;
+      await loadCli(
+        ['index', '--db', dbPath, '--root', tmpDir, '--history-all'],
+        () => {
+          mockIndexBuilderWithOptionsCapture((options) => {
+            capturedOptions = options;
+          });
+        },
+      );
+      await vi.waitFor(() => {
+        expect(capturedOptions).toBeDefined();
+      });
+      expect(capturedOptions).toMatchObject({
+        history: { all: true },
+      });
+    });
+
+    it('should pass include and exclude globs', async () => {
+      const dbPath = freshDb();
+      let capturedWalker: unknown;
+      await loadCli(
+        ['index', '--db', dbPath, '--root', tmpDir, '--include', 'src/**', '--exclude', 'node_modules/**'],
+        () => {
+          const factory = () => ({
+            IndexBuilder: class {
+              constructor(_dbPath: string, walkerConfig: unknown) {
+                capturedWalker = walkerConfig;
+              }
+              async build(): Promise<void> {}
+            },
+          });
+          for (const moduleId of INDEXER_MODULE_IDS) {
+            vi.doMock(moduleId, factory);
+          }
+        },
+      );
+      await vi.waitFor(() => {
+        expect(capturedWalker).toBeDefined();
+      });
+      expect((capturedWalker as Record<string, unknown>).includeGlobs).toEqual(['src/**']);
+      expect((capturedWalker as Record<string, unknown>).excludeGlobs).toEqual(['node_modules/**']);
+    });
+
+    it('should pass embeddingsEnabled when --embeddings is provided', async () => {
+      const dbPath = freshDb();
+      let capturedEmbedder: unknown;
+      await loadCli(
+        ['index', '--db', dbPath, '--root', tmpDir, '--embeddings'],
+        () => {
+          const factory = () => ({
+            IndexBuilder: class {
+              constructor(_dbPath: string, _walkerConfig: unknown, embedder: unknown) {
+                capturedEmbedder = embedder;
+              }
+              async build(): Promise<void> {}
+            },
+          });
+          for (const moduleId of INDEXER_MODULE_IDS) {
+            vi.doMock(moduleId, factory);
+          }
+        },
+      );
+      await vi.waitFor(() => {
+        expect(capturedEmbedder).toBeDefined();
+      });
+    });
+
+    it('should pass scip disabled when --no-scip is provided', async () => {
+      const dbPath = freshDb();
+      let capturedOptions: unknown;
+      await loadCli(
+        ['index', '--db', dbPath, '--root', tmpDir, '--no-scip'],
+        () => {
+          mockIndexBuilderWithOptionsCapture((options) => {
+            capturedOptions = options;
+          });
+        },
+      );
+      await vi.waitFor(() => {
+        expect(capturedOptions).toBeDefined();
+      });
+      expect((capturedOptions as Record<string, unknown>).scip).toMatchObject({
+        enabled: false,
+      });
+    });
+
+    it('should pass history options when only --history is provided', async () => {
+      const dbPath = freshDb();
+      let capturedOptions: unknown;
+      await loadCli(
+        ['index', '--db', dbPath, '--root', tmpDir, '--history'],
+        () => {
+          mockIndexBuilderWithOptionsCapture((options) => {
+            capturedOptions = options;
+          });
+        },
+      );
+      await vi.waitFor(() => {
+        expect(capturedOptions).toBeDefined();
+      });
+      expect(capturedOptions).toHaveProperty('history');
+    });
+
+    it('should report an explicit error for malformed .lore.config SCIP settings', async () => {
+      const dbPath = freshDb();
+      nodeFs.writeFileSync(
+        nodePath.join(tmpDir, '.lore.config'),
+        JSON.stringify({
+          scip: {
+            timeoutMs: 'fast',
+          },
+        }),
+        'utf8',
+      );
+
+      await loadCli(['index', '--db', dbPath, '--root', tmpDir]);
+
+      expect(exitSpy).toHaveBeenCalledWith(1);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Error'),
+      );
+    });
+
+    it('should set embedding model from --embedding-model flag', async () => {
+      const dbPath = freshDb();
+      let capturedOptions: unknown;
+      await loadCli(
+        ['index', '--db', dbPath, '--root', tmpDir, '--embedding-model', 'test-model'],
+        () => {
+          mockIndexBuilderWithOptionsCapture((options) => {
+            capturedOptions = options;
+          });
+        },
+      );
+      await vi.waitFor(() => {
+        expect(capturedOptions).toBeDefined();
+      });
+      expect(capturedOptions).toMatchObject({
+        embeddingModel: 'test-model',
+      });
+    });
+  });
+
+  // ── analyze subcommand ─────────────────────────────────────────────────────
+
+  describe('analyze subcommand', () => {
+    it('should error when --db is missing', async () => {
+      await loadCli(['analyze']);
+      expect(exitSpy).toHaveBeenCalledWith(1);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('--db'),
+      );
+    });
+
+    it('should error with invalid --mode', async () => {
+      const dbPath = freshDb();
+      await loadCli(['analyze', '--db', dbPath, '--mode', 'invalid']);
+      expect(exitSpy).toHaveBeenCalledWith(1);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('--mode must be one of'),
+      );
+    });
+
+    it('should error with invalid --edge-kinds', async () => {
+      const dbPath = freshDb();
+      await loadCli(['analyze', '--db', dbPath, '--edge-kinds', 'invalid']);
+      expect(exitSpy).toHaveBeenCalledWith(1);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('--edge-kinds must be one of'),
+      );
+    });
+
+    it('should error with invalid --max-lines', async () => {
+      const dbPath = freshDb();
+      await loadCli(['analyze', '--db', dbPath, '--max-lines', 'abc']);
+      expect(exitSpy).toHaveBeenCalledWith(1);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('--max-lines must be a positive number'),
+      );
+    });
+
+    it('should error when --max-lines is zero', async () => {
+      const dbPath = freshDb();
+      await loadCli(['analyze', '--db', dbPath, '--max-lines', '0']);
+      expect(exitSpy).toHaveBeenCalledWith(1);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('--max-lines must be a positive number'),
+      );
+    });
+
+    it('should run cycles mode on a pre-indexed DB', async () => {
+      // Create a minimal indexed DB
+      const dbPath = freshDb();
+      await loadCli(['index', '--db', dbPath, '--root', tmpDir]);
+      await waitForFile(dbPath);
+
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      stderrSpy.mockClear();
+      consoleErrorSpy.mockClear();
+      exitSpy.mockClear();
+
+      await loadCli(['analyze', '--db', dbPath, '--mode', 'cycles']);
+
+      await vi.waitFor(() => {
+        expect(consoleSpy).toHaveBeenCalled();
+      });
+      const output = consoleSpy.mock.calls[0]?.[0] as string;
+      expect(() => JSON.parse(output)).not.toThrow();
+      consoleSpy.mockRestore();
+    });
+
+    it('should run summary mode by default on a pre-indexed DB', async () => {
+      const dbPath = freshDb();
+      await loadCli(['index', '--db', dbPath, '--root', tmpDir]);
+      await waitForFile(dbPath);
+
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      stderrSpy.mockClear();
+      consoleErrorSpy.mockClear();
+      exitSpy.mockClear();
+
+      await loadCli(['analyze', '--db', dbPath]);
+
+      await vi.waitFor(() => {
+        expect(consoleSpy).toHaveBeenCalled();
+      });
+      const output = consoleSpy.mock.calls[0]?.[0] as string;
+      expect(() => JSON.parse(output)).not.toThrow();
+      consoleSpy.mockRestore();
+    });
+
+    it('should run components mode on a pre-indexed DB', async () => {
+      const dbPath = freshDb();
+      await loadCli(['index', '--db', dbPath, '--root', tmpDir]);
+      await waitForFile(dbPath);
+
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      stderrSpy.mockClear();
+      consoleErrorSpy.mockClear();
+      exitSpy.mockClear();
+
+      await loadCli(['analyze', '--db', dbPath, '--mode', 'components']);
+
+      await vi.waitFor(() => {
+        expect(consoleSpy).toHaveBeenCalled();
+      });
+      consoleSpy.mockRestore();
+    });
+
+    it('should run clusters mode with --max-lines on a pre-indexed DB', async () => {
+      const dbPath = freshDb();
+      await loadCli(['index', '--db', dbPath, '--root', tmpDir]);
+      await waitForFile(dbPath);
+
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      stderrSpy.mockClear();
+      consoleErrorSpy.mockClear();
+      exitSpy.mockClear();
+
+      await loadCli(['analyze', '--db', dbPath, '--mode', 'clusters', '--max-lines', '100']);
+
+      await vi.waitFor(() => {
+        expect(consoleSpy).toHaveBeenCalled();
+      });
+      consoleSpy.mockRestore();
+    });
+  });
+
+  // ── install-scip subcommand ────────────────────────────────────────────────
+
+  describe('install-scip subcommand', () => {
+    it('should list available indexers with --list flag', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      await loadCli(['install-scip', '--list']);
+      await vi.waitFor(() => {
+        expect(consoleSpy).toHaveBeenCalled();
+      });
+      // Should have printed at least one indexer line
+      expect(consoleSpy.mock.calls.length).toBeGreaterThan(0);
+      consoleSpy.mockRestore();
+    });
+
+    it('should attempt installation and report results', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      await loadCli(['install-scip', '--language', 'typescript']);
+      await vi.waitFor(() => {
+        const allOutput = consoleSpy.mock.calls.map(c => String(c[0])).join('\n');
+        expect(allOutput).toMatch(/\d+ installed, \d+ unavailable/u);
+      }, { timeout: 30_000 });
+      consoleSpy.mockRestore();
+    });
+  });
+
+  // ── mcp subcommand — extended paths ────────────────────────────────────────
+
+  describe('mcp subcommand — extended paths', () => {
+    it('should error when --db points to a non-existent file without --root', async () => {
+      const nonExistent = nodePath.join(tmpDir, 'nonexistent-test.db');
+      await loadCli(['mcp', '--db', nonExistent]);
+      await vi.waitFor(() => {
+        expect(exitSpy).toHaveBeenCalledWith(1);
+      });
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('database file not found'),
+      );
+    });
+  });
+
+  // ── refresh subcommand — history-depth error paths ─────────────────────────
+
+  describe('refresh subcommand — history-depth errors', () => {
+    it('should error when refresh --history-depth is invalid', async () => {
+      await loadCli(['refresh', '--db', freshDb(), '--root', tmpDir, '--history-depth', 'abc']);
+      expect(exitSpy).toHaveBeenCalledWith(1);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('--history-depth must be a positive number'),
+      );
+    });
+
+    it('should error when refresh --history-depth is zero', async () => {
+      await loadCli(['refresh', '--db', freshDb(), '--root', tmpDir, '--history-depth', '0']);
+      expect(exitSpy).toHaveBeenCalledWith(1);
+    });
+  });
 });

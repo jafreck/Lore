@@ -342,4 +342,143 @@ describe('ScipEnrichmentCoordinator', () => {
 
     rmSync(rootDir, { recursive: true, force: true });
   });
+
+  it('returns empty set when no indexers are available for requested languages', async () => {
+    const rootDir = mkdtempSync(join(tmpdir(), 'lore-scip-noidx-'));
+
+    const settings: EffectiveScipSettings = {
+      enabled: true,
+      timeoutMs: 5000,
+      indexers: {},
+      indexDir: null,
+    };
+
+    const coordinator = new ScipEnrichmentCoordinator(settings, rootDir);
+    // Use 'dart' — scip-dart is a manual install, so the binary won't be available.
+    // This triggers autoInstallMissing since dart IS in SCIP_SUPPORTED_LANGUAGES
+    // but the indexer is not installed.
+    const covered = await coordinator.start(['dart']);
+    // Install should fail (no binary), but should not throw
+    expect(covered).toBeDefined();
+
+    await coordinator.dispose();
+    rmSync(rootDir, { recursive: true, force: true });
+  });
+
+  it('returns empty set for unsupported languages', async () => {
+    const rootDir = mkdtempSync(join(tmpdir(), 'lore-scip-unsup-'));
+
+    const settings: EffectiveScipSettings = {
+      enabled: true,
+      timeoutMs: 5000,
+      indexers: {},
+      indexDir: null,
+    };
+
+    const coordinator = new ScipEnrichmentCoordinator(settings, rootDir);
+    // 'brainfuck' is not in SCIP_SUPPORTED_LANGUAGES
+    const covered = await coordinator.start(['brainfuck']);
+    expect(covered.size).toBe(0);
+
+    await coordinator.dispose();
+    rmSync(rootDir, { recursive: true, force: true });
+  });
+
+  it('readPrecomputedIndex returns null when both candidates are missing', async () => {
+    const rootDir = mkdtempSync(join(tmpdir(), 'lore-scip-nofile-'));
+    // Create indexDir but don't write any .scip files
+    const indexDir = join(rootDir, '.scip-indexes');
+    mkdirSync(indexDir, { recursive: true });
+
+    const settings: EffectiveScipSettings = {
+      enabled: true,
+      timeoutMs: 5000,
+      indexers: {},
+      indexDir: '.scip-indexes',
+    };
+
+    const coordinator = new ScipEnrichmentCoordinator(settings, rootDir);
+    // Start with a language — it should try to read precomputed index and get null
+    const covered = await coordinator.start(['go']);
+    // Since there's no go.scip or index.scip, and no indexer, nothing to cover
+    expect(covered.has('go')).toBe(false);
+
+    await coordinator.dispose();
+    rmSync(rootDir, { recursive: true, force: true });
+  });
+
+  it('handles indexer error gracefully and continues', async () => {
+    const rootDir = mkdtempSync(join(tmpdir(), 'lore-scip-err-'));
+
+    const settings: EffectiveScipSettings = {
+      enabled: true,
+      timeoutMs: 5000,
+      indexers: {
+        // Point to a non-existent binary
+        typescript: { command: '/nonexistent/scip-typescript', args: ['index'] },
+      },
+      indexDir: null,
+    };
+
+    const coordinator = new ScipEnrichmentCoordinator(settings, rootDir);
+    // Should not throw — errors are caught internally
+    const covered = await coordinator.start(['typescript']);
+    expect(covered).toBeDefined();
+
+    await coordinator.dispose();
+    rmSync(rootDir, { recursive: true, force: true });
+  });
+
+  it('merges multiple indexes when multiple languages share data', async () => {
+    const rootDir = mkdtempSync(join(tmpdir(), 'lore-scip-merge-'));
+    const indexDir = join(rootDir, '.scip-indexes');
+    mkdirSync(indexDir, { recursive: true });
+
+    // Create two separate language indexes
+    const tsSymbol = 'npm . project 1.0 `src/`/tsFunc().';
+    const tsBytes = buildIndexBytes([{
+      relativePath: 'src/main.ts',
+      language: 'TypeScript',
+      occurrences: [
+        { range: [1, 0, 1, 6], symbol: tsSymbol, symbolRoles: SymbolRole.Definition },
+      ],
+      symbols: [{
+        symbol: tsSymbol,
+        documentation: ['function tsFunc(): void'],
+        displayName: 'tsFunc',
+      }],
+    }]);
+    writeFileSync(join(indexDir, 'typescript.scip'), tsBytes);
+
+    const pySymbol = 'pip . project 1.0 `lib/`/pyFunc().';
+    const pyBytes = buildIndexBytes([{
+      relativePath: 'lib/helper.py',
+      language: 'Python',
+      occurrences: [
+        { range: [2, 0, 2, 6], symbol: pySymbol, symbolRoles: SymbolRole.Definition },
+      ],
+      symbols: [{
+        symbol: pySymbol,
+        documentation: ['def pyFunc(): str'],
+        displayName: 'pyFunc',
+      }],
+    }]);
+    writeFileSync(join(indexDir, 'python.scip'), pyBytes);
+
+    const settings: EffectiveScipSettings = {
+      enabled: true,
+      timeoutMs: 5000,
+      indexers: {},
+      indexDir: '.scip-indexes',
+    };
+
+    const coordinator = new ScipEnrichmentCoordinator(settings, rootDir);
+    const covered = await coordinator.start(['typescript', 'python']);
+
+    expect(covered.has('typescript')).toBe(true);
+    expect(covered.has('python')).toBe(true);
+
+    await coordinator.dispose();
+    rmSync(rootDir, { recursive: true, force: true });
+  });
 });

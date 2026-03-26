@@ -78,6 +78,10 @@ function isSuccess(result: DependentsResult | DependentsErrorResult): result is 
   return !('error' in result);
 }
 
+function asObject(value: unknown): Record<string, unknown> {
+  return value as Record<string, unknown>;
+}
+
 function isError(result: DependentsResult | DependentsErrorResult): result is DependentsErrorResult {
   return 'error' in result;
 }
@@ -170,7 +174,7 @@ describe('dependents handler – kind=symbol', () => {
     expect(isSuccess(result)).toBe(true);
     if (!isSuccess(result)) return;
 
-    const caller = result.dependents.callers[0] as Record<string, unknown>;
+    const caller = asObject(result.dependents.callers[0]);
     expect(caller).not.toHaveProperty('line');
     expect(caller).not.toHaveProperty('character');
     expect(caller).not.toHaveProperty('resolution_method');
@@ -184,7 +188,7 @@ describe('dependents handler – kind=symbol', () => {
     expect(isSuccess(result)).toBe(true);
     if (!isSuccess(result)) return;
 
-    const caller = result.dependents.callers[0] as Record<string, unknown>;
+    const caller = asObject(result.dependents.callers[0]);
     expect(caller).toHaveProperty('line');
     expect(caller).toHaveProperty('resolution_method');
   });
@@ -225,7 +229,7 @@ describe('dependents handler – symbol subclasses and type refs', () => {
     if (!isSuccess(result)) return;
 
     expect(result.dependents.subclasses.length).toBe(1);
-    const sub = result.dependents.subclasses[0] as Record<string, unknown>;
+    const sub = asObject(result.dependents.subclasses[0]);
     expect(sub.symbol_name).toBe('ChildService');
     expect(sub.relationship_type).toBe('extends');
   });
@@ -236,7 +240,7 @@ describe('dependents handler – symbol subclasses and type refs', () => {
     if (!isSuccess(result)) return;
 
     expect(result.dependents.type_references.length).toBe(1);
-    const ref = result.dependents.type_references[0] as Record<string, unknown>;
+    const ref = asObject(result.dependents.type_references[0]);
     expect(ref.symbol_name).toBe('consume');
   });
 });
@@ -280,7 +284,7 @@ describe('dependents handler – kind=file', () => {
 
     // Only the cross-file caller (helper from util.ts), not intra-file calls
     expect(result.dependents.callers.length).toBe(1);
-    const caller = result.dependents.callers[0] as Record<string, unknown>;
+    const caller = asObject(result.dependents.callers[0]);
     expect(caller.caller_name).toBe('helper');
     expect(caller.caller_file).toBe('src/util.ts');
   });
@@ -310,10 +314,67 @@ describe('dependents handler – kind=file', () => {
     expect(isSuccess(result)).toBe(true);
     if (!isSuccess(result)) return;
 
-    const importer = result.dependents.importers[0] as Record<string, unknown>;
+    const importer = asObject(result.dependents.importers[0]);
     expect(importer).toHaveProperty('file_id');
     expect(importer).toHaveProperty('file_path');
     expect(importer).not.toHaveProperty('raw_import');
+  });
+});
+
+// ─── File dependents with subclasses and type_refs ─────────────────────────
+
+describe('dependents handler – kind=file with subclasses and type_refs', () => {
+  let db: Database.Database;
+
+  beforeEach(() => {
+    db = createTestDb();
+    // Target file has a class
+    const targetFileId = insertFile(db, 'src/base.ts');
+    const childFileId = insertFile(db, 'src/child.ts');
+    const userFileId = insertFile(db, 'src/user.ts');
+
+    const baseClass = insertSymbol(db, targetFileId, 'Base', 'class');
+    const childClass = insertSymbol(db, childFileId, 'Child', 'class');
+    const userFn = insertSymbol(db, userFileId, 'useBase', 'function');
+
+    // Child extends Base (subclass of symbol in target file)
+    insertInheritanceEdge(db, childFileId, childClass, baseClass, 'Base');
+    // useBase references Base as a type
+    insertTypeRef(db, userFileId, userFn, baseClass, 'Base');
+  });
+
+  it('should return subclasses in file-kind query', () => {
+    const result = handler(db, { query: 'src/base.ts', kind: 'file' });
+    expect(isSuccess(result)).toBe(true);
+    if (!isSuccess(result)) return;
+
+    expect(result.dependents.subclasses.length).toBe(1);
+    expect(asObject(result.dependents.subclasses[0]).symbol_name).toBe('Child');
+  });
+
+  it('should return type_references in file-kind query', () => {
+    const result = handler(db, { query: 'src/base.ts', kind: 'file' });
+    expect(isSuccess(result)).toBe(true);
+    if (!isSuccess(result)) return;
+
+    expect(result.dependents.type_references.length).toBe(1);
+    expect(asObject(result.dependents.type_references[0]).symbol_name).toBe('useBase');
+  });
+
+  it('should compact subclasses and type_references in file-kind query', () => {
+    const result = handler(db, { query: 'src/base.ts', kind: 'file', compact: true });
+    expect(isSuccess(result)).toBe(true);
+    if (!isSuccess(result)) return;
+
+    expect(result.dependents.subclasses.length).toBe(1);
+    const sub = asObject(result.dependents.subclasses[0]);
+    expect(sub).toHaveProperty('symbol_name');
+    expect(sub).not.toHaveProperty('line');
+
+    expect(result.dependents.type_references.length).toBe(1);
+    const tref = asObject(result.dependents.type_references[0]);
+    expect(tref).toHaveProperty('symbol_name');
+    expect(tref).not.toHaveProperty('line');
   });
 });
 
@@ -340,7 +401,7 @@ describe('dependents handler – transitive closure', () => {
 
     expect(result.dependents.callers.length).toBe(2);
     const callerNames = result.dependents.callers.map(
-      (c) => (c as Record<string, unknown>).caller_name,
+      (c) => asObject(c).caller_name,
     );
     expect(callerNames).toContain('funcA');
     expect(callerNames).toContain('funcB');
@@ -368,7 +429,7 @@ describe('dependents handler – transitive import chain', () => {
     if (!isSuccess(result)) return;
 
     expect(result.dependents.importers.length).toBe(2);
-    const paths = result.dependents.importers.map((i) => (i as Record<string, unknown>).file_path);
+    const paths = result.dependents.importers.map((i) => asObject(i).file_path);
     expect(paths).toContain('src/mid.ts');
     expect(paths).toContain('src/app.ts');
   });
@@ -399,7 +460,7 @@ describe('dependents handler – branch filtering', () => {
     if (!isSuccess(result)) return;
 
     expect(result.dependents.callers.length).toBe(1);
-    expect((result.dependents.callers[0] as Record<string, unknown>).caller_name).toBe('mainCaller');
+    expect(asObject(result.dependents.callers[0]).caller_name).toBe('mainCaller');
   });
 });
 
@@ -461,5 +522,88 @@ describe('dependents handler – empty dependents', () => {
     expect(result.dependents.subclasses).toEqual([]);
     expect(result.dependents.type_references).toEqual([]);
     expect(result.total_count).toBe(0);
+  });
+});
+
+// ─── Subclass dependents ──────────────────────────────────────────────────────
+
+describe('dependents handler – subclass queries', () => {
+  let db: Database.Database;
+
+  beforeEach(() => {
+    db = createTestDb();
+    const baseFileId = insertFile(db, 'src/base.ts');
+    const childFileId = insertFile(db, 'src/child.ts');
+
+    const baseClass = insertSymbol(db, baseFileId, 'BaseService', 'class');
+    const childClass = insertSymbol(db, childFileId, 'ChildService', 'class');
+
+    // ChildService extends BaseService
+    insertInheritanceEdge(db, childFileId, childClass, baseClass, 'BaseService', 'extends');
+  });
+
+  it('should return subclass dependents for a symbol', () => {
+    const result = handler(db, { query: 'BaseService', kind: 'symbol' });
+    expect(isSuccess(result)).toBe(true);
+    if (!isSuccess(result)) return;
+
+    expect(result.dependents.subclasses.length).toBe(1);
+    const sub = asObject(result.dependents.subclasses[0]);
+    expect(sub.symbol_name).toBe('ChildService');
+    expect(sub.relationship_type).toBe('extends');
+  });
+
+  it('should omit provenance fields in compact subclass output', () => {
+    const result = handler(db, { query: 'BaseService', kind: 'symbol', compact: true });
+    expect(isSuccess(result)).toBe(true);
+    if (!isSuccess(result)) return;
+
+    expect(result.dependents.subclasses.length).toBe(1);
+    const sub = asObject(result.dependents.subclasses[0]);
+    expect(sub).toHaveProperty('symbol_name');
+    expect(sub).toHaveProperty('relationship_type');
+    // compact mode should not include resolution fields like line/character
+    expect(sub).not.toHaveProperty('line');
+  });
+});
+
+// ─── Type reference dependents ────────────────────────────────────────────────
+
+describe('dependents handler – type reference queries', () => {
+  let db: Database.Database;
+
+  beforeEach(() => {
+    db = createTestDb();
+    const typeFileId = insertFile(db, 'src/types.ts');
+    const userFileId = insertFile(db, 'src/user.ts');
+
+    const configType = insertSymbol(db, typeFileId, 'Config', 'type');
+    const userSym = insertSymbol(db, userFileId, 'loadConfig', 'function');
+
+    // loadConfig uses Config as a type reference
+    insertTypeRef(db, userFileId, userSym, configType, 'Config');
+  });
+
+  it('should return type reference dependents for a symbol', () => {
+    const result = handler(db, { query: 'Config', kind: 'symbol' });
+    expect(isSuccess(result)).toBe(true);
+    if (!isSuccess(result)) return;
+
+    expect(result.dependents.type_references.length).toBe(1);
+    const ref = asObject(result.dependents.type_references[0]);
+    expect(ref.symbol_name).toBe('loadConfig');
+  });
+
+  it('should omit provenance fields in compact type reference output', () => {
+    const result = handler(db, { query: 'Config', kind: 'symbol', compact: true });
+    expect(isSuccess(result)).toBe(true);
+    if (!isSuccess(result)) return;
+
+    expect(result.dependents.type_references.length).toBe(1);
+    const ref = asObject(result.dependents.type_references[0]);
+    expect(ref).toHaveProperty('symbol_name');
+    expect(ref).toHaveProperty('ref_kind');
+    // compact mode should not include line/character
+    expect(ref).not.toHaveProperty('line');
   });
 });

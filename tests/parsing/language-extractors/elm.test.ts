@@ -42,3 +42,11 @@ describe('Elm import extraction', () => {
     expect(r.imports).toContainEqual(expect.objectContaining({ source: 'String' }));
   });
 });
+
+describe('Elm call reference extraction', () => {
+  const r = fixture('calls.elm');
+  test('extracts functions from call fixture', () => {
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'helper', kind: 'function' }));
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'main', kind: 'function' }));
+  });
+});
