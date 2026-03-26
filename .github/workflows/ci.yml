@@ -38,7 +38,7 @@ jobs:
         run: npm run coverage
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5.4.3
+        uses: codecov/codecov-action@v6.0.0
         with:
           use_oidc: true
           files: ./coverage/coverage-final.json
