@@ -421,3 +421,76 @@ describe('ScipIndexerStage import resolution', () => {
     ctx.db.close();
   });
 });
+
+// ─── Kind inference from SCIP descriptor suffixes ─────────────────────────────
+
+describe('ScipIndexerStage — symbol kind inference', () => {
+  it('maps SCIP descriptor suffixes to Lore symbol kinds', async () => {
+    const rootDir = makeTmpDir('lore-scip-kinds-');
+    const indexDir = join(rootDir, '.scip-indexes');
+    mkdirSync(indexDir, { recursive: true });
+
+    // Write one source file so the walker finds it
+    writeFileSync(join(rootDir, 'kinds.ts'), 'export {};\n');
+
+    // Build SCIP index with symbols using every descriptor suffix
+    const bytes = buildScipIndexBytes([{
+      relativePath: 'kinds.ts',
+      language: 'TypeScript',
+      occurrences: [
+        // type (#) with enum hint → enum
+        { range: [0, 0, 0, 5], symbol: 'scip-ts npm pkg 1.0 Color#', symbolRoles: SymbolRole.Definition },
+        // term (.) with enum member hint → enum_member
+        { range: [1, 0, 1, 3], symbol: 'scip-ts npm pkg 1.0 Color#Red.', symbolRoles: SymbolRole.Definition },
+        // term (.) with const hint → constant
+        { range: [2, 0, 2, 8], symbol: 'scip-ts npm pkg 1.0 MAX_SIZE.', symbolRoles: SymbolRole.Definition },
+        // term (.) with property hint → property
+        { range: [3, 0, 3, 4], symbol: 'scip-ts npm pkg 1.0 MyClass#name.', symbolRoles: SymbolRole.Definition },
+        // meta (:) → property
+        { range: [4, 0, 4, 1], symbol: 'scip-ts npm pkg 1.0 x:', symbolRoles: SymbolRole.Definition },
+        // type (#) with interface hint → interface
+        { range: [5, 0, 5, 4], symbol: 'scip-ts npm pkg 1.0 IFoo#', symbolRoles: SymbolRole.Definition },
+        // type (#) with type hint → type_alias
+        { range: [6, 0, 6, 7], symbol: 'scip-ts npm pkg 1.0 MyAlias#', symbolRoles: SymbolRole.Definition },
+        // type (#) — plain class (default)
+        { range: [7, 0, 7, 7], symbol: 'scip-ts npm pkg 1.0 Widget#', symbolRoles: SymbolRole.Definition },
+        // method — function inside a type  
+        { range: [8, 0, 8, 6], symbol: 'scip-ts npm pkg 1.0 Widget#render().', symbolRoles: SymbolRole.Definition },
+      ],
+      symbols: [
+        { symbol: 'scip-ts npm pkg 1.0 Color#', displayName: 'Color', documentation: ['enum Color'] },
+        { symbol: 'scip-ts npm pkg 1.0 Color#Red.', displayName: 'Red', documentation: ['(enum member)'] },
+        { symbol: 'scip-ts npm pkg 1.0 MAX_SIZE.', displayName: 'MAX_SIZE', documentation: ['const MAX_SIZE = 100'] },
+        { symbol: 'scip-ts npm pkg 1.0 MyClass#name.', displayName: 'name', documentation: ['(property)'] },
+        { symbol: 'scip-ts npm pkg 1.0 x:', displayName: 'x', documentation: [] },
+        { symbol: 'scip-ts npm pkg 1.0 IFoo#', displayName: 'IFoo', documentation: ['interface IFoo'] },
+        { symbol: 'scip-ts npm pkg 1.0 MyAlias#', displayName: 'MyAlias', documentation: ['type MyAlias = string'] },
+        { symbol: 'scip-ts npm pkg 1.0 Widget#', displayName: 'Widget', documentation: ['class Widget'] },
+        { symbol: 'scip-ts npm pkg 1.0 Widget#render().', displayName: 'render', documentation: ['method render()'] },
+      ],
+    }]);
+    writeFileSync(join(indexDir, 'index.scip'), bytes);
+
+    const dbPath = join(rootDir, 'test.db');
+    const ctx = makeContext(rootDir, dbPath);
+    ctx.files = [{ path: join(rootDir, 'kinds.ts'), language: 'typescript' }];
+
+    const stage = new ScipIndexerStage();
+    await stage.execute(ctx, 'build');
+
+    const symbols = ctx.db.prepare('SELECT name, kind FROM symbols ORDER BY name').all() as Array<{ name: string; kind: string }>;
+    const kindMap = Object.fromEntries(symbols.map(s => [s.name, s.kind]));
+
+    expect(kindMap['Color']).toBe('enum');
+    expect(kindMap['Red']).toBe('enum_member');
+    expect(kindMap['MAX_SIZE']).toBe('constant');
+    expect(kindMap['name']).toBe('property');
+    expect(kindMap['x']).toBe('property');
+    expect(kindMap['IFoo']).toBe('interface');
+    expect(kindMap['MyAlias']).toBe('type_alias');
+    expect(kindMap['Widget']).toBe('class');
+    expect(kindMap['render']).toBe('method');
+
+    ctx.db.close();
+  });
+});

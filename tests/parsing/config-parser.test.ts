@@ -157,4 +157,45 @@ describe('parseConfigFile', () => {
   it('throws for malformed TOML input', () => {
     expect(() => parseConfigFile('broken.toml', 'invalid line')).toThrow(/Invalid TOML config/u);
   });
+
+  it('parses TOML with nested tables and arrays', () => {
+    const entries = parseConfigFile(
+      'app.toml',
+      '[database]\nhost = "localhost"\nport = 5432\n\n[database.pool]\nmax = 10\nidle_timeout = 30\n',
+    );
+
+    expect(entries.length).toBeGreaterThan(0);
+    expect(entries).toContainEqual(expect.objectContaining({ key: 'database.host', value: 'localhost' }));
+    expect(entries).toContainEqual(expect.objectContaining({ key: 'database.port', value: '5432' }));
+  });
+
+  it('parses TOML with quoted keys and inline arrays', () => {
+    const entries = parseConfigFile(
+      'spec.toml',
+      'tags = ["web", "api"]\nenabled = false\n',
+    );
+    expect(entries.length).toBeGreaterThan(0);
+    expect(entries).toContainEqual(expect.objectContaining({ key: 'tags', inferredType: 'array' }));
+    expect(entries).toContainEqual(expect.objectContaining({ key: 'enabled', value: 'false', inferredType: 'boolean' }));
+  });
+
+  it('parses JSON with nested objects', () => {
+    const entries = parseConfigFile(
+      'settings.json',
+      JSON.stringify({ server: { port: 3000, host: '0.0.0.0' }, debug: true }),
+    );
+    expect(entries.length).toBe(3);
+    expect(entries).toContainEqual(expect.objectContaining({ key: 'server.port', value: '3000' }));
+    expect(entries).toContainEqual(expect.objectContaining({ key: 'debug', value: 'true' }));
+  });
+
+  it('parses YAML with deeply nested objects', () => {
+    const entries = parseConfigFile(
+      'config.yaml',
+      'app:\n  db:\n    host: localhost\n    port: 5432\n  debug: true\n',
+    );
+    expect(entries.length).toBeGreaterThan(0);
+    expect(entries).toContainEqual(expect.objectContaining({ key: 'app.db.host', value: 'localhost' }));
+    expect(entries).toContainEqual(expect.objectContaining({ key: 'app.debug', value: 'true' }));
+  });
 });

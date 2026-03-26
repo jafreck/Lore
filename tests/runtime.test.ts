@@ -2,7 +2,7 @@
  * Unit tests for LoreRuntime lifecycle.
  */
 
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { mkdtempSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -74,5 +74,63 @@ describe('LoreRuntime', () => {
     const cfg = stubConfig();
     runtime = new LoreRuntime(cfg, initLogger({ level: LogLevel.SILENT }));
     expect(runtime.config).toBe(cfg);
+  });
+
+  it('should create embedder when embeddingModel is configured', async () => {
+    runtime = new LoreRuntime(
+      stubConfig({ embeddingModel: 'test-model' }),
+      initLogger({ level: LogLevel.SILENT }),
+    );
+    await runtime.start();
+    // The LazyEmbeddingProvider should be created (not initialized yet)
+    expect(runtime.embedder).toBeDefined();
+    expect(runtime.embedder!.modelName).toBe('test-model');
+  });
+
+  it('should start in watch mode and create a refresher', async () => {
+    const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    const cfg = stubConfig({ refreshMode: 'watch' });
+    // Create a valid DB file for the watcher
+    const { openDb } = await import('../src/db/schema.js');
+    const db = openDb(cfg.dbPath);
+    db.close();
+
+    runtime = new LoreRuntime(cfg, initLogger({ level: LogLevel.SILENT }));
+    await runtime.start();
+    expect(runtime.refresher).toBeDefined();
+    stderrSpy.mockRestore();
+  });
+
+  it('should start in poll mode and create a refresher', async () => {
+    const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    const cfg = stubConfig({ refreshMode: 'poll' });
+    // Create a valid DB file for the poller
+    const { openDb } = await import('../src/db/schema.js');
+    const db = openDb(cfg.dbPath);
+    db.close();
+
+    runtime = new LoreRuntime(cfg, initLogger({ level: LogLevel.SILENT }));
+    await runtime.start();
+    expect(runtime.refresher).toBeDefined();
+    stderrSpy.mockRestore();
+  });
+
+  it('should dispose embedder and refresher during shutdown', async () => {
+    const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    const cfg = stubConfig({ refreshMode: 'poll', embeddingModel: 'test-model' });
+    const { openDb } = await import('../src/db/schema.js');
+    const db = openDb(cfg.dbPath);
+    db.close();
+
+    runtime = new LoreRuntime(cfg, initLogger({ level: LogLevel.SILENT }));
+    await runtime.start();
+    expect(runtime.refresher).toBeDefined();
+    expect(runtime.embedder).toBeDefined();
+
+    await runtime.shutdown();
+    expect(runtime.refresher).toBeUndefined();
+    expect(runtime.embedder).toBeUndefined();
+    expect(runtime.started).toBe(false);
+    stderrSpy.mockRestore();
   });
 });

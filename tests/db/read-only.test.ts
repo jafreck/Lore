@@ -28,6 +28,16 @@ import {
   listCommitsByRef,
   hasCommitEmbeddings,
   listCommitsBySemanticQuery,
+  getFreshness,
+  listTypeRefs,
+  listSymbolRelationships,
+  listCommitCadence,
+  listCommitSizes,
+  listCommitChurnByFile,
+  listCommitAuthorStats,
+  listCommitMessagePrefixes,
+  listCommitSchedule,
+  listCommitBranchActivity,
   type FileRow,
   type SymbolRow,
 } from '../../src/db/read-only.js';
@@ -94,6 +104,46 @@ function createTestDb(): Database.Database {
       resolved_return_type TEXT,
       definition_uri       TEXT,
       definition_path      TEXT
+    );
+    CREATE TABLE file_imports (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      file_id     INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+      raw_import  TEXT    NOT NULL,
+      resolved_id INTEGER REFERENCES files(id) ON DELETE SET NULL
+    );
+    CREATE TABLE symbol_refs (
+      id                INTEGER PRIMARY KEY AUTOINCREMENT,
+      caller_id         INTEGER NOT NULL REFERENCES symbols(id) ON DELETE CASCADE,
+      callee_id         INTEGER REFERENCES symbols(id) ON DELETE SET NULL,
+      callee_name       TEXT    NOT NULL DEFAULT '',
+      call_line         INTEGER NOT NULL DEFAULT 0,
+      call_character    INTEGER,
+      call_kind         TEXT    NOT NULL DEFAULT 'call',
+      file_id           INTEGER REFERENCES files(id) ON DELETE CASCADE,
+      resolution_method TEXT    NOT NULL DEFAULT 'unresolved'
+    );
+    CREATE TABLE type_refs (
+      id                INTEGER PRIMARY KEY AUTOINCREMENT,
+      file_id           INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+      symbol_id         INTEGER REFERENCES symbols(id) ON DELETE SET NULL,
+      type_id           INTEGER REFERENCES symbols(id) ON DELETE SET NULL,
+      type_name         TEXT    NOT NULL,
+      type_name_bare    TEXT    NOT NULL,
+      ref_kind          TEXT    NOT NULL DEFAULT 'type_annotation',
+      ref_line          INTEGER NOT NULL DEFAULT 0,
+      ref_character     INTEGER,
+      resolution_method TEXT    NOT NULL DEFAULT 'unresolved'
+    );
+    CREATE TABLE symbol_relationships (
+      id                INTEGER PRIMARY KEY AUTOINCREMENT,
+      file_id           INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+      source_symbol_id  INTEGER REFERENCES symbols(id) ON DELETE SET NULL,
+      target_symbol_id  INTEGER REFERENCES symbols(id) ON DELETE SET NULL,
+      target_symbol_name TEXT   NOT NULL,
+      relationship_type TEXT    NOT NULL,
+      line              INTEGER,
+      character         INTEGER,
+      resolution_method TEXT    NOT NULL DEFAULT 'unresolved'
     );
   `);
   return db;
@@ -996,5 +1046,488 @@ describe('commit helpers', () => {
     loadCommitEmbeddingsTable(db, 3);
     insertCommitEmbedding(db, 'bbb222', [1, 0, 0]);
     expect(listCommitsBySemanticQuery(db, [], 10)).toEqual([]);
+  });
+});
+
+// ─── getFreshness ─────────────────────────────────────────────────────────────
+
+describe('getFreshness', () => {
+  let db: Database.Database;
+
+  beforeEach(() => {
+    db = createTestDb();
+  });
+
+  it('should return baseline source when no dirty_files table exists', () => {
+    const info = getFreshness(db);
+    expect(info.source).toBe('baseline');
+    expect(info.dirty_file_count).toBe(0);
+    expect(typeof info.baseline_age_s).toBe('number');
+  });
+
+  it('should return baseline source when dirty_files table exists but is empty', () => {
+    db.exec('CREATE TABLE IF NOT EXISTS dirty_files (path TEXT PRIMARY KEY)');
+    const info = getFreshness(db);
+    expect(info.source).toBe('baseline');
+    expect(info.dirty_file_count).toBe(0);
+  });
+
+  it('should return mixed source when dirty_files has entries', () => {
+    db.exec('CREATE TABLE IF NOT EXISTS dirty_files (path TEXT PRIMARY KEY)');
+    db.exec("INSERT INTO dirty_files VALUES ('/src/a.ts')");
+    const info = getFreshness(db);
+    expect(info.source).toBe('mixed');
+    expect(info.dirty_file_count).toBe(1);
+  });
+
+  it('should compute baseline_age_s from files table', () => {
+    // Insert a file indexed 60 seconds ago
+    const indexedAt = Math.floor(Date.now() / 1000) - 60;
+    db.prepare("INSERT INTO files (path, branch, language, indexed_at) VALUES ('/f.ts', '', 'typescript', ?)").run(indexedAt);
+    const info = getFreshness(db);
+    expect(info.baseline_age_s).toBeGreaterThanOrEqual(59);
+    expect(info.baseline_age_s).toBeLessThanOrEqual(62);
+  });
+});
+
+// ─── listTypeRefs ─────────────────────────────────────────────────────────────
+
+describe('listTypeRefs', () => {
+  let db: Database.Database;
+
+  beforeEach(() => {
+    db = createTestDb();
+    // Insert a file and two symbols
+    db.prepare("INSERT INTO files (path, branch, language) VALUES ('/src/types.ts', 'main', 'typescript')").run();
+    const fileId = 1;
+    db.prepare("INSERT INTO symbols (file_id, name, kind, start_line, end_line) VALUES (?, 'Config', 'type', 1, 5)").run(fileId);
+    db.prepare("INSERT INTO symbols (file_id, name, kind, start_line, end_line) VALUES (?, 'loadConfig', 'function', 10, 20)").run(fileId);
+    // Insert a type ref: loadConfig references Config
+    db.prepare("INSERT INTO type_refs (file_id, symbol_id, type_id, type_name, type_name_bare, ref_kind, ref_line, ref_character, resolution_method) VALUES (?, 2, 1, 'Config', 'Config', 'type_annotation', 12, 10, 'name')").run(fileId);
+  });
+
+  it('should return type refs with default options', () => {
+    const refs = listTypeRefs(db);
+    expect(refs.length).toBe(1);
+    expect(refs[0]!.type_name).toBe('Config');
+    expect(refs[0]!.symbol_name).toBe('loadConfig');
+  });
+
+  it('should filter by resolvedOnly', () => {
+    const refs = listTypeRefs(db, { resolvedOnly: true });
+    expect(refs.length).toBe(1);
+  });
+
+  it('should filter by branch', () => {
+    const refs = listTypeRefs(db, { branch: 'main' });
+    expect(refs.length).toBe(1);
+    const noRefs = listTypeRefs(db, { branch: 'dev' });
+    expect(noRefs.length).toBe(0);
+  });
+
+  it('should filter by fileId', () => {
+    const refs = listTypeRefs(db, { fileId: 1 });
+    expect(refs.length).toBe(1);
+    const noRefs = listTypeRefs(db, { fileId: 999 });
+    expect(noRefs.length).toBe(0);
+  });
+
+  it('should filter by methods', () => {
+    const refs = listTypeRefs(db, { methods: ['name'] });
+    expect(refs.length).toBe(1);
+    const noRefs = listTypeRefs(db, { methods: ['scip'] });
+    expect(noRefs.length).toBe(0);
+  });
+
+  it('should respect limit', () => {
+    const refs = listTypeRefs(db, { limit: 0 });
+    expect(refs.length).toBe(0);
+  });
+});
+
+// ─── listSymbolRelationships ──────────────────────────────────────────────────
+
+describe('listSymbolRelationships', () => {
+  let db: Database.Database;
+
+  beforeEach(() => {
+    db = createTestDb();
+    db.prepare("INSERT INTO files (path, branch, language) VALUES ('/src/base.ts', 'main', 'typescript')").run();
+    const fileId = 1;
+    db.prepare("INSERT INTO symbols (file_id, name, kind, start_line, end_line) VALUES (?, 'BaseClass', 'class', 1, 10)").run(fileId);
+    db.prepare("INSERT INTO symbols (file_id, name, kind, start_line, end_line) VALUES (?, 'ChildClass', 'class', 15, 25)").run(fileId);
+    // ChildClass extends BaseClass
+    db.prepare("INSERT INTO symbol_relationships (file_id, source_symbol_id, target_symbol_id, target_symbol_name, relationship_type, line, character, resolution_method) VALUES (?, 2, 1, 'BaseClass', 'extends', 15, 0, 'resolved')").run(fileId);
+  });
+
+  it('should return symbol relationships with default options', () => {
+    const rels = listSymbolRelationships(db);
+    expect(rels.length).toBe(1);
+    expect(rels[0]!.target_symbol_name).toBe('BaseClass');
+    expect(rels[0]!.relationship_type).toBe('extends');
+  });
+
+  it('should filter by resolvedOnly', () => {
+    const rels = listSymbolRelationships(db, { resolvedOnly: true });
+    expect(rels.length).toBe(1);
+  });
+
+  it('should filter by branch', () => {
+    const rels = listSymbolRelationships(db, { branch: 'main' });
+    expect(rels.length).toBe(1);
+    const noRels = listSymbolRelationships(db, { branch: 'dev' });
+    expect(noRels.length).toBe(0);
+  });
+
+  it('should filter by relationshipType', () => {
+    const rels = listSymbolRelationships(db, { relationshipType: 'extends' });
+    expect(rels.length).toBe(1);
+    const noRels = listSymbolRelationships(db, { relationshipType: 'implements' });
+    expect(noRels.length).toBe(0);
+  });
+
+  it('should filter by methods', () => {
+    const rels = listSymbolRelationships(db, { methods: ['resolved'] });
+    expect(rels.length).toBe(1);
+    const noRels = listSymbolRelationships(db, { methods: ['scip'] });
+    expect(noRels.length).toBe(0);
+  });
+
+  it('should filter by fileId', () => {
+    const rels = listSymbolRelationships(db, { fileId: 1 });
+    expect(rels.length).toBe(1);
+    const noRels = listSymbolRelationships(db, { fileId: 999 });
+    expect(noRels.length).toBe(0);
+  });
+
+  it('should respect limit', () => {
+    const rels = listSymbolRelationships(db, { limit: 0 });
+    expect(rels.length).toBe(0);
+  });
+});
+
+// ─── listResolvedEdges ────────────────────────────────────────────────────────
+
+describe('listResolvedEdges', () => {
+  let db: Database.Database;
+
+  beforeEach(() => {
+    db = createTestDb();
+    // Insert files and symbols
+    db.prepare("INSERT INTO files (path, branch, language) VALUES ('/src/caller.ts', 'main', 'typescript')").run();
+    db.prepare("INSERT INTO files (path, branch, language) VALUES ('/src/callee.ts', 'main', 'typescript')").run();
+    db.prepare("INSERT INTO symbols (file_id, name, kind, start_line, end_line) VALUES (1, 'funcA', 'function', 1, 10)").run();
+    db.prepare("INSERT INTO symbols (file_id, name, kind, start_line, end_line) VALUES (2, 'funcB', 'function', 1, 5)").run();
+    // funcA calls funcB (resolved)
+    db.prepare("INSERT INTO symbol_refs (caller_id, callee_id, callee_name, call_line, call_character, call_kind, file_id, resolution_method) VALUES (1, 2, 'funcB', 5, 10, 'call', 1, 'resolved')").run();
+    // funcA has an unresolved call
+    db.prepare("INSERT INTO symbol_refs (caller_id, callee_id, callee_name, call_line, call_character, call_kind, file_id, resolution_method) VALUES (1, NULL, 'unknown', 7, 0, 'call', 1, 'unresolved')").run();
+  });
+
+  it('should return all edges with default options', () => {
+    const edges = listResolvedEdges(db);
+    expect(edges.length).toBe(2);
+  });
+
+  it('should filter by resolvedOnly', () => {
+    const edges = listResolvedEdges(db, { resolvedOnly: true });
+    expect(edges.length).toBe(1);
+    expect(edges[0]!.callee_name).toBe('funcB');
+  });
+
+  it('should filter by fileId', () => {
+    const edges = listResolvedEdges(db, { fileId: 1 });
+    expect(edges.length).toBe(2);
+    const noEdges = listResolvedEdges(db, { fileId: 999 });
+    expect(noEdges.length).toBe(0);
+  });
+
+  it('should filter by branch', () => {
+    const edges = listResolvedEdges(db, { branch: 'main' });
+    expect(edges.length).toBe(2);
+    const noEdges = listResolvedEdges(db, { branch: 'dev' });
+    expect(noEdges.length).toBe(0);
+  });
+
+  it('should filter by methods', () => {
+    const edges = listResolvedEdges(db, { methods: ['resolved'] });
+    expect(edges.length).toBe(1);
+    const unresolvedEdges = listResolvedEdges(db, { methods: ['unresolved'] });
+    expect(unresolvedEdges.length).toBe(1);
+  });
+
+  it('should respect limit', () => {
+    const edges = listResolvedEdges(db, { limit: 1 });
+    expect(edges.length).toBe(1);
+  });
+
+  it('should combine multiple filters', () => {
+    const edges = listResolvedEdges(db, { resolvedOnly: true, branch: 'main', methods: ['resolved'] });
+    expect(edges.length).toBe(1);
+    expect(edges[0]!.caller_name).toBe('funcA');
+    expect(edges[0]!.callee_name).toBe('funcB');
+  });
+});
+
+// ─── listFilesByPathPrefix ────────────────────────────────────────────────────
+
+describe('listFilesByPathPrefix', () => {
+  let db: Database.Database;
+
+  beforeEach(() => {
+    db = createTestDb();
+    db.prepare("INSERT INTO files (path, branch, language) VALUES ('/src/main.ts', 'main', 'typescript')").run();
+    db.prepare("INSERT INTO files (path, branch, language) VALUES ('/src/utils/helpers.ts', 'main', 'typescript')").run();
+    db.prepare("INSERT INTO files (path, branch, language) VALUES ('/lib/index.ts', 'main', 'typescript')").run();
+  });
+
+  it('should return files matching a path prefix', () => {
+    const files = listFilesByPathPrefix(db, '/src');
+    expect(files.length).toBe(2);
+  });
+
+  it('should handle trailing slash in prefix', () => {
+    const files = listFilesByPathPrefix(db, '/src/');
+    expect(files.length).toBe(2);
+  });
+
+  it('should return empty for non-matching prefix', () => {
+    const files = listFilesByPathPrefix(db, '/nonexistent');
+    expect(files.length).toBe(0);
+  });
+
+  it('should return empty for empty prefix', () => {
+    const files = listFilesByPathPrefix(db, '');
+    expect(files.length).toBe(0);
+  });
+
+  it('should filter by branch', () => {
+    const files = listFilesByPathPrefix(db, '/src', 'main');
+    expect(files.length).toBe(2);
+    const noFiles = listFilesByPathPrefix(db, '/src', 'dev');
+    expect(noFiles.length).toBe(0);
+  });
+
+  it('should return exact match for file path', () => {
+    const files = listFilesByPathPrefix(db, '/src/main.ts');
+    expect(files.length).toBe(1);
+    expect(files[0]!.path).toBe('/src/main.ts');
+  });
+
+  it('should handle root path prefix', () => {
+    const files = listFilesByPathPrefix(db, '/');
+    expect(files.length).toBe(3);
+  });
+
+  it('should respect limit', () => {
+    const files = listFilesByPathPrefix(db, '/src', undefined, 1);
+    expect(files.length).toBe(1);
+  });
+
+  it('should escape wildcards in path prefix', () => {
+    db.prepare("INSERT INTO files (path, branch, language) VALUES ('/data%dir/file.ts', 'main', 'typescript')").run();
+    // The % in the path should be escaped so it matches literally
+    const files = listFilesByPathPrefix(db, '/data%dir');
+    expect(files.length).toBe(1);
+    expect(files[0]!.path).toBe('/data%dir/file.ts');
+  });
+});
+
+// ─── getExternalSymbolsByName ─────────────────────────────────────────────────
+
+describe('getExternalSymbolsByName', () => {
+  let db: Database.Database;
+
+  beforeEach(() => {
+    db = createTestDb();
+    db.prepare("INSERT INTO external_symbols (package_name, symbol_name, symbol_kind) VALUES ('lodash', 'debounce', 'function')").run();
+    db.prepare("INSERT INTO external_symbols (package_name, symbol_name, symbol_kind) VALUES ('lodash', 'throttle', 'function')").run();
+  });
+
+  it('should find external symbols by exact name', () => {
+    const syms = getExternalSymbolsByName(db, 'debounce');
+    expect(syms.length).toBe(1);
+    expect(syms[0]!.symbol_name).toBe('debounce');
+  });
+
+  it('should return empty for unknown symbol', () => {
+    const syms = getExternalSymbolsByName(db, 'nonexistent');
+    expect(syms.length).toBe(0);
+  });
+});
+
+// ─── searchExternalSymbolsByName ──────────────────────────────────────────────
+
+describe('searchExternalSymbolsByName', () => {
+  let db: Database.Database;
+
+  beforeEach(() => {
+    db = createTestDb();
+    db.prepare("INSERT INTO external_symbols (package_name, symbol_name, symbol_kind) VALUES ('lodash', 'debounce', 'function')").run();
+    db.prepare("INSERT INTO external_symbols (package_name, symbol_name, symbol_kind) VALUES ('lodash', 'throttle', 'function')").run();
+    db.prepare("INSERT INTO external_symbols (package_name, symbol_name, symbol_kind) VALUES ('axios', 'create', 'function')").run();
+  });
+
+  it('should search by prefix', () => {
+    const syms = searchExternalSymbolsByName(db, 'deb');
+    expect(syms.length).toBe(1);
+    expect(syms[0]!.symbol_name).toBe('debounce');
+  });
+
+  it('should return multiple matches', () => {
+    const syms = searchExternalSymbolsByName(db, 'th');
+    expect(syms.length).toBe(1);
+    expect(syms[0]!.symbol_name).toBe('throttle');
+  });
+
+  it('should return empty for no matches', () => {
+    const syms = searchExternalSymbolsByName(db, 'zzz');
+    expect(syms.length).toBe(0);
+  });
+});
+
+// ─── Commit stats functions ───────────────────────────────────────────────────
+
+describe('commit stats functions', () => {
+  let db: Database.Database;
+
+  beforeEach(() => {
+    db = createCommitDb(true);
+    // Insert commits with timestamps
+    const ts1 = Math.floor(new Date('2024-01-15T10:00:00Z').getTime() / 1000);
+    const ts2 = Math.floor(new Date('2024-01-16T14:00:00Z').getTime() / 1000);
+    const ts3 = Math.floor(new Date('2024-02-01T09:00:00Z').getTime() / 1000);
+    db.prepare("INSERT INTO commits (sha, author, author_email, timestamp, message) VALUES (?, ?, ?, ?, ?)").run('aaa111', 'Alice', 'alice@test.com', ts1, 'feat: add login');
+    db.prepare("INSERT INTO commits (sha, author, author_email, timestamp, message) VALUES (?, ?, ?, ?, ?)").run('bbb222', 'Bob', 'bob@test.com', ts2, 'fix: fix auth bug');
+    db.prepare("INSERT INTO commits (sha, author, author_email, timestamp, message) VALUES (?, ?, ?, ?, ?)").run('ccc333', 'Alice', 'alice@test.com', ts3, 'refactor: clean up');
+    // Insert commit files
+    db.prepare("INSERT INTO commit_files (commit_sha, file_path, change_type, insertions, deletions) VALUES (?, ?, ?, ?, ?)").run('aaa111', 'src/login.ts', 'A', 50, 0);
+    db.prepare("INSERT INTO commit_files (commit_sha, file_path, change_type, insertions, deletions) VALUES (?, ?, ?, ?, ?)").run('bbb222', 'src/auth.ts', 'M', 10, 5);
+    db.prepare("INSERT INTO commit_files (commit_sha, file_path, change_type, insertions, deletions) VALUES (?, ?, ?, ?, ?)").run('ccc333', 'src/auth.ts', 'M', 20, 15);
+    // Insert commit refs
+    db.prepare("INSERT INTO commit_refs (commit_sha, ref_name, ref_type) VALUES (?, ?, ?)").run('aaa111', 'main', 'branch');
+    db.prepare("INSERT INTO commit_refs (commit_sha, ref_name, ref_type) VALUES (?, ?, ?)").run('bbb222', 'main', 'branch');
+    db.prepare("INSERT INTO commit_refs (commit_sha, ref_name, ref_type) VALUES (?, ?, ?)").run('ccc333', 'develop', 'branch');
+  });
+
+  describe('listCommitCadence', () => {
+    it('should return daily commit counts', () => {
+      const rows = listCommitCadence(db, 'day');
+      expect(rows.length).toBeGreaterThan(0);
+      expect(rows[0]).toHaveProperty('bucket');
+      expect(rows[0]).toHaveProperty('commits');
+    });
+
+    it('should return weekly commit counts', () => {
+      const rows = listCommitCadence(db, 'week');
+      expect(rows.length).toBeGreaterThan(0);
+    });
+
+    it('should return monthly commit counts', () => {
+      const rows = listCommitCadence(db, 'month');
+      expect(rows.length).toBeGreaterThan(0);
+    });
+
+    it('should filter by author', () => {
+      const rows = listCommitCadence(db, 'day', { author: 'Alice' });
+      const totalCommits = rows.reduce((s, r) => s + r.commits, 0);
+      expect(totalCommits).toBe(2);
+    });
+
+    it('should filter by date range', () => {
+      const rows = listCommitCadence(db, 'day', { since: '2024-01-16', until: '2024-01-16' });
+      const totalCommits = rows.reduce((s, r) => s + r.commits, 0);
+      expect(totalCommits).toBe(1);
+    });
+  });
+
+  describe('listCommitSizes', () => {
+    it('should return commit sizes with insertions and deletions', () => {
+      const rows = listCommitSizes(db);
+      expect(rows.length).toBe(3);
+      expect(rows[0]).toHaveProperty('insertions');
+      expect(rows[0]).toHaveProperty('deletions');
+    });
+
+    it('should filter by author', () => {
+      const rows = listCommitSizes(db, { author: 'Bob' });
+      expect(rows.length).toBe(1);
+      expect(rows[0]!.author).toBe('Bob');
+    });
+  });
+
+  describe('listCommitChurnByFile', () => {
+    it('should return file churn stats', () => {
+      const rows = listCommitChurnByFile(db);
+      expect(rows.length).toBeGreaterThan(0);
+      expect(rows[0]).toHaveProperty('file_path');
+      expect(rows[0]).toHaveProperty('total_churn');
+    });
+
+    it('should order by total churn descending', () => {
+      const rows = listCommitChurnByFile(db);
+      // src/auth.ts has more churn (2 commits) than src/login.ts (1 commit)
+      expect(rows[0]!.file_path).toBe('src/auth.ts');
+    });
+  });
+
+  describe('listCommitAuthorStats', () => {
+    it('should return author commit stats', () => {
+      const rows = listCommitAuthorStats(db);
+      expect(rows.length).toBe(2);
+      // Alice has more commits
+      expect(rows[0]!.author).toBe('Alice');
+      expect(rows[0]!.commit_count).toBe(2);
+    });
+  });
+
+  describe('listCommitMessagePrefixes', () => {
+    it('should return message prefix stats', () => {
+      const rows = listCommitMessagePrefixes(db);
+      expect(rows.length).toBeGreaterThan(0);
+      const prefixes = rows.map(r => r.prefix);
+      expect(prefixes).toContain('feat:');
+      expect(prefixes).toContain('fix:');
+    });
+  });
+
+  describe('listCommitSchedule', () => {
+    it('should return commit schedule by day/hour', () => {
+      const rows = listCommitSchedule(db);
+      expect(rows.length).toBeGreaterThan(0);
+      expect(rows[0]).toHaveProperty('day_of_week');
+      expect(rows[0]).toHaveProperty('hour_of_day');
+      expect(rows[0]).toHaveProperty('commits');
+    });
+  });
+
+  describe('listCommitBranchActivity', () => {
+    it('should return branch activity stats', () => {
+      const rows = listCommitBranchActivity(db);
+      expect(rows.length).toBe(2);
+      expect(rows[0]!.commits).toBeGreaterThanOrEqual(rows[1]!.commits);
+    });
+  });
+
+  describe('listCommitsByFile with renames', () => {
+    it('should find commits for renamed files', () => {
+      // Add a commit with a renamed file path
+      const ts = Math.floor(Date.now() / 1000) - 100;
+      db.prepare("INSERT INTO commits (sha, author, author_email, timestamp, message) VALUES (?, ?, ?, ?, ?)").run('ddd444', 'Charlie', 'charlie@test.com', ts, 'rename file');
+      db.prepare("INSERT INTO commit_files (commit_sha, file_path, change_type, insertions, deletions) VALUES (?, ?, ?, ?, ?)").run('ddd444', 'src/{old.ts => new.ts}', 'R', 0, 0);
+
+      const results = listCommitsByFile(db, 'src/new.ts');
+      expect(results.length).toBe(1);
+      expect(results[0]!.sha).toBe('ddd444');
+    });
+
+    it('should find commits for simple renamed files', () => {
+      const ts = Math.floor(Date.now() / 1000) - 50;
+      db.prepare("INSERT INTO commits (sha, author, author_email, timestamp, message) VALUES (?, ?, ?, ?, ?)").run('eee555', 'Dave', 'dave@test.com', ts, 'move file');
+      db.prepare("INSERT INTO commit_files (commit_sha, file_path, change_type, insertions, deletions) VALUES (?, ?, ?, ?, ?)").run('eee555', 'old-path.ts => new-path.ts', 'R', 0, 0);
+
+      const results = listCommitsByFile(db, 'new-path.ts');
+      expect(results.length).toBe(1);
+    });
   });
 });
