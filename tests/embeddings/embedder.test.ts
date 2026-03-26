@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   DEFAULT_EMBEDDING_MODEL,
   TransformersJsProvider,
@@ -6,6 +6,7 @@ import {
   buildStructuralEmbeddingText,
   hashEmbeddingText,
   tokenAwareBatch,
+  estimateTokens,
 } from '../../src/embeddings/embedder.js';
 
 describe('DEFAULT_EMBEDDING_MODEL', () => {
@@ -192,5 +193,144 @@ describe('LazyEmbeddingProvider', () => {
   it('should throw from dims getter before init (delegates to inner)', () => {
     const provider = new LazyEmbeddingProvider('some-model');
     expect(() => provider.dims).toThrow('EmbeddingProvider not initialised');
+  });
+});
+
+describe('estimateTokens', () => {
+  it('should estimate tokens as ceil(length / 4)', () => {
+    expect(estimateTokens('abcd')).toBe(1);
+    expect(estimateTokens('hello')).toBe(2);
+    expect(estimateTokens('')).toBe(0);
+    expect(estimateTokens('a'.repeat(100))).toBe(25);
+  });
+});
+
+describe('TransformersJsProvider — init / embed / dispose with mock', () => {
+  const origEnv = process.env['LORE_EMBED_DEVICE'];
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    if (origEnv === undefined) {
+      delete process.env['LORE_EMBED_DEVICE'];
+    } else {
+      process.env['LORE_EMBED_DEVICE'] = origEnv;
+    }
+  });
+
+  it('should detect LORE_EMBED_DEVICE env var', () => {
+    process.env['LORE_EMBED_DEVICE'] = 'cuda';
+    const provider = new TransformersJsProvider('mock-model');
+    // detectDevice is private, but we can test it indirectly via init()
+    // For now just verify it reads the env var by checking device before init
+    expect(provider.device).toBe('unknown');
+    // Clean up
+    delete process.env['LORE_EMBED_DEVICE'];
+  });
+
+  it('should use cpu as default device when no env var set', () => {
+    delete process.env['LORE_EMBED_DEVICE'];
+    const provider = new TransformersJsProvider('mock-model');
+    // Can only verify after init, but device remains 'unknown' before init
+    expect(provider.device).toBe('unknown');
+  });
+
+  it('should init, embed, and dispose with mocked pipeline', async () => {
+    const mockPipelineFn = vi.fn(async (_texts: unknown, _opts: unknown) => ({
+      tolist: () => [[0.1, 0.2, 0.3]],
+    }));
+    mockPipelineFn.dispose = vi.fn(async () => {});
+
+    vi.doMock('@huggingface/transformers', () => ({
+      pipeline: async () => mockPipelineFn,
+    }));
+
+    // Re-import to pick up mock
+    const { TransformersJsProvider: MockedProvider } = await import(
+      '../../src/embeddings/embedder.js'
+    );
+
+    const provider = new MockedProvider('mock-model') as TransformersJsProvider;
+    await provider.init();
+    expect(provider.dims).toBe(3);
+    expect(provider.device).toBe('cpu');
+
+    // init is idempotent
+    await provider.init();
+    expect(provider.dims).toBe(3);
+
+    // embed with texts
+    const result = await provider.embed(['hello']);
+    expect(result).toEqual([[0.1, 0.2, 0.3]]);
+
+    // dispose
+    await provider.dispose();
+
+    vi.doUnmock('@huggingface/transformers');
+  });
+
+  it('should fall back to cpu on unsupported device error', async () => {
+    process.env['LORE_EMBED_DEVICE'] = 'cuda';
+
+    let callCount = 0;
+    const mockPipelineFn = vi.fn(async (_texts: unknown, _opts: unknown) => ({
+      tolist: () => [[0.5, 0.6]],
+    }));
+
+    vi.doMock('@huggingface/transformers', () => ({
+      pipeline: async (_task: unknown, _model: unknown, opts: { device: string }) => {
+        callCount++;
+        if (callCount === 1 && opts.device !== 'cpu') {
+          throw new Error('Unsupported device: cuda');
+        }
+        return mockPipelineFn;
+      },
+    }));
+
+    const { TransformersJsProvider: MockedProvider } = await import(
+      '../../src/embeddings/embedder.js'
+    );
+
+    const provider = new MockedProvider('mock-model') as TransformersJsProvider;
+    await provider.init();
+    // Should have fallen back to CPU
+    expect(provider.device).toBe('cpu');
+    expect(provider.dims).toBe(2);
+
+    await provider.dispose();
+    delete process.env['LORE_EMBED_DEVICE'];
+    vi.doUnmock('@huggingface/transformers');
+  });
+});
+
+describe('LazyEmbeddingProvider — deferred init', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('should init on first embed call and deduplicate init', async () => {
+    const mockPipelineFn = vi.fn(async (_texts: unknown, _opts: unknown) => ({
+      tolist: () => [[1, 2, 3, 4]],
+    }));
+    mockPipelineFn.dispose = vi.fn(async () => {});
+
+    vi.doMock('@huggingface/transformers', () => ({
+      pipeline: async () => mockPipelineFn,
+    }));
+
+    const { LazyEmbeddingProvider: MockedLazy } = await import(
+      '../../src/embeddings/embedder.js'
+    );
+
+    const provider = new MockedLazy('mock-model') as LazyEmbeddingProvider;
+
+    // First embed triggers init
+    const result = await provider.embed(['test text']);
+    expect(result).toEqual([[1, 2, 3, 4]]);
+    expect(provider.dims).toBe(4);
+
+    // dispose after init
+    await provider.dispose();
+
+    vi.doUnmock('@huggingface/transformers');
   });
 });

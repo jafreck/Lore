@@ -68,3 +68,16 @@ describe('JS call-ref extraction', () => {
     expect(r.callRefs[0]).toMatchObject({ calleeRaw: 'path.normalize', callerSymbol: 'fmt' });
   });
 });
+
+describe('JS combined imports', () => {
+  const r = fixture('import-combined.js');
+  test('extracts multiple import types from one file', () => {
+    expect(r.imports.length).toBe(2);
+    expect(r.imports).toContainEqual(expect.objectContaining({ source: 'react' }));
+    expect(r.imports).toContainEqual(expect.objectContaining({ source: 'lodash' }));
+  });
+
+  test('extracts App function', () => {
+    expect(r.symbols).toContainEqual(expect.objectContaining({ name: 'App', kind: 'function' }));
+  });
+});

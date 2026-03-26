@@ -5,6 +5,7 @@ import {
   detectBuildSystem,
   ensureCompilationDatabase,
   generateCompdb,
+  createDefaultCompdbIO,
   type CompdbIO,
 } from '../../src/scip/compdb.js';
 
