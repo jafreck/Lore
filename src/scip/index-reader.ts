@@ -106,7 +106,15 @@ export class ScipIndexData {
 
     // Sort by (startLine, startCharacter) for binary search.
     records.sort((a, b) => a.startLine - b.startLine || a.startCharacter - b.startCharacter);
-    this.fileOccurrences.set(absPath, records);
+
+    // Merge with any existing occurrences for this path (handles duplicate documents).
+    const existing = this.fileOccurrences.get(absPath);
+    if (existing) {
+      existing.push(...records);
+      existing.sort((a, b) => a.startLine - b.startLine || a.startCharacter - b.startCharacter);
+    } else {
+      this.fileOccurrences.set(absPath, records);
+    }
 
     // Index symbol info from document-level symbols.
     for (const sym of doc.symbols) {
@@ -156,6 +164,20 @@ export class ScipIndexData {
       }
     }
 
+    // Scan backward for multi-line occurrences that start before this line
+    // but whose range spans across the queried line.
+    for (let i = lo - 1; i >= 0; i--) {
+      const occ = occs[i]!;
+      if (occ.endLine >= line) {
+        if (line > occ.startLine && line < occ.endLine) {
+          return occ;
+        }
+        if (line === occ.endLine && character <= occ.endCharacter) {
+          return occ;
+        }
+      }
+    }
+
     // Allow a nearby match (within 5 characters) on the same line.
     return bestDistance <= 5 ? best : null;
   }
@@ -172,6 +194,31 @@ export class ScipIndexData {
    */
   getSymbolInfo(symbol: string): ScipSymbolInfo | null {
     return this.symbolInfo.get(symbol) ?? null;
+  }
+
+  /**
+   * Merge entries from another ScipIndexData into this instance.
+   * Existing entries in `this` are preserved (not overwritten).
+   */
+  merge(other: ScipIndexData): void {
+    for (const [symbol, def] of other.definitions) {
+      if (!this.definitions.has(symbol)) {
+        this.definitions.set(symbol, def);
+      }
+    }
+    for (const [symbol, info] of other.symbolInfo) {
+      if (!this.symbolInfo.has(symbol)) {
+        this.symbolInfo.set(symbol, info);
+      }
+    }
+    for (const [filePath, occs] of other.fileOccurrences) {
+      if (!this.fileOccurrences.has(filePath)) {
+        this.fileOccurrences.set(filePath, occs);
+      }
+    }
+    for (const lang of other.languages) {
+      this.languages.add(lang);
+    }
   }
 
   /** Number of indexed files. */
@@ -271,26 +318,4 @@ function looksLikeSignature(text: string): boolean {
     || /\(.*\)/u.test(firstLine)
     || /:\s*\w/u.test(firstLine)
     || /->\s*\w/u.test(firstLine);
-}
-
-/**
- * Extract a return type from a type signature string.
- * Reuses the same heuristics as LSP enrichment.
- */
-export function extractReturnType(signature: string | null): string | null {
-  if (!signature) return null;
-  const lines = signature.split('\n').map((l) => l.trim()).filter(Boolean);
-  if (lines.length === 0) return null;
-  const firstLine = lines[0]!;
-
-  const functionStyle = firstLine.match(/\)\s*:\s*([^={]+)$/u);
-  if (functionStyle?.[1]) return functionStyle[1].trim();
-
-  const arrowStyle = firstLine.match(/->\s*([^={]+)$/u);
-  if (arrowStyle?.[1]) return arrowStyle[1].trim();
-
-  const colonStyle = firstLine.match(/:\s*([^={]+)$/u);
-  if (colonStyle?.[1]) return colonStyle[1].trim();
-
-  return null;
 }
