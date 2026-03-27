@@ -504,9 +504,9 @@ function insertFileAndExtractions(
   if (existing && layer === 'baseline') {
     // Baseline mode: update existing baseline row in place
     db.prepare(
-      `UPDATE files SET language = ?, size_bytes = ?, last_hash = ?, source = ?, indexed_at = unixepoch()
+      `UPDATE files SET language = ?, size_bytes = ?, last_hash = ?, source = ?, generation = ?, indexed_at = unixepoch()
         WHERE id = ?`,
-    ).run(language, sizeBytes, hash, source, existing.id);
+    ).run(language, sizeBytes, hash, source, generation, existing.id);
     fileId = existing.id;
     // Remove stale symbols / imports / external deps for this baseline row.
     // symbol_relationships and type_refs with NULL source/symbol_id must be
