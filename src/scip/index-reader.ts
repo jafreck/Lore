@@ -174,6 +174,31 @@ export class ScipIndexData {
     return this.symbolInfo.get(symbol) ?? null;
   }
 
+  /**
+   * Merge entries from another ScipIndexData into this instance.
+   * Existing entries in `this` are preserved (not overwritten).
+   */
+  merge(other: ScipIndexData): void {
+    for (const [symbol, def] of other.definitions) {
+      if (!this.definitions.has(symbol)) {
+        this.definitions.set(symbol, def);
+      }
+    }
+    for (const [symbol, info] of other.symbolInfo) {
+      if (!this.symbolInfo.has(symbol)) {
+        this.symbolInfo.set(symbol, info);
+      }
+    }
+    for (const [filePath, occs] of other.fileOccurrences) {
+      if (!this.fileOccurrences.has(filePath)) {
+        this.fileOccurrences.set(filePath, occs);
+      }
+    }
+    for (const lang of other.languages) {
+      this.languages.add(lang);
+    }
+  }
+
   /** Number of indexed files. */
   get fileCount(): number { return this.fileOccurrences.size; }
 
