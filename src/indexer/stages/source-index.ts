@@ -566,8 +566,23 @@ function insertFileAndExtractions(
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   );
 
-  const symbolIdMap = new Map<string, number>();
-  const pendingParents: Array<{ symId: number; parentName: string }> = [];
+  type SymEntry = { id: number; startLine: number; endLine: number };
+  const symbolIdMap = new Map<string, SymEntry[]>();
+  const pendingParents: Array<{ symId: number; parentName: string; startLine: number; endLine: number }> = [];
+
+  /** Pick the entry whose range most tightly encloses `line`, or the first entry as fallback. */
+  function resolveByLine(entries: SymEntry[], line: number): number {
+    if (entries.length === 1) return entries[0]!.id;
+    let best: SymEntry | undefined;
+    for (const e of entries) {
+      if (e.startLine <= line && e.endLine >= line) {
+        if (!best || (e.endLine - e.startLine) < (best.endLine - best.startLine)) {
+          best = e;
+        }
+      }
+    }
+    return best?.id ?? entries[0]!.id;
+  }
 
   for (const sym of result.symbols) {
     // Guard: skip symbols with empty names (malformed AST nodes).
@@ -584,19 +599,25 @@ function insertFileAndExtractions(
       layer, generation,
     ) as { lastInsertRowid: number | bigint };
     const symId = Number(info.lastInsertRowid);
-    symbolIdMap.set(sym.name, symId);
+    const symEntry: SymEntry = { id: symId, startLine: sym.startLine, endLine: sym.endLine };
+    const existingEntries = symbolIdMap.get(sym.name);
+    if (existingEntries) existingEntries.push(symEntry);
+    else symbolIdMap.set(sym.name, [symEntry]);
     if (sym.parentName) {
-      pendingParents.push({ symId, parentName: sym.parentName });
+      pendingParents.push({ symId, parentName: sym.parentName, startLine: sym.startLine, endLine: sym.endLine });
     }
   }
 
   // Resolve parent_symbol_id for nested symbols (inner functions, class methods, etc.)
   if (pendingParents.length > 0) {
     const updateParent = db.prepare('UPDATE symbols SET parent_symbol_id = ? WHERE id = ?');
-    for (const { symId, parentName } of pendingParents) {
-      const parentId = symbolIdMap.get(parentName);
-      if (parentId !== undefined) {
-        updateParent.run(parentId, symId);
+    for (const { symId, parentName, startLine, endLine } of pendingParents) {
+      const parentEntries = symbolIdMap.get(parentName);
+      if (parentEntries) {
+        // Prefer the nearest enclosing parent (whose range contains the child)
+        const enclosing = parentEntries.find(e => e.startLine <= startLine && e.endLine >= endLine);
+        const parentId = enclosing?.id ?? parentEntries[0]?.id;
+        if (parentId !== undefined) updateParent.run(parentId, symId);
       }
     }
   }
@@ -613,9 +634,10 @@ function insertFileAndExtractions(
   /* v8 ignore stop */
   for (const sym of result.symbols) {
     if (!sym.name) continue;
-    const symId = symbolIdMap.get(sym.name);
+    const symEntries = symbolIdMap.get(sym.name);
     /* v8 ignore next -- extractor output can mention symbols we did not persist */
-    if (symId === undefined) continue;
+    if (!symEntries) continue;
+    const symId = (symEntries.find(e => e.startLine === sym.startLine && e.endLine === sym.endLine) ?? symEntries[0])!.id;
     /* v8 ignore next -- worker metrics are only populated in the compiled-worker path */
     const metrics = workerMetricsByKey?.get(symbolMetricKey(sym.name, sym.startLine, sym.endLine))
       ?? computeSymbolMetrics(sym, language);
@@ -639,7 +661,7 @@ function insertFileAndExtractions(
       0, rootEndRow,
       null, null, 0, layer, generation,
     ) as { lastInsertRowid: number | bigint };
-    symbolIdMap.set('', Number(info.lastInsertRowid));
+    symbolIdMap.set('', [{ id: Number(info.lastInsertRowid), startLine: 0, endLine: rootEndRow }]);
   }
 
   const insertCallRef = db.prepare(
@@ -647,8 +669,9 @@ function insertFileAndExtractions(
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
   );
   for (const ref of result.callRefs) {
-    const callerId = symbolIdMap.get(ref.callerSymbol);
-    if (callerId !== undefined) {
+    const callerEntries = symbolIdMap.get(ref.callerSymbol);
+    if (callerEntries) {
+      const callerId = resolveByLine(callerEntries, ref.line);
       insertCallRef.run(callerId, fileId, ref.calleeRaw, ref.line, ref.character ?? null, ref.callKind ?? 'direct', layer, generation);
     }
   }
@@ -659,7 +682,8 @@ function insertFileAndExtractions(
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
   );
   for (const rel of result.relationships) {
-    const sourceId = symbolIdMap.get(rel.fromSymbol) ?? null;
+    const sourceEntries = symbolIdMap.get(rel.fromSymbol);
+    const sourceId = sourceEntries ? resolveByLine(sourceEntries, rel.line) : null;
     insertRelationship.run(fileId, sourceId, rel.toSymbol, rel.kind, rel.line, rel.character ?? null, layer, generation);
   }
 
@@ -669,7 +693,8 @@ function insertFileAndExtractions(
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   );
   for (const ref of result.typeRefs) {
-    const symId = symbolIdMap.get(ref.enclosingSymbol) ?? null;
+    const symRefEntries = symbolIdMap.get(ref.enclosingSymbol);
+    const symId = symRefEntries ? resolveByLine(symRefEntries, ref.line) : null;
     insertTypeRef.run(fileId, symId, ref.typeRaw, normalizeTypeName(ref.typeRaw), ref.refKind, ref.line, ref.character ?? null, layer, generation);
   }
 }
