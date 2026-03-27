@@ -51,16 +51,36 @@ function makeHookScript(
 }
 
 /**
- * Install Lore-refresh git hooks in `.git/hooks` for common lifecycle events.
+ * Resolve the actual git directory for a repository. In normal repos, `.git`
+ * is a directory. In worktrees, `.git` is a file containing `gitdir: <path>`.
+ */
+function resolveGitDir(repoRoot: string): string {
+  const dotGit = path.join(repoRoot, '.git');
+  const stat = fs.statSync(dotGit, { throwIfNoEntry: false });
+  if (!stat) throw new Error(`Not a git repository: ${repoRoot}`);
+
+  if (stat.isFile()) {
+    // Worktree: .git is a file with "gitdir: <path>"
+    const content = fs.readFileSync(dotGit, 'utf8').trim();
+    const match = content.match(/^gitdir:\s*(.+)$/);
+    if (!match) throw new Error('Invalid .git file');
+    const gitdir = match[1]!;
+    // Resolve relative paths against the repo root
+    return path.resolve(repoRoot, gitdir);
+  }
+
+  return dotGit; // Normal repo: .git is a directory
+}
+
+/**
+ * Install Lore-refresh git hooks in the git directory's `hooks/` folder for
+ * common lifecycle events. Supports both normal repos and worktrees.
  * Existing non-Lore hooks are preserved by prepending a Lore block.
  */
 export function installGitHooks(options: InstallGitHooksOptions): { installed: string[] } {
   const repoRoot = options.repoRoot;
-  const hookDir = path.join(repoRoot, '.git', 'hooks');
-
-  if (!fs.existsSync(path.join(repoRoot, '.git'))) {
-    throw new Error(`Not a git repository: ${repoRoot}`);
-  }
+  const gitDir = resolveGitDir(repoRoot);
+  const hookDir = path.join(gitDir, 'hooks');
 
   fs.mkdirSync(hookDir, { recursive: true });
 

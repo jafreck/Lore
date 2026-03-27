@@ -22,6 +22,35 @@ function escapeLikeWildcards(value: string): string {
 const MAX_RESULT_LIMIT = 10_000;
 
 /**
+ * Cache whether a database has effective_* views.
+ * WeakMap so entries are GC'd when the db is closed.
+ */
+const effectiveViewCache = new WeakMap<Database.Database, boolean>();
+
+/** Check (and cache) whether this db has the effective_files view. */
+function hasEffectiveViews(db: Database.Database): boolean {
+  let result = effectiveViewCache.get(db);
+  if (result === undefined) {
+    const row = db
+      .prepare("SELECT 1 AS ok FROM sqlite_master WHERE type = 'view' AND name = 'effective_files' LIMIT 1")
+      .get() as { ok: number } | undefined;
+    result = row?.ok === 1;
+    effectiveViewCache.set(db, result);
+  }
+  return result;
+}
+
+/** Return the right table/view name for file lookups. */
+function filesTable(db: Database.Database): string {
+  return hasEffectiveViews(db) ? 'effective_files' : 'files';
+}
+
+/** Return the right table/view name for symbol lookups. */
+function symbolsTable(db: Database.Database): string {
+  return hasEffectiveViews(db) ? 'effective_symbols' : 'symbols';
+}
+
+/**
  * Clamp a caller-supplied limit to the hard ceiling.
  * When no limit is given, `defaultLimit` is used (default: 1 000).
  */
@@ -308,8 +337,8 @@ export function getSymbolsByName(
   return db
     .prepare(
       `SELECT s.*, sp.name AS parent_name, f.path AS file_path, f.branch AS file_branch, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting
-       FROM symbols s
-       JOIN files f ON s.file_id = f.id
+       FROM ${symbolsTable(db)} s
+       JOIN ${filesTable(db)} f ON s.file_id = f.id
        LEFT JOIN symbols sp ON sp.id = s.parent_symbol_id
        LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id
        WHERE ${where.join(' AND ')}`,
@@ -338,8 +367,8 @@ export function listSymbols(
   return db
     .prepare(
       `SELECT s.*, sp.name AS parent_name, f.path AS file_path, f.branch AS file_branch, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting
-       FROM symbols s
-       JOIN files f ON s.file_id = f.id
+       FROM ${symbolsTable(db)} s
+       JOIN ${filesTable(db)} f ON s.file_id = f.id
        LEFT JOIN symbols sp ON sp.id = s.parent_symbol_id
        LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id
        ${where.length > 0 ? `WHERE ${where.join(' AND ')}` : ''}
@@ -366,6 +395,7 @@ export function semanticSearchSymbols(
   args: SemanticSearchSymbolsArgs,
 ): SemanticSymbolRow[] {
   if (args.queryVector.length === 0) return [];
+  if (!hasSymbolEmbeddingsTable(db)) return [];
 
   const limit = Math.max(1, Math.floor(args.limit ?? 20));
   const where: string[] = ['se.embedding MATCH ?', 'se.k = ?'];
@@ -467,18 +497,20 @@ export interface FileRow {
 
 /** Fetch a single file row by primary key. */
 export function getFileById(db: Database.Database, id: number, branch?: string): FileRow | undefined {
+  const ft = filesTable(db);
   if (branch !== undefined) {
-    return db.prepare('SELECT * FROM files WHERE id = ? AND branch = ?').get(id, branch) as FileRow | undefined;
+    return db.prepare(`SELECT * FROM ${ft} WHERE id = ? AND branch = ?`).get(id, branch) as FileRow | undefined;
   }
-  return db.prepare('SELECT * FROM files WHERE id = ?').get(id) as FileRow | undefined;
+  return db.prepare(`SELECT * FROM ${ft} WHERE id = ?`).get(id) as FileRow | undefined;
 }
 
 /** Fetch a single file row by its path. */
 export function getFileByPath(db: Database.Database, path: string, branch?: string): FileRow | undefined {
+  const ft = filesTable(db);
   if (branch !== undefined) {
-    return db.prepare('SELECT * FROM files WHERE path = ? AND branch = ?').get(path, branch) as FileRow | undefined;
+    return db.prepare(`SELECT * FROM ${ft} WHERE path = ? AND branch = ?`).get(path, branch) as FileRow | undefined;
   }
-  return db.prepare('SELECT * FROM files WHERE path = ?').get(path) as FileRow | undefined;
+  return db.prepare(`SELECT * FROM ${ft} WHERE path = ?`).get(path) as FileRow | undefined;
 }
 
 /**
@@ -491,10 +523,11 @@ export function getFileByPath(db: Database.Database, path: string, branch?: stri
  */
 export function listFiles(db: Database.Database, limit?: number, branch?: string): FileRow[] {
   const effectiveLimit = clampLimit(limit);
+  const ft = filesTable(db);
   if (branch !== undefined) {
-    return db.prepare('SELECT * FROM files WHERE branch = ? LIMIT ?').all(branch, effectiveLimit) as FileRow[];
+    return db.prepare(`SELECT * FROM ${ft} WHERE branch = ? LIMIT ?`).all(branch, effectiveLimit) as FileRow[];
   }
-  return db.prepare('SELECT * FROM files LIMIT ?').all(effectiveLimit) as FileRow[];
+  return db.prepare(`SELECT * FROM ${ft} LIMIT ?`).all(effectiveLimit) as FileRow[];
 }
 
 /** Return indexed files matching an exact path or directory prefix. */
@@ -511,7 +544,7 @@ export function listFilesByPathPrefix(
   if (branch !== undefined) {
     return db
       .prepare(
-        `SELECT * FROM files
+        `SELECT * FROM ${filesTable(db)}
          WHERE branch = ? AND (path = ? OR path LIKE ? ESCAPE '\\')
          ORDER BY path ASC, branch ASC
          LIMIT ?`,
@@ -520,7 +553,7 @@ export function listFilesByPathPrefix(
   }
   return db
     .prepare(
-      `SELECT * FROM files
+      `SELECT * FROM ${filesTable(db)}
        WHERE path = ? OR path LIKE ? ESCAPE '\\'
        ORDER BY path ASC, branch ASC
        LIMIT ?`,
@@ -919,6 +952,15 @@ function hasCommitEmbeddingsTable(db: Database.Database): boolean {
   return row?.ok === 1;
 }
 
+function hasSymbolEmbeddingsTable(db: Database.Database): boolean {
+  const row = db
+    .prepare(
+      "SELECT 1 AS ok FROM sqlite_master WHERE type IN ('table', 'virtual table') AND name = 'symbol_embeddings' LIMIT 1",
+    )
+    .get() as { ok: number } | undefined;
+  return row?.ok === 1;
+}
+
 export interface CommitStatsFilters {
   since?: string;
   until?: string;
@@ -1040,9 +1082,20 @@ function expandRenamePathVariants(path: string): string[] {
 
 /** Fetch a single commit by its SHA (full or prefix match). */
 export function getCommitBySha(db: Database.Database, sha: string): CommitRow | undefined {
-  return db
-    .prepare(`SELECT * FROM commits WHERE sha = ? OR sha LIKE ? ESCAPE '\\' LIMIT 1`)
-    .get(sha, `${escapeLikeWildcards(sha)}%`) as CommitRow | undefined;
+  // Exact match first
+  const exact = db.prepare('SELECT * FROM commits WHERE sha = ?').get(sha);
+  if (exact) return exact as CommitRow;
+
+  // Prefix match — check for ambiguity
+  const prefixMatches = db
+    .prepare(
+      `SELECT * FROM commits WHERE sha LIKE ? ESCAPE '\\' ORDER BY sha ASC LIMIT 2`,
+    )
+    .all(`${escapeLikeWildcards(sha)}%`);
+
+  if (prefixMatches.length === 1) return prefixMatches[0] as CommitRow;
+  if (prefixMatches.length > 1) return undefined; // Ambiguous prefix
+  return undefined; // No match
 }
 
 /** Return the most recent commits ordered by timestamp DESC, limited to `limit` rows. */
@@ -1321,4 +1374,3 @@ export function listCommitBranchActivity(
     )
     .all(...params, limit) as CommitBranchActivityRow[];
 }
-
