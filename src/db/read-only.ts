@@ -519,9 +519,9 @@ export function getFileById(db: Database.Database, id: number, branch?: string):
 export function getFileByPath(db: Database.Database, path: string, branch?: string): FileRow | undefined {
   const ft = filesTable(db);
   if (branch !== undefined) {
-    return db.prepare(`SELECT * FROM ${ft} WHERE path = ? AND branch = ?`).get(path, branch) as FileRow | undefined;
+    return db.prepare(`SELECT * FROM ${ft} WHERE path = ? AND branch = ? LIMIT 1`).get(path, branch) as FileRow | undefined;
   }
-  return db.prepare(`SELECT * FROM ${ft} WHERE path = ?`).get(path) as FileRow | undefined;
+  return db.prepare(`SELECT * FROM ${ft} WHERE path = ? ORDER BY indexed_at DESC, id DESC LIMIT 1`).get(path) as FileRow | undefined;
 }
 
 /**
