@@ -85,7 +85,7 @@ describe('lore_diff handler', () => {
       file_path: '/src/main.ts',
       signature: 'fn newFn(): string',
     });
-    expect(result.summary.added_count).toBe(1);
+    expect(result.summary.added.total).toBe(1);
   });
 
   it('should detect a symbol removed from old_branch', () => {
@@ -104,7 +104,7 @@ describe('lore_diff handler', () => {
       kind: 'function',
       file_path: '/src/main.ts',
     });
-    expect(result.summary.removed_count).toBe(1);
+    expect(result.summary.removed.total).toBe(1);
   });
 
   it('should detect a changed symbol (same name/kind/path, different signature)', () => {
@@ -124,7 +124,7 @@ describe('lore_diff handler', () => {
       old_signature: 'fn myFunc(a: string): void',
       new_signature: 'fn myFunc(a: string, b: number): void',
     });
-    expect(result.summary.changed_count).toBe(1);
+    expect(result.summary.changed.total).toBe(1);
     // Should not appear in added or removed
     expect(result.added).toHaveLength(0);
     expect(result.removed).toHaveLength(0);
@@ -174,7 +174,9 @@ describe('lore_diff handler', () => {
     const result = handler(db, { old_branch: 'v1', new_branch: 'v2', limit: 3 });
 
     expect(result.added).toHaveLength(3);
-    expect(result.summary.added_count).toBe(3);
+    expect(result.summary.added.total).toBe(10);
+    expect(result.summary.added.shown).toBe(3);
+    expect(result.summary.added.truncated).toBe(true);
   });
 
   it('should return empty diff for identical branches', () => {
@@ -189,7 +191,11 @@ describe('lore_diff handler', () => {
     expect(result.added).toHaveLength(0);
     expect(result.removed).toHaveLength(0);
     expect(result.changed).toHaveLength(0);
-    expect(result.summary).toEqual({ added_count: 0, removed_count: 0, changed_count: 0 });
+    expect(result.summary).toEqual({
+      added: { total: 0, shown: 0, truncated: false },
+      removed: { total: 0, shown: 0, truncated: false },
+      changed: { total: 0, shown: 0, truncated: false },
+    });
   });
 
   it('should return empty diff when no exported symbols exist', () => {
@@ -387,9 +393,9 @@ describe('lore_diff handler', () => {
 
     const result = handler(db, { old_branch: 'v1', new_branch: 'v2' });
 
-    expect(result.summary.removed_count).toBe(1);
-    expect(result.summary.added_count).toBe(1);
-    expect(result.summary.changed_count).toBe(1);
+    expect(result.summary.removed.total).toBe(1);
+    expect(result.summary.added.total).toBe(1);
+    expect(result.summary.changed.total).toBe(1);
     expect(result.removed[0]!.name).toBe('removedFn');
     expect(result.added[0]!.name).toBe('addedFn');
     expect(result.changed[0]!.name).toBe('sharedFn');

@@ -100,6 +100,7 @@ export interface StructureResult {
   cycles?: StructureCycle[];
   layer_violations?: LayerViolation[];
   outliers?: OutlierEdge[];
+  truncated?: boolean;
 }
 
 // ─── Directory graph construction ─────────────────────────────────────────────
@@ -116,6 +117,8 @@ interface DirGraph {
   directories: Set<string>;
   /** Adjacency: from_dir → to_dir → DirEdge */
   adjacency: Map<string, Map<string, DirEdge>>;
+  /** True when the DB query hit MAX_EDGES and results may be incomplete. */
+  truncated: boolean;
 }
 
 /**
@@ -151,8 +154,11 @@ function buildDirGraph(db: Database.Database, depth: number, branch?: string): D
        JOIN files f_src ON f_src.id = fi.file_id
        JOIN files f_dst ON f_dst.id = fi.resolved_id
       WHERE ${whereClause}
+      ORDER BY fi.file_id, fi.resolved_id
       LIMIT ?`,
   ).all(...params, MAX_EDGES) as Array<{ src_path: string; dst_path: string }>;
+
+  const truncated = rows.length >= MAX_EDGES;
 
   const directories = new Set<string>();
   const adjacency = new Map<string, Map<string, DirEdge>>();
@@ -188,7 +194,7 @@ function buildDirGraph(db: Database.Database, depth: number, branch?: string): D
     }
   }
 
-  return { directories, adjacency };
+  return { directories, adjacency, truncated };
 }
 
 // ─── Analysis A: Tarjan's SCC for directory-level cycles ──────────────────────
@@ -405,6 +411,10 @@ export function handler(db: Database.Database, args: StructureArgs): StructureRe
 
   const graph = buildDirGraph(db, depth, args.branch);
   const result: StructureResult = {};
+
+  if (graph.truncated) {
+    result.truncated = true;
+  }
 
   if (analysis === 'cycles' || analysis === 'all') {
     result.cycles = detectDirCycles(graph, limit);
