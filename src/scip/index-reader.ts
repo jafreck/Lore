@@ -106,7 +106,15 @@ export class ScipIndexData {
 
     // Sort by (startLine, startCharacter) for binary search.
     records.sort((a, b) => a.startLine - b.startLine || a.startCharacter - b.startCharacter);
-    this.fileOccurrences.set(absPath, records);
+
+    // Merge with any existing occurrences for this path (handles duplicate documents).
+    const existing = this.fileOccurrences.get(absPath);
+    if (existing) {
+      existing.push(...records);
+      existing.sort((a, b) => a.startLine - b.startLine || a.startCharacter - b.startCharacter);
+    } else {
+      this.fileOccurrences.set(absPath, records);
+    }
 
     // Index symbol info from document-level symbols.
     for (const sym of doc.symbols) {
@@ -153,6 +161,20 @@ export class ScipIndexData {
       if (dist < bestDistance) {
         bestDistance = dist;
         best = occ;
+      }
+    }
+
+    // Scan backward for multi-line occurrences that start before this line
+    // but whose range spans across the queried line.
+    for (let i = lo - 1; i >= 0; i--) {
+      const occ = occs[i]!;
+      if (occ.endLine >= line) {
+        if (line > occ.startLine && line < occ.endLine) {
+          return occ;
+        }
+        if (line === occ.endLine && character <= occ.endCharacter) {
+          return occ;
+        }
       }
     }
 
