@@ -75,7 +75,7 @@ async function defaultDownloadFile(url: string, destPath: string): Promise<void>
 
 function defaultIsCommandAvailable(command: string): boolean {
   try {
-    childProcess.execSync(`which ${command}`, { stdio: 'ignore' });
+    childProcess.execFileSync('which', [command], { stdio: 'ignore' });
     return true;
   } catch {
     return false;
