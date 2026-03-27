@@ -31,6 +31,8 @@ vi.mock('../../src/indexer/index.js', () => ({
 
 vi.mock('../../src/discovery/walker.js', () => ({
   walkFiles: mockWalkFiles,
+  DEFAULT_EXCLUDES: [],
+  isExcludedPath: () => false,
 }));
 
 const walkerConfig = { rootDir: '/tmp/testroot' };

@@ -229,9 +229,9 @@ export class LspClient {
       const payload = this.buffer.subarray(bodyStart, messageEnd).toString('utf8');
       this.buffer = this.buffer.subarray(messageEnd);
 
-      let parsed: JsonRpcResponse;
+      let parsed: JsonRpcResponse & { method?: string };
       try {
-        parsed = JSON.parse(payload) as JsonRpcResponse;
+        parsed = JSON.parse(payload) as JsonRpcResponse & { method?: string };
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         this.rejectPendingRequests(new Error(`Invalid LSP JSON payload: ${message}`));
@@ -239,6 +239,25 @@ export class LspClient {
       }
 
       if (typeof parsed.id !== 'number') continue;
+
+      // Handle server-initiated requests (messages with both id and method).
+      // These are not responses to our requests — they are requests FROM the
+      // server that expect a reply. Silently dropping them violates the
+      // JSON-RPC protocol and causes servers to hang.
+      if (parsed.method) {
+        if (parsed.method === 'workspace/configuration') {
+          this.sendResponse(parsed.id, [{}]);
+        } else if (parsed.method === 'window/workDoneProgress/create') {
+          this.sendResponse(parsed.id, null);
+        } else {
+          this.sendResponse(parsed.id, null, {
+            code: -32601,
+            message: `Method not supported: ${parsed.method}`,
+          });
+        }
+        continue;
+      }
+
       const pending = this.pending.get(parsed.id);
       if (!pending) continue;
 
@@ -258,6 +277,22 @@ export class LspClient {
     const child = this.child;
     if (!child) {
       throw new Error('LSP client is not active');
+    }
+
+    const payload = JSON.stringify(message);
+    const serialized = `Content-Length: ${Buffer.byteLength(payload, 'utf8')}\r\n\r\n${payload}`;
+    child.stdin.write(serialized, 'utf8');
+  }
+
+  private sendResponse(id: number, result: unknown, error?: { code: number; message: string }): void {
+    const child = this.child;
+    if (!child || this.exited) return;
+
+    const message: JsonRpcResponse = { jsonrpc: '2.0', id };
+    if (error) {
+      message.error = error;
+    } else {
+      message.result = result;
     }
 
     const payload = JSON.stringify(message);
