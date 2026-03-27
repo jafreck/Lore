@@ -6,6 +6,7 @@
  */
 
 import fg from 'fast-glob';
+import { realpathSync } from 'node:fs';
 import { extname } from 'node:path';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -133,14 +134,23 @@ export async function walkFiles(config: WalkerConfig): Promise<FileEntry[]> {
     cwd: rootDir,
     absolute: true,
     onlyFiles: true,
+    followSymbolicLinks: true,
     ignore,
     dot: false,
   });
 
   const results: FileEntry[] = [];
+  const seen = new Set<string>();
 
   for (const filePath of paths) {
-    const ext = extname(filePath).toLowerCase();
+    // Resolve symlinks to canonical paths so each physical file is indexed
+    // once, regardless of how many symlinks point to it.
+    const realPath = realpathSync(filePath);
+
+    if (seen.has(realPath)) continue;
+    seen.add(realPath);
+
+    const ext = extname(realPath).toLowerCase();
 
     // Skip if caller supplied an explicit extension filter.
     if (extensions && !extensions.includes(ext)) continue;
@@ -148,7 +158,7 @@ export async function walkFiles(config: WalkerConfig): Promise<FileEntry[]> {
     const language = EXT_TO_LANG[ext];
     if (!language) continue;
 
-    results.push({ path: filePath, language });
+    results.push({ path: realPath, language });
   }
 
   return results;
