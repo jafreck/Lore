@@ -281,7 +281,12 @@ export class LspClient {
 
     const payload = JSON.stringify(message);
     const serialized = `Content-Length: ${Buffer.byteLength(payload, 'utf8')}\r\n\r\n${payload}`;
-    child.stdin.write(serialized, 'utf8');
+    try {
+      child.stdin.write(serialized, 'utf8');
+    } catch {
+      this.exited = true;
+      this.rejectPendingRequests(new Error('LSP stdin write failed — server exited'));
+    }
   }
 
   private sendResponse(id: number, result: unknown, error?: { code: number; message: string }): void {
@@ -297,7 +302,12 @@ export class LspClient {
 
     const payload = JSON.stringify(message);
     const serialized = `Content-Length: ${Buffer.byteLength(payload, 'utf8')}\r\n\r\n${payload}`;
-    child.stdin.write(serialized, 'utf8');
+    try {
+      child.stdin.write(serialized, 'utf8');
+    } catch {
+      this.exited = true;
+      this.rejectPendingRequests(new Error('LSP stdin write failed — server exited'));
+    }
   }
 
   private notify(method: string, params?: unknown): void {
