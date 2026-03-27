@@ -45,10 +45,11 @@ function insertSymbol(
   kind: string,
   signature: string | null,
   isExported: number,
+  startLine = 1,
 ): void {
   db.prepare(
-    'INSERT INTO symbols (file_id, name, kind, start_line, end_line, signature, is_exported) VALUES (?, ?, ?, 1, 10, ?, ?)',
-  ).run(fileId, name, kind, signature, isExported);
+    'INSERT INTO symbols (file_id, name, kind, start_line, end_line, signature, is_exported) VALUES (?, ?, ?, ?, ?, ?, ?)',
+  ).run(fileId, name, kind, startLine, startLine + 9, signature, isExported);
 }
 
 describe('lore_diff toolDef', () => {
@@ -316,6 +317,88 @@ describe('lore_diff handler', () => {
       old_signature: null,
       new_signature: 'fn evolving(): string',
     });
+  });
+
+  it('should disambiguate overloaded symbols by ordinal position', () => {
+    const oldFileId = insertFile(db, '/src/main.ts', 'v1');
+    const newFileId = insertFile(db, '/src/main.ts', 'v2');
+
+    // Two overloads of "process" at different lines in both branches
+    insertSymbol(db, oldFileId, 'process', 'function', 'fn process(a: string): void', 1, 10);
+    insertSymbol(db, oldFileId, 'process', 'function', 'fn process(a: number): void', 1, 20);
+    insertSymbol(db, newFileId, 'process', 'function', 'fn process(a: string): void', 1, 10);
+    insertSymbol(db, newFileId, 'process', 'function', 'fn process(a: number): void', 1, 20);
+
+    const result = handler(db, { old_branch: 'v1', new_branch: 'v2' });
+
+    // Identical overloads across branches → no diff
+    expect(result.added).toHaveLength(0);
+    expect(result.removed).toHaveLength(0);
+    expect(result.changed).toHaveLength(0);
+  });
+
+  it('should match overloads by ordinal when lines shift between branches', () => {
+    const oldFileId = insertFile(db, '/src/main.ts', 'v1');
+    const newFileId = insertFile(db, '/src/main.ts', 'v2');
+
+    // In v1, two overloads at lines 10 and 20
+    insertSymbol(db, oldFileId, 'process', 'function', 'fn process(a: string): void', 1, 10);
+    insertSymbol(db, oldFileId, 'process', 'function', 'fn process(a: number): void', 1, 20);
+    // In v2, an import pushed everything down by 5 lines → 15 and 25
+    insertSymbol(db, newFileId, 'process', 'function', 'fn process(a: string): void', 1, 15);
+    insertSymbol(db, newFileId, 'process', 'function', 'fn process(a: number): void', 1, 25);
+
+    const result = handler(db, { old_branch: 'v1', new_branch: 'v2' });
+
+    // Same symbols, just shifted — ordinal matching should see no diff
+    expect(result.added).toHaveLength(0);
+    expect(result.removed).toHaveLength(0);
+    expect(result.changed).toHaveLength(0);
+  });
+
+  it('should detect added overload without inflating counts', () => {
+    const oldFileId = insertFile(db, '/src/main.ts', 'v1');
+    const newFileId = insertFile(db, '/src/main.ts', 'v2');
+
+    // One overload in old, two in new
+    insertSymbol(db, oldFileId, 'process', 'function', 'fn process(a: string): void', 1, 10);
+    insertSymbol(db, newFileId, 'process', 'function', 'fn process(a: string): void', 1, 10);
+    insertSymbol(db, newFileId, 'process', 'function', 'fn process(a: number): void', 1, 20);
+
+    const result = handler(db, { old_branch: 'v1', new_branch: 'v2' });
+
+    expect(result.added).toHaveLength(1);
+    expect(result.added[0]).toMatchObject({
+      name: 'process',
+      start_line: 20,
+      signature: 'fn process(a: number): void',
+    });
+    expect(result.removed).toHaveLength(0);
+    expect(result.changed).toHaveLength(0);
+  });
+
+  it('should detect changed overload without cross-joining other overloads', () => {
+    const oldFileId = insertFile(db, '/src/main.ts', 'v1');
+    const newFileId = insertFile(db, '/src/main.ts', 'v2');
+
+    // Two overloads — only the second one changes signature
+    insertSymbol(db, oldFileId, 'process', 'function', 'fn process(a: string): void', 1, 10);
+    insertSymbol(db, oldFileId, 'process', 'function', 'fn process(a: number): void', 1, 20);
+    insertSymbol(db, newFileId, 'process', 'function', 'fn process(a: string): void', 1, 10);
+    insertSymbol(db, newFileId, 'process', 'function', 'fn process(a: number, b: boolean): void', 1, 20);
+
+    const result = handler(db, { old_branch: 'v1', new_branch: 'v2' });
+
+    // Only 1 changed (line 20), not 2+ from cross-join
+    expect(result.changed).toHaveLength(1);
+    expect(result.changed[0]).toMatchObject({
+      name: 'process',
+      start_line: 20,
+      old_signature: 'fn process(a: number): void',
+      new_signature: 'fn process(a: number, b: boolean): void',
+    });
+    expect(result.added).toHaveLength(0);
+    expect(result.removed).toHaveLength(0);
   });
 
   it('should treat a symbol becoming non-exported as removed', () => {
