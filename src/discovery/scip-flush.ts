@@ -78,9 +78,12 @@ export class ScipFlushManager {
     try {
       await builder.baselineRebuild();
     } catch (err) {
+      // Re-queue paths on failure so next flush retries them
+      for (const p of paths) this.pathsSinceLastScip.add(p);
       process.stderr.write(
         JSON.stringify({ level: 'error', source, message: String(err) }) + '\n',
       );
+      return;
     }
 
     process.stderr.write(

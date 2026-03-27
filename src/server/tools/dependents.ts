@@ -158,10 +158,7 @@ export interface DependentsResult {
   truncated: boolean;
 }
 
-export interface DependentsErrorResult {
-  error: string;
-  candidates?: Array<{ id: number; name: string; kind: string; file: string }>;
-}
+
 
 // ─── Raw SQL row shapes ──────────────────────────────────────────────────────
 
@@ -614,7 +611,7 @@ const INTERNAL_LIMIT = 1000;
 export function handler(
   db: Database.Database,
   args: DependentsArgs,
-): DependentsResult | DependentsErrorResult {
+): DependentsResult {
   const depth = 5;
   const compact = args.compact ?? false;
   const limit = INTERNAL_LIMIT;
@@ -631,10 +628,10 @@ function handleFileDependents(
   depth: number,
   compact: boolean,
   limit: number,
-): DependentsResult | DependentsErrorResult {
+): DependentsResult {
   const file = getFileByPath(db, args.query, args.branch);
   if (!file) {
-    return { error: `No file found matching path "${args.query}"` };
+    throw new Error(`No file found matching path "${args.query}"`);
   }
 
   const target: DependentTarget = {
@@ -666,26 +663,26 @@ function handleSymbolDependents(
   depth: number,
   compact: boolean,
   limit: number,
-): DependentsResult | DependentsErrorResult {
+): DependentsResult {
   const symbols = getSymbolsByName(db, args.query, {
     branch: args.branch,
     matchMode: 'exact',
   });
 
   if (symbols.length === 0) {
-    return { error: `No symbol found matching name "${args.query}"` };
+    throw new Error(`No symbol found matching name "${args.query}"`);
   }
 
   // If multiple symbols share the same name, report ambiguity instead of
   // silently aggregating dependents across different symbols.
   if (symbols.length > 1) {
-    return {
-      error: `Ambiguous: ${symbols.length} symbols match "${args.query}". Results would aggregate dependents across all matches which can be misleading. Narrow your query or specify a file path to disambiguate.`,
-      candidates: symbols.slice(0, 10).map((s) => {
-        const file = getFileById(db, s.file_id, args.branch);
-        return { id: s.id, name: s.name, kind: s.kind, file: file?.path ?? '' };
-      }),
-    };
+    const candidates = symbols.slice(0, 10).map((s) => {
+      const file = getFileById(db, s.file_id, args.branch);
+      return { id: s.id, name: s.name, kind: s.kind, file: file?.path ?? '' };
+    });
+    throw new Error(
+      `Ambiguous: ${symbols.length} symbols match "${args.query}". Results would aggregate dependents across all matches which can be misleading. Narrow your query or specify a file path to disambiguate. Candidates: ${JSON.stringify(candidates)}`,
+    );
   }
 
   const primarySymbol = symbols[0]!;
