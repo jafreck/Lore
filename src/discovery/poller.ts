@@ -160,8 +160,12 @@ export class FilePoller {
           }),
         );
         for (const { path: filePath, mtime } of stats) {
+          if (mtime === null) {
+            // Don't add to currentPaths — let deletion sweep handle it if
+            // previously indexed.  New unreadable files are simply ignored.
+            continue;
+          }
           currentPaths.add(filePath);
-          if (mtime === null) continue;
           const prev = this.snapshot.get(filePath);
           if (prev === undefined || prev !== mtime) {
             changed.push(filePath);
