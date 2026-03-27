@@ -48,6 +48,8 @@ export class PythonExtractor implements SymbolExtractor {
           break;
         }
         case 'class_definition':
+          // Skip if this is already handled via decorated_definition parent
+          if (node.parent?.type === 'decorated_definition') break;
           result.symbols.push(extractClass(node));
           break;
         case 'import_statement':
