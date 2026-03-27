@@ -15,6 +15,7 @@ import { pipeline } from 'node:stream/promises';
 import { execFile } from 'node:child_process';
 import * as childProcess from 'node:child_process';
 import { promisify } from 'node:util';
+import { fileURLToPath } from 'node:url';
 import { getLogger } from '../logger.js';
 
 const execFileAsync = promisify(execFile);
@@ -83,7 +84,7 @@ function defaultIsCommandAvailable(command: string): boolean {
 
 function defaultFindNpmBinPath(command: string): string | null {
   const candidates = [
-    join(dirname(new URL(import.meta.url).pathname), '..', '..', 'node_modules', '.bin', command),
+    join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'node_modules', '.bin', command),
     join(dirname(process.execPath), command),
   ];
   for (const candidate of candidates) {
