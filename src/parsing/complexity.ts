@@ -14,6 +14,30 @@ const COMPLEXITY_NODE_TYPES_BY_LANGUAGE: Record<string, ComplexityNodeTypes> = {
   javascript: TYPESCRIPT_COMPLEXITY_NODE_TYPES,
 };
 
+/**
+ * Node types that introduce a new scope boundary.
+ * When computing complexity for a symbol, we skip the bodies of
+ * these node types to avoid counting nested function complexity
+ * in the parent scope.
+ */
+const SCOPE_BOUNDARY_TYPES = new Set([
+  // TypeScript / JavaScript
+  'function_declaration',
+  'function_expression',
+  'generator_function_declaration',
+  'generator_function',
+  'arrow_function',
+  'method_definition',
+  'class_declaration',
+  'class_expression',
+  // Python
+  'function_definition',
+  'class_definition',
+  // General
+  'lambda_expression',
+  'lambda',
+]);
+
 export function computeSymbolMetrics(symbol: RawSymbol, language: string): SymbolMetrics {
   const line_count = Math.max(1, symbol.endLine - symbol.startLine + 1);
   const astNode = symbol.astNode;
@@ -36,7 +60,7 @@ export function computeSymbolMetrics(symbol: RawSymbol, language: string): Symbo
     };
   }
 
-  const decisionCount = countByType(astNode, new Set(nodeTypes.decisionTypes));
+  const decisionCount = countByType(astNode, new Set(nodeTypes.decisionTypes), SCOPE_BOUNDARY_TYPES);
   return {
     line_count,
     param_count: countParameters(astNode, nodeTypes),
@@ -59,12 +83,36 @@ function countParameters(node: Parser.SyntaxNode, nodeTypes: ComplexityNodeTypes
   return 0;
 }
 
-function countByType(node: Parser.SyntaxNode, targetTypes: Set<string>): number {
+function countByType(
+  node: Parser.SyntaxNode,
+  targetTypes: Set<string>,
+  scopeBoundaryTypes?: Set<string>,
+): number {
   let count = 0;
-  for (const current of walk(node)) {
+  for (const current of walkSkippingNestedScopes(node, scopeBoundaryTypes)) {
     if (targetTypes.has(current.type)) count += 1;
   }
   return count;
+}
+
+/**
+ * Depth-first walk that skips the subtrees of nested scope boundaries.
+ * The root node is always traversed even if it matches a scope boundary type.
+ */
+function* walkSkippingNestedScopes(
+  root: Parser.SyntaxNode,
+  scopeBoundaryTypes?: Set<string>,
+): Generator<Parser.SyntaxNode> {
+  function* visit(node: Parser.SyntaxNode): Generator<Parser.SyntaxNode> {
+    yield node;
+    for (const child of node.children) {
+      if (scopeBoundaryTypes && child !== root && scopeBoundaryTypes.has(child.type)) {
+        continue;
+      }
+      yield* visit(child);
+    }
+  }
+  yield* visit(root);
 }
 
 function computeMaxNesting(node: Parser.SyntaxNode, nestingTypes: Set<string>): number {
@@ -72,6 +120,9 @@ function computeMaxNesting(node: Parser.SyntaxNode, nestingTypes: Set<string>): 
     const nextDepth = nestingTypes.has(current.type) ? depth + 1 : depth;
     let maxDepth = nextDepth;
     for (const child of current.namedChildren) {
+      if (child !== node && SCOPE_BOUNDARY_TYPES.has(child.type)) {
+        continue;
+      }
       maxDepth = Math.max(maxDepth, visit(child, nextDepth));
     }
     return maxDepth;
