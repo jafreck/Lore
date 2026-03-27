@@ -308,8 +308,8 @@ export function getSymbolsByName(
   return db
     .prepare(
       `SELECT s.*, sp.name AS parent_name, f.path AS file_path, f.branch AS file_branch, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting
-       FROM symbols s
-       JOIN files f ON s.file_id = f.id
+       FROM effective_symbols s
+       JOIN effective_files f ON s.file_id = f.id
        LEFT JOIN symbols sp ON sp.id = s.parent_symbol_id
        LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id
        WHERE ${where.join(' AND ')}`,
@@ -338,8 +338,8 @@ export function listSymbols(
   return db
     .prepare(
       `SELECT s.*, sp.name AS parent_name, f.path AS file_path, f.branch AS file_branch, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting
-       FROM symbols s
-       JOIN files f ON s.file_id = f.id
+       FROM effective_symbols s
+       JOIN effective_files f ON s.file_id = f.id
        LEFT JOIN symbols sp ON sp.id = s.parent_symbol_id
        LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id
        ${where.length > 0 ? `WHERE ${where.join(' AND ')}` : ''}
@@ -468,17 +468,17 @@ export interface FileRow {
 /** Fetch a single file row by primary key. */
 export function getFileById(db: Database.Database, id: number, branch?: string): FileRow | undefined {
   if (branch !== undefined) {
-    return db.prepare('SELECT * FROM files WHERE id = ? AND branch = ?').get(id, branch) as FileRow | undefined;
+    return db.prepare('SELECT * FROM effective_files WHERE id = ? AND branch = ?').get(id, branch) as FileRow | undefined;
   }
-  return db.prepare('SELECT * FROM files WHERE id = ?').get(id) as FileRow | undefined;
+  return db.prepare('SELECT * FROM effective_files WHERE id = ?').get(id) as FileRow | undefined;
 }
 
 /** Fetch a single file row by its path. */
 export function getFileByPath(db: Database.Database, path: string, branch?: string): FileRow | undefined {
   if (branch !== undefined) {
-    return db.prepare('SELECT * FROM files WHERE path = ? AND branch = ?').get(path, branch) as FileRow | undefined;
+    return db.prepare('SELECT * FROM effective_files WHERE path = ? AND branch = ?').get(path, branch) as FileRow | undefined;
   }
-  return db.prepare('SELECT * FROM files WHERE path = ?').get(path) as FileRow | undefined;
+  return db.prepare('SELECT * FROM effective_files WHERE path = ?').get(path) as FileRow | undefined;
 }
 
 /**
@@ -492,9 +492,9 @@ export function getFileByPath(db: Database.Database, path: string, branch?: stri
 export function listFiles(db: Database.Database, limit?: number, branch?: string): FileRow[] {
   const effectiveLimit = clampLimit(limit);
   if (branch !== undefined) {
-    return db.prepare('SELECT * FROM files WHERE branch = ? LIMIT ?').all(branch, effectiveLimit) as FileRow[];
+    return db.prepare('SELECT * FROM effective_files WHERE branch = ? LIMIT ?').all(branch, effectiveLimit) as FileRow[];
   }
-  return db.prepare('SELECT * FROM files LIMIT ?').all(effectiveLimit) as FileRow[];
+  return db.prepare('SELECT * FROM effective_files LIMIT ?').all(effectiveLimit) as FileRow[];
 }
 
 /** Return indexed files matching an exact path or directory prefix. */
@@ -511,7 +511,7 @@ export function listFilesByPathPrefix(
   if (branch !== undefined) {
     return db
       .prepare(
-        `SELECT * FROM files
+        `SELECT * FROM effective_files
          WHERE branch = ? AND (path = ? OR path LIKE ? ESCAPE '\\')
          ORDER BY path ASC, branch ASC
          LIMIT ?`,
@@ -520,7 +520,7 @@ export function listFilesByPathPrefix(
   }
   return db
     .prepare(
-      `SELECT * FROM files
+      `SELECT * FROM effective_files
        WHERE path = ? OR path LIKE ? ESCAPE '\\'
        ORDER BY path ASC, branch ASC
        LIMIT ?`,
