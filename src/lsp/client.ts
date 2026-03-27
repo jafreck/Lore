@@ -10,7 +10,7 @@ interface JsonRpcRequest {
 
 interface JsonRpcResponse {
   jsonrpc: '2.0';
-  id: number;
+  id: number | string;
   result?: unknown;
   error?: {
     code: number;
@@ -238,7 +238,7 @@ export class LspClient {
         continue;
       }
 
-      if (typeof parsed.id !== 'number') continue;
+      if (typeof parsed.id !== 'number' && typeof parsed.id !== 'string') continue;
 
       // Handle server-initiated requests (messages with both id and method).
       // These are not responses to our requests — they are requests FROM the
@@ -258,11 +258,14 @@ export class LspClient {
         continue;
       }
 
-      const pending = this.pending.get(parsed.id);
+      // Coerce string IDs to numbers for pending-map lookup — we always
+      // send numeric IDs, but servers may echo them back as strings.
+      const lookupId = typeof parsed.id === 'string' ? Number(parsed.id) : parsed.id;
+      const pending = this.pending.get(lookupId);
       if (!pending) continue;
 
       clearTimeout(pending.timeout);
-      this.pending.delete(parsed.id);
+      this.pending.delete(lookupId);
       if (parsed.error) {
         pending.reject(new Error(`LSP request failed for ${pending.method}: ${parsed.error.message}`));
       } else {
@@ -289,11 +292,11 @@ export class LspClient {
     }
   }
 
-  private sendResponse(id: number, result: unknown, error?: { code: number; message: string }): void {
+  private sendResponse(id: number | string, result: unknown, error?: { code: number; message: string }): void {
     const child = this.child;
     if (!child || this.exited) return;
 
-    const message: JsonRpcResponse = { jsonrpc: '2.0', id };
+    const message: Record<string, unknown> = { jsonrpc: '2.0', id };
     if (error) {
       message.error = error;
     } else {
