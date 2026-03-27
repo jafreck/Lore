@@ -56,7 +56,7 @@ function symbolsTable(db: Database.Database): string {
  */
 function clampLimit(limit: number | undefined, defaultLimit = 1000): number {
   if (limit === undefined) return defaultLimit;
-  return Math.min(limit, MAX_RESULT_LIMIT);
+  return Math.min(Math.max(1, limit), MAX_RESULT_LIMIT);
 }
 
 // ─── Connection helpers ───────────────────────────────────────────────────────
