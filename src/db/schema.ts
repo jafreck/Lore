@@ -279,11 +279,14 @@ CREATE INDEX IF NOT EXISTS idx_symbol_relationships_layer ON symbol_relationship
 
 -- Tracks files with active overlay data.
 CREATE TABLE IF NOT EXISTS dirty_files (
-  path        TEXT NOT NULL PRIMARY KEY,
+  path        TEXT NOT NULL,
+  branch      TEXT NOT NULL DEFAULT '',
   dirty_since INTEGER NOT NULL DEFAULT (unixepoch()),
-  overlay_gen INTEGER NOT NULL DEFAULT 0
+  overlay_gen INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (path, branch)
 );
 CREATE INDEX IF NOT EXISTS idx_dirty_files_path ON dirty_files(path);
+CREATE INDEX IF NOT EXISTS idx_dirty_files_branch ON dirty_files(branch);
 
 -- Reverse dependency graph: "file X is depended on by file Y".
 CREATE TABLE IF NOT EXISTS reverse_deps (
@@ -334,11 +337,14 @@ export function openDb(path: string): Database.Database {
 function ensureIncrementalSchema(db: Database.Database): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS dirty_files (
-      path        TEXT NOT NULL PRIMARY KEY,
+      path        TEXT NOT NULL,
+      branch      TEXT NOT NULL DEFAULT '',
       dirty_since INTEGER NOT NULL DEFAULT (unixepoch()),
-      overlay_gen INTEGER NOT NULL DEFAULT 0
+      overlay_gen INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (path, branch)
     );
     CREATE INDEX IF NOT EXISTS idx_dirty_files_path ON dirty_files(path);
+    CREATE INDEX IF NOT EXISTS idx_dirty_files_branch ON dirty_files(branch);
 
     CREATE TABLE IF NOT EXISTS reverse_deps (
       file_id      INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
@@ -365,8 +371,8 @@ function ensureIncrementalSchema(db: Database.Database): void {
 
     CREATE VIEW effective_files AS
     SELECT * FROM files
-    WHERE (layer = 'overlay' AND path IN (SELECT path FROM dirty_files))
-       OR (layer = 'baseline' AND path NOT IN (SELECT path FROM dirty_files));
+    WHERE (layer = 'overlay' AND EXISTS (SELECT 1 FROM dirty_files df WHERE df.path = files.path AND df.branch = files.branch))
+       OR (layer = 'baseline' AND NOT EXISTS (SELECT 1 FROM dirty_files df WHERE df.path = files.path AND df.branch = files.branch));
 
     CREATE VIEW effective_symbols AS
     SELECT s.* FROM symbols s
