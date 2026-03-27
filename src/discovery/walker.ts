@@ -145,7 +145,16 @@ export async function walkFiles(config: WalkerConfig): Promise<FileEntry[]> {
   for (const filePath of paths) {
     // Resolve symlinks to canonical paths so each physical file is indexed
     // once, regardless of how many symlinks point to it.
-    const realPath = realpathSync(filePath);
+    let realPath: string;
+    try {
+      realPath = realpathSync(filePath);
+    } catch (err: unknown) {
+      // File may have been deleted between glob discovery and realpath.
+      // Skip transient filesystem errors (ENOENT, EACCES, etc.) but
+      // re-throw programming errors.
+      if (err instanceof Error && 'code' in err) continue;
+      throw err;
+    }
 
     if (seen.has(realPath)) continue;
     seen.add(realPath);
