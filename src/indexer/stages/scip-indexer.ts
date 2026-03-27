@@ -1096,9 +1096,11 @@ export class ScipRefStage implements PipelineStage {
          FROM symbols s
          JOIN files f ON f.id = s.file_id
          WHERE f.branch = ?
+           AND s.layer = ?
+           AND s.generation = ?
            AND s.kind IN ('function', 'method', 'class', 'constructor', 'variable')
          ORDER BY s.file_id, (s.end_line - s.start_line) ASC`,
-      ).all(branch) as Array<{ id: number; file_id: number; start_line: number; end_line: number }>;
+      ).all(branch, layer, generation) as Array<{ id: number; file_id: number; start_line: number; end_line: number }>;
 
       for (const row of rows) {
         let spans = fileSymbolSpans.get(row.file_id);
