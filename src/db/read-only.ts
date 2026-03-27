@@ -1040,9 +1040,20 @@ function expandRenamePathVariants(path: string): string[] {
 
 /** Fetch a single commit by its SHA (full or prefix match). */
 export function getCommitBySha(db: Database.Database, sha: string): CommitRow | undefined {
-  return db
-    .prepare(`SELECT * FROM commits WHERE sha = ? OR sha LIKE ? ESCAPE '\\' LIMIT 1`)
-    .get(sha, `${escapeLikeWildcards(sha)}%`) as CommitRow | undefined;
+  // Exact match first
+  const exact = db.prepare('SELECT * FROM commits WHERE sha = ?').get(sha);
+  if (exact) return exact as CommitRow;
+
+  // Prefix match — check for ambiguity
+  const prefixMatches = db
+    .prepare(
+      `SELECT * FROM commits WHERE sha LIKE ? ESCAPE '\\' ORDER BY sha ASC LIMIT 2`,
+    )
+    .all(`${escapeLikeWildcards(sha)}%`);
+
+  if (prefixMatches.length === 1) return prefixMatches[0] as CommitRow;
+  if (prefixMatches.length > 1) return undefined; // Ambiguous prefix
+  return undefined; // No match
 }
 
 /** Return the most recent commits ordered by timestamp DESC, limited to `limit` rows. */
