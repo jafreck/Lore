@@ -103,7 +103,7 @@ export const SUPPORTED_WALKER_LANGUAGES: readonly string[] = Object.freeze(
 );
 
 // Paths always excluded unless the caller overrides them.
-const DEFAULT_EXCLUDES = [
+export const DEFAULT_EXCLUDES = [
   '**/node_modules/**',
   '**/.git/**',
   '**/dist/**',
@@ -163,4 +163,40 @@ export function detectLanguageForPath(filePath: string, config?: Pick<WalkerConf
   const ext = extname(filePath).toLowerCase();
   if (config?.extensions && !config.extensions.includes(ext)) return undefined;
   return EXT_TO_LANG[ext];
+}
+
+/**
+ * Tests whether a file should be included for indexing according to the
+ * discovery walker's exclude patterns and extension rules.
+ *
+ * This is a fast synchronous pre-filter used by FileWatcher to skip files
+ * that `walkFiles` would never return. It handles:
+ *
+ * - Default and user-configured directory exclusions (`**\/<name>\/**` patterns)
+ * - Extension filtering via `EXT_TO_LANG` and optional explicit `extensions`
+ *
+ * @param relativePath Forward-slash-separated path relative to rootDir
+ * @param config       Walker configuration for exclusion globs and extensions
+ */
+export function shouldIndexFile(
+  relativePath: string,
+  config: Pick<WalkerConfig, 'excludeGlobs' | 'extensions'>,
+): boolean {
+  const allExcludes = [...DEFAULT_EXCLUDES, ...(config.excludeGlobs ?? [])];
+
+  // Extract excluded directory names from `**/<name>/**` patterns.
+  const excludedDirs = new Set<string>();
+  for (const p of allExcludes) {
+    const m = /^\*\*\/([^/*]+)\/\*\*$/.exec(p);
+    if (m?.[1]) excludedDirs.add(m[1]);
+  }
+
+  // Check if any path segment matches an excluded directory.
+  const segments = relativePath.replace(/\\/g, '/').split('/');
+  for (const seg of segments) {
+    if (excludedDirs.has(seg)) return false;
+  }
+
+  // Extension + language check.
+  return detectLanguageForPath(relativePath, config) !== undefined;
 }
