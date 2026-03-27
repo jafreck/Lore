@@ -580,9 +580,14 @@ describe('graph handler – transitive traversal', () => {
     expect(names).toContain('d');
   });
 
-  it('should set depth_used to 5', () => {
+  it('should set depth_used to actual hops used', () => {
     const result = handler(db, { kind: 'call', source_id: aId });
-    expect(result.depth_used).toBe(5);
+    expect(result.depth_used).toBe(3);
+  });
+
+  it('should report depth_used 1 for unanchored queries', () => {
+    const result = handler(db, { kind: 'call' });
+    expect(result.depth_used).toBe(1);
   });
 
   it('should not duplicate edges in cyclic graphs', () => {

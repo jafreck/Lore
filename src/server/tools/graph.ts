@@ -386,9 +386,10 @@ export function handler(db: Database.Database, args: GraphArgs): GraphResult {
   } else {
     // No anchor → just run one hop with the given limit
     const edges = getStructuralEdges(db, args, limit);
-    return finishResult(db, args, edges, limit, compact, depth);
+    return finishResult(db, args, edges, limit, compact, 1);
   }
 
+  let hopsUsed = 0;
   for (let hop = 0; hop < depth && frontier.length > 0 && allEdges.length < limit; hop++) {
     const hopArgs: GraphArgs = {
       kind: args.kind,
@@ -410,21 +411,26 @@ export function handler(db: Database.Database, args: GraphArgs): GraphResult {
 
     // Deduplicate edges
     const nextFrontier: number[] = [];
+    let addedInHop = 0;
     for (const edge of hopEdges) {
       const key = `${edge.source_id}:${edge.target_id}:${edge.source_name}:${edge.target_name}`;
       if (seenEdgeKeys.has(key)) continue;
       seenEdgeKeys.add(key);
       allEdges.push(edge);
+      addedInHop++;
       // Expand in the traversal direction
       const nextId = isOutbound ? edge.target_id : edge.source_id;
       if (nextId !== null) {
         nextFrontier.push(nextId);
       }
     }
+    if (addedInHop > 0) {
+      hopsUsed++;
+    }
     frontier = nextFrontier;
   }
 
-  return finishResult(db, args, allEdges, limit, compact, depth);
+  return finishResult(db, args, allEdges, limit, compact, hopsUsed);
 }
 
 function finishResult(
