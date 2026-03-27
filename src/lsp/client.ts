@@ -365,7 +365,20 @@ export class LspClient {
 
     if (timedOut) {
       this.child?.kill('SIGTERM');
-      await exitPromise;
+
+      const sigkillTimeout = 5_000;
+      const exited = await Promise.race([
+        exitPromise.then(() => true),
+        new Promise<boolean>((resolve) => {
+          const timer = setTimeout(() => resolve(false), sigkillTimeout);
+          exitPromise.then(() => clearTimeout(timer));
+        }),
+      ]);
+
+      if (!exited) {
+        this.child?.kill('SIGKILL');
+        await exitPromise;
+      }
     }
   }
 
