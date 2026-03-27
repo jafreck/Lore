@@ -629,7 +629,7 @@ export class ScipIndexerStage implements PipelineStage {
         const hash = crypto.createHash('sha256').update(source).digest('hex');
 
         // Delete existing data for this file (like SourceIndexStage does)
-        const existing = db.prepare('SELECT id FROM files WHERE path = ? AND branch = ?').get(absPath, branch) as
+        const existing = db.prepare('SELECT id FROM files WHERE path = ? AND branch = ? AND layer = ?').get(absPath, branch, layer) as
           | { id: number } | undefined;
         if (existing) {
           db.prepare('DELETE FROM symbol_relationships WHERE file_id = ?').run(existing.id);
