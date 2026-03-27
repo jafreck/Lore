@@ -200,8 +200,8 @@ function getStructuralEdges(
               END AS character,
               sr.resolution_method AS resolution_method,
               sr.definition_path AS definition_path,
-              sr.definition_line AS definition_line,
-              sr.definition_character AS definition_character
+              CASE WHEN sr.definition_line IS NULL THEN NULL ELSE sr.definition_line + 1 END AS definition_line,
+              CASE WHEN sr.definition_character IS NULL THEN NULL ELSE sr.definition_character + 1 END AS definition_character
          FROM symbol_refs sr
          JOIN symbols s_caller ON s_caller.id = sr.caller_id
          JOIN files f_caller ON f_caller.id = s_caller.file_id
@@ -283,8 +283,8 @@ function getStructuralEdges(
               END AS character,
               rel.resolution_method AS resolution_method,
               rel.definition_path AS definition_path,
-              rel.definition_line AS definition_line,
-              rel.definition_character AS definition_character
+              CASE WHEN rel.definition_line IS NULL THEN NULL ELSE rel.definition_line + 1 END AS definition_line,
+              CASE WHEN rel.definition_character IS NULL THEN NULL ELSE rel.definition_character + 1 END AS definition_character
          FROM symbol_relationships rel
          JOIN symbols s_src ON s_src.id = rel.source_symbol_id
          JOIN files f_src ON f_src.id = s_src.file_id
@@ -332,8 +332,8 @@ function getStructuralEdges(
               END AS character,
               tr.resolution_method AS resolution_method,
               tr.definition_path AS definition_path,
-              tr.definition_line AS definition_line,
-              tr.definition_character AS definition_character
+              CASE WHEN tr.definition_line IS NULL THEN NULL ELSE tr.definition_line + 1 END AS definition_line,
+              CASE WHEN tr.definition_character IS NULL THEN NULL ELSE tr.definition_character + 1 END AS definition_character
          FROM type_refs tr
          JOIN files f_src ON f_src.id = tr.file_id
          LEFT JOIN symbols s_src ON s_src.id = tr.symbol_id

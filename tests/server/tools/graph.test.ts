@@ -500,8 +500,8 @@ describe('graph handler – provenance fields', () => {
       character: 11,
       resolution_method: 'lsp_definition',
       definition_path: 'src/main.ts',
-      definition_line: 20,
-      definition_character: 4,
+      definition_line: 21,
+      definition_character: 5,
     });
   });
 
@@ -522,8 +522,8 @@ describe('graph handler – provenance fields', () => {
       character: 5,
       resolution_method: 'lsp_definition',
       definition_path: 'src/main.ts',
-      definition_line: 1,
-      definition_character: 0,
+      definition_line: 2,
+      definition_character: 1,
     });
   });
 
@@ -544,8 +544,8 @@ describe('graph handler – provenance fields', () => {
       character: 6,
       resolution_method: 'lsp_definition',
       definition_path: 'src/main.ts',
-      definition_line: 1,
-      definition_character: 0,
+      definition_line: 2,
+      definition_character: 1,
     });
   });
 });
