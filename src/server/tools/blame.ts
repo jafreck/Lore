@@ -247,6 +247,9 @@ function ensureRange(args: BlameArgs, symbol?: SymbolRangeMatch): { start: numbe
 
 function normalizeRef(ref?: string): string {
   const trimmed = ref?.trim();
+  if (trimmed && trimmed.startsWith('-')) {
+    throw new Error(`Invalid git ref: "${trimmed}" — refs cannot start with '-'`);
+  }
   return trimmed ? trimmed : 'HEAD';
 }
 
