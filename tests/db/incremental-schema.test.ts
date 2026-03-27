@@ -179,8 +179,8 @@ describe('incremental schema — effective_* views', () => {
     ).run('/src/a.ts', 'HEAD', 'typescript', 15, 'overlay-content', 'overlay', 0);
     // Mark as dirty
     db.prepare(
-      'INSERT INTO dirty_files (path, dirty_since, overlay_gen) VALUES (?, ?, ?)',
-    ).run('/src/a.ts', 1000, 0);
+      'INSERT INTO dirty_files (path, branch, dirty_since, overlay_gen) VALUES (?, ?, ?, ?)',
+    ).run('/src/a.ts', 'HEAD', 1000, 0);
 
     const rows = db.prepare('SELECT * FROM effective_files').all() as Array<{ path: string; source: string; layer: string }>;
     expect(rows).toHaveLength(1);
@@ -202,8 +202,8 @@ describe('incremental schema — effective_* views', () => {
       "INSERT INTO files (path, branch, language, size_bytes, source, layer, generation) VALUES (?, ?, ?, ?, ?, ?, ?)",
     ).run('/src/b.ts', 'HEAD', 'typescript', 15, 'b-overlay', 'overlay', 0);
     db.prepare(
-      'INSERT INTO dirty_files (path, dirty_since, overlay_gen) VALUES (?, ?, ?)',
-    ).run('/src/b.ts', 1000, 0);
+      'INSERT INTO dirty_files (path, branch, dirty_since, overlay_gen) VALUES (?, ?, ?, ?)',
+    ).run('/src/b.ts', 'HEAD', 1000, 0);
 
     const rows = db.prepare('SELECT path, source, layer FROM effective_files ORDER BY path').all() as
       Array<{ path: string; source: string; layer: string }>;

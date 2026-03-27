@@ -65,17 +65,19 @@ export class ReverseDepsStage implements PipelineStage {
         }
 
         // Re-insert outbound edges from changed files
+        // Use effective views (not raw tables) to stay consistent with build mode
+        // and respect branch/layer filtering.
         const insertFromImports = db.prepare(`
           INSERT OR IGNORE INTO reverse_deps (file_id, dependent_id, dep_kind)
           SELECT fi.resolved_id, fi.file_id, 'import'
-          FROM file_imports fi
+          FROM effective_file_imports fi
           WHERE fi.resolved_id IS NOT NULL AND fi.file_id = ?
         `);
         const insertFromRefs = db.prepare(`
           INSERT OR IGNORE INTO reverse_deps (file_id, dependent_id, dep_kind)
           SELECT s_callee.file_id, sr.file_id, 'ref'
-          FROM symbol_refs sr
-          JOIN symbols s_callee ON s_callee.id = sr.callee_id
+          FROM effective_symbol_refs sr
+          JOIN effective_symbols s_callee ON s_callee.id = sr.callee_id
           WHERE sr.callee_id IS NOT NULL
             AND sr.file_id = ?
             AND sr.file_id != s_callee.file_id
@@ -85,14 +87,14 @@ export class ReverseDepsStage implements PipelineStage {
         const insertInboundImports = db.prepare(`
           INSERT OR IGNORE INTO reverse_deps (file_id, dependent_id, dep_kind)
           SELECT fi.resolved_id, fi.file_id, 'import'
-          FROM file_imports fi
+          FROM effective_file_imports fi
           WHERE fi.resolved_id IS NOT NULL AND fi.resolved_id = ?
         `);
         const insertInboundRefs = db.prepare(`
           INSERT OR IGNORE INTO reverse_deps (file_id, dependent_id, dep_kind)
           SELECT s_callee.file_id, sr.file_id, 'ref'
-          FROM symbol_refs sr
-          JOIN symbols s_callee ON s_callee.id = sr.callee_id
+          FROM effective_symbol_refs sr
+          JOIN effective_symbols s_callee ON s_callee.id = sr.callee_id
           WHERE sr.callee_id IS NOT NULL
             AND s_callee.file_id = ?
             AND sr.file_id != s_callee.file_id
