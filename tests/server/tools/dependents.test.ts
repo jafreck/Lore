@@ -483,7 +483,7 @@ describe('dependents handler – ambiguous symbol', () => {
     expect(result.candidates!.length).toBeGreaterThan(0);
   });
 
-  it('should aggregate across a few matching symbols (≤5)', () => {
+  it('should return disambiguation error for a few matching symbols (≤5)', () => {
     const db = createTestDb();
     const f1 = insertFile(db, 'src/a.ts');
     const f2 = insertFile(db, 'src/b.ts');
@@ -497,11 +497,13 @@ describe('dependents handler – ambiguous symbol', () => {
     insertCallEdge(db, caller2, s2, 'run');
 
     const result = handler(db, { query: 'run', kind: 'symbol' });
-    expect(isSuccess(result)).toBe(true);
-    if (!isSuccess(result)) return;
+    expect(isError(result)).toBe(true);
+    if (!isError(result)) return;
 
-    // Both callers aggregated
-    expect(result.dependents.callers.length).toBe(2);
+    // Should report ambiguity with both candidates
+    expect(result.error).toContain('Ambiguous');
+    expect(result.candidates).toBeDefined();
+    expect(result.candidates!.length).toBe(2);
   });
 });
 

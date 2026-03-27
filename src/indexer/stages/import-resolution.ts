@@ -23,12 +23,14 @@ export class ImportResolutionStage implements PipelineStage {
     const rootDir = walkerConfig.rootDir;
     const resolver = new ImportResolver();
 
-    // Fetch all unresolved imports with their file's path, language, and file_id
+    // Fetch all unresolved imports with their file's path, language, and file_id.
+    // Use effective_file_imports / effective_files so overlay rows take precedence
+    // over baseline rows for the same path during incremental updates.
     const rows = db
       .prepare(
         `SELECT fi.id, fi.file_id, fi.raw_import, f.path, f.language
-         FROM file_imports fi
-         JOIN files f ON f.id = fi.file_id
+         FROM effective_file_imports fi
+         JOIN effective_files f ON f.id = fi.file_id
          WHERE fi.resolved_id IS NULL AND f.branch = ?`,
       )
       .all(branch) as Array<{
@@ -40,8 +42,9 @@ export class ImportResolutionStage implements PipelineStage {
       }>;
 
     // P5: Build a bulk path→id map so we don't do N individual SELECT lookups.
+    // Uses effective_files so resolved_id always points to the overlay-preferred file.
     const fileIdByPath = new Map<string, number>(
-      (db.prepare('SELECT id, path FROM files WHERE branch = ?').all(branch) as Array<{ id: number; path: string }>)
+      (db.prepare('SELECT id, path FROM effective_files WHERE branch = ?').all(branch) as Array<{ id: number; path: string }>)
         .map(r => [r.path, r.id]),
     );
 
