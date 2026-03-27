@@ -200,3 +200,25 @@ export function shouldIndexFile(
   // Extension + language check.
   return detectLanguageForPath(relativePath, config) !== undefined;
 }
+
+/**
+ * Check only directory exclusion rules, without filtering by extension.
+ * Used by the watcher to skip changes in excluded dirs (node_modules, .git, etc.)
+ * while still forwarding non-source files (e.g. coverage reports) to the pipeline.
+ */
+export function isExcludedPath(
+  relativePath: string,
+  config: Pick<WalkerConfig, 'excludeGlobs'>,
+): boolean {
+  const allExcludes = [...DEFAULT_EXCLUDES, ...(config.excludeGlobs ?? [])];
+  const excludedDirs = new Set<string>();
+  for (const p of allExcludes) {
+    const m = /^\*\*\/([^/*]+)\/\*\*$/.exec(p);
+    if (m?.[1]) excludedDirs.add(m[1]);
+  }
+  const segments = relativePath.replace(/\\/g, '/').split('/');
+  for (const seg of segments) {
+    if (excludedDirs.has(seg)) return true;
+  }
+  return false;
+}
