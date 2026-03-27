@@ -249,6 +249,28 @@ function toKnownType(value: unknown): ConfigValueType | null {
   return null;
 }
 
+function splitOutsideQuotes(input: string): string[] {
+  const parts: string[] = [];
+  let current = '';
+  let quote: string | null = null;
+  for (const ch of input) {
+    if (quote) {
+      current += ch;
+      if (ch === quote) quote = null;
+    } else if (ch === '"' || ch === "'") {
+      current += ch;
+      quote = ch;
+    } else if (ch === ',') {
+      parts.push(current);
+      current = '';
+    } else {
+      current += ch;
+    }
+  }
+  parts.push(current);
+  return parts;
+}
+
 function parseScalar(raw: string): unknown {
   const normalized = normalizeQuotedValue(raw);
   if (normalized === null) return null;
@@ -259,7 +281,7 @@ function parseScalar(raw: string): unknown {
   if (normalized.startsWith('[') && normalized.endsWith(']')) {
     const body = normalized.slice(1, -1).trim();
     if (!body) return [];
-    return body.split(',').map((part) => parseScalar(part.trim()));
+    return splitOutsideQuotes(body).map((part) => parseScalar(part.trim()));
   }
   return normalized;
 }
