@@ -372,7 +372,7 @@ export class SourceIndexStage implements PipelineStage {
               db.prepare('DELETE FROM files WHERE id = ?').run(overlayRow.id);
             }
             // Mark as dirty with a sentinel so effective_files excludes the baseline row
-            db.prepare('INSERT OR REPLACE INTO dirty_files (path, dirty_since, overlay_gen) VALUES (?, unixepoch(), ?)').run(filePath, generation);
+            db.prepare('INSERT OR REPLACE INTO dirty_files (path, branch, dirty_since, overlay_gen) VALUES (?, ?, unixepoch(), ?)').run(filePath, branch, generation);
           } else {
             // Baseline mode: queue for batch delete
             const row = db.prepare('SELECT id FROM files WHERE path = ? AND branch = ?').get(filePath, branch) as
@@ -590,8 +590,8 @@ function insertFileAndExtractions(
     fileId = Number(info.lastInsertRowid);
     // Mark file as dirty
     db.prepare(
-      'INSERT OR REPLACE INTO dirty_files (path, dirty_since, overlay_gen) VALUES (?, unixepoch(), ?)',
-    ).run(filePath, generation);
+      'INSERT OR REPLACE INTO dirty_files (path, branch, dirty_since, overlay_gen) VALUES (?, ?, unixepoch(), ?)',
+    ).run(filePath, branch, generation);
   } else {
     // Baseline mode, new file
     const info = db
