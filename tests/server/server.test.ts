@@ -552,7 +552,11 @@ describe('createLoreMcpServer', () => {
       added: [],
       removed: [],
       changed: [],
-      summary: { added_count: 0, removed_count: 0, changed_count: 0 },
+      summary: {
+        added: { total: 0, shown: 0, truncated: false },
+        removed: { total: 0, shown: 0, truncated: false },
+        changed: { total: 0, shown: 0, truncated: false },
+      },
     };
     const diffHandlerSpy = vi.spyOn(diff, 'handler').mockReturnValue(diffResult);
 
