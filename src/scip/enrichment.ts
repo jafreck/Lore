@@ -352,19 +352,10 @@ export class ScipEnrichmentCoordinator {
 // ─── Merge helper ─────────────────────────────────────────────────────────────
 
 /**
- * Partial merge of two ScipIndexData instances.
- * In practice we re-parse the protobuf bytes, so this is a simple
- * "use the second index" fallback.  A full merge would iterate the
- * internal maps, but for the common case (one indexer per run) this
- * is sufficient.
+ * Merge two ScipIndexData instances, preserving entries from the earlier
+ * index (`a`) when they don't exist in the later index (`b`).
  */
 function mergeScipIndexDataPartial(a: ScipIndexData, b: ScipIndexData): ScipIndexData {
-  // For now, since ScipIndexData doesn't expose its internal maps for
-  // iteration, we rely on the coordinator loading indexes sequentially
-  // and always use the latest one.  A proper merge would require adding
-  // a `merge()` method to ScipIndexData.
-  //
-  // TODO: Implement proper merge across multiple SCIP indexes.
-  // For single-language projects (the common case), `b` is sufficient.
+  b.merge(a);
   return b;
 }
