@@ -112,9 +112,10 @@ export class TypeScriptExtractor implements SymbolExtractor {
           const dynImport = maybeDynamicImport(node);
           if (dynImport) {
             result.imports.push(dynImport);
+          } else {
+            const ref = extractCallRef(node);
+            if (ref) result.callRefs.push(ref);
           }
-          const ref = extractCallRef(node);
-          if (ref) result.callRefs.push(ref);
           break;
         }
         case 'as_expression': {

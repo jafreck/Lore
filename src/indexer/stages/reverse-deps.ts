@@ -64,7 +64,7 @@ export class ReverseDepsStage implements PipelineStage {
           deleteByDependent.run(fid);
         }
 
-        // Re-insert for changed files
+        // Re-insert outbound edges from changed files
         const insertFromImports = db.prepare(`
           INSERT OR IGNORE INTO reverse_deps (file_id, dependent_id, dep_kind)
           SELECT fi.resolved_id, fi.file_id, 'import'
@@ -80,9 +80,29 @@ export class ReverseDepsStage implements PipelineStage {
             AND sr.file_id = ?
             AND sr.file_id != s_callee.file_id
         `);
+
+        // Re-insert inbound edges to changed files (from unchanged files)
+        const insertInboundImports = db.prepare(`
+          INSERT OR IGNORE INTO reverse_deps (file_id, dependent_id, dep_kind)
+          SELECT fi.resolved_id, fi.file_id, 'import'
+          FROM file_imports fi
+          WHERE fi.resolved_id IS NOT NULL AND fi.resolved_id = ?
+        `);
+        const insertInboundRefs = db.prepare(`
+          INSERT OR IGNORE INTO reverse_deps (file_id, dependent_id, dep_kind)
+          SELECT s_callee.file_id, sr.file_id, 'ref'
+          FROM symbol_refs sr
+          JOIN symbols s_callee ON s_callee.id = sr.callee_id
+          WHERE sr.callee_id IS NOT NULL
+            AND s_callee.file_id = ?
+            AND sr.file_id != s_callee.file_id
+        `);
+
         for (const fid of changedFileIds) {
           insertFromImports.run(fid);
           insertFromRefs.run(fid);
+          insertInboundImports.run(fid);
+          insertInboundRefs.run(fid);
         }
       })();
     }
