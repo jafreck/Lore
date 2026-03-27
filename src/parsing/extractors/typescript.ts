@@ -99,8 +99,7 @@ export class TypeScriptExtractor implements SymbolExtractor {
         case 'lexical_declaration':
         case 'variable_declaration': {
           // Handle: const foo = () => {} or const foo = function() {}
-          const sym = maybeExtractArrowOrFunctionExpr(node, source, declarationMode);
-          if (sym) result.symbols.push(sym);
+          result.symbols.push(...extractArrowOrFunctionExprs(node, source, declarationMode));
           extractTsVariableTypeRefs(node, result.typeRefs);
           break;
         }
@@ -214,11 +213,12 @@ function extractClassMembers(
   }
 }
 
-function maybeExtractArrowOrFunctionExpr(
+function extractArrowOrFunctionExprs(
   node: Parser.SyntaxNode,
   source: string,
   declarationMode: boolean,
-): RawSymbol | null {
+): RawSymbol[] {
+  const results: RawSymbol[] = [];
   // Look for: const/let/var <name> = <arrow_function | function_expression>
   for (const declarator of node.namedChildren) {
     if (declarator.type !== 'variable_declarator') continue;
@@ -231,19 +231,19 @@ function maybeExtractArrowOrFunctionExpr(
       valueNode.type === 'generator_function'
     ) {
       const docComment = declarationMode ? extractLeadingDocComment(node, source) : undefined;
-      return {
+      results.push({
         name: nameNode.text,
         kind: 'function',
-        startLine: node.startPosition.row,
-        endLine: node.endPosition.row,
-        signature: nodeSignature(node),
+        startLine: declarator.startPosition.row,
+        endLine: declarator.endPosition.row,
+        signature: nodeSignature(declarator),
         ...(docComment ? { docComment } : {}),
         ...(isNodeExported(node) ? { isExported: true } : {}),
         astNode: valueNode,
-      };
+      });
     }
   }
-  return null;
+  return results;
 }
 
 function isNodeExported(node: Parser.SyntaxNode): boolean {
