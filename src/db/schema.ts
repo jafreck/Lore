@@ -447,6 +447,10 @@ export function incrementGeneration(db: Database.Database): number {
  * @param dims Embedding dimensionality (e.g. 1024 for Qwen3-Embedding-0.6B).
  */
 export function createVec0Tables(db: Database.Database, dims: number): void {
+  if (!Number.isInteger(dims) || dims <= 0 || dims > 10000) {
+    throw new Error(`Invalid embedding dimensions: ${dims}`);
+  }
+
   // Load the sqlite-vec native extension.
   // Use createRequire for ESM compatibility (native addons cannot be loaded via import()).
   const sqliteVec = esmRequire('sqlite-vec') as { load(db: Database.Database): void };
