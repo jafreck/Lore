@@ -12,6 +12,7 @@ import type { EmbeddingProvider } from '../embeddings/embedder.js';
 import type { EffectiveLspSettings } from '../lsp/config.js';
 import type { EffectiveScipSettings } from '../scip/config.js';
 import type { WalkerConfig } from './walker.js';
+import { isExcludedPath } from './walker.js';
 import { ScipFlushManager } from './scip-flush.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -131,6 +132,10 @@ export class FileWatcher {
       { recursive: true },
       (event, filename) => {
         if (!filename) return;
+
+        // Skip changes in excluded directories (node_modules, .git, etc.)
+        if (isExcludedPath(filename, this.walkerConfig)) return;
+
         const absPath = `${this.walkerConfig.rootDir}/${filename}`;
         this.pendingPaths.add(absPath);
         this.scheduleFlush();
