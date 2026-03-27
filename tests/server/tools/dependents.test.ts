@@ -5,7 +5,6 @@ import {
   toolDef,
   type DependentsArgs,
   type DependentsResult,
-  type DependentsErrorResult,
 } from '../../../src/server/tools/dependents.js';
 import { openDb } from '../../../src/db/schema.js';
 
@@ -74,16 +73,8 @@ function insertTypeRef(
   ).run(fileId, symbolId, typeId, typeName, typeName);
 }
 
-function isSuccess(result: DependentsResult | DependentsErrorResult): result is DependentsResult {
-  return !('error' in result);
-}
-
 function asObject(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
-}
-
-function isError(result: DependentsResult | DependentsErrorResult): result is DependentsErrorResult {
-  return 'error' in result;
 }
 
 // ─── toolDef ──────────────────────────────────────────────────────────────────
@@ -133,8 +124,6 @@ describe('dependents handler – kind=symbol', () => {
 
   it('should return callers of a symbol', () => {
     const result = handler(db, { query: 'openDb', kind: 'symbol' });
-    expect(isSuccess(result)).toBe(true);
-    if (!isSuccess(result)) return;
 
     expect(result.target.name).toBe('openDb');
     expect(result.target.kind).toBe('function');
@@ -143,16 +132,12 @@ describe('dependents handler – kind=symbol', () => {
 
   it('should return importers of the file containing the symbol', () => {
     const result = handler(db, { query: 'openDb', kind: 'symbol' });
-    expect(isSuccess(result)).toBe(true);
-    if (!isSuccess(result)) return;
 
     expect(result.dependents.importers.length).toBe(2);
   });
 
   it('should set total_count accurately', () => {
     const result = handler(db, { query: 'openDb', kind: 'symbol' });
-    expect(isSuccess(result)).toBe(true);
-    if (!isSuccess(result)) return;
 
     const total =
       result.dependents.callers.length +
@@ -162,17 +147,12 @@ describe('dependents handler – kind=symbol', () => {
     expect(result.total_count).toBe(total);
   });
 
-  it('should return error when symbol not found', () => {
-    const result = handler(db, { query: 'nonExistent', kind: 'symbol' });
-    expect(isError(result)).toBe(true);
-    if (!isError(result)) return;
-    expect(result.error).toContain('No symbol found');
+  it('should throw when symbol not found', () => {
+    expect(() => handler(db, { query: 'nonExistent', kind: 'symbol' })).toThrow('No symbol found');
   });
 
   it('should omit provenance fields in compact mode', () => {
     const result = handler(db, { query: 'openDb', kind: 'symbol', compact: true });
-    expect(isSuccess(result)).toBe(true);
-    if (!isSuccess(result)) return;
 
     const caller = asObject(result.dependents.callers[0]);
     expect(caller).not.toHaveProperty('line');
@@ -185,8 +165,6 @@ describe('dependents handler – kind=symbol', () => {
 
   it('should include provenance fields when compact is false', () => {
     const result = handler(db, { query: 'openDb', kind: 'symbol', compact: false });
-    expect(isSuccess(result)).toBe(true);
-    if (!isSuccess(result)) return;
 
     const caller = asObject(result.dependents.callers[0]);
     expect(caller).toHaveProperty('line');
@@ -195,8 +173,6 @@ describe('dependents handler – kind=symbol', () => {
 
   it('should set depth_used to 5 (always transitive)', () => {
     const result = handler(db, { query: 'openDb', kind: 'symbol' });
-    expect(isSuccess(result)).toBe(true);
-    if (!isSuccess(result)) return;
     expect(result.depth_used).toBe(5);
   });
 });
@@ -225,8 +201,6 @@ describe('dependents handler – symbol subclasses and type refs', () => {
 
   it('should return subclasses of a class', () => {
     const result = handler(db, { query: 'BaseService', kind: 'symbol' });
-    expect(isSuccess(result)).toBe(true);
-    if (!isSuccess(result)) return;
 
     expect(result.dependents.subclasses.length).toBe(1);
     const sub = asObject(result.dependents.subclasses[0]);
@@ -236,8 +210,6 @@ describe('dependents handler – symbol subclasses and type refs', () => {
 
   it('should return type references to a symbol', () => {
     const result = handler(db, { query: 'BaseService', kind: 'symbol' });
-    expect(isSuccess(result)).toBe(true);
-    if (!isSuccess(result)) return;
 
     expect(result.dependents.type_references.length).toBe(1);
     const ref = asObject(result.dependents.type_references[0]);
@@ -269,8 +241,6 @@ describe('dependents handler – kind=file', () => {
 
   it('should return files that import this file', () => {
     const result = handler(db, { query: 'src/db.ts', kind: 'file' });
-    expect(isSuccess(result)).toBe(true);
-    if (!isSuccess(result)) return;
 
     expect(result.target.kind).toBe('file');
     expect(result.target.name).toBe('src/db.ts');
@@ -279,8 +249,6 @@ describe('dependents handler – kind=file', () => {
 
   it('should return callers from other files that call symbols in this file', () => {
     const result = handler(db, { query: 'src/db.ts', kind: 'file' });
-    expect(isSuccess(result)).toBe(true);
-    if (!isSuccess(result)) return;
 
     // Only the cross-file caller (helper from util.ts), not intra-file calls
     expect(result.dependents.callers.length).toBe(1);
@@ -289,17 +257,12 @@ describe('dependents handler – kind=file', () => {
     expect(caller.caller_file).toBe('src/util.ts');
   });
 
-  it('should return error when file not found', () => {
-    const result = handler(db, { query: 'src/nonexistent.ts', kind: 'file' });
-    expect(isError(result)).toBe(true);
-    if (!isError(result)) return;
-    expect(result.error).toContain('No file found');
+  it('should throw when file not found', () => {
+    expect(() => handler(db, { query: 'src/nonexistent.ts', kind: 'file' })).toThrow('No file found');
   });
 
   it('should compute total_count correctly for file dependents', () => {
     const result = handler(db, { query: 'src/db.ts', kind: 'file' });
-    expect(isSuccess(result)).toBe(true);
-    if (!isSuccess(result)) return;
 
     expect(result.total_count).toBe(
       result.dependents.callers.length +
@@ -311,8 +274,6 @@ describe('dependents handler – kind=file', () => {
 
   it('should support compact mode for file dependents', () => {
     const result = handler(db, { query: 'src/db.ts', kind: 'file', compact: true });
-    expect(isSuccess(result)).toBe(true);
-    if (!isSuccess(result)) return;
 
     const importer = asObject(result.dependents.importers[0]);
     expect(importer).toHaveProperty('file_id');
@@ -345,8 +306,6 @@ describe('dependents handler – kind=file with subclasses and type_refs', () =>
 
   it('should return subclasses in file-kind query', () => {
     const result = handler(db, { query: 'src/base.ts', kind: 'file' });
-    expect(isSuccess(result)).toBe(true);
-    if (!isSuccess(result)) return;
 
     expect(result.dependents.subclasses.length).toBe(1);
     expect(asObject(result.dependents.subclasses[0]).symbol_name).toBe('Child');
@@ -354,8 +313,6 @@ describe('dependents handler – kind=file with subclasses and type_refs', () =>
 
   it('should return type_references in file-kind query', () => {
     const result = handler(db, { query: 'src/base.ts', kind: 'file' });
-    expect(isSuccess(result)).toBe(true);
-    if (!isSuccess(result)) return;
 
     expect(result.dependents.type_references.length).toBe(1);
     expect(asObject(result.dependents.type_references[0]).symbol_name).toBe('useBase');
@@ -363,8 +320,6 @@ describe('dependents handler – kind=file with subclasses and type_refs', () =>
 
   it('should compact subclasses and type_references in file-kind query', () => {
     const result = handler(db, { query: 'src/base.ts', kind: 'file', compact: true });
-    expect(isSuccess(result)).toBe(true);
-    if (!isSuccess(result)) return;
 
     expect(result.dependents.subclasses.length).toBe(1);
     const sub = asObject(result.dependents.subclasses[0]);
@@ -396,8 +351,6 @@ describe('dependents handler – transitive closure', () => {
 
   it('should return both direct and transitive callers by default', () => {
     const result = handler(db, { query: 'funcC', kind: 'symbol' });
-    expect(isSuccess(result)).toBe(true);
-    if (!isSuccess(result)) return;
 
     expect(result.dependents.callers.length).toBe(2);
     const callerNames = result.dependents.callers.map(
@@ -425,8 +378,6 @@ describe('dependents handler – transitive import chain', () => {
 
   it('file query should return transitive importers by default', () => {
     const result = handler(db, { query: 'src/lib.ts', kind: 'file' });
-    expect(isSuccess(result)).toBe(true);
-    if (!isSuccess(result)) return;
 
     expect(result.dependents.importers.length).toBe(2);
     const paths = result.dependents.importers.map((i) => asObject(i).file_path);
@@ -456,8 +407,6 @@ describe('dependents handler – branch filtering', () => {
 
   it('should filter callers by branch', () => {
     const result = handler(db, { query: 'openDb', kind: 'symbol', branch: 'main' });
-    expect(isSuccess(result)).toBe(true);
-    if (!isSuccess(result)) return;
 
     expect(result.dependents.callers.length).toBe(1);
     expect(asObject(result.dependents.callers[0]).caller_name).toBe('mainCaller');
@@ -467,7 +416,7 @@ describe('dependents handler – branch filtering', () => {
 // ─── Ambiguous symbol ─────────────────────────────────────────────────────────
 
 describe('dependents handler – ambiguous symbol', () => {
-  it('should return disambiguation error when too many matches', () => {
+  it('should throw disambiguation error when too many matches', () => {
     const db = createTestDb();
     // Insert many symbols with the same name in different files
     for (let i = 0; i < 7; i++) {
@@ -475,15 +424,10 @@ describe('dependents handler – ambiguous symbol', () => {
       insertSymbol(db, fid, 'init');
     }
 
-    const result = handler(db, { query: 'init', kind: 'symbol' });
-    expect(isError(result)).toBe(true);
-    if (!isError(result)) return;
-    expect(result.error).toContain('Ambiguous');
-    expect(result.candidates).toBeDefined();
-    expect(result.candidates!.length).toBeGreaterThan(0);
+    expect(() => handler(db, { query: 'init', kind: 'symbol' })).toThrow('Ambiguous');
   });
 
-  it('should return disambiguation error for a few matching symbols (≤5)', () => {
+  it('should throw disambiguation error for a few matching symbols (≤5)', () => {
     const db = createTestDb();
     const f1 = insertFile(db, 'src/a.ts');
     const f2 = insertFile(db, 'src/b.ts');
@@ -496,14 +440,7 @@ describe('dependents handler – ambiguous symbol', () => {
     insertCallEdge(db, caller1, s1, 'run');
     insertCallEdge(db, caller2, s2, 'run');
 
-    const result = handler(db, { query: 'run', kind: 'symbol' });
-    expect(isError(result)).toBe(true);
-    if (!isError(result)) return;
-
-    // Should report ambiguity with both candidates
-    expect(result.error).toContain('Ambiguous');
-    expect(result.candidates).toBeDefined();
-    expect(result.candidates!.length).toBe(2);
+    expect(() => handler(db, { query: 'run', kind: 'symbol' })).toThrow('Ambiguous');
   });
 });
 
@@ -516,8 +453,6 @@ describe('dependents handler – empty dependents', () => {
     insertSymbol(db, fid, 'isolated');
 
     const result = handler(db, { query: 'isolated', kind: 'symbol' });
-    expect(isSuccess(result)).toBe(true);
-    if (!isSuccess(result)) return;
 
     expect(result.dependents.callers).toEqual([]);
     expect(result.dependents.importers).toEqual([]);
@@ -546,8 +481,6 @@ describe('dependents handler – subclass queries', () => {
 
   it('should return subclass dependents for a symbol', () => {
     const result = handler(db, { query: 'BaseService', kind: 'symbol' });
-    expect(isSuccess(result)).toBe(true);
-    if (!isSuccess(result)) return;
 
     expect(result.dependents.subclasses.length).toBe(1);
     const sub = asObject(result.dependents.subclasses[0]);
@@ -557,8 +490,6 @@ describe('dependents handler – subclass queries', () => {
 
   it('should omit provenance fields in compact subclass output', () => {
     const result = handler(db, { query: 'BaseService', kind: 'symbol', compact: true });
-    expect(isSuccess(result)).toBe(true);
-    if (!isSuccess(result)) return;
 
     expect(result.dependents.subclasses.length).toBe(1);
     const sub = asObject(result.dependents.subclasses[0]);
@@ -588,8 +519,6 @@ describe('dependents handler – type reference queries', () => {
 
   it('should return type reference dependents for a symbol', () => {
     const result = handler(db, { query: 'Config', kind: 'symbol' });
-    expect(isSuccess(result)).toBe(true);
-    if (!isSuccess(result)) return;
 
     expect(result.dependents.type_references.length).toBe(1);
     const ref = asObject(result.dependents.type_references[0]);
@@ -598,8 +527,6 @@ describe('dependents handler – type reference queries', () => {
 
   it('should omit provenance fields in compact type reference output', () => {
     const result = handler(db, { query: 'Config', kind: 'symbol', compact: true });
-    expect(isSuccess(result)).toBe(true);
-    if (!isSuccess(result)) return;
 
     expect(result.dependents.type_references.length).toBe(1);
     const ref = asObject(result.dependents.type_references[0]);
