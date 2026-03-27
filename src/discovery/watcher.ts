@@ -7,6 +7,7 @@
  */
 
 import * as fs from 'node:fs';
+import * as path from 'node:path';
 import { IndexBuilder } from '../indexer/index.js';
 import type { EmbeddingProvider } from '../embeddings/embedder.js';
 import type { EffectiveLspSettings } from '../lsp/config.js';
@@ -136,7 +137,7 @@ export class FileWatcher {
         // Skip changes in excluded directories (node_modules, .git, etc.)
         if (isExcludedPath(filename, this.walkerConfig)) return;
 
-        const absPath = `${this.walkerConfig.rootDir}/${filename}`;
+        const absPath = path.join(this.walkerConfig.rootDir, filename);
         this.pendingPaths.add(absPath);
         this.scheduleFlush();
       },
