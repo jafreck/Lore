@@ -139,16 +139,23 @@ function extractNewCallRef(node: Parser.SyntaxNode): RawCallRef | null {
 function extractImport(node: Parser.SyntaxNode): RawImport {
   // import a.b.C;  or  import static a.b.C.method;
   // The raw text is like "import a.b.C;" — strip keyword and semicolon.
+  const isStatic = /^import\s+static\s+/.test(node.text);
   const text = node.text
     .replace(/^import\s+(static\s+)?/, '')
     .replace(/\s*;?\s*$/, '')
     .trim();
 
-  // Extract the simple name as the last segment (or '*' for wildcard)
   const parts = text.split('.');
   const lastName = parts[parts.length - 1] ?? '';
-  const importedNames = lastName === '*' ? [] : [lastName];
 
+  // For static imports, the last segment is the member name (method/field),
+  // and the source should resolve to the containing class.
+  if (isStatic && lastName !== '*') {
+    const memberName = parts.pop()!;
+    return { source: parts.join('.'), importedNames: [memberName] };
+  }
+
+  const importedNames = lastName === '*' ? [] : [lastName];
   return { source: text, importedNames };
 }
 
