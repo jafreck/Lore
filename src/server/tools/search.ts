@@ -236,12 +236,20 @@ function semanticSymbolSearch(
   queryVector: number[],
   limit: number,
   branch?: string,
+  filters?: SymbolSearchFilters,
 ): SearchSymbolResult[] {
   if (!hasVirtualTable(db, 'symbol_embeddings')) {
     return [];
   }
 
-  const branchClause = branch !== undefined ? ' AND f.branch = ?' : '';
+  const extraClauses: string[] = [];
+  const extraParams: Array<string | number> = [];
+  if (branch !== undefined) { extraClauses.push('f.branch = ?'); extraParams.push(branch); }
+  if (filters?.path_prefix) { extraClauses.push(`f.path LIKE ? ESCAPE '\\'`); extraParams.push(`${escapeLikeWildcards(filters.path_prefix)}%`); }
+  if (filters?.language) { extraClauses.push('f.language = ?'); extraParams.push(filters.language); }
+  if (filters?.kind) { extraClauses.push('s.kind = ?'); extraParams.push(filters.kind); }
+  const extraSql = extraClauses.length > 0 ? ` AND ${extraClauses.join(' AND ')}` : '';
+
   const enrichment = symbolEnrichmentProjection(db);
   const sql = `SELECT 'symbol' AS result_type,
               s.id AS symbol_id, s.name, s.kind, f.path AS file_path,
@@ -253,18 +261,33 @@ function semanticSymbolSearch(
          JOIN symbols s ON s.rowid = symbol_embeddings.rowid
          JOIN files   f ON f.id   = s.file_id
         WHERE embedding MATCH ?
-          AND k = ?${branchClause}
+          AND k = ?${extraSql}
         ORDER BY distance
         LIMIT ?`;
-  const params = branch !== undefined
-    ? [JSON.stringify(queryVector), limit, branch, limit]
-    : [JSON.stringify(queryVector), limit, limit];
+  const params = [JSON.stringify(queryVector), limit, ...extraParams, limit];
 
   try {
     return db.prepare(sql).all(...params) as SearchSymbolResult[];
   } catch {
     return [];
   }
+}
+
+/**
+ * Post-filter semantic results to enforce path/kind criteria that vec0 KNN
+ * may not fully apply at the SQL level.
+ */
+function postFilterSemanticResults(
+  results: SearchResultItem[] | null,
+  filters?: SymbolSearchFilters,
+): SearchResultItem[] | null {
+  if (!results || !filters) return results;
+  const filtered = results.filter((r) => {
+    if (filters.path_prefix && !r.file_path.startsWith(filters.path_prefix)) return false;
+    if (filters.kind && r.kind !== filters.kind) return false;
+    return true;
+  });
+  return filtered.length > 0 ? filtered : null;
 }
 
 /**
@@ -277,6 +300,7 @@ async function semanticSearch(
   limit: number,
   embedder: EmbeddingProvider,
   branch?: string,
+  filters?: SymbolSearchFilters,
 ): Promise<SearchResultItem[] | null> {
   try {
     const cacheKey = query;
@@ -297,7 +321,7 @@ async function semanticSearch(
       queryEmbeddingCache.set(cacheKey, { vector: queryVec, ts: now });
     }
 
-    const rows = semanticSymbolSearch(db, queryVec, limit, branch);
+    const rows = semanticSymbolSearch(db, queryVec, limit, branch, filters);
 
     return rows.length > 0 ? rows : null;
   } catch {
@@ -354,11 +378,13 @@ export async function handler(
   const limit = args.limit ?? 20;
   const mode = args.mode ?? 'structural';
 
-  const structural = structuralSearch(db, args.query, limit, args.branch, {
+  const filters: SymbolSearchFilters = {
     path_prefix: args.path_prefix,
     language: args.language,
     kind: args.kind,
-  });
+  };
+
+  const structural = structuralSearch(db, args.query, limit, args.branch, filters);
 
   let result: SearchResult;
 
@@ -368,7 +394,9 @@ export async function handler(
     // No query-time embedder available — callers can detect this degradation.
     result = { results: structural, mode_used: 'structural (no query-time embedder)' };
   } else {
-    const semantic = await semanticSearch(db, args.query, limit, embedder, args.branch);
+    let semantic = await semanticSearch(db, args.query, limit, embedder, args.branch, filters);
+    // Defense-in-depth: vec0 KNN may return candidates outside the requested scope.
+    semantic = postFilterSemanticResults(semantic, filters);
 
     if (mode === 'semantic') {
       result = semantic
