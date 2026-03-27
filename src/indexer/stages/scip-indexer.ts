@@ -55,7 +55,7 @@ import {
   type Occurrence as ScipOccurrence,
   type SymbolInformation as ScipSymbolInformation,
 } from '../../scip/scip_pb.js';
-import type { PipelineContext, PipelineStage } from '../pipeline.js';
+import type { PipelineContext, PipelineStage, ScipTreeSitterFileData } from '../pipeline.js';
 import type { Database } from '../../db/schema.js';
 import { normalizeTypeName } from '../../resolution/call-graph.js';
 import { SCIP_SUPPORTED_LANGUAGES, resolveScipIndexerRegistry } from '../../scip/registry.js';
@@ -71,6 +71,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { ParserPool } from '../../parsing/parser.js';
 import type Parser from 'tree-sitter';
+import type { RawCallRef, RawTypeRef } from '../../parsing/extractors/types.js';
 
 // ─── SCIP symbol string → Lore kind mapping ──────────────────────────────────
 
@@ -310,6 +311,13 @@ function extractSignatureFromDoc(doc: string): string {
 
 // ─── Tree-sitter AST helpers ────────────────────────────────────────────────
 
+/** Node types that represent import statements across languages. */
+const IMPORT_NODE_TYPES = new Set([
+  'import_statement', 'import_declaration', 'preproc_include',
+  'use_declaration', 'require_call', 'import_from_statement',
+  'using_directive', 'call_expression',
+]);
+
 /** Node types that represent call expressions across languages. */
 const CALL_NODE_TYPES = new Set([
   'call_expression', 'function_call', 'invocation_expression',
@@ -323,27 +331,12 @@ const MEMBER_NODE_TYPES = new Set([
   'selector_expression',
 ]);
 
-/** Node types that represent import statements across languages. */
-const IMPORT_NODE_TYPES = new Set([
-  'import_statement', 'import_declaration', 'preproc_include',
-  'use_declaration', 'require_call', 'import_from_statement',
-  'using_directive', 'call_expression',
-]);
-
-/**
- * Infer a `ref_kind` for a type reference from its tree-sitter AST context.
- *
- * Walks up the parent chain from the node at `(refLine, refChar)` to find
- * a recognizable structural context.  Returns `null` if no match is found,
- * signalling that the regex heuristic should be used instead.
- */
 function inferTypeRefKindFromTree(
   tree: Parser.Tree, refLine: number, refChar: number,
 ): string | null {
   let node: Parser.SyntaxNode | null = tree.rootNode.descendantForPosition({ row: refLine, column: refChar });
   if (!node) return null;
 
-  // Walk up at most 6 levels to find a structural parent.
   for (let depth = 0; depth < 6 && node; depth++) {
     const t = node.type;
     if (t === 'return_type' || (t === 'type_annotation' && node.parent?.type === 'function_declaration')) return 'return';
@@ -357,9 +350,6 @@ function inferTypeRefKindFromTree(
   return null;
 }
 
-/**
- * Check whether a reference at `(line, char)` is inside a call expression.
- */
 function isCallExpression(
   tree: Parser.Tree, line: number, char: number,
 ): boolean {
@@ -371,11 +361,6 @@ function isCallExpression(
   return false;
 }
 
-/**
- * Extract the receiver name from a member-access expression containing the
- * reference at `(line, char)`.  Returns `null` if the reference is not
- * inside a member expression.
- */
 function extractReceiverName(
   tree: Parser.Tree, line: number, char: number,
 ): string | null {
@@ -1146,6 +1131,7 @@ export class ScipRefStage implements PipelineStage {
 
     const scipDocs = [...(documents as Iterable<ScipDocument>)];
     const sipInfoMap = symbolInfoMap as Map<string, ScipSymbolInformation>;
+    const scipTreeSitterData = context.scipTreeSitterData;
     const parserPool = new ParserPool();
 
     const SCIP_REF_BATCH_SIZE = 200;
@@ -1154,17 +1140,15 @@ export class ScipRefStage implements PipelineStage {
         const absPath = resolve(rootDir, doc.relativePath);
         const fileId = fileIdMap.get(absPath);
         if (!fileId) continue;
+        const treeData = scipTreeSitterData?.get(absPath);
 
-        // Source is already in memory — Pass 1 populated sourceCache for every SCIP document.
         const source: string | undefined = context.sourceCache.get(absPath);
-        if (!source) continue;
-        const sourceLines = source.split('\n');
-
-        // Parse source with tree-sitter for AST-based helpers.
-        const loreLang = inferLoreLanguage(doc.language, doc.relativePath);
         let tree: Parser.Tree | null = null;
-        if (loreLang) {
-          try { tree = parserPool.parse(loreLang, source); } catch { /* ignore parse failure */ }
+        if (source) {
+          const loreLang = inferLoreLanguage(doc.language, doc.relativePath);
+          if (loreLang) {
+            try { tree = parserPool.parse(loreLang, source); } catch { /* ignore parse failure */ }
+          }
         }
 
         for (const occ of doc.occurrences) {
@@ -1177,27 +1161,23 @@ export class ScipRefStage implements PipelineStage {
           }
 
           let refKind = classifyScipReference(occ.symbol);
+          const line = occ.range[0] ?? 0;
+          const character = occ.range[1] ?? 0;
+          const calleeName = extractNameFromScipSymbol(occ.symbol);
+          const matchedCallRef = findMatchingCallRef(treeData, line, character, calleeName);
           if (refKind === 'skip') {
             // Term-value refs (ending in '.') may be calls to arrow-function
-            // or const-assigned function values.  Use tree-sitter to check
-            // for call_expression parent.
-            const refLine = occ.range[0] ?? 0;
-            const refChar = occ.range[1] ?? 0;
-            const refEndChar = occ.range.length >= 4 ? (occ.range[3] ?? 0) : (occ.range[2] ?? 0);
-            let upgraded = false;
-            if (tree) {
-              upgraded = isCallExpression(tree, refLine, refChar);
-            }
-            if (upgraded) {
+            // or const-assigned function values. Reuse the tree-sitter call
+            // refs captured during the metrics pass instead of reparsing here.
+            if (matchedCallRef) {
+              refKind = 'call';
+            } else if (tree && isCallExpression(tree, line, character)) {
               refKind = 'call';
             } else {
               refsSkippedNonCall++;
               continue;
             }
           }
-
-          const line = occ.range[0] ?? 0;
-          const character = occ.range[1] ?? 0;
 
           const callerId = findContainingSymbol(fileId, line);
           if (!callerId) {
@@ -1206,24 +1186,12 @@ export class ScipRefStage implements PipelineStage {
           }
 
           const calleeId = scipToLoreId.get(occ.symbol) ?? null;
-          let calleeName = extractNameFromScipSymbol(occ.symbol);
           const isExternal = !calleeId && isExternalSymbol(occ.symbol);
           const method = calleeId ? 'scip_definition' : (isExternal ? 'external_definition' : 'unresolved');
 
-          // Reconstruct member-access callee_name (e.g. "db.prepare")
-          if (refKind === 'call' && sourceLines.length > line) {
-            // Try tree-sitter first: walk up to member_expression and grab object
-            let receiverText: string | null = null;
-            if (tree) {
-              receiverText = extractReceiverName(tree, line, character);
-            }
-            if (receiverText) {
-              calleeName = receiverText + '.' + calleeName;
-            }
-          }
-
           if (refKind === 'type') {
-            const typeRefKind = (tree ? inferTypeRefKindFromTree(tree, line, character) : null)
+            const typeRefKind = findMatchingTypeRefKind(treeData, line, character, calleeName)
+              ?? (tree ? inferTypeRefKindFromTree(tree, line, character) : null)
               ?? 'other';
             const refDef = symbolDefinitions.get(occ.symbol);
             const refInfo = sipInfoMap.get(occ.symbol);
@@ -1248,6 +1216,16 @@ export class ScipRefStage implements PipelineStage {
               continue;
             }
 
+            let resolvedCalleeName = calleeName;
+            if (matchedCallRef?.calleeRaw) {
+              resolvedCalleeName = matchedCallRef.calleeRaw;
+            } else if (tree) {
+              const receiverText = extractReceiverName(tree, line, character);
+              if (receiverText) {
+                resolvedCalleeName = `${receiverText}.${calleeName}`;
+              }
+            }
+
             const refDef = symbolDefinitions.get(occ.symbol);
             const refInfo = sipInfoMap.get(occ.symbol);
             const refSig = refInfo ? extractSignatureFromDoc(refInfo.documentation[0] ?? '') || null : null;
@@ -1256,7 +1234,7 @@ export class ScipRefStage implements PipelineStage {
 
             try {
               insertCallRef.run(
-                callerId, fileId, calleeId, calleeName,
+                callerId, fileId, calleeId, resolvedCalleeName,
                 line, character, 'direct', method, refSig, refReturnType,
                 refDefUri, refDef?.filePath ?? null, refDef?.line ?? null, refDef?.character ?? null,
                 layer, generation,
@@ -1290,6 +1268,7 @@ export class ScipRefStage implements PipelineStage {
 
     // Free the stashed data
     context.scipRefData = undefined;
+    context.scipTreeSitterData = undefined;
   }
 
   async dispose(): Promise<void> {}
@@ -1384,6 +1363,62 @@ function classifyScipReference(scipSymbol: string): 'call' | 'type' | 'skip' {
   // Parameter: ends with )
   // All of these are reads/imports/structural — not call or type edges.
   return 'skip';
+}
+
+function findMatchingCallRef(
+  treeData: ScipTreeSitterFileData | undefined,
+  line: number,
+  character: number,
+  calleeName: string,
+): RawCallRef | null {
+  const candidates = treeData?.callRefsByLine.get(line);
+  if (!candidates || candidates.length === 0) return null;
+
+  let best: RawCallRef | null = null;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  for (const candidate of candidates) {
+    const raw = candidate.calleeRaw.replace(/^new\s+/, '');
+    const suffix = raw.split(/[.:>#-]/).filter(Boolean).at(-1) ?? raw;
+    if (raw !== calleeName && suffix !== calleeName && !raw.endsWith(`.${calleeName}`)) {
+      continue;
+    }
+
+    const distance = candidate.character === undefined
+      ? bestDistance
+      : Math.abs(candidate.character - character);
+    if (distance < bestDistance) {
+      best = candidate;
+      bestDistance = distance;
+    }
+  }
+
+  return best;
+}
+
+function findMatchingTypeRefKind(
+  treeData: ScipTreeSitterFileData | undefined,
+  line: number,
+  character: number,
+  calleeName: string,
+): RawTypeRef['refKind'] | null {
+  const candidates = treeData?.typeRefsByLine.get(line);
+  if (!candidates || candidates.length === 0) return null;
+
+  let best: RawTypeRef | null = null;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  const normalizedName = normalizeTypeName(calleeName);
+  for (const candidate of candidates) {
+    if (normalizeTypeName(candidate.typeRaw) !== normalizedName) continue;
+    const distance = candidate.character === undefined
+      ? bestDistance
+      : Math.abs(candidate.character - character);
+    if (distance < bestDistance) {
+      best = candidate;
+      bestDistance = distance;
+    }
+  }
+
+  return best?.refKind ?? null;
 }
 
 // ─── SCIP language detection ────────────────────────────────────────────────
