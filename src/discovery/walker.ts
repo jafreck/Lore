@@ -7,7 +7,7 @@
 
 import fg from 'fast-glob';
 import { realpathSync } from 'node:fs';
-import { extname } from 'node:path';
+import { extname, sep } from 'node:path';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -141,11 +141,15 @@ export async function walkFiles(config: WalkerConfig): Promise<FileEntry[]> {
 
   const results: FileEntry[] = [];
   const seen = new Set<string>();
+  const canonicalRoot = realpathSync(rootDir);
 
   for (const filePath of paths) {
     // Resolve symlinks to canonical paths so each physical file is indexed
     // once, regardless of how many symlinks point to it.
     const realPath = realpathSync(filePath);
+
+    // Reject symlinks that escape the repository root.
+    if (realPath !== canonicalRoot && !realPath.startsWith(canonicalRoot + sep)) continue;
 
     if (seen.has(realPath)) continue;
     seen.add(realPath);
