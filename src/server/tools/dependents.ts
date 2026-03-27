@@ -676,10 +676,11 @@ function handleSymbolDependents(
     return { error: `No symbol found matching name "${args.query}"` };
   }
 
-  // If multiple matches, use the first but if many are ambiguous, report
-  if (symbols.length > 5) {
+  // If multiple symbols share the same name, report ambiguity instead of
+  // silently aggregating dependents across different symbols.
+  if (symbols.length > 1) {
     return {
-      error: `Ambiguous: ${symbols.length} symbols match "${args.query}". Narrow your query with a more specific name.`,
+      error: `Ambiguous: ${symbols.length} symbols match "${args.query}". Results would aggregate dependents across all matches which can be misleading. Narrow your query or specify a file path to disambiguate.`,
       candidates: symbols.slice(0, 10).map((s) => {
         const file = getFileById(db, s.file_id, args.branch);
         return { id: s.id, name: s.name, kind: s.kind, file: file?.path ?? '' };
@@ -687,8 +688,6 @@ function handleSymbolDependents(
     };
   }
 
-  // Use the best match (first result). If there are a few, aggregate across all.
-  const symbolIds = symbols.map((s) => s.id);
   const primarySymbol = symbols[0]!;
   const primaryFile = getFileById(db, primarySymbol.file_id, args.branch);
 
@@ -699,13 +698,12 @@ function handleSymbolDependents(
     file: primaryFile?.path,
   };
 
-  const callerRows = expandCallers(db, symbolIds, args.branch, depth, limit);
-  const subclassRows = expandSubclasses(db, symbolIds, args.branch, depth, limit);
-  const typeRefRows = queryTypeReferences(db, symbolIds, args.branch, limit);
+  const callerRows = expandCallers(db, [primarySymbol.id], args.branch, depth, limit);
+  const subclassRows = expandSubclasses(db, [primarySymbol.id], args.branch, depth, limit);
+  const typeRefRows = queryTypeReferences(db, [primarySymbol.id], args.branch, limit);
 
   // For symbols, importers are files that import the file containing this symbol
-  const fileIds = [...new Set(symbols.map((s) => s.file_id))];
-  const importerRows = expandImporters(db, fileIds, args.branch, depth, limit);
+  const importerRows = expandImporters(db, [primarySymbol.file_id], args.branch, depth, limit);
 
   return buildResult(target, callerRows, importerRows, subclassRows, typeRefRows, compact, depth);
 }

@@ -279,7 +279,7 @@ CREATE INDEX IF NOT EXISTS idx_symbol_relationships_layer ON symbol_relationship
 
 -- Tracks files with active overlay data.
 CREATE TABLE IF NOT EXISTS dirty_files (
-  path        TEXT PRIMARY KEY,
+  path        TEXT NOT NULL PRIMARY KEY,
   dirty_since INTEGER NOT NULL DEFAULT (unixepoch()),
   overlay_gen INTEGER NOT NULL DEFAULT 0
 );
@@ -334,7 +334,7 @@ export function openDb(path: string): Database.Database {
 function ensureIncrementalSchema(db: Database.Database): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS dirty_files (
-      path        TEXT PRIMARY KEY,
+      path        TEXT NOT NULL PRIMARY KEY,
       dirty_since INTEGER NOT NULL DEFAULT (unixepoch()),
       overlay_gen INTEGER NOT NULL DEFAULT 0
     );
@@ -430,11 +430,13 @@ export function getGeneration(db: Database.Database): number {
   return val ? parseInt(val, 10) : 0;
 }
 
-/** Increment and return the next generation counter. */
+/** Increment and return the next generation counter (atomic via IMMEDIATE txn). */
 export function incrementGeneration(db: Database.Database): number {
-  const next = getGeneration(db) + 1;
-  setLoreMeta(db, LORE_META_GENERATION, String(next));
-  return next;
+  return db.transaction(() => {
+    const next = getGeneration(db) + 1;
+    setLoreMeta(db, LORE_META_GENERATION, String(next));
+    return next;
+  }).immediate();
 }
 
 // ─── Vec0 virtual tables ──────────────────────────────────────────────────────

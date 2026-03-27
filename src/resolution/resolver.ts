@@ -126,6 +126,12 @@ export class ImportResolver {
       const rel = source.slice(moduleName.length).replace(/^\//, '');
       const candidate = path.join(rootDir, rel);
       if (this.dirExists(candidate)) {
+        // Go imports refer to packages (directories). Resolve to the first
+        // non-test .go file so import-resolution can match a file_id.
+        const goFile = this.findFirstGoFile(candidate);
+        if (goFile) {
+          return { rawSource: source, resolvedPath: goFile, isExternal: false };
+        }
         return { rawSource: source, resolvedPath: candidate, isExternal: false };
       }
     }
@@ -343,6 +349,26 @@ export class ImportResolver {
     for (const suffix of ['.py', '/__init__.py']) {
       const candidate = base + suffix;
       if (this.fileExists(candidate)) return candidate;
+    }
+    return null;
+  }
+
+  /**
+   * Find the first non-test `.go` file in a directory (lexicographic order).
+   * Go imports refer to packages (directories), but import-resolution needs
+   * a file path. Returns `null` if no suitable file is found.
+   */
+  private findFirstGoFile(dir: string): string | null {
+    try {
+      const entries = fs.readdirSync(dir).sort();
+      for (const entry of entries) {
+        if (entry.endsWith('.go') && !entry.endsWith('_test.go')) {
+          const full = path.join(dir, entry);
+          if (this.fileExists(full)) return full;
+        }
+      }
+    } catch {
+      // Directory unreadable
     }
     return null;
   }
