@@ -102,9 +102,9 @@ export function resolveSymbolEdges(db: Database.Database, options?: { overlayOnl
 
   const runInTransaction = db.transaction(() => {
     // Pass 1: LSP containment mapping (highest confidence)
-    resolveByContainment(db, 'symbol_refs', 'callee_id', 'definition_path', 'definition_line', options?.overlayOnly);
-    resolveByContainment(db, 'type_refs', 'type_id', 'definition_path', 'definition_line', options?.overlayOnly);
-    resolveByContainment(db, 'symbol_relationships', 'target_symbol_id', 'definition_path', 'definition_line', options?.overlayOnly);
+    resolveByContainment(db, 'symbol_refs', 'callee_id', 'definition_path', 'definition_line', options?.overlayOnly, options?.branch);
+    resolveByContainment(db, 'type_refs', 'type_id', 'definition_path', 'definition_line', options?.overlayOnly, options?.branch);
+    resolveByContainment(db, 'symbol_relationships', 'target_symbol_id', 'definition_path', 'definition_line', options?.overlayOnly, options?.branch);
 
     // Pass 2: Name-based fallback for remaining unresolved refs
     const nameMap = buildNameMap(db, options?.branch);
@@ -199,6 +199,7 @@ function resolveByContainment(
   defPathColumn: string,
   defLineColumn: string,
   overlayOnly?: boolean,
+  branch?: string,
 ): void {
   const layerFilter = overlayOnly ? ` AND layer = 'overlay'` : '';
   const unresolvedWithDef = db.prepare(
@@ -218,8 +219,13 @@ function resolveByContainment(
   }
 
   // P6: Build a bulk path→fileId map so we do one query instead of N.
+  // When branch is provided, use effective_files to get the correct
+  // layer-resolved file for each path (overlay preferred over baseline).
+  const fileRows = branch
+    ? db.prepare('SELECT id, path FROM effective_files WHERE branch = ?').all(branch)
+    : db.prepare('SELECT id, path FROM files').all();
   const fileIdByPath = new Map<string, number>(
-    (db.prepare('SELECT id, path FROM files').all() as Array<{ id: number; path: string }>)
+    (fileRows as Array<{ id: number; path: string }>)
       .map(r => [r.path, r.id]),
   );
 
