@@ -20,6 +20,8 @@ function execFileAsync(
   });
 }
 
+const GIT_BLAME_TIMEOUT_MS = 30_000;
+
 const gitRootCache = new Map<string, string>();
 
 /** Clear the cached git root lookups. Exposed for testing. */
@@ -359,6 +361,10 @@ function runBlamePorcelain(
 
   return new Promise((resolve, reject) => {
     const child = spawn('git', blameArgs);
+    const timer = setTimeout(() => {
+      child.kill();
+      reject(new Error(`git blame timed out after ${GIT_BLAME_TIMEOUT_MS}ms for ${relPath}`));
+    }, GIT_BLAME_TIMEOUT_MS);
     const results: BlameLine[] = [];
     const metaBySha = new Map<string, BlameMeta>();
     let currentSha = '';
@@ -433,6 +439,7 @@ function runBlamePorcelain(
     });
 
     child.on('close', (code) => {
+      clearTimeout(timer);
       if (code !== 0) {
         const detail = stderrBuf.trim() ? `: ${stderrBuf.trim()}` : '';
         if (start != null && end != null) {
@@ -446,7 +453,10 @@ function runBlamePorcelain(
       resolve(results);
     });
 
-    child.on('error', reject);
+    child.on('error', (err) => {
+      clearTimeout(timer);
+      reject(err);
+    });
   });
 }
 
@@ -467,6 +477,10 @@ async function runHistoryLog(
       `${start},${end}:${relPath}`,
       ref,
     ]);
+    const timer = setTimeout(() => {
+      child.kill();
+      reject(new Error(`git log -L timed out after ${GIT_BLAME_TIMEOUT_MS}ms for ${relPath}`));
+    }, GIT_BLAME_TIMEOUT_MS);
     const entries: BlameHistoryEntry[] = [];
     let current: BlameHistoryEntry | undefined;
     let patchLines: string[] = [];
@@ -514,6 +528,7 @@ async function runHistoryLog(
     });
 
     child.on('close', (code) => {
+      clearTimeout(timer);
       if (code !== 0) {
         const detail = stderrBuf.trim() ? `: ${stderrBuf.trim()}` : '';
         reject(new Error(`git log -L failed for ${relPath}:${start}-${end} at ref ${ref}${detail}.`));
@@ -527,7 +542,10 @@ async function runHistoryLog(
       resolve(entries);
     });
 
-    child.on('error', reject);
+    child.on('error', (err) => {
+      clearTimeout(timer);
+      reject(err);
+    });
   });
 }
 
