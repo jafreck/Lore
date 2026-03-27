@@ -251,6 +251,8 @@ CREATE TABLE IF NOT EXISTS commit_refs (
   PRIMARY KEY (commit_sha, ref_name)
 );
 
+CREATE INDEX IF NOT EXISTS idx_commit_files_file_path ON commit_files(file_path);
+
 CREATE INDEX IF NOT EXISTS idx_annotations_kind ON annotations(kind);
 CREATE INDEX IF NOT EXISTS idx_annotations_file_id ON annotations(file_id);
 CREATE INDEX IF NOT EXISTS idx_external_symbols_dependency_ecosystem ON external_symbols(dependency_ecosystem);
