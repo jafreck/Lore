@@ -252,6 +252,7 @@ CREATE TABLE IF NOT EXISTS commit_refs (
 );
 
 CREATE INDEX IF NOT EXISTS idx_commit_files_file_path ON commit_files(file_path);
+CREATE INDEX IF NOT EXISTS idx_commit_refs_ref_name ON commit_refs(ref_name);
 
 CREATE INDEX IF NOT EXISTS idx_annotations_kind ON annotations(kind);
 CREATE INDEX IF NOT EXISTS idx_annotations_file_id ON annotations(file_id);
