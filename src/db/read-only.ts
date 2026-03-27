@@ -382,6 +382,7 @@ export function listSymbols(
        LEFT JOIN symbols sp ON sp.id = s.parent_symbol_id
        LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id
        ${where.length > 0 ? `WHERE ${where.join(' AND ')}` : ''}
+       ORDER BY f.path ASC, f.branch ASC, s.name COLLATE NOCASE ASC, s.kind ASC, s.start_line ASC, s.end_line ASC, s.id ASC
        LIMIT ? OFFSET ?`,
     )
     .all(...params) as SymbolRow[];
