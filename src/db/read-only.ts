@@ -366,6 +366,7 @@ export function semanticSearchSymbols(
   args: SemanticSearchSymbolsArgs,
 ): SemanticSymbolRow[] {
   if (args.queryVector.length === 0) return [];
+  if (!hasSymbolEmbeddingsTable(db)) return [];
 
   const limit = Math.max(1, Math.floor(args.limit ?? 20));
   const where: string[] = ['se.embedding MATCH ?', 'se.k = ?'];
@@ -919,6 +920,15 @@ function hasCommitEmbeddingsTable(db: Database.Database): boolean {
   return row?.ok === 1;
 }
 
+function hasSymbolEmbeddingsTable(db: Database.Database): boolean {
+  const row = db
+    .prepare(
+      "SELECT 1 AS ok FROM sqlite_master WHERE type IN ('table', 'virtual table') AND name = 'symbol_embeddings' LIMIT 1",
+    )
+    .get() as { ok: number } | undefined;
+  return row?.ok === 1;
+}
+
 export interface CommitStatsFilters {
   since?: string;
   until?: string;
@@ -1321,4 +1331,3 @@ export function listCommitBranchActivity(
     )
     .all(...params, limit) as CommitBranchActivityRow[];
 }
-
