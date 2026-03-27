@@ -22,22 +22,35 @@ function escapeLikeWildcards(value: string): string {
 const MAX_RESULT_LIMIT = 10_000;
 
 /**
- * Cache whether a database has effective_* views.
- * WeakMap so entries are GC'd when the db is closed.
+ * Cache whether a database has effective_* views, keyed by file path.
+ * Using a path-keyed Map ensures that invalidation from a write handle
+ * also clears the cache for read-only handles on the same database file.
  */
-const effectiveViewCache = new WeakMap<Database.Database, boolean>();
+const effectiveViewCache = new Map<string, boolean>();
 
 /** Check (and cache) whether this db has the effective_files view. */
 function hasEffectiveViews(db: Database.Database): boolean {
-  let result = effectiveViewCache.get(db);
+  const key = db.name;
+  let result = effectiveViewCache.get(key);
   if (result === undefined) {
     const row = db
       .prepare("SELECT 1 AS ok FROM sqlite_master WHERE type = 'view' AND name = 'effective_files' LIMIT 1")
       .get() as { ok: number } | undefined;
     result = row?.ok === 1;
-    effectiveViewCache.set(db, result);
+    effectiveViewCache.set(key, result);
   }
   return result;
+}
+
+/**
+ * Invalidate the cached effective-views check for the given database.
+ * Accepts either a Database handle or a file path string.
+ * Call this after creating or dropping effective_* views so subsequent queries
+ * pick up the new state instead of using the stale cached value.
+ */
+export function resetEffectiveViewsCache(db: Database.Database | string): void {
+  const key = typeof db === 'string' ? db : db.name;
+  effectiveViewCache.delete(key);
 }
 
 /** Return the right table/view name for file lookups. */
