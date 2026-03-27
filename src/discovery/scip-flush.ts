@@ -34,6 +34,7 @@ export class ScipFlushManager {
   private readonly config: ScipFlushConfig;
   private pathsSinceLastScip: Set<string> = new Set();
   private timer: ReturnType<typeof setTimeout> | null = null;
+  private disposed = false;
 
   constructor(config: ScipFlushConfig) {
     this.config = config;
@@ -41,6 +42,7 @@ export class ScipFlushManager {
 
   /** Accumulate changed paths and (re-)schedule the background rebuild. */
   accumulate(paths: string[]): void {
+    if (this.disposed) return;
     for (const p of paths) this.pathsSinceLastScip.add(p);
     this.schedule();
   }
@@ -53,7 +55,14 @@ export class ScipFlushManager {
     }
   }
 
+  /** Cancel pending rebuild and prevent any future scheduling. */
+  stop(): void {
+    this.disposed = true;
+    this.cancel();
+  }
+
   private schedule(): void {
+    if (this.disposed) return;
     if (this.timer !== null) {
       clearTimeout(this.timer);
     }

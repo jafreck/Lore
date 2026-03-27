@@ -122,7 +122,7 @@ export class FilePoller {
       clearInterval(this.timer);
       this.timer = null;
     }
-    this.scipFlush?.cancel();
+    this.scipFlush?.stop();
   }
 
   // ─── Private helpers ──────────────────────────────────────────────────────
