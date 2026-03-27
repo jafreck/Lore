@@ -95,7 +95,7 @@ export function extractBareName(raw: string): string {
  *      exactly one symbol across the entire index, resolve it.
  *   4. Leave as `unresolved` / `external_definition` otherwise.
  */
-export function resolveSymbolEdges(db: Database.Database, options?: { overlayOnly?: boolean }): void {
+export function resolveSymbolEdges(db: Database.Database, options?: { overlayOnly?: boolean; branch?: string }): void {
   const overlayFilter = options?.overlayOnly ? " AND sr.layer = 'overlay'" : '';
   const overlayFilterTr = options?.overlayOnly ? " AND tr.layer = 'overlay'" : '';
   const overlayFilterRel = options?.overlayOnly ? " AND sr.layer = 'overlay'" : '';
@@ -107,7 +107,7 @@ export function resolveSymbolEdges(db: Database.Database, options?: { overlayOnl
     resolveByContainment(db, 'symbol_relationships', 'target_symbol_id', 'definition_path', 'definition_line', options?.overlayOnly);
 
     // Pass 2: Name-based fallback for remaining unresolved refs
-    const nameMap = buildNameMap(db);
+    const nameMap = buildNameMap(db, options?.branch);
 
     resolveByNameFallback(db, nameMap, {
       tableName: 'symbol_refs',
@@ -310,12 +310,17 @@ interface NameMapEntry {
 /**
  * Builds a map from symbol name → array of { id, file_id, kind } for all symbols.
  * Used by the name-based fallback pass.
+ *
+ * When `branch` is provided, only symbols belonging to files on that branch
+ * are included — this prevents the `name_unique` fallback from creating
+ * phantom cross-branch edges in multi-branch databases.
  */
-function buildNameMap(db: Database.Database): Map<string, NameMapEntry[]> {
+function buildNameMap(db: Database.Database, branch?: string): Map<string, NameMapEntry[]> {
   const nameToSymbols = new Map<string, NameMapEntry[]>();
-  const allSymbols = db
-    .prepare('SELECT id, name, file_id, kind FROM symbols')
-    .all() as Array<{ id: number; name: string; file_id: number; kind: string }>;
+  const query = branch
+    ? 'SELECT s.id, s.name, s.file_id, s.kind FROM symbols s JOIN files f ON f.id = s.file_id WHERE f.branch = ?'
+    : 'SELECT id, name, file_id, kind FROM symbols';
+  const allSymbols = (branch ? db.prepare(query).all(branch) : db.prepare(query).all()) as Array<{ id: number; name: string; file_id: number; kind: string }>;
   for (const row of allSymbols) {
     let list = nameToSymbols.get(row.name);
     if (!list) {
