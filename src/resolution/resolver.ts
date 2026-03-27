@@ -106,7 +106,7 @@ export class ImportResolver {
     const pkgName = source.startsWith('@')
       ? source.split('/').slice(0, 2).join('/')
       : (source.split('/')[0] ?? source);
-    if (pkgDeps.has(pkgName) || pkgDeps.size === 0) {
+    if (pkgDeps.has(pkgName)) {
       return this.markExternal(source);
     }
 
