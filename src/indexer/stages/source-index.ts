@@ -99,6 +99,7 @@ interface BuildCheckpoint {
   totalFiles: number;
   nextFileIndex: number;
   updatedAt: number;
+  failedFiles?: string[];
 }
 
 // ─── Stage ────────────────────────────────────────────────────────────────────
@@ -160,18 +161,30 @@ export class SourceIndexStage implements PipelineStage {
   ): Promise<void> {
     const { db, branch } = context;
 
-    const resumeAt = loadBuildCheckpoint(db, branch, context.walkerConfig.rootDir, files.length);
+    const checkpoint = loadBuildCheckpoint(db, branch, context.walkerConfig.rootDir, files.length);
+    const resumeAt = checkpoint.resumeAt;
     if (resumeAt > 0) {
-      context.log.indexing('resuming from checkpoint', { resumeAt, totalFiles: files.length });
+      context.log.indexing('resuming from checkpoint', {
+        resumeAt, totalFiles: files.length, retryFiles: checkpoint.failedFiles.length,
+      });
     }
 
+    // Collect files that failed in a previous run so they can be retried
+    const retrySet = new Set(checkpoint.failedFiles);
+    const retryFiles = resumeAt > 0
+      ? files.slice(0, resumeAt).filter(f => retrySet.has(f.path))
+      : [];
+
     const remaining = files.slice(resumeAt);
-    if (remaining.length === 0) return;
+    if (remaining.length === 0 && retryFiles.length === 0) return;
+
+    // Combine retry + remaining for processing
+    const allToProcess = [...retryFiles, ...remaining];
 
     // Use worker threads for parallel parse+extract on multi-core machines.
     // Workers own their own ParserPool + extractors; main thread handles all DB writes.
     const workerCount = Math.max(1, Math.min(
-      remaining.length,
+      allToProcess.length,
       context.maxWorkers ?? (availableParallelism() - 1),
     ));
 
@@ -179,6 +192,12 @@ export class SourceIndexStage implements PipelineStage {
       // Single-core fallback: use the serial async path
       const pool = this.pool!;
       const BATCH_SIZE = 1000;
+
+      // Process retry files from previous checkpoint failures
+      for (const file of retryFiles) {
+        await processFile(db, pool, file.path, file.language, branch, context.sourceCache, context.layer, context.generation);
+      }
+
       for (let batchStart = resumeAt; batchStart < files.length; batchStart += BATCH_SIZE) {
         const batchEnd = Math.min(batchStart + BATCH_SIZE, files.length);
         for (let i = batchStart; i < batchEnd; i++) {
@@ -202,8 +221,8 @@ export class SourceIndexStage implements PipelineStage {
       existingRows.set(row.path, { hash: row.last_hash, sizeBytes: row.size_bytes });
     }
 
-    // Build tasks for workers
-    const tasks: ParseTask[] = remaining.map(f => {
+    // Build tasks for workers (includes retry files from previous failed runs)
+    const tasks: ParseTask[] = allToProcess.map(f => {
       const existing = existingRows.get(f.path);
       return {
         filePath: f.path,
@@ -222,6 +241,12 @@ export class SourceIndexStage implements PipelineStage {
       // Serial fallback when worker script is unavailable
       const pool = this.pool!;
       const BATCH_SIZE = 1000;
+
+      // Process retry files from previous checkpoint failures
+      for (const file of retryFiles) {
+        await processFile(db, pool, file.path, file.language, branch, context.sourceCache, context.layer, context.generation);
+      }
+
       for (let batchStart = resumeAt; batchStart < files.length; batchStart += BATCH_SIZE) {
         const batchEnd = Math.min(batchStart + BATCH_SIZE, files.length);
         for (let i = batchStart; i < batchEnd; i++) {
@@ -264,6 +289,25 @@ export class SourceIndexStage implements PipelineStage {
     let processed = 0;
     let skipped = 0;
     let errors = 0;
+    const failedPaths: string[] = [];
+
+    // First, process retry files from previous checkpoint failures
+    if (retryFiles.length > 0) {
+      db.transaction(() => {
+        for (const file of retryFiles) {
+          const r = resultsByPath.get(file.path);
+          if (!r || r.kind === 'error') { errors++; failedPaths.push(file.path); continue; }
+          if (r.kind === 'skipped') { skipped++; continue; }
+          const existing = db.prepare(
+            'SELECT id, last_hash, size_bytes FROM files WHERE path = ? AND branch = ? AND layer = ?',
+          ).get(r.filePath, branch, layerForLookup) as FileRow | undefined;
+          insertParsedFile(db, r, branch, existing, context.sourceCache, context.layer, context.generation);
+          processed++;
+        }
+      })();
+    }
+
+    // Then process remaining files in batches
     for (let batchStart = resumeAt; batchStart < files.length; batchStart += BATCH_SIZE) {
       const batchEnd = Math.min(batchStart + BATCH_SIZE, files.length);
       db.transaction(() => {
@@ -271,7 +315,7 @@ export class SourceIndexStage implements PipelineStage {
           const file = files[i];
           if (!file) continue;
           const r = resultsByPath.get(file.path);
-          if (!r || r.kind === 'error') { errors++; continue; }
+          if (!r || r.kind === 'error') { errors++; failedPaths.push(file.path); continue; }
           if (r.kind === 'skipped') { skipped++; continue; }
           const existing = db.prepare(
             'SELECT id, last_hash, size_bytes FROM files WHERE path = ? AND branch = ? AND layer = ?',
@@ -281,7 +325,7 @@ export class SourceIndexStage implements PipelineStage {
         }
       })();
       if (batchEnd >= files.length || batchEnd % (BATCH_SIZE * 5) < BATCH_SIZE) {
-        saveBuildCheckpoint(db, branch, context.walkerConfig.rootDir, batchEnd, files.length);
+        saveBuildCheckpoint(db, branch, context.walkerConfig.rootDir, batchEnd, files.length, failedPaths);
       }
     }
 
@@ -289,6 +333,7 @@ export class SourceIndexStage implements PipelineStage {
       processed,
       skipped,
       errors,
+      retried: retryFiles.length,
     });
     // v8 ignore stop
   }
@@ -1033,16 +1078,19 @@ function loadBuildCheckpoint(
   branch: string,
   rootDir: string,
   totalFiles: number,
-): number {
+): { resumeAt: number; failedFiles: string[] } {
   const raw = getLoreMeta(db, LORE_META_INDEX_CHECKPOINT);
-  if (!raw) return 0;
+  if (!raw) return { resumeAt: 0, failedFiles: [] };
   try {
     const parsed = JSON.parse(raw) as Partial<BuildCheckpoint>;
-    if (parsed.branch !== branch || parsed.rootDir !== rootDir) return 0;
+    if (parsed.branch !== branch || parsed.rootDir !== rootDir) return { resumeAt: 0, failedFiles: [] };
     const nextFileIndex = parsed.nextFileIndex ?? 0;
-    return Math.max(0, Math.min(totalFiles, nextFileIndex));
+    return {
+      resumeAt: Math.max(0, Math.min(totalFiles, nextFileIndex)),
+      failedFiles: parsed.failedFiles ?? [],
+    };
   } catch {
-    return 0;
+    return { resumeAt: 0, failedFiles: [] };
   }
 }
 
@@ -1052,6 +1100,7 @@ function saveBuildCheckpoint(
   rootDir: string,
   nextFileIndex: number,
   totalFiles: number,
+  failedFiles?: string[],
 ): void {
   const checkpoint: BuildCheckpoint = {
     branch,
@@ -1060,5 +1109,8 @@ function saveBuildCheckpoint(
     nextFileIndex,
     updatedAt: Math.floor(Date.now() / 1000),
   };
+  if (failedFiles && failedFiles.length > 0) {
+    checkpoint.failedFiles = failedFiles;
+  }
   setLoreMeta(db, LORE_META_INDEX_CHECKPOINT, JSON.stringify(checkpoint));
 }
