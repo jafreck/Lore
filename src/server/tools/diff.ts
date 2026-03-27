@@ -69,6 +69,12 @@ export interface ChangedEntry {
   new_signature: string | null;
 }
 
+export interface DiffSummaryCategory {
+  total: number;
+  shown: number;
+  truncated: boolean;
+}
+
 export interface DiffResult {
   old_branch: string;
   new_branch: string;
@@ -76,9 +82,9 @@ export interface DiffResult {
   removed: DiffEntry[];
   changed: ChangedEntry[];
   summary: {
-    added_count: number;
-    removed_count: number;
-    changed_count: number;
+    added: DiffSummaryCategory;
+    removed: DiffSummaryCategory;
+    changed: DiffSummaryCategory;
   };
 }
 
@@ -112,6 +118,63 @@ export function handler(db: Database.Database, args: DiffArgs): DiffResult {
 
   const filters = filterClauses.join(' ');
   const changedFilters = changedFilterClauses.join(' ');
+
+  // ── True total counts (before truncation) ─────────────────────────────────
+
+  const totalAdded = (db.prepare(
+    `SELECT COUNT(*) AS cnt
+       FROM symbols s
+       JOIN files f ON f.id = s.file_id
+      WHERE f.branch = ?
+        AND s.is_exported = 1
+        ${filters}
+        AND NOT EXISTS (
+          SELECT 1
+            FROM symbols s2
+            JOIN files f2 ON f2.id = s2.file_id
+           WHERE f2.branch = ?
+             AND s2.name = s.name
+             AND s2.kind = s.kind
+             AND f2.path = f.path
+             AND s2.is_exported = 1
+        )`,
+  ).get(newBranch, ...filterParams, oldBranch) as { cnt: number }).cnt;
+
+  const totalRemoved = (db.prepare(
+    `SELECT COUNT(*) AS cnt
+       FROM symbols s
+       JOIN files f ON f.id = s.file_id
+      WHERE f.branch = ?
+        AND s.is_exported = 1
+        ${filters}
+        AND NOT EXISTS (
+          SELECT 1
+            FROM symbols s2
+            JOIN files f2 ON f2.id = s2.file_id
+           WHERE f2.branch = ?
+             AND s2.name = s.name
+             AND s2.kind = s.kind
+             AND f2.path = f.path
+             AND s2.is_exported = 1
+        )`,
+  ).get(oldBranch, ...filterParams, newBranch) as { cnt: number }).cnt;
+
+  const totalChanged = (db.prepare(
+    `SELECT COUNT(*) AS cnt
+       FROM symbols s_new
+       JOIN files f_new ON f_new.id = s_new.file_id
+       JOIN files f_old ON f_old.path = f_new.path AND f_old.branch = ?
+       JOIN symbols s_old ON s_old.file_id = f_old.id
+                         AND s_old.name = s_new.name
+                         AND s_old.kind = s_new.kind
+                         AND s_old.is_exported = 1
+      WHERE f_new.branch = ?
+        AND s_new.is_exported = 1
+        ${changedFilters}
+        AND COALESCE(s_new.signature, '') != COALESCE(s_old.signature, '')`,
+  ).get(oldBranch, newBranch, ...changedFilterParams) as { cnt: number }).cnt;
+
+  // ── Truncated result arrays ───────────────────────────────────────────────
 
   // Added: exported symbols in new_branch not present in old_branch
   const added = db.prepare(
@@ -186,9 +249,9 @@ export function handler(db: Database.Database, args: DiffArgs): DiffResult {
     removed,
     changed,
     summary: {
-      added_count: added.length,
-      removed_count: removed.length,
-      changed_count: changed.length,
+      added: { total: totalAdded, shown: added.length, truncated: added.length < totalAdded },
+      removed: { total: totalRemoved, shown: removed.length, truncated: removed.length < totalRemoved },
+      changed: { total: totalChanged, shown: changed.length, truncated: changed.length < totalChanged },
     },
   };
 }

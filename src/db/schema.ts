@@ -279,7 +279,7 @@ CREATE INDEX IF NOT EXISTS idx_symbol_relationships_layer ON symbol_relationship
 
 -- Tracks files with active overlay data.
 CREATE TABLE IF NOT EXISTS dirty_files (
-  path        TEXT PRIMARY KEY,
+  path        TEXT NOT NULL PRIMARY KEY,
   dirty_since INTEGER NOT NULL DEFAULT (unixepoch()),
   overlay_gen INTEGER NOT NULL DEFAULT 0
 );
@@ -318,7 +318,9 @@ export function openDb(path: string): Database.Database {
   db.pragma('cache_size = -64000');   // 64 MB
 
   // Create all tables in a single transaction.
-  db.exec(DDL);
+  db.transaction(() => {
+    db.exec(DDL);
+  })();
   ensureIncrementalSchema(db);
 
   return db;
@@ -332,7 +334,7 @@ export function openDb(path: string): Database.Database {
 function ensureIncrementalSchema(db: Database.Database): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS dirty_files (
-      path        TEXT PRIMARY KEY,
+      path        TEXT NOT NULL PRIMARY KEY,
       dirty_since INTEGER NOT NULL DEFAULT (unixepoch()),
       overlay_gen INTEGER NOT NULL DEFAULT 0
     );
@@ -349,7 +351,9 @@ function ensureIncrementalSchema(db: Database.Database): void {
   `);
 
   // Create effective_* views (DROP + CREATE to pick up any schema changes).
-  db.exec(`
+  // Wrapped in a transaction so concurrent readers never see missing views.
+  db.transaction(() => {
+    db.exec(`
     DROP VIEW IF EXISTS effective_symbol_metrics;
     DROP VIEW IF EXISTS effective_file_imports;
     DROP VIEW IF EXISTS effective_annotations;
@@ -392,6 +396,7 @@ function ensureIncrementalSchema(db: Database.Database): void {
     SELECT sm.* FROM symbol_metrics sm
     JOIN effective_symbols s ON s.id = sm.symbol_id;
   `);
+  })();
 }
 
 // ─── lore_meta helpers ──────────────────────────────────────────────────────────
@@ -425,11 +430,13 @@ export function getGeneration(db: Database.Database): number {
   return val ? parseInt(val, 10) : 0;
 }
 
-/** Increment and return the next generation counter. */
+/** Increment and return the next generation counter (atomic via IMMEDIATE txn). */
 export function incrementGeneration(db: Database.Database): number {
-  const next = getGeneration(db) + 1;
-  setLoreMeta(db, LORE_META_GENERATION, String(next));
-  return next;
+  return db.transaction(() => {
+    const next = getGeneration(db) + 1;
+    setLoreMeta(db, LORE_META_GENERATION, String(next));
+    return next;
+  }).immediate();
 }
 
 // ─── Vec0 virtual tables ──────────────────────────────────────────────────────
