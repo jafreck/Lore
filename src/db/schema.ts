@@ -279,7 +279,7 @@ CREATE INDEX IF NOT EXISTS idx_symbol_relationships_layer ON symbol_relationship
 
 -- Tracks files with active overlay data.
 CREATE TABLE IF NOT EXISTS dirty_files (
-  path        TEXT PRIMARY KEY,
+  path        TEXT NOT NULL PRIMARY KEY,
   dirty_since INTEGER NOT NULL DEFAULT (unixepoch()),
   overlay_gen INTEGER NOT NULL DEFAULT 0
 );
@@ -332,7 +332,7 @@ export function openDb(path: string): Database.Database {
 function ensureIncrementalSchema(db: Database.Database): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS dirty_files (
-      path        TEXT PRIMARY KEY,
+      path        TEXT NOT NULL PRIMARY KEY,
       dirty_since INTEGER NOT NULL DEFAULT (unixepoch()),
       overlay_gen INTEGER NOT NULL DEFAULT 0
     );
