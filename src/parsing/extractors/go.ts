@@ -17,7 +17,6 @@ import {
   type SymbolExtractor,
   createTypeRefEmitter,
   emptyResult,
-  findEnclosingSymbolName,
   findFirst,
   nodeSignature,
   walk,
@@ -73,6 +72,35 @@ export class GoExtractor implements SymbolExtractor {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * Go-specific version of findEnclosingSymbolName that qualifies method names
+ * with the receiver type (e.g. `ReceiverType.MethodName`) to match the symbol
+ * names produced by extractMethod.
+ */
+function findGoEnclosingSymbolName(node: Parser.SyntaxNode): string {
+  let current: Parser.SyntaxNode | null = node.parent;
+  while (current) {
+    if (current.type === 'method_declaration') {
+      const nameNode = current.childForFieldName('name');
+      const receiverNode = current.childForFieldName('receiver');
+      let name = nameNode?.text ?? '';
+      if (receiverNode) {
+        const receiverType =
+          findFirst(receiverNode, 'type_identifier')?.text ??
+          findFirst(receiverNode, 'pointer_type')?.text;
+        if (receiverType) name = `${receiverType}.${name}`;
+      }
+      return name;
+    }
+    if (current.type === 'function_declaration' || current.type === 'type_declaration') {
+      const nameNode = current.childForFieldName('name');
+      if (nameNode) return nameNode.text;
+    }
+    current = current.parent;
+  }
+  return '';
+}
 
 function extractFunction(node: Parser.SyntaxNode, kind: string): RawSymbol {
   const nameNode = node.childForFieldName('name');
@@ -166,7 +194,7 @@ function extractCallRef(node: Parser.SyntaxNode): RawCallRef | null {
   const fnNode = node.childForFieldName('function');
   if (!fnNode) return null;
   return {
-    callerSymbol: findEnclosingSymbolName(node, GO_SYMBOL_NODE_TYPES),
+    callerSymbol: findGoEnclosingSymbolName(node),
     calleeRaw: fnNode.text,
     line: node.startPosition.row,
     character: node.startPosition.column,
@@ -322,7 +350,7 @@ function extractGoTypeDeclRefs(
 }
 
 function extractGoVarTypeRefs(node: Parser.SyntaxNode, refs: RawTypeRef[]): void {
-  const enclosing = findEnclosingSymbolName(node, GO_SYMBOL_NODE_TYPES);
+  const enclosing = findGoEnclosingSymbolName(node);
   if (node.type === 'var_declaration') {
     // var x Type = ... or var ( x Type; y Type )
     for (const child of node.namedChildren) {
@@ -339,6 +367,6 @@ function extractGoTypeAssertionRef(node: Parser.SyntaxNode, refs: RawTypeRef[]):
   // x.(Type) — type assertion
   const typeNode = node.childForFieldName('type');
   if (!typeNode) return;
-  const enclosing = findEnclosingSymbolName(node, GO_SYMBOL_NODE_TYPES);
+  const enclosing = findGoEnclosingSymbolName(node);
   emitGoTypeRef(refs, enclosing, typeNode, 'cast');
 }
