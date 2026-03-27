@@ -224,7 +224,7 @@ export class ImportResolver {
     if (!source.startsWith('<')) {
       const resolved =
         this.resolveRelative('./' + source, fromFile, ['']) ??
-        this.resolveRelative('./' + source, rootDir + '/fake', ['']);
+        this.resolveRelative('./' + source, path.join(rootDir, 'fake'), ['']);
       if (resolved) return { rawSource: source, resolvedPath: resolved, isExternal: false };
     }
     return this.markExternal(source);
