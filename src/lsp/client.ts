@@ -229,9 +229,9 @@ export class LspClient {
       const payload = this.buffer.subarray(bodyStart, messageEnd).toString('utf8');
       this.buffer = this.buffer.subarray(messageEnd);
 
-      let parsed: JsonRpcResponse & { method?: string };
+      let parsed: JsonRpcResponse & { method?: string; params?: { items?: unknown[] } };
       try {
-        parsed = JSON.parse(payload) as JsonRpcResponse & { method?: string };
+        parsed = JSON.parse(payload) as JsonRpcResponse & { method?: string; params?: { items?: unknown[] } };
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         this.rejectPendingRequests(new Error(`Invalid LSP JSON payload: ${message}`));
@@ -246,7 +246,8 @@ export class LspClient {
       // JSON-RPC protocol and causes servers to hang.
       if (parsed.method) {
         if (parsed.method === 'workspace/configuration') {
-          this.sendResponse(parsed.id, [{}]);
+          const items: unknown[] = parsed.params?.items ?? [];
+          this.sendResponse(parsed.id, items.map(() => ({})));
         } else if (parsed.method === 'window/workDoneProgress/create') {
           this.sendResponse(parsed.id, null);
         } else {
