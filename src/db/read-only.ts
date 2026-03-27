@@ -104,8 +104,13 @@ export function getFreshness(db: Database.Database): FreshnessInfo {
   try {
     const row = db.prepare('SELECT COUNT(*) AS cnt FROM dirty_files').get() as { cnt: number } | undefined;
     dirtyCount = row?.cnt ?? 0;
-  } catch {
+  } catch (e: unknown) {
     // dirty_files table may not exist in old databases
+    if (e instanceof Error && e.message.includes('no such table')) {
+      dirtyCount = 0;
+    } else {
+      throw e;
+    }
   }
 
   let baselineAgeS = 0;
@@ -116,8 +121,13 @@ export function getFreshness(db: Database.Database): FreshnessInfo {
     if (row?.latest) {
       baselineAgeS = Math.max(0, Math.floor(Date.now() / 1000) - row.latest);
     }
-  } catch {
+  } catch (e: unknown) {
     // layer column may not exist in old databases
+    if (e instanceof Error && (e.message.includes('no such table') || e.message.includes('no such column'))) {
+      baselineAgeS = 0;
+    } else {
+      throw e;
+    }
   }
 
   const source: FreshnessInfo['source'] = dirtyCount === 0 ? 'baseline' : 'mixed';
