@@ -115,10 +115,26 @@ function extractImport(node: Parser.SyntaxNode): RawImport[] {
 
 /**
  * `from x.y import a, b` → one RawImport.
+ * `from .x import a` → one RawImport with source '.x'.
+ * `from .. import a` → one RawImport with source '..'.
  */
 function extractFromImport(node: Parser.SyntaxNode): RawImport {
   const moduleNode = node.childForFieldName('module_name');
-  const source = moduleNode?.text ?? '';
+
+  // Collect leading dots for relative imports.
+  // In tree-sitter-python, the dots in `from .foo import bar` appear as
+  // unnamed child nodes of type '.' before the module_name node.
+  let dots = '';
+  for (const child of node.children) {
+    if (child.type === '.') {
+      dots += '.';
+    } else if (child === moduleNode || child.type === 'import') {
+      break;
+    }
+  }
+
+  const moduleName = moduleNode?.text ?? '';
+  const source = dots + moduleName;
   const importedNames: string[] = [];
 
   for (const child of node.namedChildren) {
@@ -146,4 +162,3 @@ function extractCallRef(node: Parser.SyntaxNode): RawCallRef | null {
     character: node.startPosition.column,
   };
 }
-
