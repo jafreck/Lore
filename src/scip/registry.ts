@@ -12,6 +12,7 @@
 import { accessSync, constants, existsSync } from 'node:fs';
 import { delimiter, dirname, isAbsolute, join } from 'node:path';
 import { homedir } from 'node:os';
+import { fileURLToPath } from 'node:url';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -144,7 +145,7 @@ function getLoreBinDir(): string {
 function resolveNpmBundledBinary(command: string): string | null {
   // Lore package root is two levels up from dist/scip/
   const candidates = [
-    join(dirname(new URL(import.meta.url).pathname), '..', '..', 'node_modules', '.bin', command),
+    join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'node_modules', '.bin', command),
   ];
   for (const candidate of candidates) {
     if (isExecutable(candidate)) return candidate;
