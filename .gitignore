@@ -1,12 +1,43 @@
+# Dependencies
 node_modules/
+
+# Build output
 dist/
 *.tsbuildinfo
+
+# OS files
 .DS_Store
-.cadre/
-.github/agents/
+Thumbs.db
+
+# Editor / IDE
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment
+.env
+.env.*
+
+# Coverage
 coverage/
+
+# SCIP indexing artifacts
 .scip-indexes/
+index.scip
+.lore-scip-*.scip
+
+# Benchmark repo cache & results
 .benchmark/
 /.benchmark-results/
+
+# Tool / agent working directories
+.cadre/
+.github/agents/
 .autoresearch/
-index.scip
+
