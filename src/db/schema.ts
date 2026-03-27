@@ -318,7 +318,9 @@ export function openDb(path: string): Database.Database {
   db.pragma('cache_size = -64000');   // 64 MB
 
   // Create all tables in a single transaction.
-  db.exec(DDL);
+  db.transaction(() => {
+    db.exec(DDL);
+  })();
   ensureIncrementalSchema(db);
 
   return db;
@@ -349,7 +351,9 @@ function ensureIncrementalSchema(db: Database.Database): void {
   `);
 
   // Create effective_* views (DROP + CREATE to pick up any schema changes).
-  db.exec(`
+  // Wrapped in a transaction so concurrent readers never see missing views.
+  db.transaction(() => {
+    db.exec(`
     DROP VIEW IF EXISTS effective_symbol_metrics;
     DROP VIEW IF EXISTS effective_file_imports;
     DROP VIEW IF EXISTS effective_annotations;
@@ -392,6 +396,7 @@ function ensureIncrementalSchema(db: Database.Database): void {
     SELECT sm.* FROM symbol_metrics sm
     JOIN effective_symbols s ON s.id = sm.symbol_id;
   `);
+  })();
 }
 
 // ─── lore_meta helpers ──────────────────────────────────────────────────────────
