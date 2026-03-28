@@ -42,6 +42,8 @@ describe('LoreRuntime', () => {
     it('uses global logger when none provided', () => {
       const runtime = new LoreRuntime(makeConfig());
       expect(runtime.log).toBeDefined();
+      // Should be the global logger instance
+      expect(typeof runtime.log.info).toBe('function');
     });
   });
 
@@ -111,7 +113,7 @@ describe('LoreRuntime', () => {
   });
 
   describe('shutdown disposes resources', () => {
-    it('clears embedder on shutdown', async () => {
+    it('embedder remains undefined when not configured', async () => {
       const runtime = new LoreRuntime(makeConfig());
       await runtime.start();
       expect(runtime.embedder).toBeUndefined(); // no embeddingModel configured
@@ -119,7 +121,7 @@ describe('LoreRuntime', () => {
       expect(runtime.embedder).toBeUndefined();
     });
 
-    it('clears refresher on shutdown', async () => {
+    it('refresher remains undefined when refreshMode=none', async () => {
       const runtime = new LoreRuntime(makeConfig());
       await runtime.start();
       expect(runtime.refresher).toBeUndefined(); // refreshMode=none
@@ -129,7 +131,7 @@ describe('LoreRuntime', () => {
   });
 
   describe('installSignalHandlers', () => {
-    it('installs signal handlers', () => {
+    it('installs without throwing', () => {
       const runtime = new LoreRuntime(makeConfig());
       expect(() => runtime.installSignalHandlers()).not.toThrow();
     });

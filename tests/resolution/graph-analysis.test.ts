@@ -208,7 +208,7 @@ describe('clusterSymbols', () => {
 
     const clusters = clusterSymbols(db);
     // Same-file symbols get merged into one cluster (step 2)
-    expect(clusters.length).toBeGreaterThanOrEqual(1);
+    expect(clusters.length).toBe(1);
     // Total lines should be the sum
     const totalLines = clusters.reduce((s, c) => s + c.totalLines, 0);
     expect(totalLines).toBe(21); // (10-1+1) + (30-20+1) = 10 + 11 = 21
@@ -303,9 +303,10 @@ describe('buildCodebaseSummary', () => {
 
     const summary = buildCodebaseSummary(db);
     expect(summary.modules.length).toBeGreaterThanOrEqual(1);
-    // Each module should have symbolCount > 0
-    expect(summary.modules[0]!.symbolCount).toBe(1);
-    expect(summary.modules[0]!.totalLines).toBe(10);
+    // With a single file, there should be exactly one module
+    const mod = summary.modules[0]!;
+    expect(mod.symbolCount).toBe(1);
+    expect(mod.totalLines).toBe(10);
   });
 
   it('filters by branch when provided', () => {

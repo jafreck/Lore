@@ -70,9 +70,9 @@ describe('lore_cohesion handler', () => {
     // server directory has 1 internal + 1 outbound = cohesion 0.5
     const serverDir = result.directories.find((d) => d.directory === 'src/server');
     const dbDir = result.directories.find((d) => d.directory === 'src/db');
-    if (serverDir && dbDir) {
-      expect(serverDir.cohesion).toBeLessThanOrEqual(dbDir.cohesion);
-    }
+    expect(serverDir).toBeDefined();
+    expect(dbDir).toBeDefined();
+    expect(serverDir!.cohesion).toBeLessThanOrEqual(dbDir!.cohesion);
   });
 
   it('respects limit parameter', () => {

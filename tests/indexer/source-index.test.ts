@@ -121,6 +121,7 @@ describe('SourceIndexStage', () => {
 
     const refs = db.prepare('SELECT callee_name FROM symbol_refs').all() as Array<{ callee_name: string }>;
     expect(refs.length).toBeGreaterThanOrEqual(1);
+    expect(refs.some(r => r.callee_name.includes('log') || r.callee_name.includes('console'))).toBe(true);
   });
 
   it('computes symbol metrics', async () => {
@@ -139,8 +140,9 @@ describe('SourceIndexStage', () => {
     }>;
     expect(metrics.length).toBeGreaterThanOrEqual(1);
     const m = metrics[0]!;
-    expect(m.line_count).toBeGreaterThan(0);
-    expect(m.cyclomatic).toBeGreaterThanOrEqual(1);
+    expect(m.line_count).toBeGreaterThanOrEqual(5);
+    expect(m.cyclomatic).toBeGreaterThanOrEqual(3);
+    expect(typeof m.param_count).toBe('number');
   });
 
   it('indexes multiple files', async () => {
@@ -226,7 +228,7 @@ describe('SourceIndexStage', () => {
 
     // The file should be marked as dirty
     const dirtyFiles = db.prepare('SELECT * FROM dirty_files').all();
-    expect(dirtyFiles.length).toBeGreaterThanOrEqual(1);
+    expect(dirtyFiles.length).toBe(1);
   });
 
   it('populates context.files in build mode', async () => {

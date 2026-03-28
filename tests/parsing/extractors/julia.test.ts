@@ -27,11 +27,8 @@ end`;
       const result = extract(source);
       // short_function_definition depends on tree-sitter-julia grammar version
       const sym = result.symbols.find(s => s.kind === 'function');
-      if (sym) {
-        expect(sym).toBeDefined();
-      } else {
-        expect(result.symbols.length).toBeGreaterThanOrEqual(0);
-      }
+      // Grammar may not parse short function definitions — assert symbols list is consistent
+      expect(result.symbols.length).toBeGreaterThanOrEqual(0);
     });
 
     it('extracts struct definition', () => {
@@ -107,7 +104,8 @@ end
 function bar()
 end`;
       const result = extract(source);
-      expect(result.callRefs.length).toBeGreaterThanOrEqual(0);
+      // Julia extractor may or may not extract call_expression nodes
+      expect(result.symbols.length).toBeGreaterThanOrEqual(2);
     });
   });
 });

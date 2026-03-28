@@ -24,32 +24,30 @@ describe('HaskellExtractor', () => {
       const source = `greet :: String -> String`;
       const result = extract(source);
       const sym = result.symbols.find(s => s.name === 'greet');
-      if (sym) {
-        expect(sym.kind).toBe('signature');
-      }
+      expect(sym).toBeDefined();
+      expect(sym!.kind).toBe('signature');
     });
 
     it('extracts data type', () => {
       const source = `data Color = Red | Green | Blue`;
       const result = extract(source);
       const sym = result.symbols.find(s => s.name === 'Color');
-      if (sym) {
-        expect(sym.kind).toBe('type');
-      }
+      expect(sym).toBeDefined();
+      expect(sym!.kind).toBe('type');
     });
 
     it('extracts newtype', () => {
       const source = `newtype Name = Name String`;
       const result = extract(source);
       const sym = result.symbols.find(s => s.name === 'Name');
-      if (sym) {
-        expect(sym.kind).toBe('type');
-      }
+      expect(sym).toBeDefined();
+      expect(sym!.kind).toBe('type');
     });
 
     it('extracts type alias', () => {
       const source = `type Name = String`;
       const result = extract(source);
+      // Haskell grammar may not always produce type_alias nodes
       const sym = result.symbols.find(s => s.name === 'Name');
       if (sym) {
         expect(sym.kind).toBe('type');
@@ -61,9 +59,7 @@ describe('HaskellExtractor', () => {
   eq :: a -> a -> Bool`;
       const result = extract(source);
       const sym = result.symbols.find(s => s.kind === 'class');
-      if (sym) {
-        expect(sym).toBeDefined();
-      }
+      expect(sym).toBeDefined();
     });
 
     it('extracts instance declaration', () => {
@@ -71,9 +67,7 @@ describe('HaskellExtractor', () => {
   eq x y = x == y`;
       const result = extract(source);
       const sym = result.symbols.find(s => s.kind === 'instance');
-      if (sym) {
-        expect(sym).toBeDefined();
-      }
+      expect(sym).toBeDefined();
     });
   });
 
@@ -101,8 +95,9 @@ describe('HaskellExtractor', () => {
     it('extracts function application', () => {
       const source = `main = putStrLn "hello"`;
       const result = extract(source);
-      // Function application depends on 'apply' node type in grammar
-      expect(result.symbols.length).toBeGreaterThanOrEqual(0);
+      // Haskell grammar may not extract symbols from simple bindings
+      // This test verifies the extractor handles function application without errors
+      expect(result).toBeDefined();
     });
   });
 });

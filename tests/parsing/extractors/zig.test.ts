@@ -64,8 +64,9 @@ describe('ZigExtractor', () => {
     it('extracts @import builtin call', () => {
       const source = `const std = @import("std");`;
       const result = extract(source);
-      // Import extraction depends on grammar version
+      // The @import is assigned to a const, so at minimum the const is extracted
       expect(result.symbols.length).toBeGreaterThanOrEqual(1);
+      expect(result.symbols.some(s => s.name === 'std')).toBe(true);
     });
   });
 
@@ -76,7 +77,8 @@ describe('ZigExtractor', () => {
 }
 fn bar() void {}`;
       const result = extract(source);
-      expect(result.callRefs.length).toBeGreaterThanOrEqual(0);
+      // Zig extractor should find at least the function symbols
+      expect(result.symbols.length).toBeGreaterThanOrEqual(2);
     });
   });
 });

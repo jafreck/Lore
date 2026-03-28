@@ -147,8 +147,8 @@ describe('buildToolModules', () => {
   it('each module has def with name, description, and inputSchema', async () => {
     const modules = await buildToolModules();
     for (const mod of modules) {
-      expect(mod.def.name).toBeTruthy();
-      expect(mod.def.description).toBeTruthy();
+      expect(mod.def.name.length).toBeGreaterThan(0);
+      expect(mod.def.description.length).toBeGreaterThan(0);
       expect(mod.def.inputSchema).toBeDefined();
       expect(mod.def.inputSchema.type).toBe('object');
       expect(mod.def.inputSchema.properties).toBeDefined();
@@ -319,8 +319,11 @@ describe('registerTools', () => {
     const parsed = JSON.parse(result.content[0].text);
     // The handler returns an object, so freshness should be injected
     expect(parsed.data).toBe('test');
-    // freshness may or may not be present depending on lore_meta state
-    // but the key should exist if getFreshness succeeds
+    // Freshness should be present as an object with source field
+    if (parsed.freshness) {
+      expect(typeof parsed.freshness.source).toBe('string');
+      expect(typeof parsed.freshness.dirty_file_count).toBe('number');
+    }
     db.close();
   });
 

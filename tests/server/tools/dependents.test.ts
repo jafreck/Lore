@@ -58,11 +58,10 @@ describe('lore_dependents handler — symbol', () => {
 
   it('supports compact mode', () => {
     const result = handler(db, { query: 'coreFunc', kind: 'symbol', compact: true });
-    if (result.dependents.callers.length > 0) {
-      const caller = result.dependents.callers[0] as any;
-      // compact callers omit line, character, resolution_method
-      expect(caller.line).toBeUndefined();
-    }
+    expect(result.dependents.callers.length).toBeGreaterThanOrEqual(1);
+    const caller = result.dependents.callers[0] as any;
+    // compact callers omit line, character, resolution_method
+    expect(caller.line).toBeUndefined();
   });
 
   it('throws for unknown symbol', () => {

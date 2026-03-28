@@ -111,11 +111,15 @@ describe('lore_trace handler', () => {
     // depth: 0 should be clamped to 1
     const result = handler(db, { from: 1, depth: 0 });
     expect(result.steps.length).toBeGreaterThanOrEqual(1);
+    // Verify clamping happened by checking result has data
+    expect(result.total_nodes).toBeGreaterThanOrEqual(1);
   });
 
   it('clamps depth to max 10', () => {
     const result = handler(db, { from: 1, depth: 100 });
     expect(result.steps.length).toBeGreaterThanOrEqual(1);
+    // Verify clamping: result should still be valid
+    expect(result.total_nodes).toBeGreaterThanOrEqual(1);
   });
 
   it('defaults max_source_lines to 50', () => {

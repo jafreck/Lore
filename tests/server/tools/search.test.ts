@@ -154,9 +154,8 @@ describe('lore_search handler', () => {
 
   it('returns result_type=symbol', async () => {
     const result = await handler(db, { query: 'helpers' });
-    if (result.results.length > 0) {
-      expect(result.results[0]!.result_type).toBe('symbol');
-    }
+    expect(result.results.length).toBeGreaterThanOrEqual(1);
+    expect(result.results[0]!.result_type).toBe('symbol');
   });
 
   it('returns branch in results', async () => {

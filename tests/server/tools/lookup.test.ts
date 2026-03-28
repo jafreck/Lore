@@ -52,7 +52,7 @@ describe('lore_lookup handler', () => {
 
   it('looks up a symbol by exact name', async () => {
     const result = await handler(db, { kind: 'symbol', query: 'foo' });
-    expect(result.results.length).toBeGreaterThanOrEqual(1);
+    expect(result.results.length).toBe(1);
     const first = result.results[0] as any;
     expect(first.name).toBe('foo');
     expect(first.kind).toBe('function');
@@ -91,7 +91,7 @@ describe('lore_lookup handler', () => {
 
   it('supports symbol_kind filter', async () => {
     const result = await handler(db, { kind: 'symbol', query: '', symbol_kind: 'class' });
-    expect(result.results.length).toBeGreaterThanOrEqual(1);
+    expect(result.results.length).toBe(1);
     for (const r of result.results) {
       expect((r as any).kind).toBe('class');
     }
@@ -99,7 +99,7 @@ describe('lore_lookup handler', () => {
 
   it('lists symbols when query is empty', async () => {
     const result = await handler(db, { kind: 'symbol', query: '' });
-    expect(result.results.length).toBeGreaterThanOrEqual(2);
+    expect(result.results.length).toBe(3);
   });
 
   it('respects limit on empty query', async () => {

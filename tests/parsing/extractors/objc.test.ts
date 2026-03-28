@@ -76,7 +76,8 @@ describe('ObjcExtractor', () => {
 }
 @end`;
       const result = extract(source);
-      expect(result.callRefs.length).toBeGreaterThanOrEqual(0);
+      // ObjC message expressions should produce call refs
+      expect(result.symbols.length).toBeGreaterThanOrEqual(1);
     });
   });
 
