@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { openDb, type Database } from '../../../src/db/schema.js';
-import { handler, toolDef, type SearchObservation } from '../../../src/server/tools/search.js';
+import { handler, toolDef, clearQueryEmbeddingCache, type SearchObservation } from '../../../src/server/tools/search.js';
 import type { EmbeddingProvider } from '../../../src/embeddings/embedder.js';
 
 function seedDb(db: Database.Database) {
@@ -378,5 +378,173 @@ describe('lore_search handler', () => {
     expect(obs).not.toBeNull();
     expect(obs!.requestedMode).toBe('fused');
     expect(obs!.modeUsed).toContain('no query-time embedder');
+  });
+});
+
+describe('lore_search embedding cache', () => {
+  let db: Database.Database;
+
+  beforeEach(() => {
+    clearQueryEmbeddingCache();
+    db = openDb(':memory:');
+    seedDb(db);
+  });
+
+  afterEach(() => {
+    clearQueryEmbeddingCache();
+    db.close();
+  });
+
+  it('caches embedding vectors and reuses them on second call', async () => {
+    const embedFn = vi.fn(async (_texts: string[]) => [[0.1, 0.2, 0.3]]);
+    const embedder: EmbeddingProvider = {
+      embed: embedFn,
+      dimensions: 3,
+      modelName: 'test-cache',
+    } as unknown as EmbeddingProvider;
+
+    // First call — embed() should be called
+    await handler(db, { query: 'cacheTest', mode: 'semantic' }, embedder);
+    expect(embedFn).toHaveBeenCalledTimes(1);
+
+    // Second call with same query — embed() should NOT be called again
+    await handler(db, { query: 'cacheTest', mode: 'semantic' }, embedder);
+    expect(embedFn).toHaveBeenCalledTimes(1);
+  });
+
+  it('calls embed() again after cache is cleared', async () => {
+    const embedFn = vi.fn(async (_texts: string[]) => [[0.1, 0.2, 0.3]]);
+    const embedder: EmbeddingProvider = {
+      embed: embedFn,
+      dimensions: 3,
+      modelName: 'test-cache',
+    } as unknown as EmbeddingProvider;
+
+    await handler(db, { query: 'clearTest', mode: 'semantic' }, embedder);
+    expect(embedFn).toHaveBeenCalledTimes(1);
+
+    clearQueryEmbeddingCache();
+
+    await handler(db, { query: 'clearTest', mode: 'semantic' }, embedder);
+    expect(embedFn).toHaveBeenCalledTimes(2);
+  });
+
+  it('different queries each call embed()', async () => {
+    const embedFn = vi.fn(async (_texts: string[]) => [[0.1, 0.2, 0.3]]);
+    const embedder: EmbeddingProvider = {
+      embed: embedFn,
+      dimensions: 3,
+      modelName: 'test-cache',
+    } as unknown as EmbeddingProvider;
+
+    await handler(db, { query: 'queryA', mode: 'semantic' }, embedder);
+    await handler(db, { query: 'queryB', mode: 'semantic' }, embedder);
+    expect(embedFn).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('lore_search semantic/fused with mock embeddings table', () => {
+  let db: Database.Database;
+
+  beforeEach(() => {
+    clearQueryEmbeddingCache();
+    db = openDb(':memory:');
+    seedDb(db);
+  });
+
+  afterEach(() => {
+    clearQueryEmbeddingCache();
+    db.close();
+  });
+
+  /**
+   * Check whether sqlite-vec is available to create vec0 virtual tables.
+   * If not, semantic/fused paths that require real KNN are skipped.
+   */
+  function hasVecSupport(): boolean {
+    try {
+      db.prepare("CREATE VIRTUAL TABLE IF NOT EXISTS _vec_probe USING vec0(v float[3])").run();
+      db.prepare("DROP TABLE IF EXISTS _vec_probe").run();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function setupEmbeddingsTable(): void {
+    db.prepare("CREATE VIRTUAL TABLE symbol_embeddings USING vec0(embedding float[3])").run();
+    // Insert embeddings for our seeded symbols (rowids 1-5)
+    for (let i = 1; i <= 5; i++) {
+      db.prepare("INSERT INTO symbol_embeddings (rowid, embedding) VALUES (?, ?)").run(
+        i,
+        JSON.stringify([0.1 * i, 0.2 * i, 0.3 * i]),
+      );
+    }
+  }
+
+  it('semantic mode returns semantic results when embeddings exist', async function () {
+    if (!hasVecSupport()) return;
+    setupEmbeddingsTable();
+
+    const embedder = makeMockEmbedder([0.1, 0.2, 0.3]);
+    const result = await handler(db, { query: 'helpers', mode: 'semantic' }, embedder);
+    expect(result.mode_used).toBe('semantic');
+    expect(result.results.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('fused mode uses rrfFuse when both structural and semantic results exist', async function () {
+    if (!hasVecSupport()) return;
+    setupEmbeddingsTable();
+
+    const embedder = makeMockEmbedder([0.1, 0.2, 0.3]);
+    const result = await handler(db, { query: 'helpers', mode: 'fused' }, embedder);
+    expect(result.mode_used).toBe('fused');
+    expect(result.results.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('postFilterSemanticResults excludes results by path_prefix', async function () {
+    if (!hasVecSupport()) return;
+    setupEmbeddingsTable();
+
+    const embedder = makeMockEmbedder([0.1, 0.2, 0.3]);
+    // Query 'helpers' but filter to 'lib/' path — helpers is in src/utils.ts
+    const result = await handler(db, { query: 'helpers', mode: 'semantic', path_prefix: 'lib/' }, embedder);
+    // Post-filter should exclude src/ results; if no lib/ results survive, falls back
+    for (const r of result.results) {
+      if (result.mode_used === 'semantic') {
+        expect(r.file_path).toMatch(/^lib\//);
+      }
+    }
+  });
+
+  it('postFilterSemanticResults excludes results by kind', async function () {
+    if (!hasVecSupport()) return;
+    setupEmbeddingsTable();
+
+    const embedder = makeMockEmbedder([0.1, 0.2, 0.3]);
+    const result = await handler(db, { query: 'ConfigClass', mode: 'semantic', kind: 'class' }, embedder);
+    for (const r of result.results) {
+      if (result.mode_used === 'semantic') {
+        expect(r.kind).toBe('class');
+      }
+    }
+  });
+
+  it('fused mode falls back when semantic returns null', async () => {
+    // No symbol_embeddings table → semantic = null → fused degrades
+    const embedder = makeMockEmbedder();
+    const result = await handler(db, { query: 'helpers', mode: 'fused' }, embedder);
+    expect(result.mode_used).toContain('structural');
+    expect(result.results.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('semantic mode falls back when embed() returns undefined', async () => {
+    const embedder: EmbeddingProvider = {
+      embed: async () => [undefined as unknown as number[]],
+      dimensions: 3,
+      modelName: 'test-undef',
+    } as unknown as EmbeddingProvider;
+    const result = await handler(db, { query: 'helpers', mode: 'semantic' }, embedder);
+    expect(result.mode_used).toContain('structural');
   });
 });
