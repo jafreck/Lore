@@ -549,7 +549,7 @@ async function runHistoryLog(
   });
 }
 
-function buildCommitContextMap(
+export function buildCommitContextMap(
   db: Database.Database,
   shas: string[],
 ): Map<string, CommitWithFiles> {
@@ -566,7 +566,7 @@ function buildCommitContextMap(
   return new Map(enriched.map((commit) => [commit.sha, commit]));
 }
 
-function expandRenamePathVariants(path: string): string[] {
+export function expandRenamePathVariants(path: string): string[] {
   if (!path.includes('=>')) return [path];
 
   const braceMatch = path.match(/^(.*)\{([^{}]+)\s=>\s([^{}]+)\}(.*)$/);
@@ -585,14 +585,14 @@ function expandRenamePathVariants(path: string): string[] {
   return [path];
 }
 
-function normalizePathForMatch(path: string): string {
+export function normalizePathForMatch(path: string): string {
   const unixLike = path.replaceAll('\\', '/');
   const strippedLeading = unixLike.replace(/^\/+/, '');
   const strippedTrailing = strippedLeading.replace(/\/+$/, '');
   return strippedTrailing;
 }
 
-function pathMatchesScope(filePath: string, scopePath: string, directoryScope: boolean): boolean {
+export function pathMatchesScope(filePath: string, scopePath: string, directoryScope: boolean): boolean {
   const scope = normalizePathForMatch(scopePath);
   if (!scope) return false;
   for (const variant of expandRenamePathVariants(filePath)) {
@@ -614,7 +614,7 @@ function pathMatchesScope(filePath: string, scopePath: string, directoryScope: b
   return false;
 }
 
-function computeChurnForScope(
+export function computeChurnForScope(
   commits: CommitWithFiles[],
   scopePath: string,
   directoryScope: boolean,
@@ -640,7 +640,7 @@ function computeChurnForScope(
   return { totalChurn, commitCount };
 }
 
-function computeRiskSignals(
+export function computeRiskSignals(
   timestamps: number[],
   authors: string[],
   churn: { totalChurn: number; commitCount: number },
@@ -708,7 +708,7 @@ function computeRiskSignals(
   };
 }
 
-function sortedCommits(commitMap: Map<string, CommitWithFiles>): CommitWithFiles[] {
+export function sortedCommits(commitMap: Map<string, CommitWithFiles>): CommitWithFiles[] {
   return Array.from(commitMap.values()).sort((a, b) => {
     if (b.timestamp !== a.timestamp) return b.timestamp - a.timestamp;
     return a.sha.localeCompare(b.sha);

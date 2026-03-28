@@ -19,6 +19,10 @@ const queryEmbeddingCache = new Map<string, { vector: number[]; ts: number }>();
 const CACHE_MAX_SIZE = 1000;
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
+export function clearQueryEmbeddingCache(): void {
+  queryEmbeddingCache.clear();
+}
+
 // ─── Observability ────────────────────────────────────────────────────────────
 
 /**

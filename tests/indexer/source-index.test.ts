@@ -1,12 +1,14 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
+import * as crypto from 'node:crypto';
 import { openDb } from '../../src/db/schema.js';
 import type { Database } from '../../src/db/schema.js';
-import { SourceIndexStage } from '../../src/indexer/stages/source-index.js';
+import { SourceIndexStage, processFile } from '../../src/indexer/stages/source-index.js';
 import type { PipelineContext } from '../../src/indexer/pipeline.js';
 import { initLogger, LogLevel, resetLogger } from '../../src/logger.js';
+import { ParserPool } from '../../src/parsing/parser.js';
 
 let tmpDir: string;
 let db: Database.Database;
@@ -36,7 +38,7 @@ function makeCtx(overrides?: Partial<PipelineContext>): PipelineContext {
 
 beforeEach(() => {
   resetLogger();
-  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lore-src-idx-'));
+  tmpDir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'lore-src-idx-')));
   db = openDb(':memory:');
 });
 
@@ -451,5 +453,170 @@ describe('SourceIndexStage', () => {
     // Verify files were indexed
     const count = (db.prepare('SELECT count(*) as c FROM files').get() as any).c;
     expect(count).toBe(5);
+  });
+
+  it('update mode in baseline batch-deletes and reindexes changed files', async () => {
+    const fileA = path.join(tmpDir, 'bl_a.ts');
+    const fileB = path.join(tmpDir, 'bl_b.ts');
+    fs.writeFileSync(fileA, `export function fnA() { return 1; }\n`);
+    fs.writeFileSync(fileB, `export function fnB() { return 2; }\n`);
+
+    const stage = new SourceIndexStage();
+    const ctx = makeCtx({ layer: 'baseline', maxWorkers: 0 });
+    await stage.execute(ctx, 'build');
+
+    const filesBefore = db.prepare('SELECT id, path, layer FROM files').all() as Array<{ id: number; path: string; layer: string }>;
+    expect(filesBefore).toHaveLength(2);
+
+    // Change file A content
+    fs.writeFileSync(fileA, `export function fnAChanged() { return 99; }\n`);
+
+    const updateCtx = makeCtx({
+      changedFiles: [fileA, fileB],
+      layer: 'baseline',
+      generation: 2,
+      maxWorkers: 0,
+    });
+    await stage.execute(updateCtx, 'update');
+    await stage.dispose?.();
+
+    // After baseline update: old rows batch-deleted, files re-indexed
+    const filesAfter = db.prepare('SELECT id, path FROM files').all() as Array<{ id: number; path: string }>;
+    expect(filesAfter).toHaveLength(2);
+
+    // Verify fnAChanged is present in the reindexed symbols
+    const symbolsA = db.prepare(
+      `SELECT s.name FROM symbols s JOIN files f ON s.file_id = f.id WHERE f.path = ?`,
+    ).all(fileA) as Array<{ name: string }>;
+    expect(symbolsA.some(s => s.name === 'fnAChanged')).toBe(true);
+    expect(symbolsA.some(s => s.name === 'fnA')).toBe(false);
+
+    // fnB should still be present
+    const symbolsB = db.prepare(
+      `SELECT s.name FROM symbols s JOIN files f ON s.file_id = f.id WHERE f.path = ?`,
+    ).all(fileB) as Array<{ name: string }>;
+    expect(symbolsB.some(s => s.name === 'fnB')).toBe(true);
+  });
+
+  it('processFile hash fast-path skips when stat size and hash match', async () => {
+    const filePath = path.join(tmpDir, 'hashfast.ts');
+    const source = `export function stable() { return 1; }\n`;
+    fs.writeFileSync(filePath, source);
+    const hash = crypto.createHash('sha256').update(source).digest('hex');
+    const sizeBytes = Buffer.byteLength(source, 'utf8');
+
+    // Pre-insert file row with correct hash and size
+    db.prepare(
+      `INSERT INTO files (path, branch, language, size_bytes, last_hash, source, layer, generation)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(filePath, 'main', 'typescript', sizeBytes, hash, source, 'baseline', 0);
+
+    const pool = new ParserPool();
+    await processFile(db, pool, filePath, 'typescript', 'main', new Map(), 'baseline', 0);
+
+    // processFile returned early via hash match — no symbols inserted
+    const symbols = db.prepare('SELECT * FROM symbols').all();
+    expect(symbols).toHaveLength(0);
+  });
+
+  it('processFile handles stat failure gracefully', async () => {
+    const filePath = path.join(tmpDir, 'statfail.ts');
+    const source = `export function original() { return 1; }\n`;
+    fs.writeFileSync(filePath, source);
+    const hash = crypto.createHash('sha256').update(source).digest('hex');
+    const sizeBytes = Buffer.byteLength(source, 'utf8');
+
+    // Pre-insert file row so the existing-row branch is entered
+    db.prepare(
+      `INSERT INTO files (path, branch, language, size_bytes, last_hash, source, layer, generation)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(filePath, 'main', 'typescript', sizeBytes, hash, source, 'baseline', 0);
+
+    // Mock stat to fail → triggers the catch block, falls through to re-read
+    const statSpy = vi.spyOn(fs.promises, 'stat').mockRejectedValueOnce(new Error('EACCES'));
+
+    const pool = new ParserPool();
+    await processFile(db, pool, filePath, 'typescript', 'main', new Map(), 'baseline', 0);
+
+    statSpy.mockRestore();
+
+    // Falls through to re-read; hash matches existing row → early return
+    const files = db.prepare('SELECT * FROM files WHERE path = ?').all(filePath);
+    expect(files).toHaveLength(1);
+    const symbols = db.prepare('SELECT * FROM symbols').all();
+    expect(symbols).toHaveLength(0);
+  });
+
+  it('processFile handles read failure when file does not exist', async () => {
+    const filePath = path.join(tmpDir, 'nonexistent.ts');
+    // File does not exist on disk — no existing row in DB either
+
+    const pool = new ParserPool();
+    await processFile(db, pool, filePath, 'typescript', 'main', new Map(), 'baseline', 0);
+
+    // Should return silently with nothing inserted
+    const files = db.prepare('SELECT * FROM files').all();
+    expect(files).toHaveLength(0);
+  });
+
+  it('processFile handles readFile failure in hash fast-path (inner catch)', async () => {
+    const filePath = path.join(tmpDir, 'innerread.ts');
+    const source = `export function x() { return 1; }\n`;
+    fs.writeFileSync(filePath, source);
+    const hash = crypto.createHash('sha256').update(source).digest('hex');
+    const sizeBytes = Buffer.byteLength(source, 'utf8');
+
+    // Pre-insert file row with matching size and hash
+    db.prepare(
+      `INSERT INTO files (path, branch, language, size_bytes, last_hash, source, layer, generation)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(filePath, 'main', 'typescript', sizeBytes, hash, source, 'baseline', 0);
+
+    // Mock readFile to fail once (inner catch in hash fast-path)
+    const readSpy = vi.spyOn(fs.promises, 'readFile').mockRejectedValueOnce(new Error('EACCES'));
+
+    const pool = new ParserPool();
+    await processFile(db, pool, filePath, 'typescript', 'main', new Map(), 'baseline', 0);
+
+    readSpy.mockRestore();
+
+    // processFile caught the inner read error and returned early
+    const symbols = db.prepare('SELECT * FROM symbols').all();
+    expect(symbols).toHaveLength(0);
+  });
+
+  it('computes metrics for SCIP-sourced files', async () => {
+    const filePath = path.join(tmpDir, 'scip_metrics.ts');
+    fs.writeFileSync(
+      filePath,
+      `export function scipFunc(a: number): number {\n  if (a > 0) {\n    return a;\n  }\n  return 0;\n}\n`,
+    );
+
+    // Pre-insert file and symbol rows (simulating ScipIndexerStage output)
+    const fileInfo = db.prepare(
+      `INSERT INTO files (path, branch, language, size_bytes, last_hash, source, layer, generation)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(filePath, 'main', 'typescript', 100, 'fakehash', '', 'baseline', 0) as { lastInsertRowid: number | bigint };
+    const fileId = Number(fileInfo.lastInsertRowid);
+
+    db.prepare(
+      `INSERT INTO symbols (file_id, name, kind, start_line, end_line, layer, generation)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    ).run(fileId, 'scipFunc', 'function', 0, 5, 'baseline', 0);
+
+    const stage = new SourceIndexStage();
+    const ctx = makeCtx({
+      scipSourcedFiles: new Set([filePath]),
+      maxWorkers: 0,
+    });
+    await stage.execute(ctx, 'build');
+    await stage.dispose?.();
+
+    // Verify metrics were computed for the SCIP-sourced symbol
+    const metrics = db.prepare('SELECT * FROM symbol_metrics').all() as Array<{
+      line_count: number; param_count: number; cyclomatic: number; max_nesting: number;
+    }>;
+    expect(metrics.length).toBeGreaterThanOrEqual(1);
+    expect(metrics[0]!.cyclomatic).toBeGreaterThanOrEqual(2);
   });
 });
