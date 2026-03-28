@@ -64,6 +64,7 @@ async function defaultDownloadFile(url: string, destPath: string): Promise<void>
   const response = await fetch(url, {
     headers: { 'User-Agent': 'lore-scip-installer' },
     redirect: 'follow',
+    signal: AbortSignal.timeout(300_000),
   });
   if (!response.ok || !response.body) {
     throw new Error(`Failed to download ${url}: ${response.status} ${response.statusText}`);
@@ -98,6 +99,7 @@ async function defaultGetLatestGitHubReleaseTag(repo: string): Promise<string | 
     const url = `https://api.github.com/repos/${repo}/releases/latest`;
     const response = await fetch(url, {
       headers: { Accept: 'application/vnd.github.v3+json', 'User-Agent': 'lore-scip-installer' },
+      signal: AbortSignal.timeout(30_000),
     });
     if (!response.ok) return null;
     const data = (await response.json()) as { tag_name?: string };
