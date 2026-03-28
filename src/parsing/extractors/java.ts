@@ -130,7 +130,7 @@ function extractNewCallRef(node: Parser.SyntaxNode): RawCallRef | null {
   if (!typeNode) return null;
   return {
     callerSymbol: findEnclosingSymbolName(node, JAVA_SYMBOL_NODE_TYPES),
-    calleeRaw: `new ${typeNode.text}`,
+    calleeRaw: typeNode.text,
     line: node.startPosition.row,
     character: node.startPosition.column,
   };
