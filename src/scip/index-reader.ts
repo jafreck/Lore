@@ -76,6 +76,11 @@ export class ScipIndexData {
 
   addDocument(doc: ScipDocument): void {
     const absPath = resolve(this.projectRoot, doc.relativePath);
+    const normalizedRoot = this.projectRoot.endsWith('/') ? this.projectRoot : this.projectRoot + '/';
+    if (absPath !== this.projectRoot && !absPath.startsWith(normalizedRoot)) {
+      // Path traversal: resolved path escapes project root — skip document.
+      return;
+    }
     if (doc.language) this.languages.add(doc.language.toLowerCase());
 
     const records: ScipOccurrenceRecord[] = [];

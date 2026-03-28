@@ -40,24 +40,25 @@ export class OverlayCleanupStage implements PipelineStage {
   }
 
   async execute(context: PipelineContext, _mode: 'build' | 'update'): Promise<void> {
-    const { db } = context;
+    const { db, branch } = context;
     const { newGeneration, rebuildStartedAt, headSha } = this.options;
 
     db.transaction(() => {
       // 1. Delete old baseline rows (previous generation).
       db.prepare(
-        "DELETE FROM files WHERE layer = 'baseline' AND generation < ?",
-      ).run(newGeneration);
+        "DELETE FROM files WHERE layer = 'baseline' AND branch = ? AND generation < ?",
+      ).run(branch, newGeneration);
 
       // 2. Clear overlay rows for files whose dirty_since is before the rebuild started
       //    (they were not edited during the rebuild, so the new baseline covers them).
       db.prepare(`
         DELETE FROM files WHERE layer = 'overlay'
-          AND path IN (SELECT path FROM dirty_files WHERE dirty_since < ?)
-      `).run(rebuildStartedAt);
+          AND branch = ?
+          AND path IN (SELECT path FROM dirty_files WHERE branch = ? AND dirty_since < ?)
+      `).run(branch, branch, rebuildStartedAt);
 
       // 3. Remove promoted paths from dirty_files.
-      db.prepare('DELETE FROM dirty_files WHERE dirty_since < ?').run(rebuildStartedAt);
+      db.prepare('DELETE FROM dirty_files WHERE branch = ? AND dirty_since < ?').run(branch, rebuildStartedAt);
 
       // 4. Update generation metadata.
       setLoreMeta(db, LORE_META_GENERATION, String(newGeneration));
