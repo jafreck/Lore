@@ -86,9 +86,8 @@ export function openReadOnly(path: string): Database.Database {
 /** Freshness info describing the data source for a query result. */
 export interface FreshnessInfo {
   /** 'baseline' = all data from last full SCIP build.
-      'mixed'    = some files use overlay data.
-      'overlay'  = all queried files have overlay data. */
-  source: 'baseline' | 'mixed' | 'overlay';
+      'mixed'    = some files use overlay data. */
+  source: 'baseline' | 'mixed';
   /** Seconds since the baseline was last rebuilt. */
   baseline_age_s: number;
   /** Number of dirty files in the index. */
