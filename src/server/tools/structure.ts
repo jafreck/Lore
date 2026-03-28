@@ -6,7 +6,7 @@
  * Analyses:
  *   - **cycles**: Directory-level import cycles via Tarjan's SCC.
  *   - **layers**: Topological layering violations via Kahn's algorithm.
- *   - **outliers**: Anomalous cross-directory couplings by edge-count statistics.
+ *   - **outliers**: Unusually weak/tenuous cross-directory links by edge-count statistics.
  */
 
 import type { Database } from '../../db/read-only.js';
@@ -23,7 +23,7 @@ export const toolDef = {
     'Aggregates file-level imports into directory-level edges and runs: ' +
     "(A) Tarjan's SCC for import cycle detection, " +
     "(B) Kahn's topological sort for layering violation detection, " +
-    '(C) outlier detection for anomalous cross-directory couplings. ' +
+    '(C) outlier detection for unusually weak cross-directory links (low edge counts relative to the mean). ' +
     'Set `analysis` to "cycles", "layers", "outliers", or "all" (default). ' +
     'Use `depth` to control directory aggregation depth (default 2). ' +
     'Use `branch` to filter by source branch.',
@@ -36,7 +36,7 @@ export const toolDef = {
         description:
           'Which analysis to run. "cycles" detects directory-level import cycles, ' +
           '"layers" detects topological layering violations, ' +
-          '"outliers" detects anomalous cross-directory couplings, ' +
+          '"outliers" detects unusually weak/tenuous cross-directory links (directories with far fewer imports than average — not excessive coupling), ' +
           '"all" runs all three. Default: "all".',
       },
       depth: {
