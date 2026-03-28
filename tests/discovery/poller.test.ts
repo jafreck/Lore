@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { FilePoller, type PollerOptions } from '../../src/discovery/poller.js';
+import { FilePoller, diffMtimeSnapshot, type PollerOptions, type MtimeEntry } from '../../src/discovery/poller.js';
 import type { WalkerConfig } from '../../src/discovery/walker.js';
 
 const DB_PATH = ':memory:';
@@ -169,5 +169,126 @@ describe('FilePoller', () => {
       expect(() => poller.stop()).not.toThrow();
       vi.useRealTimers();
     });
+  });
+});
+
+describe('diffMtimeSnapshot', () => {
+  it('detects new files', () => {
+    const prev = new Map<string, number>();
+    const entries: MtimeEntry[] = [
+      { path: '/a.ts', mtime: 1000 },
+      { path: '/b.ts', mtime: 2000 },
+    ];
+    const { changed, newSnapshot } = diffMtimeSnapshot(prev, entries);
+    expect(changed).toEqual(['/a.ts', '/b.ts']);
+    expect(newSnapshot.size).toBe(2);
+    expect(newSnapshot.get('/a.ts')).toBe(1000);
+  });
+
+  it('detects modified files', () => {
+    const prev = new Map([
+      ['/a.ts', 1000],
+      ['/b.ts', 2000],
+    ]);
+    const entries: MtimeEntry[] = [
+      { path: '/a.ts', mtime: 1000 },  // unchanged
+      { path: '/b.ts', mtime: 3000 },  // modified
+    ];
+    const { changed, newSnapshot } = diffMtimeSnapshot(prev, entries);
+    expect(changed).toEqual(['/b.ts']);
+    expect(newSnapshot.get('/b.ts')).toBe(3000);
+  });
+
+  it('detects deleted files', () => {
+    const prev = new Map([
+      ['/a.ts', 1000],
+      ['/b.ts', 2000],
+    ]);
+    const entries: MtimeEntry[] = [
+      { path: '/a.ts', mtime: 1000 },
+    ];
+    const { changed, newSnapshot } = diffMtimeSnapshot(prev, entries);
+    expect(changed).toEqual(['/b.ts']);
+    expect(newSnapshot.has('/b.ts')).toBe(false);
+    expect(newSnapshot.size).toBe(1);
+  });
+
+  it('skips entries with null mtime', () => {
+    const prev = new Map<string, number>();
+    const entries: MtimeEntry[] = [
+      { path: '/a.ts', mtime: 1000 },
+      { path: '/b.ts', mtime: null },
+    ];
+    const { changed, newSnapshot } = diffMtimeSnapshot(prev, entries);
+    expect(changed).toEqual(['/a.ts']);
+    expect(newSnapshot.has('/b.ts')).toBe(false);
+  });
+
+  it('handles empty prev and empty entries', () => {
+    const { changed, newSnapshot } = diffMtimeSnapshot(new Map(), []);
+    expect(changed).toEqual([]);
+    expect(newSnapshot.size).toBe(0);
+  });
+
+  it('handles unchanged files', () => {
+    const prev = new Map([['/a.ts', 1000]]);
+    const entries: MtimeEntry[] = [{ path: '/a.ts', mtime: 1000 }];
+    const { changed } = diffMtimeSnapshot(prev, entries);
+    expect(changed).toEqual([]);
+  });
+
+  it('handles simultaneous add, modify, and delete', () => {
+    const prev = new Map([
+      ['/existing.ts', 1000],
+      ['/toDelete.ts', 2000],
+    ]);
+    const entries: MtimeEntry[] = [
+      { path: '/existing.ts', mtime: 3000 },  // modified
+      { path: '/new.ts', mtime: 4000 },        // added
+      // /toDelete.ts missing (deleted)
+    ];
+    const { changed, newSnapshot } = diffMtimeSnapshot(prev, entries);
+    expect(changed).toContain('/existing.ts');
+    expect(changed).toContain('/new.ts');
+    expect(changed).toContain('/toDelete.ts');
+    expect(changed).toHaveLength(3);
+    expect(newSnapshot.size).toBe(2);
+    expect(newSnapshot.get('/existing.ts')).toBe(3000);
+  });
+});
+
+describe('FilePoller poll behavior', () => {
+  it('pollRunning guard is initially false', () => {
+    const poller = new FilePoller(DB_PATH, walkerConfig, { intervalMs: 999999 });
+    expect((poller as any).pollRunning).toBe(false);
+    poller.stop();
+  });
+
+  it('does not create scipFlush when scipQuietPeriodMs is 0', () => {
+    const poller = new FilePoller(DB_PATH, walkerConfig, {
+      scip: { enabled: true, timeoutMs: 30000, indexers: {}, indexDir: null },
+      scipQuietPeriodMs: 0,
+    });
+    expect((poller as any).scipFlush).toBeNull();
+    poller.stop();
+  });
+
+  it('creates scipFlush when SCIP is configured with quiet period', () => {
+    const poller = new FilePoller(DB_PATH, walkerConfig, {
+      scip: { enabled: true, timeoutMs: 30000, indexers: {}, indexDir: null },
+      scipQuietPeriodMs: 5000,
+    });
+    expect((poller as any).scipFlush).not.toBeNull();
+    poller.stop();
+  });
+
+  it('stores onUpdate callback', () => {
+    const onUpdate = vi.fn().mockResolvedValue(undefined);
+    const poller = new FilePoller(DB_PATH, walkerConfig, {
+      onUpdate,
+      intervalMs: 999999,
+    });
+    expect((poller as any).onUpdateCb).toBe(onUpdate);
+    poller.stop();
   });
 });

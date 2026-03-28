@@ -173,51 +173,13 @@ export class ScipIndexerStage implements PipelineStage {
 
     // Determine the project's SCIP symbol prefix so we can distinguish
     // internal symbols from external ones (stdlib, node_modules, etc.).
-    // Internal symbols are those whose SCIP string starts with the same
-    // scheme + package as symbols defined in the index's own documents.
-    const internalPrefixes = new Set<string>();
-    for (const idx of parsedIndexes) {
-      for (const doc of idx.documents) {
-        for (const sym of doc.symbols) {
-          if (sym.symbol && !sym.symbol.startsWith('local ')) {
-            // Extract "scheme package" prefix (first 4 space-separated tokens)
-            const parts = sym.symbol.split(' ');
-            if (parts.length >= 4) {
-              internalPrefixes.add(parts.slice(0, 4).join(' '));
-            }
-            break; // One per document is enough
-          }
-        }
-      }
-    }
+    const internalPrefixes = buildInternalPrefixes(parsedIndexes);
 
     /** Is this symbol from an external package (node_modules, stdlib, etc.)? */
-    function isExternalSymbol(scipSymbol: string): boolean {
-      if (internalPrefixes.size === 0) return false;
-      for (const prefix of internalPrefixes) {
-        if (scipSymbol.startsWith(prefix)) return false;
-      }
-      return true;
-    }
+    const isExternalSymbolFn = (scipSymbol: string): boolean => isExternalSymbol(scipSymbol, internalPrefixes);
 
     // Build a global SCIP symbol → definition location map
-    const symbolDefinitions = new Map<string, { filePath: string; line: number; character: number }>();
-    for (const idx of parsedIndexes) {
-      for (const doc of idx.documents) {
-        const absPath = resolve(rootDir, doc.relativePath);
-        for (const occ of doc.occurrences) {
-          if ((occ.symbolRoles & SymbolRole.Definition) !== 0 && occ.symbol && !occ.symbol.startsWith('local ')) {
-            if (!symbolDefinitions.has(occ.symbol)) {
-              symbolDefinitions.set(occ.symbol, {
-                filePath: absPath,
-                line: occ.range[0] ?? 0,
-                character: occ.range[1] ?? 0,
-              });
-            }
-          }
-        }
-      }
-    }
+    const symbolDefinitions = buildSymbolDefinitionMap(parsedIndexes, rootDir);
 
     // Build a SymbolInformation map for signatures/docs
     const symbolInfoMap = new Map<string, ScipSymbolInformation>();
@@ -530,7 +492,7 @@ export class ScipIndexerStage implements PipelineStage {
       symbolInfoMap,
       fileIdMap,
       documents: iterateAllDocuments(),
-      isExternalSymbol,
+      isExternalSymbol: isExternalSymbolFn,
     };
 
     // Communicate coverage to downstream stages
@@ -601,9 +563,8 @@ export class ScipRefStage implements PipelineStage {
     // Only callable kinds (function, method, class, constructor, variable)
     // are included — properties and other non-callable symbols should not
     // be assigned as callers even when they lexically contain a call site.
-    const fileSymbolSpans = new Map<number, Array<{ id: number; startLine: number; endLine: number }>>();
-    {
-      const rows = db.prepare(
+    const fileSymbolSpans = buildContainmentIndex(
+      db.prepare(
         `SELECT s.id, s.file_id, s.start_line, s.end_line
          FROM symbols s
          JOIN files f ON f.id = s.file_id
@@ -612,28 +573,8 @@ export class ScipRefStage implements PipelineStage {
            AND s.generation = ?
            AND s.kind IN ('function', 'method', 'class', 'constructor', 'variable')
          ORDER BY s.file_id, (s.end_line - s.start_line) ASC`,
-      ).all(branch, layer, generation) as Array<{ id: number; file_id: number; start_line: number; end_line: number }>;
-
-      for (const row of rows) {
-        let spans = fileSymbolSpans.get(row.file_id);
-        if (!spans) {
-          spans = [];
-          fileSymbolSpans.set(row.file_id, spans);
-        }
-        spans.push({ id: row.id, startLine: row.start_line, endLine: row.end_line });
-      }
-    }
-
-    function findContainingSymbol(fileId: number, line: number): number | null {
-      const spans = fileSymbolSpans.get(fileId);
-      if (!spans) return null;
-      for (const span of spans) {
-        if (line >= span.startLine && line <= span.endLine) {
-          return span.id;
-        }
-      }
-      return null;
-    }
+      ).all(branch, layer, generation) as Array<{ id: number; file_id: number; start_line: number; end_line: number }>,
+    );
 
     // Insert call refs and type refs from SCIP reference occurrences
     let refsInserted = 0;
@@ -693,7 +634,7 @@ export class ScipRefStage implements PipelineStage {
             }
           }
 
-          const callerId = findContainingSymbol(fileId, line);
+          const callerId = findContainingSymbol(fileSymbolSpans, fileId, line);
           if (!callerId) {
             refsNoCaller++;
             continue;
@@ -781,6 +722,114 @@ export class ScipRefStage implements PipelineStage {
   }
 
   async dispose(): Promise<void> {}
+}
+
+// ─── Extracted pure data-processing functions ────────────────────────────────
+
+export interface SymbolSpan {
+  id: number;
+  startLine: number;
+  endLine: number;
+}
+
+/**
+ * Extract SCIP symbol prefixes (scheme + package manager + package + version)
+ * that identify symbols belonging to the indexed project. Used to distinguish
+ * internal symbols from external ones (stdlib, node_modules, etc.).
+ */
+export function buildInternalPrefixes(
+  parsedIndexes: ReadonlyArray<{ documents: ReadonlyArray<{ symbols: ReadonlyArray<{ symbol: string }> }> }>,
+): Set<string> {
+  const prefixes = new Set<string>();
+  for (const idx of parsedIndexes) {
+    for (const doc of idx.documents) {
+      for (const sym of doc.symbols) {
+        if (sym.symbol && !sym.symbol.startsWith('local ')) {
+          const parts = sym.symbol.split(' ');
+          if (parts.length >= 4) {
+            prefixes.add(parts.slice(0, 4).join(' '));
+          }
+          break; // One per document is enough
+        }
+      }
+    }
+  }
+  return prefixes;
+}
+
+/** Is this symbol from an external package (node_modules, stdlib, etc.)? */
+export function isExternalSymbol(scipSymbol: string, internalPrefixes: Set<string>): boolean {
+  if (internalPrefixes.size === 0) return false;
+  for (const prefix of internalPrefixes) {
+    if (scipSymbol.startsWith(prefix)) return false;
+  }
+  return true;
+}
+
+/**
+ * Build a global SCIP symbol → definition location map from parsed indexes.
+ * First definition wins when a symbol is defined in multiple documents.
+ */
+export function buildSymbolDefinitionMap(
+  parsedIndexes: ReadonlyArray<{ documents: ReadonlyArray<{ relativePath: string; occurrences: ReadonlyArray<{ symbolRoles: number; symbol: string; range: number[] }> }> }>,
+  rootDir: string,
+): Map<string, { filePath: string; line: number; character: number }> {
+  const symbolDefinitions = new Map<string, { filePath: string; line: number; character: number }>();
+  for (const idx of parsedIndexes) {
+    for (const doc of idx.documents) {
+      const absPath = resolve(rootDir, doc.relativePath);
+      for (const occ of doc.occurrences) {
+        if ((occ.symbolRoles & SymbolRole.Definition) !== 0 && occ.symbol && !occ.symbol.startsWith('local ')) {
+          if (!symbolDefinitions.has(occ.symbol)) {
+            symbolDefinitions.set(occ.symbol, {
+              filePath: absPath,
+              line: occ.range[0] ?? 0,
+              character: occ.range[1] ?? 0,
+            });
+          }
+        }
+      }
+    }
+  }
+  return symbolDefinitions;
+}
+
+/**
+ * Build a containment index: file_id → sorted array of symbol spans.
+ * Used for finding which symbol lexically contains a given source line.
+ */
+export function buildContainmentIndex(
+  rows: Array<{ id: number; file_id: number; start_line: number; end_line: number }>,
+): Map<number, SymbolSpan[]> {
+  const fileSymbolSpans = new Map<number, SymbolSpan[]>();
+  for (const row of rows) {
+    let spans = fileSymbolSpans.get(row.file_id);
+    if (!spans) {
+      spans = [];
+      fileSymbolSpans.set(row.file_id, spans);
+    }
+    spans.push({ id: row.id, startLine: row.start_line, endLine: row.end_line });
+  }
+  return fileSymbolSpans;
+}
+
+/**
+ * Find the first symbol span in the containment index that contains the given line.
+ * Returns the symbol ID or null if no span contains the line.
+ */
+export function findContainingSymbol(
+  fileSymbolSpans: Map<number, SymbolSpan[]>,
+  fileId: number,
+  line: number,
+): number | null {
+  const spans = fileSymbolSpans.get(fileId);
+  if (!spans) return null;
+  for (const span of spans) {
+    if (line >= span.startLine && line <= span.endLine) {
+      return span.id;
+    }
+  }
+  return null;
 }
 
 // ─── Test-visible helpers ───────────────────────────────────────────────────

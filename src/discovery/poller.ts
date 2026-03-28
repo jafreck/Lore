@@ -16,6 +16,52 @@ import { walkFiles } from './walker.js';
 import type { WalkerConfig } from './walker.js';
 import { ScipFlushManager } from './scip-flush.js';
 
+// ─── Snapshot diffing ─────────────────────────────────────────────────────────
+
+export interface MtimeEntry {
+  path: string;
+  mtime: number | null;
+}
+
+export interface SnapshotDiff {
+  changed: string[];
+  newSnapshot: Map<string, number>;
+}
+
+/**
+ * Compute which files changed by comparing current entries against
+ * a previous mtime snapshot.  Returns the list of changed paths
+ * (created, modified, or deleted) and the updated snapshot.
+ */
+export function diffMtimeSnapshot(
+  prevSnapshot: Map<string, number>,
+  currentEntries: MtimeEntry[],
+): SnapshotDiff {
+  const changed: string[] = [];
+  const newSnapshot = new Map(prevSnapshot);
+  const currentPaths = new Set<string>();
+
+  for (const entry of currentEntries) {
+    if (entry.mtime === null) continue; // skip unreadable files
+    currentPaths.add(entry.path);
+    const prev = prevSnapshot.get(entry.path);
+    if (prev === undefined || prev !== entry.mtime) {
+      changed.push(entry.path);
+      newSnapshot.set(entry.path, entry.mtime);
+    }
+  }
+
+  // Detect deletions
+  for (const [p] of prevSnapshot) {
+    if (!currentPaths.has(p)) {
+      changed.push(p);
+      newSnapshot.delete(p);
+    }
+  }
+
+  return { changed, newSnapshot };
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 /** Configuration options for FilePoller. */
@@ -148,7 +194,6 @@ export class FilePoller {
     this.pollRunning = true;
     try {
       let errorCount = 0;
-      const changed: string[] = [];
 
       let entries: { path: string }[];
       try {
@@ -160,8 +205,8 @@ export class FilePoller {
         return;
       }
 
-      const currentPaths = new Set<string>();
-
+      // Stat files in batches and collect mtime entries
+      const mtimeEntries: MtimeEntry[] = [];
       const STAT_BATCH_SIZE = 100;
       for (let i = 0; i < entries.length; i += STAT_BATCH_SIZE) {
         const batch = entries.slice(i, i + STAT_BATCH_SIZE);
@@ -175,28 +220,11 @@ export class FilePoller {
             }
           }),
         );
-        for (const { path: filePath, mtime } of stats) {
-          if (mtime === null) {
-            // Don't add to currentPaths — let deletion sweep handle it if
-            // previously indexed.  New unreadable files are simply ignored.
-            continue;
-          }
-          currentPaths.add(filePath);
-          const prev = this.snapshot.get(filePath);
-          if (prev === undefined || prev !== mtime) {
-            changed.push(filePath);
-            this.snapshot.set(filePath, mtime);
-          }
-        }
+        mtimeEntries.push(...stats);
       }
 
-      // Detect deletions: paths in snapshot that are no longer on disk
-      for (const [p] of this.snapshot) {
-        if (!currentPaths.has(p)) {
-          changed.push(p);
-          this.snapshot.delete(p);
-        }
-      }
+      const { changed, newSnapshot } = diffMtimeSnapshot(this.snapshot, mtimeEntries);
+      this.snapshot = newSnapshot;
 
       if (changed.length > 0) {
         // Overlay update: tree-sitter + LSP only, no SCIP.
