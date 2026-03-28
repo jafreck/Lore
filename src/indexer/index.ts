@@ -128,6 +128,10 @@ export class IndexBuilder {
     this.maxWorkers = opts.maxWorkers;
   }
 
+  // ─── Build mode discriminated union ──────────────────────────────────────
+
+  /** Describes which kind of index run to perform. */
+
   // ─── Public API ──────────────────────────────────────────────────────────
 
   /** Enqueue `fn` on the mutex chain so build/update/rebuild never overlap. */
@@ -145,169 +149,63 @@ export class IndexBuilder {
    * chain structurally (by stage ordering), not by convention.
    */
   async build(): Promise<void> {
-    return this._enqueue(() => this._build());
-  }
-
-  private async _build(): Promise<void> {
-    const log = getLogger();
-    const buildStart = performance.now();
-    const db = openDb(this.dbPath);
-    const branch = this.resolveBranch();
-
-    log.indexing('build started', { dbPath: this.dbPath, branch, rootDir: this.walkerConfig.rootDir });
-
-    // Build the pipeline with all stages in dependency order.
-    // ScipIndexerStage runs first: inserts symbols from SCIP, stashes
-    // ref data for deferred processing.
-    // SourceIndexStage patches symbol end_line with tree-sitter spans.
-    // ScipRefStage then uses accurate spans to build the containment
-    // index and insert refs.
-    //
-    // Stages in arrays run concurrently:
-    //   - HistoryStage + LspEnrichment: history writes to
-    //     commits/commit_files (disjoint from enrichment targets).
-    const pipeline = new IndexPipeline([
-      new ScipIndexerStage(),
-      new SourceIndexStage(),
-      new ScipRefStage(),
-      new ImportResolutionStage(),
-      new DependencyApiStage(),
-      [new LspEnrichmentStage(), historyStage()],
-      ftsRefreshStage(),
-      resolutionStage(),
-      new ReverseDepsStage(),
-      new EmbeddingStage(),
-    ]);
-
-    // Baseline: set generation to 1 for initial build.
-    const generation = incrementGeneration(db);
-
-    const context: PipelineContext = {
-      db,
-      dbPath: this.dbPath,
-      walkerConfig: this.walkerConfig,
-      branch,
-      lsp: this.lspSettings,
-      scip: this.scipSettings,
-      embedder: this.embedder,
-      log,
-      files: [],
-      indexDependencies: this.indexDependencies,
-      history: this.history,
-      staleSymbolIds: [],
-      changedSourcePaths: [],
-      sourceCache: new ByteBudgetLRU(),
-      layer: 'baseline',
-      generation,
-      ...(this.maxWorkers !== undefined && { maxWorkers: this.maxWorkers }),
-    };
-
-    try {
-      await pipeline.run(context, 'build');
-      this.saveLastKnownHead(db);
-
-      // Gather final DB stats for the build summary
-      const stats = this.gatherDbStats(db);
-      const indexDurationMs = Math.round(performance.now() - buildStart);
-      log.startup('indexing complete', {
-        dbPath: this.dbPath,
-        dbSizeBytes: fs.existsSync(this.dbPath) ? fs.statSync(this.dbPath).size : undefined,
-        embeddingModel: this.embeddingModel,
-        embeddingReady: !!this.embedder,
-        totalFiles: context.files.length,
-        ...stats,
-        indexDurationMs,
-      });
-    } finally {
-      db.close();
-    }
+    return this._enqueue(() => this._run({ kind: 'build' }));
   }
 
   /**
    * Incrementally re-processes only the listed files using the overlay layer.
    *
-   * Tree-sitter is the primary indexer; LSP enriches cross-file refs.
-   * SCIP is never invoked during overlay updates.
-   *
    * @param changedFiles  Absolute paths of files that have changed.
    */
   async update(changedFiles: string[]): Promise<void> {
-    return this._enqueue(() => this._update(changedFiles));
-  }
-
-  private async _update(changedFiles: string[]): Promise<void> {
-    const db = openDb(this.dbPath);
-    const branch = this.resolveBranch();
-    const log = getLogger();
-
-    // Overlay pipeline: tree-sitter → imports → LSP → resolution → reverse-deps → embedding
-    // No SCIP stage — tree-sitter is the primary incremental indexer.
-    const pipeline = new IndexPipeline([
-      new ScipIndexerStage(),
-      new SourceIndexStage(),
-      new ScipRefStage(),
-      new ImportResolutionStage(),
-      new DependencyApiStage(),
-      [new LspEnrichmentStage(), historyStage()],
-      ftsRefreshStage(),
-      resolutionStage(),
-      new ReverseDepsStage(),
-      new EmbeddingStage(),
-    ]);
-
-    const context: PipelineContext = {
-      db,
-      dbPath: this.dbPath,
-      walkerConfig: this.walkerConfig,
-      branch,
-      lsp: this.lspSettings,
-      scip: this.scipSettings,
-      embedder: this.embedder,
-      log,
-      files: [],
-      indexDependencies: this.indexDependencies,
-      history: this.history,
-      changedFiles,
-      staleSymbolIds: [],
-      changedSourcePaths: [],
-      sourceCache: new ByteBudgetLRU(),
-      layer: 'overlay',
-      generation: 0,
-      ...(this.maxWorkers !== undefined && { maxWorkers: this.maxWorkers }),
-    };
-
-    try {
-      await pipeline.run(context, 'update');
-      this.saveLastKnownHead(db);
-    } finally {
-      db.close();
-    }
+    return this._enqueue(() => this._run({ kind: 'update', changedFiles }));
   }
 
   /**
    * Perform a background baseline rebuild (SCIP reconciliation).
    *
    * Writes to a new generation, then atomically promotes and cleans
-   * stale overlay rows.  This is the only path that invokes SCIP.
+   * stale overlay rows.
    */
   async baselineRebuild(): Promise<void> {
-    return this._enqueue(() => this._baselineRebuild());
+    return this._enqueue(() => this._run({ kind: 'rebuild' }));
   }
 
-  private async _baselineRebuild(): Promise<void> {
+  // ─── Unified run implementation ─────────────────────────────────────────
+
+  private async _run(
+    mode: { kind: 'build' } | { kind: 'update'; changedFiles: string[] } | { kind: 'rebuild' },
+  ): Promise<void> {
     const log = getLogger();
-    const rebuildStart = performance.now();
-    const rebuildStartedAt = Math.floor(Date.now() / 1000);
+    const startTime = performance.now();
     const db = openDb(this.dbPath);
     const branch = this.resolveBranch();
 
-    // Increment pending generation
-    const newGeneration = incrementGeneration(db);
-    setLoreMeta(db, LORE_META_GENERATION_PENDING, String(newGeneration));
+    // ── Mode-specific setup ──────────────────────────────────────────────
+    let layer: 'baseline' | 'overlay';
+    let generation: number;
+    let rebuildStartedAt: number | undefined;
 
-    log.indexing('baseline rebuild started', { generation: newGeneration });
+    if (mode.kind === 'update') {
+      layer = 'overlay';
+      generation = 0;
+    } else {
+      layer = 'baseline';
+      generation = incrementGeneration(db);
+    }
 
-    const pipeline = new IndexPipeline([
+    if (mode.kind === 'rebuild') {
+      rebuildStartedAt = Math.floor(Date.now() / 1000);
+      setLoreMeta(db, LORE_META_GENERATION_PENDING, String(generation));
+      log.indexing('baseline rebuild started', { generation });
+    } else if (mode.kind === 'build') {
+      log.indexing('build started', { dbPath: this.dbPath, branch, rootDir: this.walkerConfig.rootDir });
+    }
+
+    // ── Pipeline stages ──────────────────────────────────────────────────
+    // All three modes share the same core stage sequence.
+    // Rebuild omits ReverseDepsStage and appends OverlayCleanupStage.
+    const stages: (PipelineStage | PipelineStage[])[] = [
       new ScipIndexerStage(),
       new SourceIndexStage(),
       new ScipRefStage(),
@@ -316,14 +214,27 @@ export class IndexBuilder {
       [new LspEnrichmentStage(), historyStage()],
       ftsRefreshStage(),
       resolutionStage(),
-      new EmbeddingStage(),
-      new OverlayCleanupStage({
-        newGeneration,
-        rebuildStartedAt,
-        headSha: this.readGitValue(['rev-parse', 'HEAD']),
-      }),
-    ]);
+    ];
 
+    if (mode.kind !== 'rebuild') {
+      stages.push(new ReverseDepsStage());
+    }
+
+    stages.push(new EmbeddingStage());
+
+    if (mode.kind === 'rebuild') {
+      stages.push(
+        new OverlayCleanupStage({
+          newGeneration: generation,
+          rebuildStartedAt: rebuildStartedAt!,
+          headSha: this.readGitValue(['rev-parse', 'HEAD']),
+        }),
+      );
+    }
+
+    const pipeline = new IndexPipeline(stages);
+
+    // ── Pipeline context ─────────────────────────────────────────────────
     const context: PipelineContext = {
       db,
       dbPath: this.dbPath,
@@ -339,18 +250,36 @@ export class IndexBuilder {
       staleSymbolIds: [],
       changedSourcePaths: [],
       sourceCache: new ByteBudgetLRU(),
-      layer: 'baseline',
-      generation: newGeneration,
+      layer,
+      generation,
+      ...(mode.kind === 'update' && { changedFiles: mode.changedFiles }),
       ...(this.maxWorkers !== undefined && { maxWorkers: this.maxWorkers }),
     };
 
-    try {
-      await pipeline.run(context, 'build');
-      this.saveLastKnownHead(db);
-      deleteLoreMeta(db, LORE_META_GENERATION_PENDING);
+    const pipelineLabel = mode.kind === 'update' ? 'update' : 'build';
 
-      const indexDurationMs = Math.round(performance.now() - rebuildStart);
-      log.indexing('baseline rebuild complete', { generation: newGeneration, durationMs: indexDurationMs });
+    try {
+      await pipeline.run(context, pipelineLabel);
+      this.saveLastKnownHead(db);
+
+      // ── Mode-specific post-run ───────────────────────────────────────
+      if (mode.kind === 'build') {
+        const stats = this.gatherDbStats(db);
+        const indexDurationMs = Math.round(performance.now() - startTime);
+        log.startup('indexing complete', {
+          dbPath: this.dbPath,
+          dbSizeBytes: fs.existsSync(this.dbPath) ? fs.statSync(this.dbPath).size : undefined,
+          embeddingModel: this.embeddingModel,
+          embeddingReady: !!this.embedder,
+          totalFiles: context.files.length,
+          ...stats,
+          indexDurationMs,
+        });
+      } else if (mode.kind === 'rebuild') {
+        deleteLoreMeta(db, LORE_META_GENERATION_PENDING);
+        const indexDurationMs = Math.round(performance.now() - startTime);
+        log.indexing('baseline rebuild complete', { generation, durationMs: indexDurationMs });
+      }
     } finally {
       db.close();
     }
