@@ -371,12 +371,19 @@ export function handler(db: Database.Database, args: GraphArgs): GraphResult {
   const depth = 5;
   const compact = args.compact ?? false;
 
+  // Point-to-point: when both source_id and target_id are provided, query
+  // direct edges between the two and return immediately (no multi-hop).
+  if (args.source_id !== undefined && args.target_id !== undefined) {
+    const edges = getStructuralEdges(db, args, limit);
+    return finishResult(db, args, edges, limit, compact, depth);
+  }
+
   // Multi-hop transitive expansion
   const allEdges: GraphEdge[] = [];
   const seenEdgeKeys = new Set<string>();
   // Track frontier IDs for outbound traversal (source_id → target expansion)
   // or inbound traversal (target_id → source expansion)
-  const isOutbound = args.source_id !== undefined && args.target_id === undefined;
+  const isOutbound = args.source_id !== undefined;
 
   let frontier: number[];
   if (isOutbound) {
