@@ -58,6 +58,7 @@ export interface DiffEntry {
   name: string;
   kind: string;
   file_path: string;
+  start_line: number;
   signature: string | null;
 }
 
@@ -65,6 +66,7 @@ export interface ChangedEntry {
   name: string;
   kind: string;
   file_path: string;
+  start_line: number;
   old_signature: string | null;
   new_signature: string | null;
 }
@@ -104,141 +106,143 @@ export function handler(db: Database.Database, args: DiffArgs): DiffResult {
 
   if (args.path_prefix) {
     const prefixPattern = escapeLikePrefix(args.path_prefix);
-    filterClauses.push('AND f.path LIKE ? ESCAPE \'\\\'');
+    filterClauses.push('AND r.path LIKE ? ESCAPE \'\\\'');
     filterParams.push(prefixPattern);
-    changedFilterClauses.push('AND f_new.path LIKE ? ESCAPE \'\\\'');
+    changedFilterClauses.push('AND r_new.path LIKE ? ESCAPE \'\\\'');
     changedFilterParams.push(prefixPattern);
   }
   if (args.kind) {
-    filterClauses.push('AND s.kind = ?');
+    filterClauses.push('AND r.kind = ?');
     filterParams.push(args.kind);
-    changedFilterClauses.push('AND s_new.kind = ?');
+    changedFilterClauses.push('AND r_new.kind = ?');
     changedFilterParams.push(args.kind);
   }
 
   const filters = filterClauses.join(' ');
   const changedFilters = changedFilterClauses.join(' ');
 
+  // CTE that ranks overloaded symbols by ordinal position within each
+  // (name, kind, file) group so that line-shift noise is eliminated.
+  const rankedCte = `WITH ranked AS (
+    SELECT s.id, s.file_id, s.name, s.kind, s.start_line, s.signature,
+           f.path, f.branch,
+           ROW_NUMBER() OVER (PARTITION BY s.name, s.kind, s.file_id ORDER BY s.start_line) AS ordinal
+    FROM symbols s
+    JOIN files f ON f.id = s.file_id
+    WHERE s.is_exported = 1
+  )`;
+
   // ── True total counts (before truncation) ─────────────────────────────────
 
   const totalAdded = (db.prepare(
-    `SELECT COUNT(*) AS cnt
-       FROM symbols s
-       JOIN files f ON f.id = s.file_id
-      WHERE f.branch = ?
-        AND s.is_exported = 1
+    `${rankedCte}
+     SELECT COUNT(*) AS cnt
+       FROM ranked r
+      WHERE r.branch = ?
         ${filters}
         AND NOT EXISTS (
           SELECT 1
-            FROM symbols s2
-            JOIN files f2 ON f2.id = s2.file_id
-           WHERE f2.branch = ?
-             AND s2.name = s.name
-             AND s2.kind = s.kind
-             AND f2.path = f.path
-             AND s2.is_exported = 1
+            FROM ranked r2
+           WHERE r2.branch = ?
+             AND r2.name = r.name
+             AND r2.kind = r.kind
+             AND r2.path = r.path
+             AND r2.ordinal = r.ordinal
         )`,
   ).get(newBranch, ...filterParams, oldBranch) as { cnt: number }).cnt;
 
   const totalRemoved = (db.prepare(
-    `SELECT COUNT(*) AS cnt
-       FROM symbols s
-       JOIN files f ON f.id = s.file_id
-      WHERE f.branch = ?
-        AND s.is_exported = 1
+    `${rankedCte}
+     SELECT COUNT(*) AS cnt
+       FROM ranked r
+      WHERE r.branch = ?
         ${filters}
         AND NOT EXISTS (
           SELECT 1
-            FROM symbols s2
-            JOIN files f2 ON f2.id = s2.file_id
-           WHERE f2.branch = ?
-             AND s2.name = s.name
-             AND s2.kind = s.kind
-             AND f2.path = f.path
-             AND s2.is_exported = 1
+            FROM ranked r2
+           WHERE r2.branch = ?
+             AND r2.name = r.name
+             AND r2.kind = r.kind
+             AND r2.path = r.path
+             AND r2.ordinal = r.ordinal
         )`,
   ).get(oldBranch, ...filterParams, newBranch) as { cnt: number }).cnt;
 
   const totalChanged = (db.prepare(
-    `SELECT COUNT(*) AS cnt
-       FROM symbols s_new
-       JOIN files f_new ON f_new.id = s_new.file_id
-       JOIN files f_old ON f_old.path = f_new.path AND f_old.branch = ?
-       JOIN symbols s_old ON s_old.file_id = f_old.id
-                         AND s_old.name = s_new.name
-                         AND s_old.kind = s_new.kind
-                         AND s_old.is_exported = 1
-      WHERE f_new.branch = ?
-        AND s_new.is_exported = 1
+    `${rankedCte}
+     SELECT COUNT(*) AS cnt
+       FROM ranked r_new
+       JOIN ranked r_old ON r_old.path = r_new.path
+                         AND r_old.branch = ?
+                         AND r_old.name = r_new.name
+                         AND r_old.kind = r_new.kind
+                         AND r_old.ordinal = r_new.ordinal
+      WHERE r_new.branch = ?
         ${changedFilters}
-        AND COALESCE(s_new.signature, '') != COALESCE(s_old.signature, '')`,
+        AND COALESCE(r_new.signature, '') != COALESCE(r_old.signature, '')`,
   ).get(oldBranch, newBranch, ...changedFilterParams) as { cnt: number }).cnt;
 
   // ── Truncated result arrays ───────────────────────────────────────────────
 
   // Added: exported symbols in new_branch not present in old_branch
   const added = db.prepare(
-    `SELECT s.name, s.kind, f.path AS file_path, s.signature
-       FROM symbols s
-       JOIN files f ON f.id = s.file_id
-      WHERE f.branch = ?
-        AND s.is_exported = 1
+    `${rankedCte}
+     SELECT r.name, r.kind, r.path AS file_path, r.start_line, r.signature
+       FROM ranked r
+      WHERE r.branch = ?
         ${filters}
         AND NOT EXISTS (
           SELECT 1
-            FROM symbols s2
-            JOIN files f2 ON f2.id = s2.file_id
-           WHERE f2.branch = ?
-             AND s2.name = s.name
-             AND s2.kind = s.kind
-             AND f2.path = f.path
-             AND s2.is_exported = 1
+            FROM ranked r2
+           WHERE r2.branch = ?
+             AND r2.name = r.name
+             AND r2.kind = r.kind
+             AND r2.path = r.path
+             AND r2.ordinal = r.ordinal
         )
-      ORDER BY f.path, s.name
+      ORDER BY r.path, r.name
       LIMIT ?`,
   ).all(newBranch, ...filterParams, oldBranch, limit) as DiffEntry[];
 
   // Removed: exported symbols in old_branch not present in new_branch
   const removed = db.prepare(
-    `SELECT s.name, s.kind, f.path AS file_path, s.signature
-       FROM symbols s
-       JOIN files f ON f.id = s.file_id
-      WHERE f.branch = ?
-        AND s.is_exported = 1
+    `${rankedCte}
+     SELECT r.name, r.kind, r.path AS file_path, r.start_line, r.signature
+       FROM ranked r
+      WHERE r.branch = ?
         ${filters}
         AND NOT EXISTS (
           SELECT 1
-            FROM symbols s2
-            JOIN files f2 ON f2.id = s2.file_id
-           WHERE f2.branch = ?
-             AND s2.name = s.name
-             AND s2.kind = s.kind
-             AND f2.path = f.path
-             AND s2.is_exported = 1
+            FROM ranked r2
+           WHERE r2.branch = ?
+             AND r2.name = r.name
+             AND r2.kind = r.kind
+             AND r2.path = r.path
+             AND r2.ordinal = r.ordinal
         )
-      ORDER BY f.path, s.name
+      ORDER BY r.path, r.name
       LIMIT ?`,
   ).all(oldBranch, ...filterParams, newBranch, limit) as DiffEntry[];
 
-  // Changed: same name/kind/path but different signature across branches
+  // Changed: same name/kind/path/ordinal but different signature across branches
   const changed = db.prepare(
-    `SELECT s_new.name,
-            s_new.kind,
-            f_new.path AS file_path,
-            s_old.signature AS old_signature,
-            s_new.signature AS new_signature
-       FROM symbols s_new
-       JOIN files f_new ON f_new.id = s_new.file_id
-       JOIN files f_old ON f_old.path = f_new.path AND f_old.branch = ?
-       JOIN symbols s_old ON s_old.file_id = f_old.id
-                         AND s_old.name = s_new.name
-                         AND s_old.kind = s_new.kind
-                         AND s_old.is_exported = 1
-      WHERE f_new.branch = ?
-        AND s_new.is_exported = 1
+    `${rankedCte}
+     SELECT r_new.name,
+            r_new.kind,
+            r_new.path AS file_path,
+            r_new.start_line,
+            r_old.signature AS old_signature,
+            r_new.signature AS new_signature
+       FROM ranked r_new
+       JOIN ranked r_old ON r_old.path = r_new.path
+                         AND r_old.branch = ?
+                         AND r_old.name = r_new.name
+                         AND r_old.kind = r_new.kind
+                         AND r_old.ordinal = r_new.ordinal
+      WHERE r_new.branch = ?
         ${changedFilters}
-        AND COALESCE(s_new.signature, '') != COALESCE(s_old.signature, '')
-      ORDER BY f_new.path, s_new.name
+        AND COALESCE(r_new.signature, '') != COALESCE(r_old.signature, '')
+      ORDER BY r_new.path, r_new.name
       LIMIT ?`,
   ).all(oldBranch, newBranch, ...changedFilterParams, limit) as ChangedEntry[];
 
