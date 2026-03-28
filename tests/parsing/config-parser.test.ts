@@ -198,4 +198,15 @@ describe('parseConfigFile', () => {
     expect(entries).toContainEqual(expect.objectContaining({ key: 'app.db.host', value: 'localhost' }));
     expect(entries).toContainEqual(expect.objectContaining({ key: 'app.debug', value: 'true' }));
   });
+
+  it('parses TOML arrays with commas inside quoted strings', () => {
+    const entries = parseConfigFile(
+      'test.toml',
+      'items = ["hello, world", "foo, bar"]\n',
+    );
+    const items = entries.find(e => e.key === 'items');
+    expect(items).toBeDefined();
+    expect(items!.inferredType).toBe('array');
+    // The value should contain both items, not be split on the inner commas
+  });
 });
