@@ -55,7 +55,7 @@ export class JavaExtractor implements SymbolExtractor {
           extractJavaMethodTypeRefs(node, result.typeRefs);
           break;
         case 'constructor_declaration':
-          result.symbols.push(extractMethod(node));
+          result.symbols.push(extractMethod(node, 'constructor'));
           extractJavaMethodTypeRefs(node, result.typeRefs);
           break;
         case 'import_declaration':
@@ -100,11 +100,11 @@ function extractNamedNode(node: Parser.SyntaxNode, kind: string): RawSymbol {
   };
 }
 
-function extractMethod(node: Parser.SyntaxNode): RawSymbol {
+function extractMethod(node: Parser.SyntaxNode, kind: string = 'function'): RawSymbol {
   const nameNode = node.childForFieldName('name');
   return {
     name: nameNode?.text ?? '',
-    kind: 'function',
+    kind,
     startLine: node.startPosition.row,
     endLine: node.endPosition.row,
     signature: nodeSignature(node),
@@ -130,7 +130,7 @@ function extractNewCallRef(node: Parser.SyntaxNode): RawCallRef | null {
   if (!typeNode) return null;
   return {
     callerSymbol: findEnclosingSymbolName(node, JAVA_SYMBOL_NODE_TYPES),
-    calleeRaw: `new ${typeNode.text}`,
+    calleeRaw: typeNode.text,
     line: node.startPosition.row,
     character: node.startPosition.column,
   };
