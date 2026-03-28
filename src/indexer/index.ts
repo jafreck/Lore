@@ -398,7 +398,7 @@ function resolutionStage(): PipelineStage {
   return {
     name: 'symbol-resolution',
     execute: async (ctx) => {
-      resolveSymbolEdges(ctx.db, { overlayOnly: ctx.layer === 'overlay' });
+      resolveSymbolEdges(ctx.db, { overlayOnly: ctx.layer === 'overlay', branch: ctx.branch });
     },
   };
 }
