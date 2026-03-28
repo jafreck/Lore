@@ -55,10 +55,9 @@ describe('SwiftExtractor', () => {
       const sym = result.symbols.find(s => s.kind === 'extension');
       if (sym) {
         expect(sym.name).toBeTruthy();
-      } else {
-        // Grammar may not produce extension_declaration nodes
-        expect(result.symbols.length).toBeGreaterThanOrEqual(0);
       }
+      // At minimum, the function inside should be extracted
+      expect(result.symbols.some(s => s.kind === 'function')).toBe(true);
     });
   });
 
@@ -91,10 +90,9 @@ func bar() { }`;
 class Dog: Animal { }`;
       const result = extract(source);
       const rel = result.relationships.find(r => r.fromSymbol === 'Dog');
-      if (rel) {
-        expect(rel.toSymbol).toBe('Animal');
-        expect(rel.kind).toBe('extends');
-      }
+      expect(rel).toBeDefined();
+      expect(rel!.toSymbol).toBe('Animal');
+      expect(rel!.kind).toBe('extends');
     });
 
     it('extracts struct protocol conformance', () => {
@@ -102,10 +100,8 @@ class Dog: Animal { }`;
 struct Circle: Drawable { }`;
       const result = extract(source);
       const rel = result.relationships.find(r => r.fromSymbol === 'Circle');
-      if (rel) {
-        // Swift extractors may use 'extends' for first inheritance item
-        expect(['extends', 'implements']).toContain(rel.kind);
-      }
+      expect(rel).toBeDefined();
+      expect(['extends', 'implements']).toContain(rel!.kind);
     });
   });
 
@@ -113,13 +109,18 @@ struct Circle: Drawable { }`;
     it('extracts function parameter type refs', () => {
       const result = extract('func greet(name: String) -> String { return "" }');
       const paramRefs = result.typeRefs.filter(r => r.refKind === 'parameter');
-      expect(paramRefs.length).toBeGreaterThanOrEqual(0);
+      expect(paramRefs.length).toBeGreaterThanOrEqual(1);
     });
 
     it('extracts function return type refs', () => {
       const result = extract('func greet() -> String { return "" }');
       const returnRefs = result.typeRefs.filter(r => r.refKind === 'return');
-      expect(returnRefs.length).toBeGreaterThanOrEqual(0);
+      // Return typeRef depends on grammar parsing function_result node
+      for (const ref of returnRefs) {
+        expect(ref.typeRaw).toBeTruthy();
+      }
+      // At minimum, the function symbol should be present
+      expect(result.symbols.find(s => s.name === 'greet')).toBeDefined();
     });
 
     it('extracts class field type refs', () => {
@@ -127,7 +128,8 @@ struct Circle: Drawable { }`;
   var name: String = ""
 }`;
       const result = extract(source);
-      expect(result.symbols.find(s => s.name === 'Foo')).toBeDefined();
+      const fieldRefs = result.typeRefs.filter(r => r.refKind === 'field');
+      expect(fieldRefs.length).toBeGreaterThanOrEqual(1);
     });
 
     it('extracts as cast type ref', () => {
@@ -135,8 +137,8 @@ struct Circle: Drawable { }`;
   let x = obj as! String
 }`;
       const result = extract(source);
-      // Cast refs depend on grammar parsing
-      expect(result.symbols.length).toBeGreaterThan(0);
+      const castRefs = result.typeRefs.filter(r => r.refKind === 'cast');
+      expect(castRefs.length).toBeGreaterThanOrEqual(1);
     });
 
     it('extracts variable type ref', () => {
@@ -144,7 +146,8 @@ struct Circle: Drawable { }`;
   let x: Int = 0
 }`;
       const result = extract(source);
-      expect(result.symbols.length).toBeGreaterThan(0);
+      const varRefs = result.typeRefs.filter(r => r.refKind === 'variable');
+      expect(varRefs.length).toBeGreaterThanOrEqual(1);
     });
   });
 });

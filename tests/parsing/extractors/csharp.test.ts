@@ -124,7 +124,7 @@ interface IDerived : IBase { }`;
 }`;
       const result = extract(source);
       const paramRefs = result.typeRefs.filter(r => r.refKind === 'parameter');
-      expect(paramRefs.length).toBeGreaterThanOrEqual(0);
+      expect(paramRefs.length).toBeGreaterThanOrEqual(1);
     });
 
     it('extracts method return type refs', () => {
@@ -133,7 +133,12 @@ interface IDerived : IBase { }`;
 }`;
       const result = extract(source);
       const returnRefs = result.typeRefs.filter(r => r.refKind === 'return');
-      expect(returnRefs.length).toBeGreaterThanOrEqual(0);
+      // Return typeRef depends on grammar producing type nodes for method return types
+      for (const ref of returnRefs) {
+        expect(ref.typeRaw).toBeTruthy();
+      }
+      // Method symbol must still be present
+      expect(result.symbols.find(s => s.name === 'Bar')).toBeDefined();
     });
 
     it('extracts field type refs', () => {
@@ -142,7 +147,8 @@ interface IDerived : IBase { }`;
   string name;
 }`;
       const result = extract(source);
-      expect(result.symbols.find(s => s.name === 'Foo')).toBeDefined();
+      const fieldRefs = result.typeRefs.filter(r => r.refKind === 'field');
+      expect(fieldRefs.length).toBeGreaterThanOrEqual(1);
     });
 
     it('extracts cast type refs', () => {
@@ -151,7 +157,7 @@ interface IDerived : IBase { }`;
 }`;
       const result = extract(source);
       const castRefs = result.typeRefs.filter(r => r.refKind === 'cast');
-      expect(castRefs.length).toBeGreaterThanOrEqual(0);
+      expect(castRefs.length).toBeGreaterThanOrEqual(1);
     });
 
     it('extracts as cast type refs', () => {
@@ -160,7 +166,7 @@ interface IDerived : IBase { }`;
 }`;
       const result = extract(source);
       const castRefs = result.typeRefs.filter(r => r.refKind === 'cast');
-      expect(castRefs.length).toBeGreaterThanOrEqual(0);
+      expect(castRefs.length).toBeGreaterThanOrEqual(1);
     });
 
     it('extracts variable type refs', () => {
@@ -168,7 +174,8 @@ interface IDerived : IBase { }`;
   void Bar() { int x = 0; }
 }`;
       const result = extract(source);
-      expect(result.symbols.length).toBeGreaterThan(0);
+      const varRefs = result.typeRefs.filter(r => r.refKind === 'variable');
+      expect(varRefs.length).toBeGreaterThanOrEqual(1);
     });
 
     it('extracts bound type refs from base list', () => {
@@ -176,7 +183,7 @@ interface IDerived : IBase { }`;
 class Derived : Base { }`;
       const result = extract(source);
       const boundRefs = result.typeRefs.filter(r => r.refKind === 'bound');
-      expect(boundRefs.length).toBeGreaterThanOrEqual(0);
+      expect(boundRefs.length).toBeGreaterThanOrEqual(1);
     });
   });
 });

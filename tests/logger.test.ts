@@ -159,7 +159,9 @@ describe('LoreLogger', () => {
       logger.close();
 
       const parsed = JSON.parse(fs.readFileSync(logFile, 'utf8').trim());
+      expect(parsed.level).toBe('info');
       expect(parsed.component).toBe('startup');
+      expect(parsed.message).toBe('server started');
       expect(parsed.dbPath).toBe('/tmp/lore.db');
     });
 
@@ -171,7 +173,9 @@ describe('LoreLogger', () => {
       logger.close();
 
       const parsed = JSON.parse(fs.readFileSync(logFile, 'utf8').trim());
+      expect(parsed.level).toBe('info');
       expect(parsed.component).toBe('indexer');
+      expect(parsed.message).toBe('files indexed');
       expect(parsed.count).toBe(100);
     });
   });
@@ -190,7 +194,7 @@ describe('LoreLogger', () => {
       logger.close();
 
       const parsed = JSON.parse(fs.readFileSync(logFile, 'utf8').trim());
-      expect(String(parsed.requestBody).length).toBeLessThan(100);
+      expect(String(parsed.requestBody).length).toBeLessThanOrEqual(65);
       expect(String(parsed.requestBody)).toContain('(truncated)');
     });
   });

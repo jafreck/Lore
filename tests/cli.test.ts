@@ -55,6 +55,7 @@ describe('CLI args', () => {
 
       expect(() => usage()).toThrow('exit');
       expect(mockExit).toHaveBeenCalledWith(1);
+      expect(mockStderr).toHaveBeenCalled();
 
       mockExit.mockRestore();
       mockStderr.mockRestore();

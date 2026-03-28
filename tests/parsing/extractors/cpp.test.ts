@@ -142,7 +142,11 @@ void foo(struct S s) { s.fn(); }`;
     it('extracts function parameter type refs', () => {
       const source = `void process(int x) {}`;
       const result = extract(source);
-      expect(result.typeRefs.length).toBeGreaterThanOrEqual(0);
+      // TypeRef extraction depends on grammar parsing type nodes
+      for (const ref of result.typeRefs) {
+        expect(ref.typeRaw).toBeTruthy();
+      }
+      expect(result.symbols.find(s => s.name === 'process')).toBeDefined();
     });
 
     it('extracts base class relationships', () => {
@@ -160,7 +164,10 @@ class Derived : public Base {};`;
   float y;
 };`;
       const result = extract(source);
-      // Fields might or might not produce type refs depending on type
+      const fieldRefs = result.typeRefs.filter(r => r.refKind === 'field');
+      for (const ref of fieldRefs) {
+        expect(ref.typeRaw).toBeTruthy();
+      }
       expect(result.symbols.find(s => s.name === 'Foo')).toBeDefined();
     });
 
@@ -171,6 +178,7 @@ class Derived : public Base {};`;
       if (castRef) {
         expect(castRef.typeRaw).toContain('int');
       }
+      expect(result.symbols.find(s => s.name === 'foo')).toBeDefined();
     });
 
     it('extracts sizeof type refs', () => {
@@ -178,14 +186,18 @@ class Derived : public Base {};`;
       const result = extract(source);
       const sizeofRef = result.typeRefs.find(r => r.refKind === 'sizeof');
       if (sizeofRef) {
-        expect(sizeofRef).toBeDefined();
+        expect(sizeofRef.typeRaw).toContain('int');
       }
+      expect(result.symbols.find(s => s.name === 'foo')).toBeDefined();
     });
 
     it('extracts variable type refs from declarations', () => {
       const source = `void foo() { int x = 0; }`;
       const result = extract(source);
-      // Variable declarations may produce type refs
+      const varRefs = result.typeRefs.filter(r => r.refKind === 'variable');
+      for (const ref of varRefs) {
+        expect(ref.typeRaw).toBeTruthy();
+      }
       expect(result.symbols.find(s => s.name === 'foo')).toBeDefined();
     });
   });

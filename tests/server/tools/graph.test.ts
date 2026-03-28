@@ -82,12 +82,16 @@ describe('lore_graph handler — call edges', () => {
     // compact omits line, character, resolution_method
     expect(edge.line).toBeUndefined();
     expect(edge.resolution_method).toBeUndefined();
+    // but required fields must still be present
+    expect(edge.source_name).toBeDefined();
+    expect(edge.target_name).toBeDefined();
   });
 
   it('returns depth_used', () => {
     const result = handler(db, { kind: 'call', source_id: 1 });
     expect(result.depth_used).toBeDefined();
     expect(typeof result.depth_used).toBe('number');
+    expect(result.depth_used).toBeGreaterThanOrEqual(1);
   });
 
   it('handles point-to-point query', () => {
