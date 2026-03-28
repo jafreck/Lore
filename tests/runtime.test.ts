@@ -1,6 +1,49 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { LoreRuntime, type RuntimeConfig } from '../src/runtime.js';
 import { initLogger, LogLevel, resetLogger } from '../src/logger.js';
+
+// ── Hoisted mock fns (available inside vi.mock factories) ────────────────────
+const mocks = vi.hoisted(() => ({
+  watcherStart: vi.fn(),
+  watcherStop: vi.fn(),
+  pollerStart: vi.fn(),
+  pollerStop: vi.fn(),
+  indexBuilderUpdate: vi.fn().mockResolvedValue(undefined),
+  indexBuilderBaselineRebuild: vi.fn().mockResolvedValue(undefined),
+  embedderDispose: vi.fn().mockResolvedValue(undefined),
+  killAllTracked: vi.fn(),
+}));
+
+vi.mock('../src/discovery/watcher.js', () => ({
+  FileWatcher: vi.fn().mockImplementation(function (this: any) {
+    this.start = mocks.watcherStart;
+    this.stop = mocks.watcherStop;
+  }),
+}));
+
+vi.mock('../src/discovery/poller.js', () => ({
+  FilePoller: vi.fn().mockImplementation(function (this: any) {
+    this.start = mocks.pollerStart;
+    this.stop = mocks.pollerStop;
+  }),
+}));
+
+vi.mock('../src/indexer/index.js', () => ({
+  IndexBuilder: vi.fn().mockImplementation(function (this: any) {
+    this.update = mocks.indexBuilderUpdate;
+    this.baselineRebuild = mocks.indexBuilderBaselineRebuild;
+  }),
+}));
+
+vi.mock('../src/embeddings/embedder.js', () => ({
+  LazyEmbeddingProvider: vi.fn().mockImplementation(function (this: any) {
+    this.dispose = mocks.embedderDispose;
+  }),
+}));
+
+vi.mock('../src/process-tracker.js', () => ({
+  killAllTracked: mocks.killAllTracked,
+}));
 
 function makeConfig(overrides?: Partial<RuntimeConfig>): RuntimeConfig {
   return {
@@ -19,6 +62,7 @@ function makeConfig(overrides?: Partial<RuntimeConfig>): RuntimeConfig {
 describe('LoreRuntime', () => {
   beforeEach(() => {
     resetLogger();
+    vi.clearAllMocks();
   });
 
   afterEach(() => {
@@ -164,6 +208,147 @@ describe('LoreRuntime', () => {
       await runtime.shutdown();
       await runtime.shutdown();
       expect(runtime.started).toBe(false);
+    });
+  });
+
+  describe('start with refreshMode=watch', () => {
+    it('starts watcher and sets refresher', async () => {
+      const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+      const runtime = new LoreRuntime(makeConfig({ refreshMode: 'watch' }));
+      await runtime.start();
+
+      expect(mocks.watcherStart).toHaveBeenCalled();
+      expect(runtime.refresher).toBeDefined();
+      expect(stderrSpy).toHaveBeenCalledWith(
+        expect.stringContaining('watch mode started'),
+      );
+
+      await runtime.shutdown();
+      expect(mocks.watcherStop).toHaveBeenCalled();
+      expect(runtime.refresher).toBeUndefined();
+      stderrSpy.mockRestore();
+    });
+
+    it('includes onBaselineRebuild when scip is configured', async () => {
+      const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+      const { FileWatcher } = await import('../src/discovery/watcher.js');
+
+      const runtime = new LoreRuntime(makeConfig({
+        refreshMode: 'watch',
+        scip: { indexerPath: 'scip-typescript', args: [] } as any,
+      }));
+      await runtime.start();
+
+      const ctorCalls = vi.mocked(FileWatcher).mock.calls;
+      const lastCall = ctorCalls[ctorCalls.length - 1];
+      expect(lastCall[2].onBaselineRebuild).toBeTypeOf('function');
+
+      await runtime.shutdown();
+      stderrSpy.mockRestore();
+    });
+  });
+
+  describe('start with refreshMode=poll', () => {
+    it('starts poller and sets refresher', async () => {
+      const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+      const runtime = new LoreRuntime(makeConfig({ refreshMode: 'poll' }));
+      await runtime.start();
+
+      expect(mocks.pollerStart).toHaveBeenCalled();
+      expect(runtime.refresher).toBeDefined();
+      expect(stderrSpy).toHaveBeenCalledWith(
+        expect.stringContaining('poll mode started'),
+      );
+
+      await runtime.shutdown();
+      expect(mocks.pollerStop).toHaveBeenCalled();
+      expect(runtime.refresher).toBeUndefined();
+      stderrSpy.mockRestore();
+    });
+
+    it('includes onBaselineRebuild when scip is configured', async () => {
+      const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+      const { FilePoller } = await import('../src/discovery/poller.js');
+
+      const runtime = new LoreRuntime(makeConfig({
+        refreshMode: 'poll',
+        scip: { indexerPath: 'scip-typescript', args: [] } as any,
+      }));
+      await runtime.start();
+
+      const ctorCalls = vi.mocked(FilePoller).mock.calls;
+      const lastCall = ctorCalls[ctorCalls.length - 1];
+      expect(lastCall[2].onBaselineRebuild).toBeTypeOf('function');
+
+      await runtime.shutdown();
+      stderrSpy.mockRestore();
+    });
+  });
+
+  describe('shutdown with active resources', () => {
+    it('stops refresher on shutdown', async () => {
+      const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+      const runtime = new LoreRuntime(makeConfig({ refreshMode: 'watch' }));
+      await runtime.start();
+      expect(runtime.refresher).toBeDefined();
+
+      await runtime.shutdown();
+      expect(mocks.watcherStop).toHaveBeenCalledOnce();
+      stderrSpy.mockRestore();
+    });
+
+    it('disposes embedder on shutdown', async () => {
+      const runtime = new LoreRuntime(makeConfig({ embeddingModel: 'test-model' }));
+      await runtime.start();
+      expect(runtime.embedder).toBeDefined();
+
+      await runtime.shutdown();
+      expect(mocks.embedderDispose).toHaveBeenCalledOnce();
+      expect(runtime.embedder).toBeUndefined();
+    });
+
+    it('handles embedder dispose error gracefully', async () => {
+      mocks.embedderDispose.mockRejectedValueOnce(new Error('dispose failed'));
+      const runtime = new LoreRuntime(makeConfig({ embeddingModel: 'test-model' }));
+      await runtime.start();
+
+      await expect(runtime.shutdown()).resolves.not.toThrow();
+      expect(runtime.embedder).toBeUndefined();
+    });
+  });
+
+  describe('installSignalHandlers double-signal', () => {
+    it('second signal calls killAllTracked and process.exit(1)', async () => {
+      const runtime = new LoreRuntime(makeConfig());
+
+      const registeredHandlers: Record<string, Function> = {};
+      const onSpy = vi.spyOn(process, 'on').mockImplementation(((event: string, handler: Function) => {
+        registeredHandlers[event] = handler;
+        return process;
+      }) as any);
+      const onceSpy = vi.spyOn(process, 'once').mockImplementation((() => process) as any);
+      const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => {}) as any);
+
+      runtime.installSignalHandlers();
+
+      const sigintHandler = registeredHandlers['SIGINT'];
+      expect(sigintHandler).toBeDefined();
+
+      // First signal — starts async shutdown
+      sigintHandler();
+      // Second signal — force exit
+      sigintHandler();
+
+      expect(mocks.killAllTracked).toHaveBeenCalled();
+      expect(exitSpy).toHaveBeenCalledWith(1);
+
+      // Flush the async shutdown().finally() so process.exit(0) hits
+      // our mock rather than Vitest's real process.exit wrapper.
+      await new Promise(resolve => setTimeout(resolve, 0));
+
+      onSpy.mockRestore();
+      onceSpy.mockRestore();
+      exitSpy.mockRestore();
     });
   });
 });
