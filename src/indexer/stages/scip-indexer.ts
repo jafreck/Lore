@@ -1213,11 +1213,6 @@ export class ScipRefStage implements PipelineStage {
               refsNoCaller++;
             }
           } else {
-            if (!calleeId) {
-              refsNoCaller++;
-              continue;
-            }
-
             let resolvedCalleeName = calleeName;
             if (matchedCallRef?.calleeRaw) {
               resolvedCalleeName = matchedCallRef.calleeRaw;
@@ -1236,7 +1231,7 @@ export class ScipRefStage implements PipelineStage {
 
             try {
               insertCallRef.run(
-                callerId, fileId, calleeId, resolvedCalleeName,
+                callerId, fileId, calleeId ?? null, resolvedCalleeName,
                 line, character, 'direct', method, refSig, refReturnType,
                 refDefUri, refDef?.filePath ?? null, refDef?.line ?? null, refDef?.character ?? null,
                 layer, generation,
