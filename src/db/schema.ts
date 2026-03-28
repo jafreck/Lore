@@ -9,6 +9,7 @@
 
 import Database from 'better-sqlite3';
 import { createRequire } from 'node:module';
+import { resetEffectiveViewsCache } from './read-only.js';
 
 const esmRequire = createRequire(import.meta.url);
 
@@ -406,6 +407,10 @@ function ensureIncrementalSchema(db: Database.Database): void {
     JOIN effective_symbols s ON s.id = sm.symbol_id;
   `);
   })();
+
+  // Invalidate cached view-existence checks so any read-only handles
+  // sharing this underlying db re-detect the newly created views.
+  resetEffectiveViewsCache(db);
 }
 
 // ─── lore_meta helpers ──────────────────────────────────────────────────────────
