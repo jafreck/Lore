@@ -96,6 +96,9 @@ export class IndexBuilder {
   private readonly scipSettings: EffectiveScipSettings | null;
   private readonly maxWorkers: number | undefined;
 
+  /** Process-local mutex: queued promise chain prevents concurrent build/update/rebuild. */
+  private _mutexChain: Promise<void> = Promise.resolve();
+
   constructor(
     dbPath: string,
     walkerConfig: WalkerConfig,
@@ -127,6 +130,14 @@ export class IndexBuilder {
 
   // ─── Public API ──────────────────────────────────────────────────────────
 
+  /** Enqueue `fn` on the mutex chain so build/update/rebuild never overlap. */
+  private _enqueue<T>(fn: () => Promise<T>): Promise<T> {
+    const next = this._mutexChain.then(fn, fn);
+    // Keep the chain alive regardless of success/failure of `fn`.
+    this._mutexChain = next.then(() => {}, () => {});
+    return next;
+  }
+
   /**
    * Performs a full build by running the composable pipeline.
    *
@@ -134,6 +145,10 @@ export class IndexBuilder {
    * chain structurally (by stage ordering), not by convention.
    */
   async build(): Promise<void> {
+    return this._enqueue(() => this._build());
+  }
+
+  private async _build(): Promise<void> {
     const log = getLogger();
     const buildStart = performance.now();
     const db = openDb(this.dbPath);
@@ -217,6 +232,10 @@ export class IndexBuilder {
    * @param changedFiles  Absolute paths of files that have changed.
    */
   async update(changedFiles: string[]): Promise<void> {
+    return this._enqueue(() => this._update(changedFiles));
+  }
+
+  private async _update(changedFiles: string[]): Promise<void> {
     const db = openDb(this.dbPath);
     const branch = this.resolveBranch();
     const log = getLogger();
@@ -272,6 +291,10 @@ export class IndexBuilder {
    * stale overlay rows.  This is the only path that invokes SCIP.
    */
   async baselineRebuild(): Promise<void> {
+    return this._enqueue(() => this._baselineRebuild());
+  }
+
+  private async _baselineRebuild(): Promise<void> {
     const log = getLogger();
     const rebuildStart = performance.now();
     const rebuildStartedAt = Math.floor(Date.now() / 1000);
