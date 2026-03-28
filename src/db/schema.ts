@@ -8,13 +8,14 @@
  */
 
 import Database from 'better-sqlite3';
-import { createRequire } from 'node:module';
 import { resetEffectiveViewsCache } from './read-only.js';
-
-const esmRequire = createRequire(import.meta.url);
 
 // Re-export the Database type so callers don't need to import better-sqlite3.
 export type { Database };
+
+// Re-export everything from submodules for backward compatibility.
+export * from './meta.js';
+export { createVec0Tables } from './vec.js';
 
 // ─── DDL ─────────────────────────────────────────────────────────────────────
 
@@ -411,88 +412,4 @@ function ensureIncrementalSchema(db: Database.Database): void {
   // Invalidate cached view-existence checks so any read-only handles
   // sharing this underlying db re-detect the newly created views.
   resetEffectiveViewsCache(db);
-}
-
-// ─── lore_meta helpers ──────────────────────────────────────────────────────────
-
-export const LORE_META_INDEX_CHECKPOINT = 'index_checkpoint';
-export const LORE_META_LAST_HEAD_SHA = 'last_known_head_sha';
-
-// Incremental indexing metadata keys
-export const LORE_META_GENERATION = 'generation';
-export const LORE_META_GENERATION_PENDING = 'generation_pending';
-export const LORE_META_OVERLAY_DIRTY_FILES = 'overlay_dirty_files';
-export const LORE_META_BASELINE_HEAD_SHA = 'baseline_head_sha';
-export const LORE_META_OVERLAY_HEAD_SHA = 'overlay_head_sha';
-
-/** Write (or overwrite) a key-value pair in `lore_meta`. */
-export function setLoreMeta(db: Database.Database, key: string, value: string): void {
-  db.prepare('INSERT OR REPLACE INTO lore_meta (key, value) VALUES (?, ?)').run(key, value);
-}
-
-/** Delete a key from `lore_meta`. */
-export function deleteLoreMeta(db: Database.Database, key: string): void {
-  db.prepare('DELETE FROM lore_meta WHERE key = ?').run(key);
-}
-
-/** Read a value from `lore_meta`; returns `undefined` if the key is absent. */
-export function getLoreMeta(db: Database.Database, key: string): string | undefined {
-  const row = db.prepare('SELECT value FROM lore_meta WHERE key = ?').get(key) as
-    | { value: string }
-    | undefined;
-  return row?.value;
-}
-
-/** Get the current baseline generation counter (defaults to 0). */
-export function getGeneration(db: Database.Database): number {
-  const val = getLoreMeta(db, LORE_META_GENERATION);
-  return val ? parseInt(val, 10) : 0;
-}
-
-/** Increment and return the next generation counter (atomic via IMMEDIATE txn). */
-export function incrementGeneration(db: Database.Database): number {
-  return db.transaction(() => {
-    const next = getGeneration(db) + 1;
-    setLoreMeta(db, LORE_META_GENERATION, String(next));
-    return next;
-  }).immediate();
-}
-
-// ─── Vec0 virtual tables ──────────────────────────────────────────────────────
-
-/**
- * Loads the sqlite-vec extension and creates the `symbol_embeddings`,
- * `symbol_semantic_embeddings`, and `commit_embeddings` vec0 virtual tables
- * with the given dimension.
- * Also stores `embedding_dims` in `lore_meta` for validation on reopen.
- *
- * This function is idempotent: it is safe to call multiple times with the
- * same `dims` value.
- *
- * @param db   An open better-sqlite3 database instance.
- * @param dims Embedding dimensionality (e.g. 1024 for Qwen3-Embedding-0.6B).
- */
-export function createVec0Tables(db: Database.Database, dims: number): void {
-  if (!Number.isInteger(dims) || dims <= 0 || dims > 10000) {
-    throw new Error(`Invalid embedding dimensions: ${dims}`);
-  }
-
-  // Load the sqlite-vec native extension.
-  // Use createRequire for ESM compatibility (native addons cannot be loaded via import()).
-  const sqliteVec = esmRequire('sqlite-vec') as { load(db: Database.Database): void };
-  sqliteVec.load(db);
-
-  db.exec(`
-    CREATE VIRTUAL TABLE IF NOT EXISTS symbol_embeddings USING vec0(
-      embedding FLOAT[${dims}]
-    );
-    CREATE VIRTUAL TABLE IF NOT EXISTS symbol_semantic_embeddings USING vec0(
-      embedding FLOAT[${dims}]
-    );
-    CREATE VIRTUAL TABLE IF NOT EXISTS commit_embeddings USING vec0(
-      embedding FLOAT[${dims}]
-    );
-  `);
-
-  setLoreMeta(db, 'embedding_dims', String(dims));
 }
