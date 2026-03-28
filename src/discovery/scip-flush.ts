@@ -22,6 +22,13 @@ export interface ScipFlushConfig {
   scipQuietPeriodMs: number;
   /** Label used in log messages (e.g. 'FilePoller' or 'FileWatcher'). */
   source: string;
+  /**
+   * Optional callback to perform the baseline rebuild.  When provided,
+   * IndexBuilder is NOT constructed internally — the caller owns that
+   * responsibility.  When omitted the legacy behaviour (constructing
+   * IndexBuilder inline) is preserved.
+   */
+  onBaselineRebuild?: () => Promise<void>;
 }
 
 /**
@@ -76,16 +83,21 @@ export class ScipFlushManager {
 
     if (paths.length === 0) return;
 
-    const { dbPath, walkerConfig, embedder, history, indexDependencies, lsp, scip, source } = this.config;
-    const builder = new IndexBuilder(dbPath, walkerConfig, embedder, {
-      history,
-      ...(indexDependencies && { indexDependencies: true }),
-      ...(lsp && { lsp }),
-      scip,
-    });
+    const { source } = this.config;
 
     try {
-      await builder.baselineRebuild();
+      if (this.config.onBaselineRebuild) {
+        await this.config.onBaselineRebuild();
+      } else {
+        const { dbPath, walkerConfig, embedder, history, indexDependencies, lsp, scip } = this.config;
+        const builder = new IndexBuilder(dbPath, walkerConfig, embedder, {
+          history,
+          ...(indexDependencies && { indexDependencies: true }),
+          ...(lsp && { lsp }),
+          scip,
+        });
+        await builder.baselineRebuild();
+      }
     } catch (err) {
       // Re-queue paths on failure so next flush retries them
       for (const p of paths) this.pathsSinceLastScip.add(p);

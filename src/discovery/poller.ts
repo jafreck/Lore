@@ -46,6 +46,19 @@ export interface PollerOptions {
    * The caller is responsible for the provider's lifecycle (init/dispose).
    */
   embedder?: EmbeddingProvider;
+  /**
+   * Optional callback invoked with the list of changed file paths after each
+   * poll cycle.  When provided, IndexBuilder is NOT constructed internally
+   * — the caller owns that responsibility.  When omitted the legacy behaviour
+   * (constructing IndexBuilder inline) is preserved.
+   */
+  onUpdate?: (changedFiles: string[]) => Promise<void>;
+  /**
+   * Optional callback to perform a full baseline rebuild after the SCIP quiet
+   * period expires.  Forwarded to ScipFlushManager.  When omitted, the
+   * default IndexBuilder-based rebuild is used.
+   */
+  onBaselineRebuild?: () => Promise<void>;
 }
 
 
@@ -74,6 +87,7 @@ export class FilePoller {
   private readonly scip: EffectiveScipSettings | undefined;
   private readonly scipQuietPeriodMs: number;
   private readonly embedder: EmbeddingProvider | undefined;
+  private readonly onUpdateCb: ((changedFiles: string[]) => Promise<void>) | undefined;
 
   /** Maps absolute path → last seen mtime (ms since epoch). */
   private snapshot: Map<string, number> = new Map();
@@ -94,6 +108,7 @@ export class FilePoller {
     this.scip = options.scip;
     this.scipQuietPeriodMs = options.scipQuietPeriodMs ?? 10_000;
     this.embedder = options.embedder;
+    this.onUpdateCb = options.onUpdate;
 
     if (this.scip && this.scipQuietPeriodMs > 0) {
       this.scipFlush = new ScipFlushManager({
@@ -106,6 +121,7 @@ export class FilePoller {
         scip: this.scip,
         scipQuietPeriodMs: this.scipQuietPeriodMs,
         source: 'FilePoller',
+        onBaselineRebuild: options.onBaselineRebuild,
       });
     }
   }
@@ -184,14 +200,18 @@ export class FilePoller {
 
       if (changed.length > 0) {
         // Overlay update: tree-sitter + LSP only, no SCIP.
-        const builder = new IndexBuilder(this.dbPath, this.walkerConfig, this.embedder, {
-          history: this.history,
-          ...(this.indexDependencies && { indexDependencies: true }),
-          ...(this.lsp && { lsp: this.lsp }),
-          // Note: SCIP is not passed — overlay updates never invoke SCIP.
-        });
         try {
-          await builder.update(changed);
+          if (this.onUpdateCb) {
+            await this.onUpdateCb(changed);
+          } else {
+            const builder = new IndexBuilder(this.dbPath, this.walkerConfig, this.embedder, {
+              history: this.history,
+              ...(this.indexDependencies && { indexDependencies: true }),
+              ...(this.lsp && { lsp: this.lsp }),
+              // Note: SCIP is not passed — overlay updates never invoke SCIP.
+            });
+            await builder.update(changed);
+          }
         } catch (err) {
           errorCount++;
           process.stderr.write(
