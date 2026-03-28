@@ -15,9 +15,33 @@ import { promisify } from 'node:util';
 import { SCIP_SUPPORTED_LANGUAGES, resolveScipIndexerRegistry } from '../../../scip/registry.js';
 import type { EffectiveScipSettings } from '../../../scip/config.js';
 import { getLogger } from '../../../logger.js';
-import { getSpecsForLanguage, installScipIndexer } from '../../../scip/installer.js';
+import { getSpecsForLanguage, installScipIndexer, type ScipInstallSpec } from '../../../scip/installer.js';
 import { ensureCompilationDatabase } from '../../../scip/compdb.js';
 import { EXT_TO_LANG } from '../../../discovery/walker.js';
+
+// ─── IO interface ───────────────────────────────────────────────────────────
+
+/** Injectable I/O seam for testing `loadScipIndexes`. */
+export interface ScipProcessIO {
+  existsSync(path: string): boolean;
+  readFileSync(path: string): Uint8Array;
+  unlinkSync(path: string): void;
+  execFile(cmd: string, args: string[], opts: { cwd: string; timeout: number }): Promise<void>;
+  installScipIndexer(spec: ScipInstallSpec): Promise<{ installed: boolean; path?: string | null; error?: string }>;
+  ensureCompilationDatabase(rootDir: string, timeoutMs: number): Promise<{ path: string | null }>;
+}
+
+export function createDefaultScipProcessIO(): ScipProcessIO {
+  const execFileAsync = promisify(execFile);
+  return {
+    existsSync: (p) => existsSync(p),
+    readFileSync: (p) => readFileSync(p),
+    unlinkSync: (p) => { try { fs.unlinkSync(p); } catch { /* best effort */ } },
+    execFile: async (cmd, args, opts) => { await execFileAsync(cmd, args, opts); },
+    installScipIndexer: (spec) => installScipIndexer(spec),
+    ensureCompilationDatabase: (rootDir, timeoutMs) => ensureCompilationDatabase(rootDir, timeoutMs),
+  };
+}
 
 // ─── tsconfig generation ────────────────────────────────────────────────────
 
@@ -145,6 +169,7 @@ export async function loadScipIndexes(
   settings: EffectiveScipSettings,
   rootDir: string,
   staleLanguages: Set<string> | null = null,
+  io: ScipProcessIO = createDefaultScipProcessIO(),
 ): Promise<Uint8Array[]> {
   // Try pre-computed index directory first
   if (settings.indexDir) {
@@ -154,8 +179,8 @@ export async function loadScipIndexes(
     if (staleLanguages) {
       for (const lang of staleLanguages) {
         const candidate = join(rootDir, settings.indexDir, `${lang}.scip`);
-        if (existsSync(candidate)) {
-          precomputed.push(readFileSync(candidate));
+        if (io.existsSync(candidate)) {
+          precomputed.push(io.readFileSync(candidate));
         }
       }
     }
@@ -167,8 +192,8 @@ export async function loadScipIndexes(
         ),
       ];
       for (const candidate of candidates) {
-        if (existsSync(candidate)) {
-          precomputed.push(readFileSync(candidate));
+        if (io.existsSync(candidate)) {
+          precomputed.push(io.readFileSync(candidate));
         }
       }
     }
@@ -194,7 +219,7 @@ export async function loadScipIndexes(
         if (attempted.has(spec.command)) continue;
         attempted.add(spec.command);
         log.indexing(`scip-indexer: auto-installing ${spec.command} for ${lang}...`);
-        const result = await installScipIndexer(spec);
+        const result = await io.installScipIndexer(spec);
         if (result.installed) {
           log.indexing(`scip-indexer: installed ${spec.command} at ${result.path}`);
         } else {
@@ -225,7 +250,7 @@ export async function loadScipIndexes(
 
       // For C/C++: ensure a compile_commands.json exists and pass it to scip-clang
       if ((lang === 'c' || lang === 'cpp') && args.some(a => a.includes('{compdb}'))) {
-        const compdb = await ensureCompilationDatabase(rootDir, settings.timeoutMs);
+        const compdb = await io.ensureCompilationDatabase(rootDir, settings.timeoutMs);
         if (!compdb.path) {
           log.indexing(`scip-indexer: no compile_commands.json for ${lang}, skipping`);
           continue;
@@ -249,24 +274,23 @@ export async function loadScipIndexes(
         ? Math.max(settings.timeoutMs, 600_000)
         : settings.timeoutMs;
 
-      const execFileAsync = promisify(execFile);
       const executablePath = indexer.resolvedPath ?? indexer.command;
       try {
-        await execFileAsync(executablePath, args, {
+        await io.execFile(executablePath, args, {
           cwd,
           timeout: indexerTimeout,
         });
       } finally {
         if (tempTsconfigPath) {
-          try { fs.unlinkSync(tempTsconfigPath); } catch { /* best effort */ }
+          io.unlinkSync(tempTsconfigPath);
         }
       }
 
       // Check for output
       for (const candidate of [outputPath, resolve(rootDir, 'index.scip')]) {
-        if (existsSync(candidate)) {
-          const data = readFileSync(candidate);
-          try { fs.unlinkSync(candidate); } catch { /* best effort */ }
+        if (io.existsSync(candidate)) {
+          const data = io.readFileSync(candidate);
+          io.unlinkSync(candidate);
           indexBuffers.push(data);
           break;
         }
