@@ -424,6 +424,11 @@ export function setLoreMeta(db: Database.Database, key: string, value: string): 
   db.prepare('INSERT OR REPLACE INTO lore_meta (key, value) VALUES (?, ?)').run(key, value);
 }
 
+/** Delete a key from `lore_meta`. */
+export function deleteLoreMeta(db: Database.Database, key: string): void {
+  db.prepare('DELETE FROM lore_meta WHERE key = ?').run(key);
+}
+
 /** Read a value from `lore_meta`; returns `undefined` if the key is absent. */
 export function getLoreMeta(db: Database.Database, key: string): string | undefined {
   const row = db.prepare('SELECT value FROM lore_meta WHERE key = ?').get(key) as
