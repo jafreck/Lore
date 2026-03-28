@@ -6,6 +6,9 @@ import {
   tokenAwareBatch,
   MAX_BATCH_TOKENS,
   MAX_BATCH_ITEMS,
+  DEFAULT_EMBEDDING_MODEL,
+  TransformersJsProvider,
+  LazyEmbeddingProvider,
   type StructuralEmbeddingInput,
 } from '../../src/embeddings/embedder.js';
 
@@ -169,5 +172,97 @@ describe('constants', () => {
   it('MAX_BATCH_ITEMS is a positive number', () => {
     expect(MAX_BATCH_ITEMS).toBeGreaterThan(0);
     expect(typeof MAX_BATCH_ITEMS).toBe('number');
+  });
+
+  it('DEFAULT_EMBEDDING_MODEL is a non-empty string', () => {
+    expect(DEFAULT_EMBEDDING_MODEL).toBeDefined();
+    expect(typeof DEFAULT_EMBEDDING_MODEL).toBe('string');
+    expect(DEFAULT_EMBEDDING_MODEL.length).toBeGreaterThan(0);
+  });
+
+  it('MAX_BATCH_TOKENS is 32768', () => {
+    expect(MAX_BATCH_TOKENS).toBe(32_768);
+  });
+
+  it('MAX_BATCH_ITEMS is 512', () => {
+    expect(MAX_BATCH_ITEMS).toBe(512);
+  });
+});
+
+// ─── TransformersJsProvider ──────────────────────────────────────────────────
+
+describe('TransformersJsProvider', () => {
+  it('constructor sets modelName', () => {
+    const provider = new TransformersJsProvider('test-model');
+    expect(provider.modelName).toBe('test-model');
+  });
+
+  it('constructor defaults dtype to q8', () => {
+    const provider = new TransformersJsProvider('test-model');
+    expect(provider.dtype).toBe('q8');
+  });
+
+  it('constructor accepts explicit dtype', () => {
+    const provider = new TransformersJsProvider('test-model', 'fp16');
+    expect(provider.dtype).toBe('fp16');
+  });
+
+  it('dims throws before init', () => {
+    const provider = new TransformersJsProvider('test-model');
+    expect(() => provider.dims).toThrow('not initialised');
+  });
+
+  it('device returns unknown before init', () => {
+    const provider = new TransformersJsProvider('test-model');
+    expect(provider.device).toBe('unknown');
+  });
+
+  it('embed throws before init', async () => {
+    const provider = new TransformersJsProvider('test-model');
+    await expect(provider.embed(['test'])).rejects.toThrow('not initialised');
+  });
+
+  it('embed returns empty array for empty input after (conceptual) init', async () => {
+    const provider = new TransformersJsProvider('test-model');
+    // embed([]) should short-circuit without needing init
+    const result = await provider.embed([]);
+    expect(result).toEqual([]);
+  });
+
+  it('dispose is safe without init', async () => {
+    const provider = new TransformersJsProvider('test-model');
+    await expect(provider.dispose()).resolves.not.toThrow();
+  });
+});
+
+// ─── LazyEmbeddingProvider ──────────────────────────────────────────────────
+
+describe('LazyEmbeddingProvider', () => {
+  it('constructor sets modelName', () => {
+    const provider = new LazyEmbeddingProvider('test-model');
+    expect(provider.modelName).toBe('test-model');
+  });
+
+  it('dims throws before init (delegates to inner)', () => {
+    const provider = new LazyEmbeddingProvider('test-model');
+    expect(() => provider.dims).toThrow('not initialised');
+  });
+
+  it('embed returns empty array for empty input', async () => {
+    const provider = new LazyEmbeddingProvider('test-model');
+    const result = await provider.embed([]);
+    expect(result).toEqual([]);
+  });
+
+  it('dispose is safe without init', async () => {
+    const provider = new LazyEmbeddingProvider('test-model');
+    await expect(provider.dispose()).resolves.not.toThrow();
+  });
+
+  it('dispose is safe after failed init', async () => {
+    const provider = new LazyEmbeddingProvider('nonexistent-model-xxx');
+    // init will fail since model doesn't exist
+    try { await provider.init(); } catch { /* expected */ }
+    await expect(provider.dispose()).resolves.not.toThrow();
   });
 });

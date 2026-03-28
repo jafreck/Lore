@@ -1,10 +1,17 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { openDb, type Database } from '../../../src/db/schema.js';
-import { handler, toolDef } from '../../../src/server/tools/search.js';
+import { handler, toolDef, type SearchObservation } from '../../../src/server/tools/search.js';
+import type { EmbeddingProvider } from '../../../src/embeddings/embedder.js';
 
 function seedDb(db: Database.Database) {
   db.prepare(
     `INSERT INTO files (id, path, branch, language, source) VALUES (1, 'src/utils.ts', 'main', 'typescript', 'function helpers() {}')`,
+  ).run();
+  db.prepare(
+    `INSERT INTO files (id, path, branch, language, source) VALUES (2, 'lib/math.ts', 'main', 'typescript', 'function add() {}')`,
+  ).run();
+  db.prepare(
+    `INSERT INTO files (id, path, branch, language, source) VALUES (3, 'src/app.py', 'main', 'python', 'def run(): pass')`,
   ).run();
   db.prepare(
     `INSERT INTO symbols (id, file_id, name, kind, start_line, end_line, signature, is_exported)
@@ -14,8 +21,31 @@ function seedDb(db: Database.Database) {
     `INSERT INTO symbols (id, file_id, name, kind, start_line, end_line, signature, is_exported)
      VALUES (2, 1, 'parseConfig', 'function', 2, 5, '(cfg: string): Config', 1)`,
   ).run();
+  db.prepare(
+    `INSERT INTO symbols (id, file_id, name, kind, start_line, end_line, signature, is_exported)
+     VALUES (3, 2, 'add', 'function', 1, 3, '(a: number, b: number): number', 1)`,
+  ).run();
+  db.prepare(
+    `INSERT INTO symbols (id, file_id, name, kind, start_line, end_line, signature, is_exported)
+     VALUES (4, 1, 'ConfigClass', 'class', 6, 20, 'class ConfigClass', 1)`,
+  ).run();
+  db.prepare(
+    `INSERT INTO symbols (id, file_id, name, kind, start_line, end_line, signature, is_exported)
+     VALUES (5, 3, 'run', 'function', 1, 1, 'def run()', 1)`,
+  ).run();
   db.prepare(`INSERT INTO symbols_fts (rowid, name, signature, kind) VALUES (1, 'helpers', '(): void', 'function')`).run();
   db.prepare(`INSERT INTO symbols_fts (rowid, name, signature, kind) VALUES (2, 'parseConfig', '(cfg: string): Config', 'function')`).run();
+  db.prepare(`INSERT INTO symbols_fts (rowid, name, signature, kind) VALUES (3, 'add', '(a: number, b: number): number', 'function')`).run();
+  db.prepare(`INSERT INTO symbols_fts (rowid, name, signature, kind) VALUES (4, 'ConfigClass', 'class ConfigClass', 'class')`).run();
+  db.prepare(`INSERT INTO symbols_fts (rowid, name, signature, kind) VALUES (5, 'run', 'def run()', 'function')`).run();
+}
+
+function makeMockEmbedder(vector: number[] = [0.1, 0.2, 0.3]): EmbeddingProvider {
+  return {
+    embed: async (_texts: string[]) => [vector],
+    dimensions: vector.length,
+    modelName: 'test-mock',
+  } as unknown as EmbeddingProvider;
 }
 
 describe('lore_search toolDef', () => {
@@ -229,11 +259,11 @@ describe('lore_search handler', () => {
   it('FTS fallback handles LIKE prefix when FTS query is invalid', async () => {
     // Populate a symbol with name matching prefix
     db.prepare(
-      `INSERT INTO files (id, path, branch, language, source) VALUES (2, 'src/extra.ts', 'main', 'typescript', 'class MyTest {}')`,
+      `INSERT INTO files (id, path, branch, language, source) VALUES (10, 'src/extra.ts', 'main', 'typescript', 'class MyTest {}')`,
     ).run();
     db.prepare(
       `INSERT INTO symbols (id, file_id, name, kind, start_line, end_line, signature, is_exported)
-       VALUES (3, 2, 'MyTest', 'class', 1, 1, 'class MyTest', 1)`,
+       VALUES (10, 10, 'MyTest', 'class', 1, 1, 'class MyTest', 1)`,
     ).run();
     // Don't insert into FTS - this forces the FTS MATCH to fail and fall back to LIKE
     const result = await handler(db, { query: 'MyTest' });
@@ -249,5 +279,105 @@ describe('lore_search handler', () => {
   it('default limit is 20', async () => {
     const result = await handler(db, { query: 'helpers' });
     expect(result.results.length).toBeLessThanOrEqual(20);
+  });
+
+  it('scoring/ranking with multiple FTS matches', async () => {
+    const result = await handler(db, { query: 'function' });
+    // Multiple symbols should be returned, ordered by FTS score
+    expect(result.results.length).toBeGreaterThanOrEqual(1);
+    for (let i = 1; i < result.results.length; i++) {
+      // BM25 scores are negative; lower (more negative) = better match
+      expect(result.results[i - 1]!.score).toBeLessThanOrEqual(result.results[i]!.score);
+    }
+  });
+
+  it('kind filter excludes non-matching kinds', async () => {
+    const result = await handler(db, { query: 'ConfigClass', kind: 'function' });
+    expect(result.results).toHaveLength(0);
+  });
+
+  it('kind filter for class returns only classes', async () => {
+    const result = await handler(db, { query: 'ConfigClass', kind: 'class' });
+    expect(result.results.length).toBeGreaterThanOrEqual(1);
+    for (const r of result.results) {
+      expect(r.kind).toBe('class');
+    }
+  });
+
+  it('language filter restricts to specific language files', async () => {
+    const result = await handler(db, { query: 'run', language: 'python' });
+    expect(result.results.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('language + kind + path_prefix combined filters', async () => {
+    const result = await handler(db, { query: 'helpers', language: 'typescript', kind: 'function', path_prefix: 'src/' });
+    expect(result.results.length).toBeGreaterThanOrEqual(1);
+    for (const r of result.results) {
+      expect(r.kind).toBe('function');
+      expect(r.file_path).toMatch(/^src\//);
+    }
+  });
+
+  it('path_prefix with no match returns empty', async () => {
+    const result = await handler(db, { query: 'helpers', path_prefix: 'nonexistent/' });
+    expect(result.results).toHaveLength(0);
+  });
+
+  it('semantic mode with embedder but no symbol_embeddings table falls back', async () => {
+    const embedder = makeMockEmbedder();
+    const result = await handler(db, { query: 'helpers', mode: 'semantic' }, embedder);
+    // No symbol_embeddings table → semantic returns null → falls back to structural
+    expect(result.mode_used).toContain('structural');
+  });
+
+  it('fused mode with embedder but no symbol_embeddings table', async () => {
+    const embedder = makeMockEmbedder();
+    const result = await handler(db, { query: 'helpers', mode: 'fused' }, embedder);
+    // semantic is null so fused degrades — structural results are still returned
+    expect(result.results.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('semantic mode with embedder returning empty vector', async () => {
+    const embedder: EmbeddingProvider = {
+      embed: async () => [[]],
+      dimensions: 0,
+      modelName: 'test-empty',
+    } as unknown as EmbeddingProvider;
+    const result = await handler(db, { query: 'helpers', mode: 'semantic' }, embedder);
+    // Empty vector → semantic returns null → falls back
+    expect(result.mode_used).toContain('structural');
+  });
+
+  it('observer receives all required observation fields', async () => {
+    let obs: SearchObservation | null = null;
+    const observer = (o: SearchObservation) => { obs = o; };
+    await handler(db, { query: 'helpers', mode: 'structural', branch: 'main' }, undefined, observer);
+    expect(obs).not.toBeNull();
+    expect(obs!.timestamp).toMatch(/^\d{4}-/);
+    expect(obs!.query).toBe('helpers');
+    expect(obs!.requestedMode).toBe('structural');
+    expect(obs!.modeUsed).toBe('structural');
+    expect(obs!.resultCount).toBeGreaterThanOrEqual(1);
+    expect(typeof obs!.topScore).toBe('number');
+    expect(obs!.latencyMs).toBeGreaterThanOrEqual(0);
+    expect(obs!.branch).toBe('main');
+  });
+
+  it('observer receives semantic mode fallback info', async () => {
+    let obs: SearchObservation | null = null;
+    const observer = (o: SearchObservation) => { obs = o; };
+    await handler(db, { query: 'helpers', mode: 'semantic' }, undefined, observer);
+    expect(obs).not.toBeNull();
+    expect(obs!.requestedMode).toBe('semantic');
+    expect(obs!.modeUsed).toContain('no query-time embedder');
+  });
+
+  it('observer receives fused mode fallback info', async () => {
+    let obs: SearchObservation | null = null;
+    const observer = (o: SearchObservation) => { obs = o; };
+    await handler(db, { query: 'helpers', mode: 'fused' }, undefined, observer);
+    expect(obs).not.toBeNull();
+    expect(obs!.requestedMode).toBe('fused');
+    expect(obs!.modeUsed).toContain('no query-time embedder');
   });
 });

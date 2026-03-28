@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { openDb, type Database } from '../../../src/db/schema.js';
-import { handler, toolDef, clearGitRootCache } from '../../../src/server/tools/blame.js';
+import { handler, toolDef, clearGitRootCache, type BlameArgs } from '../../../src/server/tools/blame.js';
 
 describe('lore_blame toolDef', () => {
   it('has required fields', () => {
@@ -221,5 +221,96 @@ describe('lore_blame handler', () => {
       // Git operations will fail but DB resolution should succeed
       expect(e.message).not.toContain('File not found');
     }
+  });
+
+  it('ownership mode with file scope resolves from DB', async () => {
+    try {
+      await handler(db, { path: 'src/main.ts', mode: 'ownership', scope: 'file' });
+    } catch (e: any) {
+      // Git operations fail but file resolution should succeed
+      expect(e.message).not.toContain('File not found');
+      expect(e.message).not.toContain('path.*required');
+    }
+  });
+
+  it('history mode with symbol resolves range from DB', async () => {
+    try {
+      await handler(db, { symbol: 'x', mode: 'history' });
+    } catch (e: any) {
+      expect(e.message).not.toContain('Symbol not found');
+    }
+  });
+
+  it('ownership mode with directory scope finds matching files', async () => {
+    // Add more files under the same directory
+    db.prepare(
+      `INSERT INTO files (id, path, branch, language, source) VALUES (4, 'src/other.ts', 'main', 'typescript', 'const y = 2;')`,
+    ).run();
+    try {
+      await handler(db, { path: 'src/', mode: 'ownership', scope: 'directory' });
+    } catch (e: any) {
+      // Should find files but git ops fail
+      expect(e.message).not.toContain('No indexed files found');
+    }
+  });
+
+  it('ref injection with dashes is blocked', async () => {
+    await expect(
+      handler(db, { path: 'src/main.ts', line: 1, ref: '-exec=evil', mode: 'blame' }),
+    ).rejects.toThrow(/refs cannot start with/);
+  });
+
+  it('ref with leading whitespace and dash is blocked after trim', async () => {
+    await expect(
+      handler(db, { path: 'src/main.ts', line: 1, ref: ' --option', mode: 'blame' }),
+    ).rejects.toThrow(/refs cannot start with/);
+  });
+
+  it('valid ref passes normalization', async () => {
+    try {
+      await handler(db, { path: 'src/main.ts', line: 1, ref: 'v1.0.0', mode: 'blame' });
+    } catch (e: any) {
+      // Should not fail on ref validation
+      expect(e.message).not.toContain('refs cannot start with');
+    }
+  });
+
+  it('empty ref defaults to HEAD', async () => {
+    try {
+      await handler(db, { path: 'src/main.ts', line: 1, ref: '', mode: 'blame' });
+    } catch (e: any) {
+      expect(e.message).not.toContain('refs cannot start with');
+    }
+  });
+
+  it('ownership with symbol resolves to file scope', async () => {
+    try {
+      await handler(db, { symbol: 'x', mode: 'ownership' });
+    } catch (e: any) {
+      expect(e.message).not.toContain('Symbol not found');
+      expect(e.message).not.toContain('path.*required');
+    }
+  });
+
+  it('ownership with explicit range uses file scope', async () => {
+    try {
+      await handler(db, { path: 'src/main.ts', start_line: 1, end_line: 1, mode: 'ownership' });
+    } catch (e: any) {
+      expect(e.message).not.toContain('File not found');
+    }
+  });
+
+  it('blame mode with branch filter resolves path', async () => {
+    try {
+      await handler(db, { path: 'src/main.ts', line: 1, branch: 'main', mode: 'blame' });
+    } catch (e: any) {
+      expect(e.message).not.toContain('File not found');
+    }
+  });
+
+  it('blame mode with wrong branch throws file not found', async () => {
+    await expect(
+      handler(db, { path: 'src/main.ts', line: 1, branch: 'nonexistent', mode: 'blame' }),
+    ).rejects.toThrow(/File not found/);
   });
 });

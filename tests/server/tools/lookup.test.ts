@@ -1,10 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { openDb, type Database } from '../../../src/db/schema.js';
-import { handler, toolDef, type LookupArgs } from '../../../src/server/tools/lookup.js';
+import { handler, toolDef, clearQueryEmbeddingCache, type LookupArgs } from '../../../src/server/tools/lookup.js';
+import type { EmbeddingProvider } from '../../../src/embeddings/embedder.js';
 
 function seedDb(db: Database.Database) {
   db.prepare(
     `INSERT INTO files (id, path, branch, language, source) VALUES (1, 'src/main.ts', 'main', 'typescript', 'const x = 1;\nfunction foo() {}\nclass Bar {}')`,
+  ).run();
+  db.prepare(
+    `INSERT INTO files (id, path, branch, language, source) VALUES (2, 'src/app.py', 'main', 'python', 'def baz(): pass')`,
   ).run();
   db.prepare(
     `INSERT INTO symbols (id, file_id, name, kind, start_line, end_line, signature, is_exported)
@@ -14,9 +18,14 @@ function seedDb(db: Database.Database) {
     `INSERT INTO symbols (id, file_id, name, kind, start_line, end_line, signature, is_exported)
      VALUES (2, 1, 'Bar', 'class', 3, 3, 'class Bar', 1)`,
   ).run();
+  db.prepare(
+    `INSERT INTO symbols (id, file_id, name, kind, start_line, end_line, signature, is_exported)
+     VALUES (3, 2, 'baz', 'function', 1, 1, 'def baz()', 1)`,
+  ).run();
   // FTS index
   db.prepare(`INSERT INTO symbols_fts (rowid, name, signature, kind) VALUES (1, 'foo', '(): void', 'function')`).run();
   db.prepare(`INSERT INTO symbols_fts (rowid, name, signature, kind) VALUES (2, 'Bar', 'class Bar', 'class')`).run();
+  db.prepare(`INSERT INTO symbols_fts (rowid, name, signature, kind) VALUES (3, 'baz', 'def baz()', 'function')`).run();
 }
 
 describe('lore_lookup toolDef', () => {
@@ -253,5 +262,77 @@ describe('lore_lookup handler', () => {
   it('branch filter with nonexistent branch returns empty', async () => {
     const result = await handler(db, { kind: 'symbol', query: '', branch: 'nonexistent' });
     expect(result.results).toHaveLength(0);
+  });
+
+  it('offset skips the first N results', async () => {
+    const all = await handler(db, { kind: 'symbol', query: '' });
+    const withOffset = await handler(db, { kind: 'symbol', query: '', offset: 1 });
+    expect(withOffset.results.length).toBe(all.results.length - 1);
+  });
+
+  it('offset beyond result count returns empty', async () => {
+    const result = await handler(db, { kind: 'symbol', query: '', offset: 1000 });
+    expect(result.results).toHaveLength(0);
+  });
+
+  it('limit and offset together for pagination', async () => {
+    const page1 = await handler(db, { kind: 'symbol', query: '', limit: 1, offset: 0 });
+    const page2 = await handler(db, { kind: 'symbol', query: '', limit: 1, offset: 1 });
+    expect(page1.results).toHaveLength(1);
+    expect(page2.results).toHaveLength(1);
+    expect((page1.results[0] as any).name).not.toBe((page2.results[0] as any).name);
+  });
+
+  it('file lookup with language filter returns matching file', async () => {
+    // kind=file doesn't support language filter directly, but path resolution works
+    const result = await handler(db, { kind: 'file', query: 'src/app.py' });
+    expect(result.results.length).toBe(1);
+    expect((result.results[0] as any).path).toBe('src/app.py');
+    expect((result.results[0] as any).language).toBe('python');
+  });
+
+  it('external symbols are only included for exact match with no filters', async () => {
+    db.prepare(
+      `INSERT INTO external_symbols (id, symbol_name, symbol_kind, package_name, definition_path, definition_uri)
+       VALUES (10, 'uniqueExternal', 'function', 'ext-pkg', 'ext/index.d.ts', 'file:///ext/index.d.ts')`,
+    ).run();
+    // Exact match with no path_prefix or language → included
+    const result = await handler(db, { kind: 'symbol', query: 'uniqueExternal' });
+    expect(result.results.length).toBeGreaterThanOrEqual(1);
+    const hasExternal = result.results.some((r: any) => (r.name ?? r.symbol_name) === 'uniqueExternal');
+    expect(hasExternal).toBe(true);
+  });
+
+  it('semantic mode with throwing embedder falls back gracefully', async () => {
+    const throwingEmbedder: EmbeddingProvider = {
+      embed: async () => { throw new Error('embed failed'); },
+      dimensions: 3,
+      modelName: 'test-throw',
+    } as unknown as EmbeddingProvider;
+    const result = await handler(db, { kind: 'symbol', query: 'foo', mode: 'semantic' }, throwingEmbedder);
+    // Should fall back to exact
+    expect(result.mode_used).toContain('fallback');
+  });
+
+  it('clearQueryEmbeddingCache does not throw', () => {
+    expect(() => clearQueryEmbeddingCache()).not.toThrow();
+  });
+
+  it('symbol lookup with all filters combined', async () => {
+    const result = await handler(db, {
+      kind: 'symbol',
+      query: 'foo',
+      symbol_kind: 'function',
+      path_prefix: 'src/',
+      language: 'typescript',
+      branch: 'main',
+    });
+    expect(result.results.length).toBeGreaterThanOrEqual(1);
+    expect((result.results[0] as any).name).toBe('foo');
+  });
+
+  it('file listing returns multiple files', async () => {
+    const result = await handler(db, { kind: 'file', query: '' });
+    expect(result.results.length).toBeGreaterThanOrEqual(2);
   });
 });

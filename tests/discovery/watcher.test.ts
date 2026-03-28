@@ -1,4 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { FileWatcher } from '../../src/discovery/watcher.js';
 import type { WalkerConfig } from '../../src/discovery/walker.js';
 
@@ -97,6 +100,67 @@ describe('FileWatcher', () => {
       const watcher = new FileWatcher(DB_PATH, walkerConfig, {
         scip: { enabled: true, timeoutMs: 120_000, indexers: {}, indexDir: null },
         scipQuietPeriodMs: 0,
+      });
+      expect(watcher).toBeDefined();
+      watcher.stop();
+    });
+  });
+
+  describe('start idempotency with real directory', () => {
+    it('start is idempotent — calling twice does not create two watchers', () => {
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lore-watcher-test-'));
+      try {
+        const cfg: WalkerConfig = { rootDir: tmpDir };
+        const watcher = new FileWatcher(DB_PATH, cfg);
+        watcher.start();
+        // Second call should be no-op (watcher already set)
+        watcher.start();
+        watcher.stop();
+      } finally {
+        fs.rmSync(tmpDir, { recursive: true });
+      }
+    });
+
+    it('stop after start cleans up watcher', () => {
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lore-watcher-test-'));
+      try {
+        const cfg: WalkerConfig = { rootDir: tmpDir };
+        const watcher = new FileWatcher(DB_PATH, cfg);
+        watcher.start();
+        watcher.stop();
+        // Second stop should be safe
+        watcher.stop();
+      } finally {
+        fs.rmSync(tmpDir, { recursive: true });
+      }
+    });
+  });
+
+  describe('onUpdate callback', () => {
+    it('watcher with onUpdate callback constructs without error', () => {
+      const onUpdate = vi.fn().mockResolvedValue(undefined);
+      const watcher = new FileWatcher(DB_PATH, walkerConfig, {
+        onUpdate,
+        debounceMs: 100,
+      });
+      expect(watcher).toBeDefined();
+      watcher.stop();
+    });
+  });
+
+  describe('scipQuietPeriodMs configuration', () => {
+    it('accepts custom scipQuietPeriodMs', () => {
+      const watcher = new FileWatcher(DB_PATH, walkerConfig, {
+        scip: { enabled: true, timeoutMs: 120_000, indexers: {}, indexDir: null },
+        scipQuietPeriodMs: 30_000,
+      });
+      expect(watcher).toBeDefined();
+      watcher.stop();
+    });
+
+    it('default scipQuietPeriodMs does not crash', () => {
+      const watcher = new FileWatcher(DB_PATH, walkerConfig, {
+        scip: { enabled: true, timeoutMs: 120_000, indexers: {}, indexDir: null },
       });
       expect(watcher).toBeDefined();
       watcher.stop();

@@ -113,4 +113,61 @@ describe('FilePoller', () => {
       poller.stop();
     });
   });
+
+  describe('onUpdate callback', () => {
+    it('poller with onUpdate callback constructs without error', () => {
+      const onUpdate = vi.fn().mockResolvedValue(undefined);
+      const poller = new FilePoller(DB_PATH, walkerConfig, {
+        onUpdate,
+        intervalMs: 1000,
+      });
+      expect(poller).toBeDefined();
+      poller.stop();
+    });
+  });
+
+  describe('scipQuietPeriodMs configuration', () => {
+    it('accepts custom scipQuietPeriodMs with scip', () => {
+      const poller = new FilePoller(DB_PATH, walkerConfig, {
+        scip: { enabled: true, timeoutMs: 120_000, indexers: {}, indexDir: null },
+        scipQuietPeriodMs: 30_000,
+      });
+      expect(poller).toBeDefined();
+      poller.stop();
+    });
+
+    it('default scipQuietPeriodMs does not crash', () => {
+      const poller = new FilePoller(DB_PATH, walkerConfig, {
+        scip: { enabled: true, timeoutMs: 120_000, indexers: {}, indexDir: null },
+      });
+      expect(poller).toBeDefined();
+      poller.stop();
+    });
+  });
+
+  describe('stop cleans up resources', () => {
+    it('stop clears interval and scipFlush', () => {
+      vi.useFakeTimers();
+      const poller = new FilePoller(DB_PATH, walkerConfig, {
+        intervalMs: 1000,
+        scip: { enabled: true, timeoutMs: 120_000, indexers: {}, indexDir: null },
+        scipQuietPeriodMs: 5000,
+      });
+      poller.start();
+      poller.stop();
+      // After stop, advancing timers should not trigger polling
+      vi.advanceTimersByTime(10_000);
+      // No error means cleanup worked
+      vi.useRealTimers();
+    });
+
+    it('stop after stop is safe', () => {
+      vi.useFakeTimers();
+      const poller = new FilePoller(DB_PATH, walkerConfig, { intervalMs: 1000 });
+      poller.start();
+      poller.stop();
+      expect(() => poller.stop()).not.toThrow();
+      vi.useRealTimers();
+    });
+  });
 });

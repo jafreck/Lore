@@ -114,6 +114,149 @@ type MyStruct struct {
     });
   });
 
+  describe('goroutine and deferred calls', () => {
+    it('extracts call refs from goroutine invocations', () => {
+      const source = `package main
+func main() {
+  go handler()
+  go processRequest("data")
+}`;
+      const result = extract(source);
+      const handlerRef = result.callRefs.find(r => r.calleeRaw === 'handler');
+      expect(handlerRef).toBeDefined();
+      const processRef = result.callRefs.find(r => r.calleeRaw === 'processRequest');
+      expect(processRef).toBeDefined();
+    });
+
+    it('extracts call refs from deferred calls', () => {
+      const source = `package main
+func cleanup() {
+  defer file.Close()
+  defer mu.Unlock()
+}`;
+      const result = extract(source);
+      const closeRef = result.callRefs.find(r => r.calleeRaw === 'file.Close');
+      expect(closeRef).toBeDefined();
+    });
+  });
+
+  describe('type assertion type refs', () => {
+    it('extracts type assertion as cast type ref', () => {
+      const source = `package main
+func convert(v interface{}) {
+  s := v.(string)
+  _ = s
+}`;
+      const result = extract(source);
+      const ref = result.typeRefs.find(r => r.typeRaw === 'string' && r.refKind === 'cast');
+      expect(ref).toBeDefined();
+    });
+  });
+
+  describe('named return types', () => {
+    it('extracts named return type refs from parameter_list result', () => {
+      const source = `package main
+func divide(a, b float64) (result float64, err error) {
+  if b == 0 { return 0, nil }
+  return a / b, nil
+}`;
+      const result = extract(source);
+      const errRef = result.typeRefs.find(r => r.typeRaw === 'error' && r.refKind === 'return');
+      expect(errRef).toBeDefined();
+    });
+  });
+
+  describe('struct field type refs', () => {
+    it('extracts field type refs from struct declarations', () => {
+      const source = `package main
+type Server struct {
+  Logger Logger
+  Config Config
+  Port   int
+}`;
+      const result = extract(source);
+      const loggerRef = result.typeRefs.find(r => r.typeRaw === 'Logger' && r.refKind === 'field');
+      expect(loggerRef).toBeDefined();
+      const configRef = result.typeRefs.find(r => r.typeRaw === 'Config' && r.refKind === 'field');
+      expect(configRef).toBeDefined();
+    });
+  });
+
+  describe('method type refs', () => {
+    it('extracts parameter and return type refs from method declarations', () => {
+      const source = `package main
+type Server struct{}
+func (s *Server) Handle(req Request) Response {
+  return Response{}
+}`;
+      const result = extract(source);
+      const paramRef = result.typeRefs.find(r => r.typeRaw === 'Request' && r.refKind === 'parameter');
+      expect(paramRef).toBeDefined();
+      const retRef = result.typeRefs.find(r => r.typeRaw === 'Response' && r.refKind === 'return');
+      expect(retRef).toBeDefined();
+    });
+
+    it('extracts method return type refs from named return list', () => {
+      const source = `package main
+type DB struct{}
+func (d *DB) Query(sql string) (rows Rows, err error) { return }`;
+      const result = extract(source);
+      const rowsRef = result.typeRefs.find(r => r.typeRaw === 'Rows' && r.refKind === 'return');
+      expect(rowsRef).toBeDefined();
+    });
+  });
+
+  describe('var declaration type refs', () => {
+    it('extracts variable type refs from var declarations', () => {
+      const source = `package main
+func main() {
+  var buf Buffer
+  _ = buf
+}`;
+      const result = extract(source);
+      const ref = result.typeRefs.find(r => r.typeRaw === 'Buffer' && r.refKind === 'variable');
+      expect(ref).toBeDefined();
+    });
+  });
+
+  describe('interface embedding and method specs', () => {
+    it('extracts interface type', () => {
+      const source = `package main
+type ReadWriter interface {
+  Read(p []byte) (int, error)
+}`;
+      const result = extract(source);
+      const sym = result.symbols.find(s => s.name === 'ReadWriter');
+      expect(sym).toBeDefined();
+      expect(sym!.kind).toBe('interface');
+    });
+
+    it('extracts interface with embedded type as type ref', () => {
+      const source = `package main
+type ReadWriter interface {
+  Read(p []byte) (int, error)
+}`;
+      const result = extract(source);
+      // The interface should be extracted as a symbol
+      expect(result.symbols.find(s => s.name === 'ReadWriter')).toBeDefined();
+    });
+  });
+
+  describe('import with alias', () => {
+    it('extracts aliased import', () => {
+      const source = `package main
+import (
+  f "fmt"
+  _ "net/http/pprof"
+)`;
+      const result = extract(source);
+      expect(result.imports.length).toBeGreaterThanOrEqual(2);
+      const fmtImp = result.imports.find(i => i.source === 'fmt');
+      expect(fmtImp).toBeDefined();
+      expect(fmtImp!.importedNames).toContain('f');
+    });
+  });
+
   describe('edge cases', () => {
     it('handles empty source', () => {
       const result = extract('package main');

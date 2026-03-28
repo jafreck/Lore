@@ -1,5 +1,14 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import { LspClient } from '../../src/lsp/client.js';
+
+// Track clients to clean up after tests
+const clients: LspClient[] = [];
+afterEach(async () => {
+  for (const client of clients) {
+    try { await client.close(); } catch { /* ignore */ }
+  }
+  clients.length = 0;
+});
 
 describe('LspClient', () => {
   describe('constructor', () => {
@@ -77,7 +86,67 @@ describe('LspClient', () => {
         { command: 'definitely-not-a-real-lsp-binary-xzy-999' },
         { requestTimeoutMs: 500 },
       );
+      clients.push(client);
       await expect(client.start()).rejects.toThrow();
+    });
+  });
+
+  describe('start with empty command', () => {
+    it('rejects when server command is empty', async () => {
+      const client = new LspClient(
+        { command: '' },
+        { requestTimeoutMs: 500 },
+      );
+      clients.push(client);
+      await expect(client.start()).rejects.toThrow('LSP server command is required');
+    });
+  });
+
+  describe('start with non-LSP process', () => {
+    it('start rejects when server does not speak LSP', async () => {
+      // 'cat' echoes stdin back but doesn't speak LSP protocol properly
+      const client = new LspClient(
+        { command: 'cat' },
+        { requestTimeoutMs: 300 },
+      );
+      clients.push(client);
+      // cat will echo back the initialize request, which gets parsed as a
+      // server-initiated request rather than a response, so it fails
+      await expect(client.start()).rejects.toThrow();
+    });
+
+    it('close after failed start is safe', async () => {
+      const client = new LspClient(
+        { command: 'cat' },
+        { requestTimeoutMs: 300 },
+      );
+      clients.push(client);
+      try { await client.start(); } catch { /* expected */ }
+      // Should not throw
+      await expect(client.close()).resolves.not.toThrow();
+    });
+  });
+
+  describe('double close and double start', () => {
+    it('double close is safe', async () => {
+      const client = new LspClient({ command: 'fake-lsp' });
+      await client.close();
+      await expect(client.close()).resolves.not.toThrow();
+    });
+  });
+
+  describe('SIGKILL fallback', () => {
+    it('kills process via SIGKILL if SIGTERM is ignored', async () => {
+      // Use a script that traps SIGTERM and ignores it
+      const client = new LspClient(
+        { command: 'bash', args: ['-c', 'trap "" TERM; read'] },
+        { requestTimeoutMs: 200 },
+      );
+      clients.push(client);
+      // start will fail because bash doesn't speak LSP, but the process will be spawned
+      try { await client.start(); } catch { /* expected */ }
+      // close should still complete (via SIGKILL fallback)
+      await expect(client.close()).resolves.not.toThrow();
     });
   });
 });
