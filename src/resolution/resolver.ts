@@ -175,16 +175,21 @@ export class ImportResolver {
       return { rawSource: source, isExternal: false };
     }
 
-    // Check Cargo.toml to distinguish workspace crates from third-party deps.
-    const cargoDeps = this.parseCargoToml(rootDir);
     const crateName = source.split('::')[0] ?? source;
+
+    // Path dependencies and workspace members are internal crates.
+    const internalCrates = this.parseCargoInternalCrates(rootDir);
+    if (internalCrates.has(crateName)) {
+      return { rawSource: source, isExternal: false };
+    }
+
+    // Check Cargo.toml to distinguish listed third-party deps.
+    const cargoDeps = this.parseCargoToml(rootDir);
     if (cargoDeps.has(crateName)) {
       return { rawSource: source, isExternal: true };
     }
 
-    // If the crate name isn't in Cargo.toml [dependencies], assume it's
-    // a workspace-internal crate or stdlib crate — mark as external since
-    // we can't resolve the file path without a full crate graph.
+    // Unrecognised crate — likely stdlib or truly external.
     return this.markExternal(source);
   }
 
@@ -280,7 +285,7 @@ export class ImportResolver {
     return moduleName;
   }
 
-  /** Returns the set of crate names declared in Cargo.toml [dependencies]. */
+  /** Returns the set of external crate names declared in Cargo.toml [dependencies] (excludes path deps). */
   private parseCargoToml(rootDir: string): Set<string> {
     const cacheKey = `cargo:${rootDir}`;
     if (this.manifestCache.has(cacheKey)) return this.manifestCache.get(cacheKey)!;
@@ -296,7 +301,12 @@ export class ImportResolver {
         if (/^\[/.test(line)) { inDeps = false; continue; }
         if (inDeps) {
           const m = line.match(/^([A-Za-z0-9_-]+)\s*=/);
-          if (m) deps.add(m[1]!);
+          if (m) {
+            // Skip path dependencies — they are internal crates
+            const value = line.slice(line.indexOf('=') + 1);
+            if (/path\s*=/.test(value)) continue;
+            deps.add(m[1]!);
+          }
         }
       }
     } catch {
@@ -305,6 +315,67 @@ export class ImportResolver {
 
     this.manifestCache.set(cacheKey, deps);
     return deps;
+  }
+
+  /**
+   * Returns the set of crate names that are workspace members or path
+   * dependencies — these are internal to the repository.
+   */
+  private parseCargoInternalCrates(rootDir: string): Set<string> {
+    const cacheKey = `cargo-internal:${rootDir}`;
+    if (this.manifestCache.has(cacheKey)) return this.manifestCache.get(cacheKey)!;
+
+    const internal = new Set<string>();
+    const cargoPath = path.join(rootDir, 'Cargo.toml');
+    try {
+      const raw = fs.readFileSync(cargoPath, 'utf8');
+      let inDeps = false;
+      let inWorkspace = false;
+      let inMembers = false;
+
+      for (const line of raw.split('\n')) {
+        const trimmed = line.trim();
+
+        // Track which TOML section we're in
+        if (/^\[dependencies\]/.test(trimmed)) { inDeps = true; inWorkspace = false; inMembers = false; continue; }
+        if (/^\[workspace\]/.test(trimmed)) { inWorkspace = true; inDeps = false; inMembers = false; continue; }
+        if (/^\[/.test(trimmed)) { inDeps = false; inWorkspace = false; inMembers = false; continue; }
+
+        // Collect path dependencies from [dependencies]
+        if (inDeps) {
+          const m = trimmed.match(/^([A-Za-z0-9_-]+)\s*=/);
+          if (m) {
+            const value = line.slice(line.indexOf('=') + 1);
+            if (/path\s*=/.test(value)) {
+              // Normalise crate name: Rust crate names use underscores in code
+              internal.add(m[1]!.replace(/-/g, '_'));
+            }
+          }
+        }
+
+        // Collect workspace members from [workspace] members = [...]
+        if (inWorkspace) {
+          if (/^members\s*=/.test(trimmed)) inMembers = true;
+          if (inMembers) {
+            // Match quoted member paths like "my-crate" or "crates/foo"
+            const memberMatches = trimmed.matchAll(/"([^"]+)"/g);
+            for (const mm of memberMatches) {
+              // The last path segment is the crate directory name
+              const memberPath = mm[1]!;
+              const crateName = memberPath.split('/').pop()!;
+              internal.add(crateName.replace(/-/g, '_'));
+            }
+            // End of array
+            if (trimmed.includes(']')) inMembers = false;
+          }
+        }
+      }
+    } catch {
+      // No Cargo.toml
+    }
+
+    this.manifestCache.set(cacheKey, internal);
+    return internal;
   }
 
   // ─── Low-level helpers ────────────────────────────────────────────────────

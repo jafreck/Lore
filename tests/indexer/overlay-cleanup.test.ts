@@ -58,16 +58,16 @@ describe('OverlayCleanupStage', () => {
       "INSERT INTO files (path, branch, language, size_bytes, source, layer, generation) VALUES (?, ?, ?, ?, ?, ?, ?)",
     ).run('/src/d.ts', 'HEAD', 'typescript', 10, 'overlay-old', 'overlay', 0);
     db.prepare(
-      "INSERT INTO dirty_files (path, dirty_since, overlay_gen) VALUES (?, ?, ?)",
-    ).run('/src/d.ts', 1000, 0);
+      "INSERT INTO dirty_files (path, branch, dirty_since, overlay_gen) VALUES (?, ?, ?, ?)",
+    ).run('/src/d.ts', 'HEAD', 1000, 0);
 
     // Overlay row for a file dirtied DURING rebuild (should be kept)
     db.prepare(
       "INSERT INTO files (path, branch, language, size_bytes, source, layer, generation) VALUES (?, ?, ?, ?, ?, ?, ?)",
     ).run('/src/e.ts', 'HEAD', 'typescript', 10, 'overlay-active', 'overlay', 0);
     db.prepare(
-      "INSERT INTO dirty_files (path, dirty_since, overlay_gen) VALUES (?, ?, ?)",
-    ).run('/src/e.ts', 3000, 0);
+      "INSERT INTO dirty_files (path, branch, dirty_since, overlay_gen) VALUES (?, ?, ?, ?)",
+    ).run('/src/e.ts', 'HEAD', 3000, 0);
 
     setLoreMeta(db, 'generation', '1');
   }
