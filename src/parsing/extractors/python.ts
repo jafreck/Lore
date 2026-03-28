@@ -41,7 +41,7 @@ export class PythonExtractor implements SymbolExtractor {
           // or directly as a function_definition with an 'async' keyword child
           const inner = node.childForFieldName('definition');
           if (inner?.type === 'function_definition') {
-            result.symbols.push(extractFunction(inner, isAsync(node)));
+            result.symbols.push(extractFunction(inner, isAsync(inner)));
           } else if (inner?.type === 'class_definition') {
             result.symbols.push(extractClass(inner));
           }

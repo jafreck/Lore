@@ -156,7 +156,7 @@ export class FileWatcher {
       clearTimeout(this.debounceTimer);
       this.debounceTimer = null;
     }
-    this.scipFlush?.cancel();
+    this.scipFlush?.stop();
     if (this.watcher) {
       this.watcher.close();
       this.watcher = null;
