@@ -327,22 +327,6 @@ function looksLikeSignature(text: string): boolean {
 
 /**
  * Extract a return type from a type signature string.
- * Reuses the same heuristics as LSP enrichment.
+ * Re-exported from enrichment-types for backward compatibility.
  */
-export function extractReturnType(signature: string | null): string | null {
-  if (!signature) return null;
-  const lines = signature.split('\n').map((l) => l.trim()).filter(Boolean);
-  if (lines.length === 0) return null;
-  const firstLine = lines[0]!;
-
-  const functionStyle = firstLine.match(/\)\s*:\s*([^={]+)$/u);
-  if (functionStyle?.[1]) return functionStyle[1].trim();
-
-  const arrowStyle = firstLine.match(/->\s*([^={]+)$/u);
-  if (arrowStyle?.[1]) return arrowStyle[1].trim();
-
-  const colonStyle = firstLine.match(/:\s*([^={]+)$/u);
-  if (colonStyle?.[1]) return colonStyle[1].trim();
-
-  return null;
-}
+export { extractReturnType } from '../enrichment-types.js';

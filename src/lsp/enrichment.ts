@@ -2,16 +2,9 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { LspClient, type LspClientOptions, type LspPosition, type LspServerCommand } from './client.js';
 import type { EffectiveLspSettings } from './config.js';
 import { resolveLspServerRegistry, type ResolvedLspServerCommand } from './registry.js';
-import { extractReturnType } from '../scip/index-reader.js';
+import { extractReturnType, type ResolvedTypeMetadata } from '../enrichment-types.js';
 
-export interface ResolvedTypeMetadata {
-  resolvedTypeSignature: string | null;
-  resolvedReturnType: string | null;
-  definitionUri: string | null;
-  definitionPath: string | null;
-  definitionLine: number | null;
-  definitionCharacter: number | null;
-}
+export type { ResolvedTypeMetadata } from '../enrichment-types.js';
 
 export interface LspEnrichmentTarget {
   line: number;
