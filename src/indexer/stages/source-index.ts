@@ -543,6 +543,13 @@ function insertFileAndExtractions(
   generation = 0,
   workerSymbolMetrics?: WorkerSymbolMetrics[],
 ): void {
+  // Wrap in a transaction so that overlay rows and the dirty_files marker
+  // become visible atomically.  Without this, a concurrent reader can see
+  // the path in dirty_files (which hides the baseline row) before any
+  // overlay data has been written, causing the file to vanish from all
+  // effective_* views.  better-sqlite3 uses SAVEPOINTs for nesting, so
+  // this is safe when called from an outer batch transaction.
+  db.transaction(() => {
 
   // Upsert the file row
   let fileId: number;
@@ -588,10 +595,6 @@ function insertFileAndExtractions(
         lastInsertRowid: number | bigint;
       };
     fileId = Number(info.lastInsertRowid);
-    // Mark file as dirty
-    db.prepare(
-      'INSERT OR REPLACE INTO dirty_files (path, branch, dirty_since, overlay_gen) VALUES (?, ?, unixepoch(), ?)',
-    ).run(filePath, branch, generation);
   } else {
     // Baseline mode, new file
     const info = db
@@ -742,6 +745,17 @@ function insertFileAndExtractions(
     const symId = symRefEntries ? resolveByLine(symRefEntries, ref.line) : null;
     insertTypeRef.run(fileId, symId, ref.typeRaw, normalizeTypeName(ref.typeRaw), ref.refKind, ref.line, ref.character ?? null, layer, generation);
   }
+
+  // Mark file as dirty AFTER all overlay data has been written.
+  // This is the last write so that effective_files switches from baseline
+  // to overlay only once the overlay row and all its children exist.
+  if (layer === 'overlay') {
+    db.prepare(
+      'INSERT OR REPLACE INTO dirty_files (path, branch, dirty_since, overlay_gen) VALUES (?, ?, unixepoch(), ?)',
+    ).run(filePath, branch, generation);
+  }
+
+  })(); // end transaction
 }
 
 // ─── Parallel worker orchestration ────────────────────────────────────────────
