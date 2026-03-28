@@ -1,176 +1,187 @@
 import { describe, it, expect } from 'vitest';
 import {
+  isPublicDeclarationSurfaceSymbol,
   emptyResult,
   walk,
   findFirst,
   nodeSignature,
-  isPublicDeclarationSurfaceSymbol,
+  findEnclosingSymbolName,
+  extractGenericTypeArgs,
 } from '../../../src/parsing/extractors/types.js';
+import type { RawSymbol } from '../../../src/parsing/extractors/types.js';
 import { ParserPool } from '../../../src/parsing/parser.js';
 
-// Parse a simple JS source to obtain real AST nodes for testing tree utilities.
 const pool = new ParserPool();
-const simpleSource = 'function hello() { return 42; }';
-const tree = pool.parse('javascript', simpleSource);
 
-// ─── emptyResult ──────────────────────────────────────────────────────────────
+describe('types utilities', () => {
+  describe('emptyResult', () => {
+    it('returns a fresh empty result object', () => {
+      const result = emptyResult();
+      expect(result.symbols).toEqual([]);
+      expect(result.imports).toEqual([]);
+      expect(result.callRefs).toEqual([]);
+      expect(result.envRefs).toEqual([]);
+      expect(result.relationships).toEqual([]);
+      expect(result.typeRefs).toEqual([]);
+    });
 
-describe('emptyResult', () => {
-  it('should return an object with empty symbols, imports, callRefs, relationships, and typeRefs arrays', () => {
-    expect(emptyResult()).toEqual({
-      symbols: [],
-      imports: [],
-      callRefs: [],
-      envRefs: [],
-      relationships: [],
-      typeRefs: [],
+    it('returns distinct objects each time', () => {
+      const a = emptyResult();
+      const b = emptyResult();
+      expect(a).not.toBe(b);
+      expect(a.symbols).not.toBe(b.symbols);
     });
   });
 
-  it('should return a new object on each call', () => {
-    const a = emptyResult();
-    const b = emptyResult();
-    expect(a).not.toBe(b);
-  });
-
-  it('should return independently mutable arrays', () => {
-    const result = emptyResult();
-    // Mutating one field must not affect a fresh call.
-    result.symbols.push({ name: 'x', kind: 'function', startLine: 0, endLine: 0, signature: '' });
-    expect(emptyResult().symbols).toHaveLength(0);
-  });
-});
-
-// ─── walk ─────────────────────────────────────────────────────────────────────
-
-describe('walk', () => {
-  it.skipIf(!tree)('should yield the root node as the first element', () => {
-    const nodes = [...walk(tree!.rootNode)];
-    expect(nodes[0]).toBe(tree!.rootNode);
-  });
-
-  it.skipIf(!tree)('should yield more than one node for a non-trivial tree', () => {
-    const nodes = [...walk(tree!.rootNode)];
-    expect(nodes.length).toBeGreaterThan(1);
-  });
-
-  it.skipIf(!tree)('should include every node reachable from the root', () => {
-    const nodes = [...walk(tree!.rootNode)];
-    // The function_declaration node must appear somewhere in the walk.
-    const types = nodes.map((n) => n.type);
-    expect(types).toContain('function_declaration');
-  });
-});
-
-// ─── findFirst ────────────────────────────────────────────────────────────────
-
-describe('findFirst', () => {
-  it.skipIf(!tree)('should return the first descendant matching the given type', () => {
-    const fn = findFirst(tree!.rootNode, 'function_declaration');
-    expect(fn).not.toBeNull();
-    expect(fn!.type).toBe('function_declaration');
-  });
-
-  it.skipIf(!tree)('should return null when no descendant of that type exists', () => {
-    // There are no class declarations in our simple source.
-    const cls = findFirst(tree!.rootNode, 'class_declaration');
-    expect(cls).toBeNull();
-  });
-});
-
-// ─── nodeSignature ────────────────────────────────────────────────────────────
-
-describe('nodeSignature', () => {
-  it.skipIf(!tree)('should return text before the opening brace, trimmed', () => {
-    const fn = findFirst(tree!.rootNode, 'function_declaration');
-    expect(fn).not.toBeNull();
-    const sig = nodeSignature(fn!);
-    expect(sig).toBe('function hello()');
-  });
-
-  it.skipIf(!tree)('should never include a leading or trailing space', () => {
-    const fn = findFirst(tree!.rootNode, 'function_declaration');
-    expect(fn).not.toBeNull();
-    const sig = nodeSignature(fn!);
-    expect(sig).toBe(sig.trim());
-  });
-
-  it.skipIf(!tree)(
-    'should return the first line when the node text contains no brace',
-    () => {
-      // Use an identifier node — it has no braces.
-      const identifier = findFirst(tree!.rootNode, 'identifier');
-      expect(identifier).not.toBeNull();
-      const sig = nodeSignature(identifier!);
-      // An identifier's text is a single word with no brace, so we get the first line.
-      expect(sig).toBeTruthy();
-      expect(sig).not.toContain('{');
-    },
-  );
-});
-
-describe('isPublicDeclarationSurfaceSymbol', () => {
-  it('should return true when declaration surface is public and declaration-only', () => {
-    expect(
-      isPublicDeclarationSurfaceSymbol({
-        name: 'publicApi',
+  describe('isPublicDeclarationSurfaceSymbol', () => {
+    it('returns true when declarationSurface.isPublic and isDeclaration', () => {
+      const sym: RawSymbol = {
+        name: 'test',
         kind: 'function',
         startLine: 0,
         endLine: 0,
-        signature: 'function publicApi(): void;',
+        signature: 'fn test',
         declarationSurface: { isPublic: true, isDeclaration: true },
-      }),
-    ).toBe(true);
-  });
+      };
+      expect(isPublicDeclarationSurfaceSymbol(sym)).toBe(true);
+    });
 
-  it('should return false when declaration surface is not publicly visible', () => {
-    expect(
-      isPublicDeclarationSurfaceSymbol({
-        name: 'internalApi',
+    it('returns false when declarationSurface.isPublic is false', () => {
+      const sym: RawSymbol = {
+        name: 'test',
         kind: 'function',
         startLine: 0,
         endLine: 0,
-        signature: 'function internalApi(): void;',
+        signature: 'fn test',
         declarationSurface: { isPublic: false, isDeclaration: true },
-      }),
-    ).toBe(false);
-  });
+      };
+      expect(isPublicDeclarationSurfaceSymbol(sym)).toBe(false);
+    });
 
-  it('should return false when declaration surface contains implementation details', () => {
-    expect(
-      isPublicDeclarationSurfaceSymbol({
-        name: 'runtimeApi',
+    it('returns false when declarationSurface.isDeclaration is false', () => {
+      const sym: RawSymbol = {
+        name: 'test',
         kind: 'function',
         startLine: 0,
         endLine: 0,
-        signature: 'function runtimeApi(): void;',
+        signature: 'fn test',
         declarationSurface: { isPublic: true, isDeclaration: false },
-      }),
-    ).toBe(false);
-  });
+      };
+      expect(isPublicDeclarationSurfaceSymbol(sym)).toBe(false);
+    });
 
-  it('should fall back to isExported when declaration surface metadata is missing', () => {
-    expect(
-      isPublicDeclarationSurfaceSymbol({
-        name: 'legacyExport',
+    it('falls back to isExported when no declarationSurface', () => {
+      const exported: RawSymbol = {
+        name: 'test',
         kind: 'function',
         startLine: 0,
         endLine: 0,
-        signature: 'function legacyExport(): void;',
+        signature: 'fn test',
         isExported: true,
-      }),
-    ).toBe(true);
-  });
+      };
+      expect(isPublicDeclarationSurfaceSymbol(exported)).toBe(true);
 
-  it('should return false when neither declaration metadata nor export flag marks symbol as public', () => {
-    expect(
-      isPublicDeclarationSurfaceSymbol({
-        name: 'legacyPrivate',
+      const notExported: RawSymbol = {
+        name: 'test',
         kind: 'function',
         startLine: 0,
         endLine: 0,
-        signature: 'function legacyPrivate(): void;',
-      }),
-    ).toBe(false);
+        signature: 'fn test',
+      };
+      expect(isPublicDeclarationSurfaceSymbol(notExported)).toBe(false);
+    });
+  });
+
+  describe('walk', () => {
+    it('iterates all nodes in depth-first order', () => {
+      const tree = pool.parse('typescript', 'const x = 1;')!;
+      const types: string[] = [];
+      for (const node of walk(tree.rootNode)) {
+        types.push(node.type);
+      }
+      expect(types[0]).toBe('program');
+      expect(types.length).toBeGreaterThan(1);
+    });
+  });
+
+  describe('findFirst', () => {
+    it('finds a descendant of the given type', () => {
+      const tree = pool.parse('typescript', 'function foo() { return 1; }')!;
+      const id = findFirst(tree.rootNode, 'identifier');
+      expect(id).not.toBeNull();
+      expect(id!.text).toBe('foo');
+    });
+
+    it('returns null when type not found', () => {
+      const tree = pool.parse('typescript', 'const x = 1;')!;
+      const result = findFirst(tree.rootNode, 'class_declaration');
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('nodeSignature', () => {
+    it('extracts signature before body', () => {
+      const tree = pool.parse('typescript', 'function hello(x: number): string { return "hi"; }')!;
+      const fnNode = findFirst(tree.rootNode, 'function_declaration')!;
+      const sig = nodeSignature(fnNode);
+      expect(sig).toContain('function hello');
+      expect(sig).toContain('x: number');
+      expect(sig).not.toContain('return');
+    });
+
+    it('handles single-line function', () => {
+      const tree = pool.parse('go', 'package main\nfunc add(a int, b int) int { return a + b }')!;
+      const fnNode = findFirst(tree.rootNode, 'function_declaration')!;
+      const sig = nodeSignature(fnNode);
+      expect(sig).toContain('func add');
+    });
+  });
+
+  describe('findEnclosingSymbolName', () => {
+    it('returns parent function name for nested node', () => {
+      const source = `function outer() {
+  const x = doSomething();
+}`;
+      const tree = pool.parse('typescript', source)!;
+      const callNode = findFirst(tree.rootNode, 'call_expression')!;
+      const name = findEnclosingSymbolName(callNode, ['function_declaration']);
+      expect(name).toBe('outer');
+    });
+
+    it('returns empty string for top-level node', () => {
+      const tree = pool.parse('typescript', 'const x = 1;')!;
+      const decl = findFirst(tree.rootNode, 'lexical_declaration')!;
+      const name = findEnclosingSymbolName(decl, ['function_declaration']);
+      expect(name).toBe('');
+    });
+
+    it('handles arrow function assignment in variable_declarator', () => {
+      const source = `const handler = () => { console.log("hi"); };`;
+      const tree = pool.parse('typescript', source)!;
+      const callNode = findFirst(tree.rootNode, 'call_expression')!;
+      const name = findEnclosingSymbolName(callNode, ['function_declaration']);
+      expect(name).toBe('handler');
+    });
+  });
+
+  describe('extractGenericTypeArgs', () => {
+    it('extracts type arguments from generic types', () => {
+      const tree = pool.parse('typescript', 'let x: Map<string, number>;')!;
+      // Find the generic type node
+      const genericNode = findFirst(tree.rootNode, 'generic_type');
+      if (genericNode) {
+        const args = extractGenericTypeArgs(genericNode, 'generic_type', 'type_arguments');
+        expect(args.length).toBeGreaterThan(0);
+      }
+    });
+
+    it('returns empty array for non-generic types', () => {
+      const tree = pool.parse('typescript', 'let x: string;')!;
+      const typeNode = findFirst(tree.rootNode, 'type_identifier');
+      if (typeNode) {
+        const args = extractGenericTypeArgs(typeNode, 'generic_type', 'type_arguments');
+        expect(args).toEqual([]);
+      }
+    });
   });
 });

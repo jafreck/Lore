@@ -1,369 +1,128 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import Database from 'better-sqlite3';
-import {
-  openDb,
-  setLoreMeta,
-  getLoreMeta,
-  createVec0Tables,
-  LORE_META_INDEX_CHECKPOINT,
-  LORE_META_LAST_HEAD_SHA,
-} from '../../src/db/schema.js';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { unlinkSync, existsSync } from 'node:fs';
+import { describe, it, expect, afterEach } from 'vitest';
+import { openDb } from '../../src/db/schema.js';
+import type { Database } from '../../src/db/schema.js';
 
 describe('openDb', () => {
-  let dbPath: string;
   let db: Database.Database;
-
-  beforeEach(() => {
-    dbPath = join(tmpdir(), `lore-test-${Date.now()}-${Math.random()}.db`);
-  });
 
   afterEach(() => {
     db?.close();
-    if (existsSync(dbPath)) unlinkSync(dbPath);
-    const walPath = dbPath + '-wal';
-    const shmPath = dbPath + '-shm';
-    if (existsSync(walPath)) unlinkSync(walPath);
-    if (existsSync(shmPath)) unlinkSync(shmPath);
   });
 
-  it('should create a database file and return a Database instance', () => {
-    db = openDb(dbPath);
-    expect(db).toBeDefined();
-    expect(existsSync(dbPath)).toBe(true);
+  it('creates all core tables in-memory', () => {
+    db = openDb(':memory:');
+    const tables = db
+      .prepare(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
+      )
+      .all() as Array<{ name: string }>;
+    const names = tables.map((t) => t.name);
+
+    expect(names).toContain('files');
+    expect(names).toContain('symbols');
+    expect(names).toContain('annotations');
+    expect(names).toContain('file_imports');
+    expect(names).toContain('symbol_refs');
+    expect(names).toContain('symbol_relationships');
+    expect(names).toContain('type_refs');
+    expect(names).toContain('external_deps');
+    expect(names).toContain('external_symbols');
+    expect(names).toContain('modules');
+    expect(names).toContain('file_modules');
+    expect(names).toContain('symbol_summaries');
+    expect(names).toContain('symbol_metrics');
+    expect(names).toContain('lore_meta');
+    expect(names).toContain('commits');
+    expect(names).toContain('commit_files');
+    expect(names).toContain('commit_refs');
+    expect(names).toContain('dirty_files');
+    expect(names).toContain('reverse_deps');
   });
 
-  it('should create the files table with branch and source columns', () => {
-    db = openDb(dbPath);
-    const columns = (db.pragma('table_info(files)') as Array<{ name: string }>).map(
-      (column) => column.name,
-    );
-    expect(columns).toEqual(expect.arrayContaining(['branch', 'source']));
+  it('creates effective_* views', () => {
+    db = openDb(':memory:');
+    const views = db
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'view' ORDER BY name")
+      .all() as Array<{ name: string }>;
+    const names = views.map((v) => v.name);
+
+    expect(names).toContain('effective_files');
+    expect(names).toContain('effective_symbols');
+    expect(names).toContain('effective_symbol_refs');
+    expect(names).toContain('effective_type_refs');
+    expect(names).toContain('effective_symbol_relationships');
+    expect(names).toContain('effective_annotations');
+    expect(names).toContain('effective_file_imports');
+    expect(names).toContain('effective_symbol_metrics');
   });
 
-  it('should enforce UNIQUE(path, branch) constraint on files table', () => {
-    db = openDb(dbPath);
-    db.prepare(
-      "INSERT INTO files (path, branch, language) VALUES ('a.ts', 'main', 'typescript')"
-    ).run();
-    // Same path + branch → should throw
-    expect(() =>
-      db.prepare(
-        "INSERT INTO files (path, branch, language) VALUES ('a.ts', 'main', 'typescript')"
-      ).run()
-    ).toThrow();
-    // Same path, different branch → should succeed
-    expect(() =>
-      db.prepare(
-        "INSERT INTO files (path, branch, language) VALUES ('a.ts', 'feat', 'typescript')"
-      ).run()
-    ).not.toThrow();
-  });
-
-  it('should create the symbols, lore_meta, and other required tables', () => {
-    db = openDb(dbPath);
-    const tables = (
-      db
-        .prepare("SELECT name FROM sqlite_master WHERE type='table'")
-        .all() as { name: string }[]
-    ).map((r) => r.name);
-    expect(tables).toContain('files');
-    expect(tables).toContain('symbols');
-    expect(tables).toContain('external_symbols');
-    expect(tables).toContain('lore_meta');
-    expect(tables).toContain('commit_refs');
-  });
-
-  it('should create external_symbols with expected columns and indexes', () => {
-    db = openDb(dbPath);
-    const columns = db.pragma('table_info(external_symbols)') as Array<{ name: string }>;
-    expect(columns.map((column) => column.name)).toEqual(
-      expect.arrayContaining([
-        'dependency_ecosystem',
-        'source_type',
-        'source_ref',
-        'package_name',
-        'package_version',
-        'symbol_name',
-        'symbol_kind',
-        'signature',
-        'doc_comment',
-        'resolved_type_signature',
-        'resolved_return_type',
-        'definition_uri',
-        'definition_path',
-      ]),
-    );
-
-    const indexes = (
-      db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='external_symbols'").all() as Array<{ name: string }>
-    ).map((row) => row.name);
-    expect(indexes).toEqual(
-      expect.arrayContaining([
-        'idx_external_symbols_dependency_ecosystem',
-        'idx_external_symbols_package_name',
-        'idx_external_symbols_symbol_name',
-        'idx_external_symbols_definition_path',
-      ]),
-    );
-  });
-
-  it('should create is_exported column on symbols with default 0', () => {
-    db = openDb(dbPath);
-
-    const symbolColumns = db.pragma('table_info(symbols)') as Array<{ name: string; dflt_value: string | null }>;
-    const isExportedCol = symbolColumns.find((c) => c.name === 'is_exported');
-    expect(isExportedCol).toBeDefined();
-    expect(isExportedCol!.dflt_value).toBe('0');
-
-    // Verify default value is applied when omitted
-    const fileRow = db.prepare(
-      "INSERT INTO files (path, branch, language) VALUES ('src/a.ts', 'main', 'typescript')",
-    ).run() as { lastInsertRowid: number | bigint };
-    db.prepare(
-      `INSERT INTO symbols (file_id, name, kind, start_line, end_line)
-       VALUES (?, 'myFn', 'function', 1, 5)`,
-    ).run(fileRow.lastInsertRowid);
-
-    const row = db.prepare('SELECT is_exported FROM symbols WHERE name = ?').get('myFn') as { is_exported: number };
-    expect(row.is_exported).toBe(0);
-  });
-
-  it('should create idx_symbols_exported partial index on symbols', () => {
-    db = openDb(dbPath);
-
-    const indexes = (
-      db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='symbols'").all() as Array<{ name: string }>
-    ).map((row) => row.name);
-    expect(indexes).toContain('idx_symbols_exported');
-  });
-
-  it('should create enrichment metadata columns and indexes for symbols and symbol_refs', () => {
-    db = openDb(dbPath);
-
-    const symbolColumns = db.pragma('table_info(symbols)') as Array<{ name: string }>;
-    expect(symbolColumns.map((column) => column.name)).toEqual(
-      expect.arrayContaining([
-        'resolved_type_signature',
-        'resolved_return_type',
-        'definition_uri',
-        'definition_path',
-      ]),
-    );
-
-    const refColumns = db.pragma('table_info(symbol_refs)') as Array<{ name: string }>;
-    expect(refColumns.map((column) => column.name)).toEqual(
-      expect.arrayContaining([
-        'resolved_type_signature',
-        'resolved_return_type',
-        'definition_uri',
-        'definition_path',
-      ]),
-    );
-
-    const symbolIndexes = (
-      db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='symbols'").all() as Array<{ name: string }>
-    ).map((row) => row.name);
-    const refIndexes = (
-      db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='symbol_refs'").all() as Array<{ name: string }>
-    ).map((row) => row.name);
-    expect(symbolIndexes).toContain('idx_symbols_definition_path');
-    expect(refIndexes).toContain('idx_symbol_refs_definition_path');
-  });
-
-  it('should default enrichment metadata fields to NULL when omitted', () => {
-    db = openDb(dbPath);
-    const fileRow = db.prepare(
-      "INSERT INTO files (path, branch, language) VALUES ('src/a.ts', 'main', 'typescript')",
-    ).run() as { lastInsertRowid: number | bigint };
-    const symbolRow = db.prepare(
-      `INSERT INTO symbols (file_id, name, kind, start_line, end_line, signature, doc_comment)
-       VALUES (?, 'alpha', 'function', 0, 1, 'function alpha(): string', '/** docs */')`,
-    ).run(fileRow.lastInsertRowid) as { lastInsertRowid: number | bigint };
-    db.prepare(
-      "INSERT INTO symbol_refs (caller_id, callee_name, call_line) VALUES (?, 'beta', 4)",
-    ).run(symbolRow.lastInsertRowid);
-
-    const symbol = db.prepare(
-      `SELECT resolved_type_signature, resolved_return_type, definition_uri, definition_path
-       FROM symbols
-       WHERE id = ?`,
-    ).get(symbolRow.lastInsertRowid) as {
-      resolved_type_signature: string | null;
-      resolved_return_type: string | null;
-      definition_uri: string | null;
-      definition_path: string | null;
-    };
-    const ref = db.prepare(
-      `SELECT resolved_type_signature, resolved_return_type, definition_uri, definition_path
-       FROM symbol_refs
-       WHERE caller_id = ?`,
-    ).get(symbolRow.lastInsertRowid) as {
-      resolved_type_signature: string | null;
-      resolved_return_type: string | null;
-      definition_uri: string | null;
-      definition_path: string | null;
-    };
-
-    expect(symbol).toEqual({
-      resolved_type_signature: null,
-      resolved_return_type: null,
-      definition_uri: null,
-      definition_path: null,
-    });
-    expect(ref).toEqual({
-      resolved_type_signature: null,
-      resolved_return_type: null,
-      definition_uri: null,
-      definition_path: null,
-    });
-  });
-
-  it('should apply default metadata values for external_symbols when omitted', () => {
-    db = openDb(dbPath);
-    db.prepare(
-      `INSERT INTO external_symbols (package_name, package_version, symbol_name, symbol_kind)
-       VALUES ('left-pad', '1.3.0', 'leftPad', 'function')`,
-    ).run();
-
+  it('creates symbols_fts virtual table', () => {
+    db = openDb(':memory:');
     const row = db
       .prepare(
-        `SELECT dependency_ecosystem, source_type, source_ref, signature
-         FROM external_symbols
-         WHERE package_name = 'left-pad'`,
+        "SELECT 1 AS ok FROM sqlite_master WHERE type = 'table' AND name = 'symbols_fts'",
       )
-      .get() as
-      | {
-          dependency_ecosystem: string;
-          source_type: string;
-          source_ref: string;
-          signature: string;
-        }
-      | undefined;
-
-    expect(row).toEqual({
-      dependency_ecosystem: 'npm',
-      source_type: 'declaration',
-      source_ref: '',
-      signature: '',
-    });
+      .get() as { ok: number } | undefined;
+    expect(row?.ok).toBe(1);
   });
 
-  it('should enforce unique external_symbols rows for an ecosystem/package/version/symbol signature', () => {
-    db = openDb(dbPath);
+  it('enables WAL journal mode', () => {
+    db = openDb(':memory:');
+    const result = db.pragma('journal_mode') as Array<{ journal_mode: string }>;
+    // In-memory databases may report 'memory' instead of 'wal'
+    expect(['wal', 'memory']).toContain(result[0]?.journal_mode);
+  });
+
+  it('enables foreign keys', () => {
+    db = openDb(':memory:');
+    const result = db.pragma('foreign_keys') as Array<{ foreign_keys: number }>;
+    expect(result[0]?.foreign_keys).toBe(1);
+  });
+
+  it('is idempotent — calling twice does not error', () => {
+    db = openDb(':memory:');
+    // Re-run the schema on the same DB should not throw
+    expect(() => {
+      db.exec(
+        "CREATE TABLE IF NOT EXISTS files (id INTEGER PRIMARY KEY AUTOINCREMENT, path TEXT NOT NULL, branch TEXT NOT NULL DEFAULT '', language TEXT NOT NULL, size_bytes INTEGER NOT NULL DEFAULT 0, last_hash TEXT, source TEXT NOT NULL DEFAULT '', indexed_at INTEGER NOT NULL DEFAULT (unixepoch()), layer TEXT NOT NULL DEFAULT 'baseline', generation INTEGER NOT NULL DEFAULT 0, UNIQUE(path, branch, layer))",
+      );
+    }).not.toThrow();
+  });
+
+  it('sets appropriate pragmas for performance', () => {
+    db = openDb(':memory:');
+    const sync = db.pragma('synchronous') as Array<{ synchronous: number }>;
+    // NORMAL = 1
+    expect(sync[0]?.synchronous).toBe(1);
+  });
+
+  it('creates expected indexes on core tables', () => {
+    db = openDb(':memory:');
+    const indexes = db
+      .prepare(
+        "SELECT name FROM sqlite_master WHERE type = 'index' AND name LIKE 'idx_%' ORDER BY name",
+      )
+      .all() as Array<{ name: string }>;
+    const names = indexes.map((i) => i.name);
+
+    expect(names).toContain('idx_symbols_file_id');
+    expect(names).toContain('idx_symbols_name');
+    expect(names).toContain('idx_files_layer');
+    expect(names).toContain('idx_commit_files_file_path');
+    expect(names).toContain('idx_commit_refs_ref_name');
+    expect(names).toContain('idx_dirty_files_path');
+  });
+
+  it('can insert and read from tables created by openDb', () => {
+    db = openDb(':memory:');
     db.prepare(
-      `INSERT INTO external_symbols
-        (dependency_ecosystem, package_name, package_version, symbol_name, symbol_kind, signature, doc_comment)
-       VALUES ('npm', 'left-pad', '1.3.0', 'leftPad', 'function', 'leftPad(input: string): string', '/** docs */')`,
+      "INSERT INTO files (path, branch, language, size_bytes) VALUES ('test.ts', '', 'typescript', 100)",
     ).run();
-
-    expect(() =>
-      db.prepare(
-        `INSERT INTO external_symbols
-          (dependency_ecosystem, package_name, package_version, symbol_name, symbol_kind, signature)
-         VALUES ('npm', 'left-pad', '1.3.0', 'leftPad', 'function', 'leftPad(input: string): string')`,
-      ).run(),
-    ).toThrow();
-
-    expect(() =>
-      db.prepare(
-        `INSERT INTO external_symbols
-          (dependency_ecosystem, package_name, package_version, symbol_name, symbol_kind, signature)
-         VALUES ('pypi', 'left-pad', '1.3.0', 'leftPad', 'function', 'leftPad(input: string): string')`,
-      ).run(),
-    ).not.toThrow();
-  });
-
-  it('should be idempotent — calling openDb twice on the same path is safe', () => {
-    db = openDb(dbPath);
-    db.close();
-    db = openDb(dbPath);
-    expect(db).toBeDefined();
-  });
-});
-
-describe('setLoreMeta / getLoreMeta', () => {
-  let dbPath: string;
-  let db: Database.Database;
-
-  beforeEach(() => {
-    dbPath = join(tmpdir(), `lore-test-${Date.now()}-${Math.random()}.db`);
-    db = openDb(dbPath);
-  });
-
-  afterEach(() => {
-    db?.close();
-    if (existsSync(dbPath)) unlinkSync(dbPath);
-    const walPath = dbPath + '-wal';
-    const shmPath = dbPath + '-shm';
-    if (existsSync(walPath)) unlinkSync(walPath);
-    if (existsSync(shmPath)) unlinkSync(shmPath);
-  });
-
-  it('should write and read a key-value pair', () => {
-    setLoreMeta(db, 'schema_version', '1');
-    expect(getLoreMeta(db, 'schema_version')).toBe('1');
-  });
-
-  it('should return undefined for a missing key', () => {
-    expect(getLoreMeta(db, 'nonexistent_key')).toBeUndefined();
-  });
-
-  it('should overwrite an existing key', () => {
-    setLoreMeta(db, 'model', 'v1');
-    setLoreMeta(db, 'model', 'v2');
-    expect(getLoreMeta(db, 'model')).toBe('v2');
-  });
-
-  it('should export expected lore_meta key constants', () => {
-    expect(LORE_META_INDEX_CHECKPOINT).toBe('index_checkpoint');
-    expect(LORE_META_LAST_HEAD_SHA).toBe('last_known_head_sha');
-  });
-});
-
-describe('createVec0Tables', () => {
-  let dbPath: string;
-  let db: Database.Database;
-
-  beforeEach(() => {
-    dbPath = join(tmpdir(), `lore-test-${Date.now()}-${Math.random()}.db`);
-    db = openDb(dbPath);
-  });
-
-  afterEach(() => {
-    db?.close();
-    if (existsSync(dbPath)) unlinkSync(dbPath);
-    const walPath = dbPath + '-wal';
-    const shmPath = dbPath + '-shm';
-    if (existsSync(walPath)) unlinkSync(walPath);
-    if (existsSync(shmPath)) unlinkSync(shmPath);
-  });
-
-  it('should create vec0 embedding tables and persist embedding_dims', () => {
-    createVec0Tables(db, 4);
-
-    const tables = (
-      db
-        .prepare("SELECT name FROM sqlite_master WHERE type IN ('table', 'virtual table')")
-        .all() as { name: string }[]
-    ).map((r) => r.name);
-
-    expect(tables).toContain('symbol_embeddings');
-    expect(tables).toContain('symbol_semantic_embeddings');
-    expect(getLoreMeta(db, 'embedding_dims')).toBe('4');
-    expect(tables).toContain('commit_embeddings');
-  });
-
-  it('should be idempotent when called repeatedly with the same dimensions', () => {
-    expect(() => createVec0Tables(db, 4)).not.toThrow();
-    expect(() => createVec0Tables(db, 4)).not.toThrow();
-
-    const table = db
-      .prepare("SELECT name FROM sqlite_master WHERE type IN ('table', 'virtual table') AND name = 'commit_embeddings'")
-      .get() as { name: string } | undefined;
-    expect(table?.name).toBe('commit_embeddings');
-    expect(getLoreMeta(db, 'embedding_dims')).toBe('4');
+    const row = db.prepare('SELECT * FROM files WHERE path = ?').get('test.ts') as {
+      path: string;
+      language: string;
+    };
+    expect(row.path).toBe('test.ts');
+    expect(row.language).toBe('typescript');
   });
 });

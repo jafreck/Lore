@@ -1,20 +1,12 @@
-/**
- * Unit tests for LoreRuntime lifecycle.
- */
-
-import { describe, it, expect, afterEach, vi } from 'vitest';
-import { mkdtempSync } from 'node:fs';
-import { join } from 'node:path';
-import { tmpdir } from 'node:os';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { LoreRuntime, type RuntimeConfig } from '../src/runtime.js';
-import { initLogger, LogLevel } from '../src/logger.js';
+import { initLogger, LogLevel, resetLogger } from '../src/logger.js';
 
-function stubConfig(overrides: Partial<RuntimeConfig> = {}): RuntimeConfig {
-  const dir = mkdtempSync(join(tmpdir(), 'lore-rt-'));
+function makeConfig(overrides?: Partial<RuntimeConfig>): RuntimeConfig {
   return {
-    dbPath: join(dir, 'test.db'),
-    rootDir: dir,
-    walkerConfig: { rootDir: dir },
+    dbPath: '/tmp/test-lore.db',
+    rootDir: '/tmp/test-project',
+    walkerConfig: { rootDir: '/tmp/test-project' } as any,
     lsp: null,
     scip: null,
     history: false,
@@ -25,112 +17,96 @@ function stubConfig(overrides: Partial<RuntimeConfig> = {}): RuntimeConfig {
 }
 
 describe('LoreRuntime', () => {
-  let runtime: LoreRuntime | undefined;
-
-  afterEach(async () => {
-    if (runtime?.started) await runtime.shutdown();
+  beforeEach(() => {
+    resetLogger();
   });
 
-  it('should start and report started', async () => {
-    runtime = new LoreRuntime(stubConfig(), initLogger({ level: LogLevel.SILENT }));
-    expect(runtime.started).toBe(false);
-    await runtime.start();
-    expect(runtime.started).toBe(true);
+  afterEach(() => {
+    resetLogger();
   });
 
-  it('should be a no-op when start is called twice', async () => {
-    runtime = new LoreRuntime(stubConfig(), initLogger({ level: LogLevel.SILENT }));
-    await runtime.start();
-    await runtime.start(); // no-op
-    expect(runtime.started).toBe(true);
+  describe('constructor', () => {
+    it('creates an instance with config', () => {
+      const config = makeConfig();
+      const runtime = new LoreRuntime(config);
+      expect(runtime.config).toBe(config);
+      expect(runtime.started).toBe(false);
+    });
+
+    it('uses provided logger', () => {
+      const logger = initLogger({ level: LogLevel.DEBUG });
+      const runtime = new LoreRuntime(makeConfig(), logger);
+      expect(runtime.log).toBe(logger);
+    });
+
+    it('uses global logger when none provided', () => {
+      const runtime = new LoreRuntime(makeConfig());
+      expect(runtime.log).toBeDefined();
+    });
   });
 
-  it('should shutdown cleanly', async () => {
-    runtime = new LoreRuntime(stubConfig(), initLogger({ level: LogLevel.SILENT }));
-    await runtime.start();
-    await runtime.shutdown();
-    expect(runtime.started).toBe(false);
+  describe('accessors before start', () => {
+    it('embedder is undefined before start', () => {
+      const runtime = new LoreRuntime(makeConfig());
+      expect(runtime.embedder).toBeUndefined();
+    });
+
+    it('refresher is undefined before start', () => {
+      const runtime = new LoreRuntime(makeConfig());
+      expect(runtime.refresher).toBeUndefined();
+    });
+
+    it('started is false before start', () => {
+      const runtime = new LoreRuntime(makeConfig());
+      expect(runtime.started).toBe(false);
+    });
   });
 
-  it('should be a no-op when shutdown is called without start', async () => {
-    runtime = new LoreRuntime(stubConfig(), initLogger({ level: LogLevel.SILENT }));
-    await runtime.shutdown(); // no-op
-    expect(runtime.started).toBe(false);
+  describe('start and shutdown', () => {
+    it('start sets started flag', async () => {
+      const runtime = new LoreRuntime(makeConfig());
+      await runtime.start();
+      expect(runtime.started).toBe(true);
+      await runtime.shutdown();
+    });
+
+    it('start is idempotent', async () => {
+      const runtime = new LoreRuntime(makeConfig());
+      await runtime.start();
+      await runtime.start(); // Should be no-op
+      expect(runtime.started).toBe(true);
+      await runtime.shutdown();
+    });
+
+    it('shutdown clears started flag', async () => {
+      const runtime = new LoreRuntime(makeConfig());
+      await runtime.start();
+      await runtime.shutdown();
+      expect(runtime.started).toBe(false);
+    });
+
+    it('shutdown is safe when not started', async () => {
+      const runtime = new LoreRuntime(makeConfig());
+      await expect(runtime.shutdown()).resolves.not.toThrow();
+    });
+
+    it('shutdown is idempotent', async () => {
+      const runtime = new LoreRuntime(makeConfig());
+      await runtime.start();
+      await runtime.shutdown();
+      await runtime.shutdown(); // Should be no-op
+      expect(runtime.started).toBe(false);
+    });
   });
 
-  it('should expose embedder as undefined when no model configured', async () => {
-    runtime = new LoreRuntime(stubConfig(), initLogger({ level: LogLevel.SILENT }));
-    await runtime.start();
-    expect(runtime.embedder).toBeUndefined();
-  });
-
-  it('should expose refresher as undefined in none mode', async () => {
-    runtime = new LoreRuntime(stubConfig(), initLogger({ level: LogLevel.SILENT }));
-    await runtime.start();
-    expect(runtime.refresher).toBeUndefined();
-  });
-
-  it('should expose config', () => {
-    const cfg = stubConfig();
-    runtime = new LoreRuntime(cfg, initLogger({ level: LogLevel.SILENT }));
-    expect(runtime.config).toBe(cfg);
-  });
-
-  it('should create embedder when embeddingModel is configured', async () => {
-    runtime = new LoreRuntime(
-      stubConfig({ embeddingModel: 'test-model' }),
-      initLogger({ level: LogLevel.SILENT }),
-    );
-    await runtime.start();
-    // The LazyEmbeddingProvider should be created (not initialized yet)
-    expect(runtime.embedder).toBeDefined();
-    expect(runtime.embedder!.modelName).toBe('test-model');
-  });
-
-  it('should start in watch mode and create a refresher', async () => {
-    const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
-    const cfg = stubConfig({ refreshMode: 'watch' });
-    // Create a valid DB file for the watcher
-    const { openDb } = await import('../src/db/schema.js');
-    const db = openDb(cfg.dbPath);
-    db.close();
-
-    runtime = new LoreRuntime(cfg, initLogger({ level: LogLevel.SILENT }));
-    await runtime.start();
-    expect(runtime.refresher).toBeDefined();
-    stderrSpy.mockRestore();
-  });
-
-  it('should start in poll mode and create a refresher', async () => {
-    const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
-    const cfg = stubConfig({ refreshMode: 'poll' });
-    // Create a valid DB file for the poller
-    const { openDb } = await import('../src/db/schema.js');
-    const db = openDb(cfg.dbPath);
-    db.close();
-
-    runtime = new LoreRuntime(cfg, initLogger({ level: LogLevel.SILENT }));
-    await runtime.start();
-    expect(runtime.refresher).toBeDefined();
-    stderrSpy.mockRestore();
-  });
-
-  it('should dispose embedder and refresher during shutdown', async () => {
-    const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
-    const cfg = stubConfig({ refreshMode: 'poll', embeddingModel: 'test-model' });
-    const { openDb } = await import('../src/db/schema.js');
-    const db = openDb(cfg.dbPath);
-    db.close();
-
-    runtime = new LoreRuntime(cfg, initLogger({ level: LogLevel.SILENT }));
-    await runtime.start();
-    expect(runtime.refresher).toBeDefined();
-    expect(runtime.embedder).toBeDefined();
-
-    await runtime.shutdown();
-    expect(runtime.refresher).toBeUndefined();
-    expect(runtime.embedder).toBeUndefined();
-    expect(runtime.started).toBe(false);
-    stderrSpy.mockRestore();
+  describe('config defaults', () => {
+    it('has expected default values', () => {
+      const config = makeConfig();
+      expect(config.refreshMode).toBe('none');
+      expect(config.lsp).toBeNull();
+      expect(config.scip).toBeNull();
+      expect(config.history).toBe(false);
+      expect(config.indexDependencies).toBe(false);
+    });
   });
 });

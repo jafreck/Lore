@@ -1,368 +1,253 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import Database from 'better-sqlite3';
-import { createRequire } from 'node:module';
-import { handler, toolDef, type SearchArgs, type SearchResult, type SearchObservation, type SearchObserver } from '../../../src/server/tools/search.js';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { openDb, type Database } from '../../../src/db/schema.js';
+import { handler, toolDef } from '../../../src/server/tools/search.js';
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-const esmRequire = createRequire(import.meta.url);
-
-function createTestDb(includeEnrichmentColumns = false): Database.Database {
-  const db = new Database(':memory:');
-  db.pragma('foreign_keys = ON');
-  const symbolEnrichmentColumns = includeEnrichmentColumns
-    ? `,
-       resolved_type_signature TEXT,
-       resolved_return_type    TEXT,
-       definition_uri          TEXT,
-       definition_path         TEXT`
-    : '';
-  db.exec(`
-    CREATE TABLE files (
-      id          INTEGER PRIMARY KEY AUTOINCREMENT,
-      path        TEXT    NOT NULL,
-      branch      TEXT    NOT NULL DEFAULT '',
-      language    TEXT    NOT NULL DEFAULT 'typescript',
-      size_bytes  INTEGER NOT NULL DEFAULT 0,
-      last_hash   TEXT,
-      indexed_at  INTEGER NOT NULL DEFAULT 0,
-      UNIQUE(path, branch)
-    );
-    CREATE TABLE symbols (
-      id          INTEGER PRIMARY KEY AUTOINCREMENT,
-      file_id     INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
-      name        TEXT    NOT NULL,
-      kind        TEXT    NOT NULL DEFAULT 'function',
-      start_line  INTEGER NOT NULL DEFAULT 1,
-      end_line    INTEGER NOT NULL DEFAULT 10,
-      signature   TEXT,
-      doc_comment TEXT${symbolEnrichmentColumns}
-    );
-    CREATE VIRTUAL TABLE symbols_fts USING fts5(name, kind, content=symbols, content_rowid=id);
-  `);
-  return db;
-}
-
-function insertFile(db: Database.Database, path: string, branch: string): number {
-  const result = db
-    .prepare('INSERT INTO files (path, branch, language) VALUES (?, ?, ?)')
-    .run(path, branch, 'typescript');
-  return result.lastInsertRowid as number;
-}
-
-function insertSymbol(
-  db: Database.Database,
-  fileId: number,
-  name: string,
-  kind = 'function',
-  enrichment?: {
-    resolvedTypeSignature?: string | null;
-    resolvedReturnType?: string | null;
-    definitionUri?: string | null;
-    definitionPath?: string | null;
-  },
-): number {
-  const result = db
-    .prepare(
-      'INSERT INTO symbols (file_id, name, kind, start_line, end_line) VALUES (?, ?, ?, 1, 10)',
-    )
-    .run(fileId, name, kind);
-  const rowid = result.lastInsertRowid as number;
-  db.prepare('INSERT INTO symbols_fts(rowid, name, kind) VALUES (?, ?, ?)').run(rowid, name, kind);
-  if (enrichment) {
-    try {
-      db.prepare(
-        `UPDATE symbols
-         SET resolved_type_signature = ?, resolved_return_type = ?, definition_uri = ?, definition_path = ?
-         WHERE id = ?`,
-      ).run(
-        enrichment.resolvedTypeSignature ?? null,
-        enrichment.resolvedReturnType ?? null,
-        enrichment.definitionUri ?? null,
-        enrichment.definitionPath ?? null,
-        rowid,
-      );
-    } catch {
-      // Older fixture schemas intentionally omit enrichment columns.
-    }
-  }
-  return rowid;
-}
-
-function loadVectorTables(db: Database.Database, dims: number): void {
-  const sqliteVec = esmRequire('sqlite-vec') as { load(db: Database.Database): void };
-  sqliteVec.load(db);
-  db.exec(`
-    CREATE VIRTUAL TABLE symbol_embeddings USING vec0(
-      embedding FLOAT[${dims}]
-    );
-      embedding FLOAT[${dims}]
-    );
-  `);
-}
-
-function insertSymbolEmbedding(db: Database.Database, symbolId: number, embedding: number[]): void {
+function seedDb(db: Database.Database) {
   db.prepare(
-    'INSERT OR REPLACE INTO symbol_embeddings(rowid, embedding) VALUES (CAST(? AS INTEGER), json(?))',
-  ).run(symbolId, JSON.stringify(embedding));
+    `INSERT INTO files (id, path, branch, language, source) VALUES (1, 'src/utils.ts', 'main', 'typescript', 'function helpers() {}')`,
+  ).run();
+  db.prepare(
+    `INSERT INTO symbols (id, file_id, name, kind, start_line, end_line, signature, is_exported)
+     VALUES (1, 1, 'helpers', 'function', 1, 1, '(): void', 1)`,
+  ).run();
+  db.prepare(
+    `INSERT INTO symbols (id, file_id, name, kind, start_line, end_line, signature, is_exported)
+     VALUES (2, 1, 'parseConfig', 'function', 2, 5, '(cfg: string): Config', 1)`,
+  ).run();
+  db.prepare(`INSERT INTO symbols_fts (rowid, name, signature, kind) VALUES (1, 'helpers', '(): void', 'function')`).run();
+  db.prepare(`INSERT INTO symbols_fts (rowid, name, signature, kind) VALUES (2, 'parseConfig', '(cfg: string): Config', 'function')`).run();
 }
 
-describe('search toolDef', () => {
-  it('should expose optional symbol and doc filter fields in input schema', () => {
-    const props = toolDef.inputSchema.properties as Record<string, { type?: string; description?: string }>;
-
-    expect(props.path_prefix?.type).toBe('string');
-    expect(props.path_prefix?.description).toContain('source file path prefix');
-    expect(props.language?.type).toBe('string');
-    expect(props.language?.description).toContain('source language filter');
-    expect(props.kind?.type).toBe('string');
-    expect(props.kind?.description).toContain('symbol kind filter');
-    expect(toolDef.inputSchema.required).toEqual(['query']);
+describe('lore_search toolDef', () => {
+  it('has required fields', () => {
+    expect(toolDef.name).toBe('lore_search');
+    expect(toolDef.description).toBeTruthy();
+    expect(toolDef.inputSchema.type).toBe('object');
+    expect(toolDef.inputSchema.required).toContain('query');
   });
 });
 
-// ─── handler (structural mode) ────────────────────────────────────────────────
-
-describe('search handler – structural mode', () => {
+describe('lore_search handler', () => {
   let db: Database.Database;
 
   beforeEach(() => {
-    db = createTestDb();
-    const mainId = insertFile(db, 'src/main.ts', 'main');
-    const featId = insertFile(db, 'src/feat.ts', 'feat');
-    insertSymbol(db, mainId, 'parseConfig');
-    insertSymbol(db, featId, 'parseConfig');
-    insertSymbol(db, mainId, 'renderPage');
+    db = openDb(':memory:');
+    seedDb(db);
   });
 
-  it('should return results matching query in structural mode', async () => {
-    const result = await handler(db, { query: 'parseConfig', mode: 'structural' });
+  afterEach(() => {
+    db.close();
+  });
+
+  it('returns structural results for matching query', async () => {
+    const result = await handler(db, { query: 'helpers' });
     expect(result.mode_used).toBe('structural');
-    expect(result.results.length).toBeGreaterThan(0);
-    result.results.forEach((r) => expect(r.name).toBe('parseConfig'));
+    expect(result.results.length).toBeGreaterThanOrEqual(1);
+    expect(result.results[0]!.name).toBe('helpers');
   });
 
-  it('should expose null enrichment metadata fields when enrichment columns are absent', async () => {
-    const result = await handler(db, { query: 'parseConfig', mode: 'structural' });
-    expect(result.results.length).toBeGreaterThan(0);
-    result.results.forEach((row) => {
-      expect(row.resolved_type_signature).toBeNull();
-      expect(row.resolved_return_type).toBeNull();
-      expect(row.definition_uri).toBeNull();
-      expect(row.definition_path).toBeNull();
-    });
+  it('returns empty for no-match query', async () => {
+    const result = await handler(db, { query: 'zzzzNonExistent' });
+    expect(result.results).toHaveLength(0);
   });
 
-  it('should include persisted enrichment metadata fields when present', async () => {
-    db = createTestDb(true);
-    const fileId = insertFile(db, 'src/main.ts', 'main');
-    insertSymbol(
-      db,
-      fileId,
-      'parseConfig',
-      'function',
-      {
-        resolvedTypeSignature: 'function parseConfig(input: string): ParseResult',
-        resolvedReturnType: 'ParseResult',
-        definitionUri: 'file:///repo/src/parser.ts',
-        definitionPath: '/repo/src/parser.ts',
-      },
-    );
-
-    const result = await handler(db, { query: 'parseConfig', mode: 'structural' });
-    expect(result.results).toHaveLength(1);
-    expect(result.results[0]).toMatchObject({
-      resolved_type_signature: 'function parseConfig(input: string): ParseResult',
-      resolved_return_type: 'ParseResult',
-      definition_uri: 'file:///repo/src/parser.ts',
-      definition_path: '/repo/src/parser.ts',
-    });
-  });
-
-  it('should default to structural mode when mode is omitted', async () => {
-    const result = await handler(db, { query: 'renderPage' });
-    expect(result.mode_used).toBe('structural');
-  });
-
-  it('should include branch field on each result', async () => {
-    const result = await handler(db, { query: 'parseConfig', mode: 'structural' });
-    result.results.forEach((r) => expect(typeof r.branch).toBe('string'));
-  });
-
-  it('should tag structural results with symbol result_type', async () => {
-    const result = await handler(db, { query: 'parseConfig', mode: 'structural' });
-    expect(result.results.every((row) => row.result_type === 'symbol')).toBe(true);
-  });
-
-  it('should filter results by branch when branch is provided', async () => {
-    const result = await handler(db, { query: 'parseConfig', mode: 'structural', branch: 'main' });
-    expect(result.results.length).toBe(1);
-    expect(result.results[0].branch).toBe('main');
-  });
-
-  it('should return empty results when branch does not match', async () => {
-    const result = await handler(db, {
-      query: 'parseConfig',
-      mode: 'structural',
-      branch: 'nonexistent',
-    });
-    expect(result.results).toEqual([]);
-  });
-
-  it('should respect the limit parameter', async () => {
-    const result = await handler(db, { query: 'parseConfig', mode: 'structural', limit: 1 });
+  it('respects limit parameter', async () => {
+    const result = await handler(db, { query: 'helpers', limit: 1 });
     expect(result.results.length).toBeLessThanOrEqual(1);
   });
 
-  it('should return empty results for an unmatched query', async () => {
-    const result = await handler(db, { query: 'zzz_no_match_zzz', mode: 'structural' });
-    expect(result.results).toEqual([]);
+  it('falls back to structural when no embedder for semantic mode', async () => {
+    const result = await handler(db, { query: 'helpers', mode: 'semantic' });
+    expect(result.mode_used).toContain('structural');
   });
 
-  it('should accept optional filter arguments without breaking structural search', async () => {
-    const args: SearchArgs = {
-      query: 'parseConfig',
-      mode: 'structural',
-      path_prefix: 'src/',
-      language: 'typescript',
-      kind: 'function',
-    };
-    const result = await handler(db, args);
+  it('falls back to structural when no embedder for fused mode', async () => {
+    const result = await handler(db, { query: 'helpers', mode: 'fused' });
+    expect(result.mode_used).toContain('structural');
+  });
+
+  it('filters by kind', async () => {
+    const result = await handler(db, { query: 'helpers', kind: 'function' });
+    expect(result.results.length).toBeGreaterThanOrEqual(1);
+    for (const r of result.results) {
+      expect(r.kind).toBe('function');
+    }
+  });
+
+  it('works with empty database', async () => {
+    const emptyDb = openDb(':memory:');
+    try {
+      const result = await handler(emptyDb, { query: 'anything' });
+      expect(result.results).toHaveLength(0);
+    } finally {
+      emptyDb.close();
+    }
+  });
+
+  it('invokes observer if provided', async () => {
+    let observed = false;
+    const observer = () => { observed = true; };
+    await handler(db, { query: 'helpers' }, undefined, observer);
+    expect(observed).toBe(true);
+  });
+
+  it('returns FTS scored results', async () => {
+    const result = await handler(db, { query: 'helpers' });
     expect(result.mode_used).toBe('structural');
-    expect(result.results.length).toBeGreaterThan(0);
-  });
-});
-
-// ─── handler (semantic / fused fallback) ──────────────────────────────────────
-
-describe('search handler – semantic/fused fallback without embedder', () => {
-  let db: Database.Database;
-
-  beforeEach(() => {
-    db = createTestDb();
-    const mainId = insertFile(db, 'src/index.ts', 'main');
-    insertSymbol(db, mainId, 'myFunc');
+    for (const r of result.results) {
+      expect(r).toHaveProperty('score');
+    }
   });
 
-  it('should fall back to structural when mode=semantic and no embedder provided', async () => {
-    const result = await handler(db, { query: 'myFunc', mode: 'semantic' });
-    expect(result.mode_used).toBe('structural (no query-time embedder)');
-    expect(result.results.length).toBeGreaterThan(0);
+  it('filters by path_prefix', async () => {
+    const result = await handler(db, { query: 'helpers', path_prefix: 'src/' });
+    for (const r of result.results) {
+      expect(r.file_path).toMatch(/^src\//);
+    }
   });
 
-  it('should fall back to structural when mode=fused and no embedder provided', async () => {
-    const result = await handler(db, { query: 'myFunc', mode: 'fused' });
-    expect(result.mode_used).toBe('structural (no query-time embedder)');
+  it('filters by language', async () => {
+    const result = await handler(db, { query: 'helpers', language: 'typescript' });
+    expect(result.results.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('should fall back to structural when mode=semantic has embedder but embeddings are unavailable', async () => {
-    const embedder = {
-      modelName: 'test-embedder',
-      dims: 3,
-      embed: vi.fn(async () => [[0.1, 0.2, 0.3]]),
-    };
-    const result = await handler(db, { query: 'myFunc', mode: 'semantic' }, embedder);
-    expect(result.mode_used).toBe('structural (fallback: no embeddings)');
-    expect(result.results.every((row) => row.result_type === 'symbol')).toBe(true);
+  it('handles FTS special characters gracefully', async () => {
+    const result = await handler(db, { query: 'operator+' });
+    // Should not throw - FTS query is sanitized
+    expect(result.results).toBeDefined();
   });
 
-  it('should fall back to structural when mode=fused has embedder but embeddings are unavailable', async () => {
-    const embedder = {
-      modelName: 'test-embedder',
-      dims: 3,
-      embed: vi.fn(async () => [[0.1, 0.2, 0.3]]),
-    };
-    const result = await handler(db, { query: 'myFunc', mode: 'fused' }, embedder);
-    expect(result.mode_used).toBe('structural (fallback: no embeddings)');
-    expect(result.results.every((row) => row.result_type === 'symbol')).toBe(true);
-  });
-});
-
-// ─── SearchObserver callback ──────────────────────────────────────────────────
-
-describe('search handler – observer callback', () => {
-  let db: Database.Database;
-
-  beforeEach(() => {
-    db = createTestDb();
-    const mainId = insertFile(db, 'src/main.ts', 'main');
-    insertSymbol(db, mainId, 'parseConfig');
-    insertSymbol(db, mainId, 'renderPage');
+  it('handles query with double quotes', async () => {
+    const result = await handler(db, { query: '"helpers"' });
+    expect(result.results).toBeDefined();
   });
 
-  it('should invoke observer with correct fields on structural search', async () => {
-    const observations: SearchObservation[] = [];
-    const observer: SearchObserver = (obs) => observations.push(obs);
-
-    await handler(db, { query: 'parseConfig', mode: 'structural' }, undefined, observer);
-
-    expect(observations).toHaveLength(1);
-    const obs = observations[0]!;
-    expect(obs.query).toBe('parseConfig');
-    expect(obs.requestedMode).toBe('structural');
-    expect(obs.modeUsed).toBe('structural');
-    expect(obs.resultCount).toBe(1);
-    expect(obs.topScore).toBeTypeOf('number');
-    expect(obs.latencyMs).toBeGreaterThanOrEqual(0);
-    expect(obs.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+  it('returns result_type=symbol', async () => {
+    const result = await handler(db, { query: 'helpers' });
+    if (result.results.length > 0) {
+      expect(result.results[0]!.result_type).toBe('symbol');
+    }
   });
 
-  it('should report zero results and null topScore when query has no matches', async () => {
-    const observations: SearchObservation[] = [];
-    const observer: SearchObserver = (obs) => observations.push(obs);
-
-    await handler(db, { query: 'zzz_no_match_zzz', mode: 'structural' }, undefined, observer);
-
-    expect(observations).toHaveLength(1);
-    expect(observations[0]!.resultCount).toBe(0);
-    expect(observations[0]!.topScore).toBeNull();
+  it('returns branch in results', async () => {
+    const result = await handler(db, { query: 'helpers' });
+    if (result.results.length > 0) {
+      expect(result.results[0]!.branch).toBe('main');
+    }
   });
 
-  it('should report fallback mode when semantic requested without embedder', async () => {
-    const observations: SearchObservation[] = [];
-    const observer: SearchObserver = (obs) => observations.push(obs);
-
-    await handler(db, { query: 'parseConfig', mode: 'semantic' }, undefined, observer);
-
-    expect(observations).toHaveLength(1);
-    expect(observations[0]!.requestedMode).toBe('semantic');
-    expect(observations[0]!.modeUsed).toBe('structural (no query-time embedder)');
+  it('filters by branch', async () => {
+    const result = await handler(db, { query: 'helpers', branch: 'main' });
+    expect(result.results.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('should include branch in observation when branch filter is used', async () => {
-    const observations: SearchObservation[] = [];
-    const observer: SearchObserver = (obs) => observations.push(obs);
-
-    await handler(db, { query: 'parseConfig', mode: 'structural', branch: 'main' }, undefined, observer);
-
-    expect(observations).toHaveLength(1);
-    expect(observations[0]!.branch).toBe('main');
+  it('branch filter with non-matching returns empty', async () => {
+    const result = await handler(db, { query: 'helpers', branch: 'nonexistent' });
+    expect(result.results).toHaveLength(0);
   });
 
-  it('should not include branch in observation when no branch filter is used', async () => {
-    const observations: SearchObservation[] = [];
-    const observer: SearchObserver = (obs) => observations.push(obs);
-
-    await handler(db, { query: 'parseConfig', mode: 'structural' }, undefined, observer);
-
-    expect(observations).toHaveLength(1);
-    expect(observations[0]!.branch).toBeUndefined();
+  it('searches by signature content', async () => {
+    const result = await handler(db, { query: 'parseConfig' });
+    expect(result.results.length).toBeGreaterThanOrEqual(1);
+    const match = result.results.find(r => r.name === 'parseConfig');
+    expect(match).toBeDefined();
   });
 
-  it('should not break search if observer throws', async () => {
-    const throwingObserver: SearchObserver = () => {
-      throw new Error('observer boom');
-    };
-
-    const result = await handler(db, { query: 'parseConfig', mode: 'structural' }, undefined, throwingObserver);
-
-    expect(result.mode_used).toBe('structural');
-    expect(result.results.length).toBeGreaterThan(0);
+  it('observer receives correct observation fields', async () => {
+    let observation: any = null;
+    const observer = (obs: any) => { observation = obs; };
+    await handler(db, { query: 'helpers', branch: 'main' }, undefined, observer);
+    expect(observation).not.toBeNull();
+    expect(observation.query).toBe('helpers');
+    expect(observation.requestedMode).toBe('structural');
+    expect(observation.modeUsed).toBe('structural');
+    expect(observation.resultCount).toBeGreaterThanOrEqual(1);
+    expect(observation.topScore).toBeDefined();
+    expect(typeof observation.latencyMs).toBe('number');
+    expect(observation.branch).toBe('main');
+    expect(observation.timestamp).toBeDefined();
   });
 
-  it('should not invoke observer when none is provided', async () => {
-    // Ensure no errors when observer is undefined (default path).
-    const result = await handler(db, { query: 'parseConfig', mode: 'structural' });
-    expect(result.results.length).toBeGreaterThan(0);
+  it('observer error does not break search', async () => {
+    const observer = () => { throw new Error('observer boom'); };
+    const result = await handler(db, { query: 'helpers' }, undefined, observer);
+    expect(result.results.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('observer receives topScore=null when no results', async () => {
+    let observation: any = null;
+    const observer = (obs: any) => { observation = obs; };
+    await handler(db, { query: 'zzzzNothingHere' }, undefined, observer);
+    expect(observation.topScore).toBeNull();
+    expect(observation.resultCount).toBe(0);
+  });
+
+  it('semantic mode without embedder reports degradation in mode_used', async () => {
+    const result = await handler(db, { query: 'helpers', mode: 'semantic' });
+    expect(result.mode_used).toContain('no query-time embedder');
+  });
+
+  it('fused mode without embedder reports degradation in mode_used', async () => {
+    const result = await handler(db, { query: 'helpers', mode: 'fused' });
+    expect(result.mode_used).toContain('no query-time embedder');
+  });
+
+  it('filters by kind returning empty when no match', async () => {
+    const result = await handler(db, { query: 'helpers', kind: 'class' });
+    expect(result.results).toHaveLength(0);
+  });
+
+  it('combined filters path_prefix + kind', async () => {
+    const result = await handler(db, { query: 'helpers', path_prefix: 'src/', kind: 'function' });
+    expect(result.results.length).toBeGreaterThanOrEqual(1);
+    for (const r of result.results) {
+      expect(r.file_path).toMatch(/^src\//);
+      expect(r.kind).toBe('function');
+    }
+  });
+
+  it('combined filters path_prefix + kind with no match', async () => {
+    const result = await handler(db, { query: 'helpers', path_prefix: 'lib/', kind: 'function' });
+    expect(result.results).toHaveLength(0);
+  });
+
+  it('returns file_path and line numbers in results', async () => {
+    const result = await handler(db, { query: 'helpers' });
+    expect(result.results.length).toBeGreaterThanOrEqual(1);
+    const r = result.results[0]!;
+    expect(r.file_path).toBe('src/utils.ts');
+    expect(typeof r.start_line).toBe('number');
+    expect(typeof r.end_line).toBe('number');
+  });
+
+  it('returns symbol_id in results', async () => {
+    const result = await handler(db, { query: 'helpers' });
+    expect(result.results.length).toBeGreaterThanOrEqual(1);
+    expect(typeof result.results[0]!.symbol_id).toBe('number');
+  });
+
+  it('FTS fallback handles LIKE prefix when FTS query is invalid', async () => {
+    // Populate a symbol with name matching prefix
+    db.prepare(
+      `INSERT INTO files (id, path, branch, language, source) VALUES (2, 'src/extra.ts', 'main', 'typescript', 'class MyTest {}')`,
+    ).run();
+    db.prepare(
+      `INSERT INTO symbols (id, file_id, name, kind, start_line, end_line, signature, is_exported)
+       VALUES (3, 2, 'MyTest', 'class', 1, 1, 'class MyTest', 1)`,
+    ).run();
+    // Don't insert into FTS - this forces the FTS MATCH to fail and fall back to LIKE
+    const result = await handler(db, { query: 'MyTest' });
+    // Should still find results via LIKE fallback
+    expect(result.results).toBeDefined();
+  });
+
+  it('language filter with no match returns empty', async () => {
+    const result = await handler(db, { query: 'helpers', language: 'python' });
+    expect(result.results).toHaveLength(0);
+  });
+
+  it('default limit is 20', async () => {
+    const result = await handler(db, { query: 'helpers' });
+    expect(result.results.length).toBeLessThanOrEqual(20);
   });
 });

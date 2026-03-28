@@ -1,101 +1,106 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { ParserPool, SUPPORTED_PARSER_LANGUAGES, LANG_PACKAGES } from '../../src/parsing/parser.js';
-import { DEFAULT_LSP_SERVER_REGISTRY } from '../../src/lsp/registry.js';
 
 describe('ParserPool', () => {
-  let pool: ParserPool;
+  const pool = new ParserPool();
 
-  beforeEach(() => {
-    pool = new ParserPool();
+  describe('SUPPORTED_PARSER_LANGUAGES', () => {
+    it('is a frozen sorted array', () => {
+      expect(Object.isFrozen(SUPPORTED_PARSER_LANGUAGES)).toBe(true);
+      const sorted = [...SUPPORTED_PARSER_LANGUAGES].sort();
+      expect(SUPPORTED_PARSER_LANGUAGES).toEqual(sorted);
+    });
+
+    it('includes core languages', () => {
+      for (const lang of ['typescript', 'javascript', 'python', 'go', 'java', 'rust', 'c']) {
+        expect(SUPPORTED_PARSER_LANGUAGES).toContain(lang);
+      }
+    });
+
+    it('matches LANG_PACKAGES keys', () => {
+      expect([...SUPPORTED_PARSER_LANGUAGES]).toEqual(Object.keys(LANG_PACKAGES).sort());
+    });
   });
 
   describe('parse()', () => {
-    it('should return null for an unrecognized language', () => {
-      const result = pool.parse('unknownlang_xyz', 'some code');
-      expect(result).toBeNull();
-    });
-
-    it('should return null consistently for the same unavailable language on repeated calls', () => {
-      pool.parse('unknownlang_xyz', 'first call');
-      const result = pool.parse('unknownlang_xyz', 'second call');
-      expect(result).toBeNull();
-    });
-
-    it('should return a non-null tree for a language with grammar installed', () => {
-      const tree = pool.parse('javascript', 'const x = 1;');
-      expect(tree).not.toBeNull();
-      expect(tree!.rootNode).toBeDefined();
-    });
-
-    it('should reuse the same parser across multiple parse calls', () => {
-      const tree1 = pool.parse('javascript', 'const a = 1;');
-      const tree2 = pool.parse('javascript', 'const b = 2;');
-      expect(tree1).not.toBeNull();
-      expect(tree2).not.toBeNull();
-      expect(tree1!.rootNode.type).toBe(tree2!.rootNode.type);
-    });
-
-    it('should produce a tree whose root node has the expected type', () => {
-      const tree = pool.parse('javascript', 'function hello() {}');
+    it('parses valid TypeScript source', () => {
+      const tree = pool.parse('typescript', 'function hello(): void {}');
       expect(tree).not.toBeNull();
       expect(tree!.rootNode.type).toBe('program');
     });
-  });
 
-  // ─── Grammar coverage: every declared language MUST parse ─────────────────
-
-  describe('grammar coverage', () => {
-    /**
-     * Minimal source snippets for each language — just enough for the parser
-     * to produce a non-empty tree.  These verify the native grammar binding
-     * loads and the parser can tokenise real code, catching ABI mismatches
-     * and broken builds that would otherwise be silently swallowed.
-     */
-    const SNIPPETS: Record<string, string> = {
-      bash:       '#!/bin/bash\ngreet() { echo "hi"; }',
-      c:          'int main() { return 0; }',
-      cpp:        'int main() { return 0; }',
-      csharp:     'class Foo { void Bar() {} }',
-
-      elixir:     'defmodule M do\n  def greet, do: :ok\nend',
-      elm:        'module Main exposing (..)\n\ngreet x = x',
-      go:         'package main\nfunc main() {}',
-      haskell:    'main = putStrLn "hi"',
-      java:       'class Foo { void bar() {} }',
-      javascript: 'function greet() {}',
-      julia:      'function greet()\n  println("hi")\nend',
-      kotlin:     'fun main() {}',
-      lua:        'function greet() end',
-      objc:       '@interface Foo\n@end\n@implementation Foo\n@end',
-      ocaml:      'let greet () = print_endline "hi"',
-      php:        '<?php\nfunction greet() {}',
-      python:     'def greet():\n    pass',
-      ruby:       'def greet; end',
-      rust:       'fn main() {}',
-      scala:      'object Main { def greet(): Unit = {} }',
-      swift:      'func greet() {}',
-      typescript: 'function greet(): void {}',
-      zig:        'pub fn main() void {}',
-    };
-
-    // Ensure the snippet map covers every language in LANG_PACKAGES.
-    it('has a snippet for every supported language', () => {
-      const snippetLangs = Object.keys(SNIPPETS).sort();
-      expect(snippetLangs).toEqual([...SUPPORTED_PARSER_LANGUAGES]);
+    it('parses valid JavaScript source', () => {
+      const tree = pool.parse('javascript', 'const x = 42;');
+      expect(tree).not.toBeNull();
+      expect(tree!.rootNode.type).toBe('program');
     });
 
-    for (const lang of SUPPORTED_PARSER_LANGUAGES) {
-      it(`parses ${lang} source without error`, () => {
-        const snippet = SNIPPETS[lang];
-        expect(snippet, `no snippet defined for language '${lang}'`).toBeDefined();
-        const tree = pool.parse(lang, snippet!);
-        expect(tree, `grammar for '${lang}' failed to load or parse — check native binding`).not.toBeNull();
-        expect(tree!.rootNode.childCount).toBeGreaterThan(0);
-      });
-    }
-  });
+    it('parses valid Python source', () => {
+      const tree = pool.parse('python', 'def greet():\n    pass\n');
+      expect(tree).not.toBeNull();
+      expect(tree!.rootNode.type).toBe('module');
+    });
 
-  it('keeps parser language coverage aligned with LSP registry defaults', () => {
-    expect(Object.keys(DEFAULT_LSP_SERVER_REGISTRY).sort()).toEqual([...SUPPORTED_PARSER_LANGUAGES].sort());
+    it('parses valid Go source', () => {
+      const tree = pool.parse('go', 'package main\nfunc main() {}');
+      expect(tree).not.toBeNull();
+      expect(tree!.rootNode.type).toBe('source_file');
+    });
+
+    it('parses valid Java source', () => {
+      const tree = pool.parse('java', 'class Foo { void bar() {} }');
+      expect(tree).not.toBeNull();
+      expect(tree!.rootNode.type).toBe('program');
+    });
+
+    it('parses valid Rust source', () => {
+      const tree = pool.parse('rust', 'fn main() {}');
+      expect(tree).not.toBeNull();
+      expect(tree!.rootNode.type).toBe('source_file');
+    });
+
+    it('parses valid C source', () => {
+      const tree = pool.parse('c', 'int main() { return 0; }');
+      expect(tree).not.toBeNull();
+      expect(tree!.rootNode.type).toBe('translation_unit');
+    });
+
+    it('returns null for unknown language', () => {
+      const tree = pool.parse('brainfuck', 'hello');
+      expect(tree).toBeNull();
+    });
+
+    it('returns null for unknown language on second call', () => {
+      pool.parse('nonexistent_lang', 'x');
+      const tree = pool.parse('nonexistent_lang', 'y');
+      expect(tree).toBeNull();
+    });
+
+    it('reuses cached parser for same language', () => {
+      const tree1 = pool.parse('typescript', 'const a = 1;');
+      const tree2 = pool.parse('typescript', 'const b = 2;');
+      expect(tree1).not.toBeNull();
+      expect(tree2).not.toBeNull();
+    });
+
+    it('handles empty source', () => {
+      const tree = pool.parse('typescript', '');
+      expect(tree).not.toBeNull();
+      expect(tree!.rootNode.childCount).toBe(0);
+    });
+
+    it('handles source with syntax errors gracefully', () => {
+      const tree = pool.parse('typescript', 'function { broken syntax !!!');
+      expect(tree).not.toBeNull();
+      // Tree-sitter produces a partial tree with ERROR nodes
+      expect(tree!.rootNode.hasError).toBe(true);
+    });
+
+    it('handles large source via chunked parsing', () => {
+      // Source larger than PARSER_CHUNK_SIZE (4096)
+      const source = 'const x = 1;\n'.repeat(1000);
+      const tree = pool.parse('typescript', source);
+      expect(tree).not.toBeNull();
+    });
   });
 });

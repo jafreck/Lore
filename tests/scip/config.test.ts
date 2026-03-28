@@ -1,170 +1,164 @@
-/**
- * Tests for SCIP configuration parsing and resolution.
- */
-
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { tmpdir } from 'node:os';
-import { describe, expect, it } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import * as os from 'node:os';
 import {
-  loadScipSettingsFromLoreConfig,
   resolveEffectiveScipSettings,
+  loadScipSettingsFromLoreConfig,
   DEFAULT_SCIP_ENABLED,
   DEFAULT_SCIP_TIMEOUT_MS,
+  type ScipSettingsOverrides,
 } from '../../src/scip/config.js';
 
-function tmpDir(): string {
-  return mkdtempSync(join(tmpdir(), 'lore-scip-config-'));
-}
+let tmpDir: string;
 
-describe('loadScipSettingsFromLoreConfig', () => {
-  it('returns empty overrides when no .lore.config exists', () => {
-    const dir = tmpDir();
-    try {
-      expect(loadScipSettingsFromLoreConfig(dir)).toEqual({});
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
+beforeEach(() => {
+  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lore-scip-config-'));
+});
 
-  it('returns empty overrides when .lore.config has no scip key', () => {
-    const dir = tmpDir();
-    writeFileSync(join(dir, '.lore.config'), '{"lsp": {"enabled": true}}');
-    try {
-      expect(loadScipSettingsFromLoreConfig(dir)).toEqual({});
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-
-  it('loads enabled and timeoutMs from config', () => {
-    const dir = tmpDir();
-    writeFileSync(join(dir, '.lore.config'), JSON.stringify({
-      scip: { enabled: true, timeoutMs: 60000 },
-    }));
-    try {
-      const settings = loadScipSettingsFromLoreConfig(dir);
-      expect(settings.enabled).toBe(true);
-      expect(settings.timeoutMs).toBe(60000);
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-
-  it('loads indexDir from config', () => {
-    const dir = tmpDir();
-    writeFileSync(join(dir, '.lore.config'), JSON.stringify({
-      scip: { indexDir: '.scip-indexes' },
-    }));
-    try {
-      const settings = loadScipSettingsFromLoreConfig(dir);
-      expect(settings.indexDir).toBe('.scip-indexes');
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-
-  it('throws on invalid scip config', () => {
-    const dir = tmpDir();
-    writeFileSync(join(dir, '.lore.config'), JSON.stringify({
-      scip: { enabled: 'yes' },
-    }));
-    try {
-      expect(() => loadScipSettingsFromLoreConfig(dir)).toThrow('Invalid .lore.config scip settings');
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-
-  it('throws on malformed JSON in .lore.config', () => {
-    const dir = tmpDir();
-    writeFileSync(join(dir, '.lore.config'), 'not valid json!!!');
-    try {
-      expect(() => loadScipSettingsFromLoreConfig(dir)).toThrow('Invalid .lore.config');
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-
-  it('throws when .lore.config root is not an object', () => {
-    const dir = tmpDir();
-    writeFileSync(join(dir, '.lore.config'), '"just a string"');
-    try {
-      expect(() => loadScipSettingsFromLoreConfig(dir)).toThrow('root must be a JSON object');
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-
-  it('loads indexer overrides', () => {
-    const dir = tmpDir();
-    writeFileSync(join(dir, '.lore.config'), JSON.stringify({
-      scip: {
-        indexers: {
-          typescript: { command: 'my-ts-indexer', args: ['index'] },
-        },
-      },
-    }));
-    try {
-      const settings = loadScipSettingsFromLoreConfig(dir);
-      expect(settings.indexers).toEqual({
-        typescript: { command: 'my-ts-indexer', args: ['index'] },
-      });
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
+afterEach(() => {
+  fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
 describe('resolveEffectiveScipSettings', () => {
-  it('uses defaults when no overrides are provided', () => {
-    const effective = resolveEffectiveScipSettings();
-    expect(effective.enabled).toBe(DEFAULT_SCIP_ENABLED);
-    expect(effective.timeoutMs).toBe(DEFAULT_SCIP_TIMEOUT_MS);
-    expect(effective.indexDir).toBeNull();
-    expect(Object.keys(effective.indexers).length).toBeGreaterThan(0);
+  it('returns defaults when no overrides provided', () => {
+    const settings = resolveEffectiveScipSettings();
+    expect(settings.enabled).toBe(DEFAULT_SCIP_ENABLED);
+    expect(settings.timeoutMs).toBe(DEFAULT_SCIP_TIMEOUT_MS);
+    expect(settings.indexDir).toBeNull();
+    expect(typeof settings.indexers).toBe('object');
   });
 
-  it('explicit overrides take priority over config settings', () => {
-    const effective = resolveEffectiveScipSettings(
-      { enabled: false, timeoutMs: 30000 },
-      { enabled: true },
+  it('applies config settings', () => {
+    const settings = resolveEffectiveScipSettings({ enabled: false, timeoutMs: 60_000 });
+    expect(settings.enabled).toBe(false);
+    expect(settings.timeoutMs).toBe(60_000);
+  });
+
+  it('explicit overrides take precedence over config', () => {
+    const settings = resolveEffectiveScipSettings(
+      { enabled: false, timeoutMs: 60_000 },
+      { enabled: true, timeoutMs: 30_000 },
     );
-    expect(effective.enabled).toBe(true);
-    expect(effective.timeoutMs).toBe(30000);
+    expect(settings.enabled).toBe(true);
+    expect(settings.timeoutMs).toBe(30_000);
   });
 
-  it('merges indexer overrides with defaults', () => {
-    const effective = resolveEffectiveScipSettings({
-      indexers: {
-        typescript: { command: 'custom-ts' },
-      },
-    });
-    expect(effective.indexers.typescript!.command).toBe('custom-ts');
-    // Python should still have the default.
-    expect(effective.indexers.python).toBeDefined();
+  it('merges indexer overrides from both layers', () => {
+    const config: ScipSettingsOverrides = {
+      indexers: { typescript: { command: 'custom-ts' } },
+    };
+    const explicit: ScipSettingsOverrides = {
+      indexers: { python: { command: 'custom-py', args: ['index'] } },
+    };
+
+    const settings = resolveEffectiveScipSettings(config, explicit);
+    expect(settings.indexers.typescript?.command).toBe('custom-ts');
+    expect(settings.indexers.python?.command).toBe('custom-py');
   });
 
-  it('merges explicit indexer overrides with config indexer overrides', () => {
-    const effective = resolveEffectiveScipSettings(
-      { indexers: { typescript: { command: 'config-ts', args: ['--index'] } } },
-      { indexers: { typescript: { command: 'override-ts' } } },
+  it('explicit indexer override wins over config for same language', () => {
+    const config: ScipSettingsOverrides = {
+      indexers: { typescript: { command: 'from-config' } },
+    };
+    const explicit: ScipSettingsOverrides = {
+      indexers: { typescript: { command: 'from-explicit' } },
+    };
+
+    const settings = resolveEffectiveScipSettings(config, explicit);
+    expect(settings.indexers.typescript?.command).toBe('from-explicit');
+  });
+
+  it('sets indexDir from explicit overrides', () => {
+    const settings = resolveEffectiveScipSettings({}, { indexDir: '/custom/dir' });
+    expect(settings.indexDir).toBe('/custom/dir');
+  });
+});
+
+describe('loadScipSettingsFromLoreConfig', () => {
+  it('returns empty object when no .lore.config exists', () => {
+    const result = loadScipSettingsFromLoreConfig(tmpDir);
+    expect(result).toEqual({});
+  });
+
+  it('returns empty object when .lore.config has no scip key', () => {
+    fs.writeFileSync(path.join(tmpDir, '.lore.config'), JSON.stringify({ lsp: {} }));
+    const result = loadScipSettingsFromLoreConfig(tmpDir);
+    expect(result).toEqual({});
+  });
+
+  it('parses valid scip settings', () => {
+    fs.writeFileSync(
+      path.join(tmpDir, '.lore.config'),
+      JSON.stringify({
+        scip: {
+          enabled: false,
+          timeoutMs: 30000,
+        },
+      }),
     );
-    expect(effective.indexers.typescript!.command).toBe('override-ts');
+
+    const result = loadScipSettingsFromLoreConfig(tmpDir);
+    expect(result.enabled).toBe(false);
+    expect(result.timeoutMs).toBe(30000);
   });
 
-  it('uses indexDir from explicit overrides over config', () => {
-    const effective = resolveEffectiveScipSettings(
-      { indexDir: 'config-dir' },
-      { indexDir: 'override-dir' },
-    );
-    expect(effective.indexDir).toBe('override-dir');
+  it('throws on invalid JSON', () => {
+    fs.writeFileSync(path.join(tmpDir, '.lore.config'), 'not json');
+    expect(() => loadScipSettingsFromLoreConfig(tmpDir)).toThrow('Invalid .lore.config');
   });
 
-  it('uses indexDir from config when no explicit override', () => {
-    const effective = resolveEffectiveScipSettings(
-      { indexDir: 'config-dir' },
+  it('throws on invalid scip settings', () => {
+    fs.writeFileSync(
+      path.join(tmpDir, '.lore.config'),
+      JSON.stringify({ scip: { enabled: 'not-a-boolean' } }),
     );
-    expect(effective.indexDir).toBe('config-dir');
+    expect(() => loadScipSettingsFromLoreConfig(tmpDir)).toThrow('Invalid .lore.config scip settings');
+  });
+
+  it('throws when root is not an object', () => {
+    fs.writeFileSync(path.join(tmpDir, '.lore.config'), JSON.stringify('string'));
+    expect(() => loadScipSettingsFromLoreConfig(tmpDir)).toThrow('root must be a JSON object');
+  });
+
+  it('parses indexer overrides', () => {
+    fs.writeFileSync(
+      path.join(tmpDir, '.lore.config'),
+      JSON.stringify({
+        scip: {
+          indexers: {
+            typescript: { command: 'my-ts-indexer' },
+          },
+        },
+      }),
+    );
+
+    const result = loadScipSettingsFromLoreConfig(tmpDir);
+    expect(result.indexers).toBeDefined();
+    expect(result.indexers!['typescript']?.command).toBe('my-ts-indexer');
+  });
+
+  it('parses indexDir setting', () => {
+    fs.writeFileSync(
+      path.join(tmpDir, '.lore.config'),
+      JSON.stringify({
+        scip: {
+          indexDir: '/precomputed/scip',
+        },
+      }),
+    );
+
+    const result = loadScipSettingsFromLoreConfig(tmpDir);
+    expect(result.indexDir).toBe('/precomputed/scip');
+  });
+});
+
+describe('default constants', () => {
+  it('DEFAULT_SCIP_ENABLED is true', () => {
+    expect(DEFAULT_SCIP_ENABLED).toBe(true);
+  });
+
+  it('DEFAULT_SCIP_TIMEOUT_MS is 120000', () => {
+    expect(DEFAULT_SCIP_TIMEOUT_MS).toBe(120_000);
   });
 });

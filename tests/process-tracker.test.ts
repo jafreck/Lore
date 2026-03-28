@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { spawn } from 'node:child_process';
 import {
   trackProcess,
@@ -8,21 +8,27 @@ import {
 } from '../src/process-tracker.js';
 
 describe('process-tracker', () => {
-  // Clean slate before each test so leaked tracked processes in one test
-  // don't affect another.
   beforeEach(() => {
+    // Ensure a clean state
     killAllTracked();
   });
 
-  it('trackProcess increases the tracked count', () => {
-    const child = spawn('sleep', ['60']);
+  afterEach(() => {
+    killAllTracked();
+  });
+
+  it('starts with zero tracked processes', () => {
     expect(trackedCount()).toBe(0);
+  });
+
+  it('trackProcess increments count', () => {
+    const child = spawn('sleep', ['60']);
     trackProcess(child);
     expect(trackedCount()).toBe(1);
     child.kill();
   });
 
-  it('untrackProcess removes a tracked process', () => {
+  it('untrackProcess decrements count', () => {
     const child = spawn('sleep', ['60']);
     trackProcess(child);
     expect(trackedCount()).toBe(1);
@@ -31,45 +37,46 @@ describe('process-tracker', () => {
     child.kill();
   });
 
-  it('auto-untrack on exit removes the process from the set', async () => {
-    // Spawn a short-lived command so we can wait for exit.
-    const child = spawn('true');
-    trackProcess(child);
-    expect(trackedCount()).toBe(1);
-
-    await new Promise<void>((resolve) => child.once('exit', () => resolve()));
-    expect(trackedCount()).toBe(0);
-  });
-
-  it('killAllTracked sends SIGTERM to all tracked processes', async () => {
-    const a = spawn('sleep', ['60']);
-    const b = spawn('sleep', ['60']);
-    trackProcess(a);
-    trackProcess(b);
+  it('killAllTracked sends SIGTERM and clears set', () => {
+    const child1 = spawn('sleep', ['60']);
+    const child2 = spawn('sleep', ['60']);
+    trackProcess(child1);
+    trackProcess(child2);
     expect(trackedCount()).toBe(2);
 
     killAllTracked();
     expect(trackedCount()).toBe(0);
-
-    // Both should eventually exit.
-    await Promise.all([
-      new Promise<void>((resolve) => a.once('exit', () => resolve())),
-      new Promise<void>((resolve) => b.once('exit', () => resolve())),
-    ]);
   });
 
-  it('killAllTracked is safe to call with no tracked processes', () => {
-    expect(trackedCount()).toBe(0);
-    killAllTracked(); // should not throw
-    expect(trackedCount()).toBe(0);
-  });
-
-  it('killAllTracked is safe to call when a process already exited', async () => {
-    const child = spawn('true');
+  it('auto-removes on child exit', async () => {
+    const child = spawn('echo', ['hello']);
     trackProcess(child);
-    await new Promise<void>((resolve) => child.once('exit', () => resolve()));
-    // Process already exited and auto-untracked.
+
+    await new Promise<void>((resolve) => {
+      child.once('exit', () => resolve());
+    });
+
     expect(trackedCount()).toBe(0);
-    killAllTracked(); // should not throw
+  });
+
+  it('untrack is idempotent for already-removed process', () => {
+    const child = spawn('sleep', ['60']);
+    trackProcess(child);
+    untrackProcess(child);
+    expect(() => untrackProcess(child)).not.toThrow();
+    expect(trackedCount()).toBe(0);
+    child.kill();
+  });
+
+  it('killAllTracked handles already-exited processes gracefully', async () => {
+    const child = spawn('echo', ['hello']);
+    trackProcess(child);
+
+    await new Promise<void>((resolve) => {
+      child.once('exit', () => resolve());
+    });
+
+    // Process already exited but killAllTracked should not throw
+    expect(() => killAllTracked()).not.toThrow();
   });
 });
