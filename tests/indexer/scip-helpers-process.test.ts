@@ -5,7 +5,10 @@ import * as os from 'node:os';
 import {
   detectProjectLanguages,
   createLoreScipTsconfig,
+  loadScipIndexes,
+  type ScipProcessIO,
 } from '../../src/indexer/stages/scip-helpers/process.js';
+import type { EffectiveScipSettings } from '../../src/scip/config.js';
 
 function makeTempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'lore-test-process-'));
@@ -289,5 +292,132 @@ describe('createLoreScipTsconfig', () => {
     // Should keep strict
     expect(content.compilerOptions.strict).toBe(true);
     try { fs.unlinkSync(result!); } catch { /* ok */ }
+  });
+
+  it('preserves paths and baseUrl options', () => {
+    const dir = makeTempDir();
+    dirs.push(dir);
+    fs.writeFileSync(path.join(dir, 'tsconfig.json'), JSON.stringify({
+      compilerOptions: { strict: true, paths: { "@/*": ["src/*"] }, baseUrl: "." },
+    }));
+    const result = createLoreScipTsconfig(dir);
+    expect(result).not.toBeNull();
+    const content = JSON.parse(fs.readFileSync(result!, 'utf8'));
+    expect(content.compilerOptions.strict).toBe(true);
+    expect(content.compilerOptions.paths).toEqual({ "@/*": ["src/*"] });
+    expect(content.compilerOptions.baseUrl).toBe(".");
+    try { fs.unlinkSync(result!); } catch { /* ok */ }
+  });
+
+  it('uses absolute paths in include globs', () => {
+    const dir = makeTempDir();
+    dirs.push(dir);
+    fs.writeFileSync(path.join(dir, 'tsconfig.json'), '{}');
+    const result = createLoreScipTsconfig(dir);
+    expect(result).not.toBeNull();
+    const content = JSON.parse(fs.readFileSync(result!, 'utf8'));
+    for (const inc of content.include) {
+      expect(path.isAbsolute(inc)).toBe(true);
+    }
+    try { fs.unlinkSync(result!); } catch { /* ok */ }
+  });
+
+  it('uses absolute paths in exclude globs', () => {
+    const dir = makeTempDir();
+    dirs.push(dir);
+    fs.writeFileSync(path.join(dir, 'tsconfig.json'), JSON.stringify({
+      exclude: ['node_modules', 'dist'],
+    }));
+    const result = createLoreScipTsconfig(dir);
+    expect(result).not.toBeNull();
+    const content = JSON.parse(fs.readFileSync(result!, 'utf8'));
+    for (const exc of content.exclude) {
+      expect(path.isAbsolute(exc)).toBe(true);
+    }
+    try { fs.unlinkSync(result!); } catch { /* ok */ }
+  });
+});
+
+// ─── loadScipIndexes ────────────────────────────────────────────────────────
+
+function mockIO(overrides: Partial<ScipProcessIO> = {}): ScipProcessIO {
+  return {
+    existsSync: () => false,
+    readFileSync: () => new Uint8Array(),
+    unlinkSync: () => {},
+    execFile: async () => {},
+    installScipIndexer: async () => ({ installed: false }),
+    ensureCompilationDatabase: async () => ({ path: null }),
+    ...overrides,
+  };
+}
+
+function baseSettings(overrides: Partial<EffectiveScipSettings> = {}): EffectiveScipSettings {
+  return {
+    enabled: true,
+    timeoutMs: 30_000,
+    indexers: {},
+    indexDir: null,
+    ...overrides,
+  };
+}
+
+describe('loadScipIndexes', () => {
+  it('loads pre-computed index.scip from indexDir', async () => {
+    const indexData = new Uint8Array([1, 2, 3, 4]);
+    const io = mockIO({
+      existsSync: (p) => p.endsWith('index.scip'),
+      readFileSync: () => indexData,
+    });
+    const settings = baseSettings({ indexDir: '.scip' });
+    const result = await loadScipIndexes(settings, '/fake/root', null, io);
+    expect(result).toHaveLength(1);
+    expect(result[0]).toEqual(indexData);
+  });
+
+  it('loads per-language index files when staleLanguages provided', async () => {
+    const tsData = new Uint8Array([10, 20]);
+    const io = mockIO({
+      existsSync: (p) => p.endsWith('typescript.scip'),
+      readFileSync: () => tsData,
+    });
+    const settings = baseSettings({ indexDir: '.scip' });
+    const result = await loadScipIndexes(settings, '/fake/root', new Set(['typescript']), io);
+    expect(result).toEqual([tsData]);
+  });
+
+  it('falls through to indexer when indexDir has no files', async () => {
+    const io = mockIO({
+      existsSync: () => false,
+    });
+    const settings = baseSettings({ indexDir: '.scip' });
+    const result = await loadScipIndexes(settings, '/fake/root', null, io);
+    expect(result).toEqual([]);
+  });
+
+  it('returns empty when no pre-computed and no available indexers', async () => {
+    const io = mockIO();
+    const settings = baseSettings();
+    const result = await loadScipIndexes(settings, '/fake/root', null, io);
+    expect(result).toEqual([]);
+  });
+
+  it('returns empty when no indexDir and no indexers configured', async () => {
+    const io = mockIO();
+    const settings = baseSettings({ indexDir: null, indexers: {} });
+    const result = await loadScipIndexes(settings, '/fake/root', new Set(['python']), io);
+    expect(result).toEqual([]);
+  });
+
+  it('loads multiple pre-computed language indexes', async () => {
+    const tsData = new Uint8Array([1]);
+    const pyData = new Uint8Array([2]);
+    const io = mockIO({
+      existsSync: (p) => p.endsWith('typescript.scip') || p.endsWith('python.scip'),
+      readFileSync: (p) => p.endsWith('typescript.scip') ? tsData : pyData,
+    });
+    const settings = baseSettings({ indexDir: '.scip' });
+    const result = await loadScipIndexes(settings, '/fake/root', null, io);
+    expect(result).toHaveLength(2);
   });
 });
