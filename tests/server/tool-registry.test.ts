@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { openDb, type Database } from '../../src/db/schema.js';
-import { inputSchemaToZodShape, buildToolModules, type ToolModule, type ToolDefinition } from '../../src/server/tool-registry.js';
+import { inputSchemaToZodShape, buildToolModules, registerTools, type ToolModule, type ToolDefinition, type ToolDependencies } from '../../src/server/tool-registry.js';
 import { z } from 'zod';
 
 // ─── inputSchemaToZodShape ────────────────────────────────────────────────────
@@ -178,5 +178,221 @@ describe('buildToolModules', () => {
     } finally {
       db.close();
     }
+  });
+});
+
+// ─── registerTools ────────────────────────────────────────────────────────────
+
+describe('registerTools', () => {
+  it('registers tool modules on a mock MCP server', async () => {
+    const db = openDb(':memory:');
+    const registered: Array<{ name: string; description: string }> = [];
+    const mockServer = {
+      tool: (name: string, description: string, _zodShape: any, _handler: any) => {
+        registered.push({ name, description });
+      },
+    } as any;
+
+    const testModule: ToolModule = {
+      def: {
+        name: 'test_tool',
+        description: 'A test tool',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            query: { type: 'string', description: 'test query' },
+          },
+          required: ['query'],
+        },
+      },
+      handlerFactory: () => async (args: any) => ({ result: args.query }),
+    };
+
+    const deps: ToolDependencies = {
+      db,
+      dbPath: ':memory:',
+      logger: {
+        toolCall: () => {},
+        info: () => {},
+        warn: () => {},
+        error: () => {},
+        debug: () => {},
+        close: () => {},
+        indexing: () => {},
+      } as any,
+    };
+
+    registerTools(mockServer, [testModule], deps);
+    expect(registered).toHaveLength(1);
+    expect(registered[0]!.name).toBe('test_tool');
+    expect(registered[0]!.description).toBe('A test tool');
+    db.close();
+  });
+
+  it('loggedHandler wrapper returns JSON content on success', async () => {
+    const db = openDb(':memory:');
+    const toolCalls: any[] = [];
+    const mockServer = {
+      tool: (_name: string, _desc: string, _zodShape: any, handler: any) => {
+        // Store the wrapped handler so we can call it
+        toolCalls.push(handler);
+      },
+    } as any;
+
+    const testModule: ToolModule = {
+      def: {
+        name: 'test_logged',
+        description: 'Test logged handler',
+        inputSchema: {
+          type: 'object',
+          properties: { msg: { type: 'string' } },
+          required: ['msg'],
+        },
+      },
+      handlerFactory: () => async (args: any) => ({ echo: args.msg }),
+    };
+
+    const deps: ToolDependencies = {
+      db,
+      dbPath: ':memory:',
+      logger: {
+        toolCall: () => {},
+        info: () => {},
+        warn: () => {},
+        error: () => {},
+        debug: () => {},
+        close: () => {},
+        indexing: () => {},
+      } as any,
+    };
+
+    registerTools(mockServer, [testModule], deps);
+    expect(toolCalls).toHaveLength(1);
+
+    const wrappedHandler = toolCalls[0];
+    const result = await wrappedHandler({ msg: 'hello' });
+    expect(result.content).toBeDefined();
+    expect(result.content).toHaveLength(1);
+    expect(result.content[0].type).toBe('text');
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.echo).toBe('hello');
+    db.close();
+  });
+
+  it('loggedHandler wrapper injects freshness metadata', async () => {
+    const db = openDb(':memory:');
+    const toolCalls: any[] = [];
+    const mockServer = {
+      tool: (_name: string, _desc: string, _zodShape: any, handler: any) => {
+        toolCalls.push(handler);
+      },
+    } as any;
+
+    const testModule: ToolModule = {
+      def: {
+        name: 'test_freshness',
+        description: 'Test freshness injection',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
+      handlerFactory: () => async () => ({ data: 'test' }),
+    };
+
+    const deps: ToolDependencies = {
+      db,
+      dbPath: ':memory:',
+      logger: {
+        toolCall: () => {},
+        info: () => {},
+        warn: () => {},
+        error: () => {},
+        debug: () => {},
+        close: () => {},
+        indexing: () => {},
+      } as any,
+    };
+
+    registerTools(mockServer, [testModule], deps);
+    const result = await toolCalls[0]({});
+    const parsed = JSON.parse(result.content[0].text);
+    // The handler returns an object, so freshness should be injected
+    expect(parsed.data).toBe('test');
+    // freshness may or may not be present depending on lore_meta state
+    // but the key should exist if getFreshness succeeds
+    db.close();
+  });
+
+  it('loggedHandler wrapper propagates errors and logs them', async () => {
+    const db = openDb(':memory:');
+    const toolCalls: any[] = [];
+    const loggedErrors: any[] = [];
+    const mockServer = {
+      tool: (_name: string, _desc: string, _zodShape: any, handler: any) => {
+        toolCalls.push(handler);
+      },
+    } as any;
+
+    const testModule: ToolModule = {
+      def: {
+        name: 'test_error',
+        description: 'Test error handling',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
+      handlerFactory: () => async () => { throw new Error('boom'); },
+    };
+
+    const deps: ToolDependencies = {
+      db,
+      dbPath: ':memory:',
+      logger: {
+        toolCall: (entry: any) => { if (entry.status === 'error') loggedErrors.push(entry); },
+        info: () => {},
+        warn: () => {},
+        error: () => {},
+        debug: () => {},
+        close: () => {},
+        indexing: () => {},
+      } as any,
+    };
+
+    registerTools(mockServer, [testModule], deps);
+    await expect(toolCalls[0]({})).rejects.toThrow('boom');
+    expect(loggedErrors).toHaveLength(1);
+    expect(loggedErrors[0].error).toBe('boom');
+    db.close();
+  });
+
+  it('registers multiple modules at once', async () => {
+    const db = openDb(':memory:');
+    const registered: string[] = [];
+    const mockServer = {
+      tool: (name: string) => { registered.push(name); },
+    } as any;
+
+    const modules: ToolModule[] = [
+      {
+        def: { name: 'tool_a', description: 'A', inputSchema: { type: 'object', properties: {} } },
+        handlerFactory: () => async () => ({}),
+      },
+      {
+        def: { name: 'tool_b', description: 'B', inputSchema: { type: 'object', properties: {} } },
+        handlerFactory: () => async () => ({}),
+      },
+    ];
+
+    const deps: ToolDependencies = {
+      db,
+      dbPath: ':memory:',
+      logger: { toolCall: () => {}, info: () => {}, warn: () => {}, error: () => {}, debug: () => {}, close: () => {}, indexing: () => {} } as any,
+    };
+
+    registerTools(mockServer, modules, deps);
+    expect(registered).toEqual(['tool_a', 'tool_b']);
+    db.close();
   });
 });

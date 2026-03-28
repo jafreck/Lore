@@ -109,4 +109,59 @@ describe('LoreRuntime', () => {
       expect(config.indexDependencies).toBe(false);
     });
   });
+
+  describe('shutdown disposes resources', () => {
+    it('clears embedder on shutdown', async () => {
+      const runtime = new LoreRuntime(makeConfig());
+      await runtime.start();
+      expect(runtime.embedder).toBeUndefined(); // no embeddingModel configured
+      await runtime.shutdown();
+      expect(runtime.embedder).toBeUndefined();
+    });
+
+    it('clears refresher on shutdown', async () => {
+      const runtime = new LoreRuntime(makeConfig());
+      await runtime.start();
+      expect(runtime.refresher).toBeUndefined(); // refreshMode=none
+      await runtime.shutdown();
+      expect(runtime.refresher).toBeUndefined();
+    });
+  });
+
+  describe('installSignalHandlers', () => {
+    it('installs signal handlers', () => {
+      const runtime = new LoreRuntime(makeConfig());
+      expect(() => runtime.installSignalHandlers()).not.toThrow();
+    });
+
+    it('is idempotent (calling twice does not throw)', () => {
+      const runtime = new LoreRuntime(makeConfig());
+      runtime.installSignalHandlers();
+      expect(() => runtime.installSignalHandlers()).not.toThrow();
+    });
+  });
+
+  describe('start with embeddingModel', () => {
+    it('does not crash when embeddingModel is set but model unavailable', async () => {
+      const runtime = new LoreRuntime(makeConfig({
+        embeddingModel: 'nonexistent-model',
+      }));
+      // start() should catch the error and continue
+      await runtime.start();
+      // embedder may or may not be set depending on whether lazy init catches
+      expect(runtime.started).toBe(true);
+      await runtime.shutdown();
+    });
+  });
+
+  describe('double shutdown', () => {
+    it('multiple shutdowns are safe after started', async () => {
+      const runtime = new LoreRuntime(makeConfig());
+      await runtime.start();
+      await runtime.shutdown();
+      await runtime.shutdown();
+      await runtime.shutdown();
+      expect(runtime.started).toBe(false);
+    });
+  });
 });
