@@ -3,12 +3,12 @@ import {
   RESOLUTION_METHODS,
   RESOLVED_METHODS,
   UNRESOLVED_METHODS,
+  type ResolutionMethod,
 } from '../../src/resolution/resolution-method.js';
-import type { ResolutionMethod } from '../../src/resolution/resolution-method.js';
 
-describe('resolution-method taxonomy', () => {
-  it('should define all nine resolution method values', () => {
-    expect(RESOLUTION_METHODS).toEqual([
+describe('resolution-method constants', () => {
+  it('RESOLUTION_METHODS contains all expected methods', () => {
+    const expected = [
       'scip_definition',
       'lsp_definition',
       'name_same_file',
@@ -18,33 +18,47 @@ describe('resolution-method taxonomy', () => {
       'ambiguous_definition',
       'overlay_stale',
       'unresolved',
-    ]);
+    ];
+    expect([...RESOLUTION_METHODS]).toEqual(expected);
   });
 
-  it('should have RESOLVED_METHODS that include only successfully resolved tiers', () => {
+  it('RESOLVED_METHODS contains only high-confidence methods', () => {
     expect(RESOLVED_METHODS.has('scip_definition')).toBe(true);
     expect(RESOLVED_METHODS.has('lsp_definition')).toBe(true);
     expect(RESOLVED_METHODS.has('name_same_file')).toBe(true);
     expect(RESOLVED_METHODS.has('name_single_file')).toBe(true);
     expect(RESOLVED_METHODS.has('name_unique')).toBe(true);
-    expect(RESOLVED_METHODS.has('external_definition' as ResolutionMethod)).toBe(false);
-    expect(RESOLVED_METHODS.has('unresolved' as ResolutionMethod)).toBe(false);
+    expect(RESOLVED_METHODS.size).toBe(5);
   });
 
-  it('should have UNRESOLVED_METHODS that include all non-resolved tiers', () => {
+  it('UNRESOLVED_METHODS contains only unresolved-class methods', () => {
     expect(UNRESOLVED_METHODS.has('external_definition')).toBe(true);
     expect(UNRESOLVED_METHODS.has('ambiguous_definition')).toBe(true);
     expect(UNRESOLVED_METHODS.has('overlay_stale')).toBe(true);
     expect(UNRESOLVED_METHODS.has('unresolved')).toBe(true);
-    expect(UNRESOLVED_METHODS.has('lsp_definition' as ResolutionMethod)).toBe(false);
+    expect(UNRESOLVED_METHODS.size).toBe(4);
   });
 
-  it('should partition all methods between resolved and unresolved', () => {
-    for (const method of RESOLUTION_METHODS) {
-      const inResolved = RESOLVED_METHODS.has(method);
-      const inUnresolved = UNRESOLVED_METHODS.has(method);
-      expect(inResolved || inUnresolved).toBe(true);
-      expect(inResolved && inUnresolved).toBe(false);
+  it('RESOLVED and UNRESOLVED are disjoint', () => {
+    for (const m of RESOLVED_METHODS) {
+      expect(UNRESOLVED_METHODS.has(m)).toBe(false);
     }
+    for (const m of UNRESOLVED_METHODS) {
+      expect(RESOLVED_METHODS.has(m as any)).toBe(false);
+    }
+  });
+
+  it('RESOLVED + UNRESOLVED covers all RESOLUTION_METHODS', () => {
+    for (const m of RESOLUTION_METHODS) {
+      const inResolved = RESOLVED_METHODS.has(m);
+      const inUnresolved = UNRESOLVED_METHODS.has(m);
+      expect(inResolved || inUnresolved).toBe(true);
+    }
+  });
+
+  it('ResolutionMethod type matches array values', () => {
+    // Ensure the type is correctly derived from the const array
+    const first: ResolutionMethod = RESOLUTION_METHODS[0];
+    expect(first).toBe('scip_definition');
   });
 });

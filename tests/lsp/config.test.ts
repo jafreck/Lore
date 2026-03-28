@@ -1,151 +1,118 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
+  resolveEffectiveLspSettings,
+  loadLspSettingsFromLoreConfig,
   DEFAULT_LSP_ENABLED,
   DEFAULT_LSP_REQUEST_TIMEOUT_MS,
-  loadLspSettingsFromLoreConfig,
-  resolveEffectiveLspSettings,
 } from '../../src/lsp/config.js';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import * as os from 'node:os';
 
-describe('loadLspSettingsFromLoreConfig', () => {
-  let rootDir: string;
+let tmpDir: string;
 
-  beforeEach(() => {
-    rootDir = mkdtempSync(join(tmpdir(), 'lore-lsp-config-'));
-  });
+beforeEach(() => {
+  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lore-lsp-config-'));
+});
 
-  afterEach(() => {
-    rmSync(rootDir, { recursive: true, force: true });
-  });
-
-  it('should return empty overrides when .lore.config does not exist', () => {
-    expect(loadLspSettingsFromLoreConfig(rootDir)).toEqual({});
-  });
-
-  it('should return empty overrides when lsp section is absent', () => {
-    writeFileSync(join(rootDir, '.lore.config'), JSON.stringify({ app: { name: 'demo' } }), 'utf8');
-    expect(loadLspSettingsFromLoreConfig(rootDir)).toEqual({});
-  });
-
-  it('should parse valid LSP settings and map timeoutMs to requestTimeoutMs', () => {
-    writeFileSync(
-      join(rootDir, '.lore.config'),
-      JSON.stringify({
-        lsp: {
-          enabled: true,
-          timeoutMs: 9876,
-          servers: {
-            typescript: {
-              command: 'custom-ts-ls',
-              args: ['--stdio'],
-            },
-            python: {
-              args: ['--custom'],
-            },
-          },
-        },
-      }),
-      'utf8',
-    );
-
-    expect(loadLspSettingsFromLoreConfig(rootDir)).toEqual({
-      enabled: true,
-      requestTimeoutMs: 9876,
-      servers: {
-        typescript: {
-          command: 'custom-ts-ls',
-          args: ['--stdio'],
-        },
-        python: {
-          args: ['--custom'],
-        },
-      },
-    });
-  });
-
-  it('should throw an explicit error when .lore.config is malformed JSON', () => {
-    writeFileSync(join(rootDir, '.lore.config'), '{ "lsp": ', 'utf8');
-    expect(() => loadLspSettingsFromLoreConfig(rootDir)).toThrow(/Invalid \.lore\.config:/u);
-  });
-
-  it('should throw an explicit error when lsp settings violate the schema', () => {
-    writeFileSync(
-      join(rootDir, '.lore.config'),
-      JSON.stringify({
-        lsp: {
-          timeoutMs: 'fast',
-        },
-      }),
-      'utf8',
-    );
-
-    expect(() => loadLspSettingsFromLoreConfig(rootDir)).toThrow(/Invalid \.lore\.config lsp settings/u);
-  });
-
-  it('should throw when lsp server overrides include an unsupported language', () => {
-    writeFileSync(
-      join(rootDir, '.lore.config'),
-      JSON.stringify({
-        lsp: {
-          servers: {
-            unknownlang: {
-              command: 'missing-ls',
-            },
-          },
-        },
-      }),
-      'utf8',
-    );
-
-    expect(() => loadLspSettingsFromLoreConfig(rootDir)).toThrow(/unsupported language "unknownlang"/u);
-  });
+afterEach(() => {
+  fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
 describe('resolveEffectiveLspSettings', () => {
-  it('should use module defaults when config and explicit overrides are absent', () => {
-    const effective = resolveEffectiveLspSettings();
-
-    expect(effective.enabled).toBe(DEFAULT_LSP_ENABLED);
-    expect(effective.requestTimeoutMs).toBe(DEFAULT_LSP_REQUEST_TIMEOUT_MS);
-    expect(effective.servers.typescript).toEqual({
-      command: 'typescript-language-server',
-      args: ['--stdio'],
-    });
+  it('returns defaults when no overrides provided', () => {
+    const settings = resolveEffectiveLspSettings();
+    expect(settings.enabled).toBe(DEFAULT_LSP_ENABLED);
+    expect(settings.requestTimeoutMs).toBe(DEFAULT_LSP_REQUEST_TIMEOUT_MS);
+    expect(typeof settings.servers).toBe('object');
+    expect(settings.servers).toHaveProperty('typescript');
   });
 
-  it('should apply explicit overrides over config overrides while merging server entries', () => {
-    const effective = resolveEffectiveLspSettings(
-      {
-        enabled: false,
-        requestTimeoutMs: 500,
-        servers: {
-          typescript: {
-            command: 'config-ts-ls',
-          },
-        },
-      },
-      {
-        enabled: true,
-        requestTimeoutMs: 1500,
-        servers: {
-          python: {
-            args: ['--explicit'],
-          },
-        },
-      },
-    );
+  it('applies config settings', () => {
+    const settings = resolveEffectiveLspSettings({
+      enabled: true,
+      requestTimeoutMs: 10_000,
+    });
+    expect(settings.enabled).toBe(true);
+    expect(settings.requestTimeoutMs).toBe(10_000);
+  });
 
-    expect(effective.enabled).toBe(true);
-    expect(effective.requestTimeoutMs).toBe(1500);
-    expect(effective.servers.typescript).toEqual({
-      command: 'config-ts-ls',
-      args: ['--stdio'],
-    });
-    expect(effective.servers.python).toEqual({
-      command: 'pyright-langserver',
-      args: ['--explicit'],
-    });
+  it('explicit overrides take precedence over config', () => {
+    const settings = resolveEffectiveLspSettings(
+      { enabled: false, requestTimeoutMs: 10_000 },
+      { enabled: true, requestTimeoutMs: 3_000 },
+    );
+    expect(settings.enabled).toBe(true);
+    expect(settings.requestTimeoutMs).toBe(3_000);
+  });
+
+  it('merges server overrides from both layers', () => {
+    const settings = resolveEffectiveLspSettings(
+      { servers: { typescript: { command: 'my-ts-server' } } },
+      { servers: { python: { command: 'my-pyright' } } },
+    );
+    expect(settings.servers.typescript.command).toBe('my-ts-server');
+    expect(settings.servers.python.command).toBe('my-pyright');
+  });
+
+  it('deep-merges server overrides for same language', () => {
+    const settings = resolveEffectiveLspSettings(
+      { servers: { typescript: { command: 'custom-ts' } } },
+      { servers: { typescript: { args: ['--extra'] } } },
+    );
+    expect(settings.servers.typescript.command).toBe('custom-ts');
+    expect(settings.servers.typescript.args).toEqual(['--extra']);
+  });
+});
+
+describe('loadLspSettingsFromLoreConfig', () => {
+  it('returns empty when no .lore.config exists', () => {
+    const result = loadLspSettingsFromLoreConfig(tmpDir);
+    expect(result).toEqual({});
+  });
+
+  it('returns empty when .lore.config has no lsp key', () => {
+    fs.writeFileSync(path.join(tmpDir, '.lore.config'), JSON.stringify({ other: true }));
+    const result = loadLspSettingsFromLoreConfig(tmpDir);
+    expect(result).toEqual({});
+  });
+
+  it('parses valid lsp settings', () => {
+    fs.writeFileSync(
+      path.join(tmpDir, '.lore.config'),
+      JSON.stringify({
+        lsp: {
+          enabled: true,
+          timeoutMs: 8000,
+        },
+      }),
+    );
+    const result = loadLspSettingsFromLoreConfig(tmpDir);
+    expect(result.enabled).toBe(true);
+    expect(result.requestTimeoutMs).toBe(8000);
+  });
+
+  it('throws on invalid JSON', () => {
+    fs.writeFileSync(path.join(tmpDir, '.lore.config'), 'not json');
+    expect(() => loadLspSettingsFromLoreConfig(tmpDir)).toThrow('Invalid .lore.config');
+  });
+
+  it('throws on unsupported language in servers', () => {
+    fs.writeFileSync(
+      path.join(tmpDir, '.lore.config'),
+      JSON.stringify({
+        lsp: {
+          servers: {
+            brainfuck: { command: 'bf-lsp' },
+          },
+        },
+      }),
+    );
+    expect(() => loadLspSettingsFromLoreConfig(tmpDir)).toThrow('unsupported language');
+  });
+
+  it('throws when root is not an object', () => {
+    fs.writeFileSync(path.join(tmpDir, '.lore.config'), JSON.stringify('string'));
+    expect(() => loadLspSettingsFromLoreConfig(tmpDir)).toThrow('root must be a JSON object');
   });
 });

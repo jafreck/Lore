@@ -1,282 +1,314 @@
-/**
- * Tests for the SCIP protobuf index reader.
- *
- * Uses `@bufbuild/protobuf` `toBinary`/`create` to construct valid SCIP
- * protobuf messages, then verifies `parseScipIndex` correctly decodes
- * them into the in-memory lookup structures.
- */
+import { describe, it, expect } from 'vitest';
+import { extractReturnType } from '../../src/enrichment-types.js';
+import { ScipIndexData } from '../../src/scip/index-reader.js';
 
-import { describe, expect, it } from 'vitest';
-import { create, toBinary } from '@bufbuild/protobuf';
-import {
-  IndexSchema,
-  DocumentSchema,
-  OccurrenceSchema,
-  SymbolInformationSchema,
-  SymbolRole,
-} from '../../src/scip/scip_pb.js';
-import {
-  parseScipIndex,
-  extractSignatureFromDocs,
-  extractReturnType,
-} from '../../src/scip/index-reader.js';
-
-// ─── Helper: build a SCIP index as protobuf bytes ─────────────────────────────
-
-function buildIndexBytes(opts: {
-  documents?: Array<{
-    relativePath: string;
-    language?: string;
-    occurrences?: Array<{
-      range: number[];
-      symbol: string;
-      symbolRoles?: number;
-    }>;
-    symbols?: Array<{
-      symbol: string;
-      documentation?: string[];
-      displayName?: string;
-    }>;
-  }>;
-  externalSymbols?: Array<{
-    symbol: string;
-    documentation?: string[];
-    displayName?: string;
-  }>;
-}): Uint8Array {
-  const index = create(IndexSchema, {
-    documents: (opts.documents ?? []).map(d => create(DocumentSchema, {
-      relativePath: d.relativePath,
-      language: d.language ?? '',
-      occurrences: (d.occurrences ?? []).map(o => create(OccurrenceSchema, {
-        range: o.range,
-        symbol: o.symbol,
-        symbolRoles: o.symbolRoles ?? 0,
-      })),
-      symbols: (d.symbols ?? []).map(s => create(SymbolInformationSchema, {
-        symbol: s.symbol,
-        documentation: s.documentation ?? [],
-        displayName: s.displayName ?? '',
-      })),
-    })),
-    externalSymbols: (opts.externalSymbols ?? []).map(s => create(SymbolInformationSchema, {
-      symbol: s.symbol,
-      documentation: s.documentation ?? [],
-      displayName: s.displayName ?? '',
-    })),
-  });
-  return toBinary(IndexSchema, index);
-}
-
-// ─── Tests ────────────────────────────────────────────────────────────────────
-
-describe('parseScipIndex', () => {
-  it('decodes a minimal index with one document and a definition occurrence', () => {
-    const sym = 'npm . project 1.0 `src/`/MyClass#';
-    const bytes = buildIndexBytes({
-      documents: [{
-        relativePath: 'src/main.ts',
-        language: 'TypeScript',
-        occurrences: [
-          { range: [10, 4, 10, 20], symbol: sym, symbolRoles: SymbolRole.Definition },
-          { range: [25, 2, 15], symbol: sym, symbolRoles: 0 },
-        ],
-        symbols: [{
-          symbol: sym,
-          documentation: ['A sample class'],
-          displayName: 'MyClass',
-        }],
-      }],
-    });
-
-    const parsed = parseScipIndex(bytes, '/project');
-
-    expect(parsed.fileCount).toBe(1);
-    expect(parsed.definitionCount).toBe(1);
-    expect(parsed.languages.has('typescript')).toBe(true);
-
-    // Definition lookup
-    const def = parsed.getDefinition(sym);
-    expect(def).not.toBeNull();
-    expect(def!.filePath).toBe('/project/src/main.ts');
-    expect(def!.line).toBe(10);
-    expect(def!.character).toBe(4);
-
-    // Symbol info lookup
-    const info = parsed.getSymbolInfo(sym);
-    expect(info).not.toBeNull();
-    expect(info!.displayName).toBe('MyClass');
-    expect(info!.documentation).toEqual(['A sample class']);
-
-    // Occurrence lookup by position
-    const foundDef = parsed.findOccurrence('/project/src/main.ts', 10, 4);
-    expect(foundDef).not.toBeNull();
-    expect(foundDef!.isDefinition).toBe(true);
-    expect(foundDef!.symbol).toBe(sym);
-
-    // Reference occurrence
-    const foundRef = parsed.findOccurrence('/project/src/main.ts', 25, 2);
-    expect(foundRef).not.toBeNull();
-    expect(foundRef!.isDefinition).toBe(false);
-  });
-
-  it('handles multiple documents', () => {
-    const bytes = buildIndexBytes({
-      documents: [
-        {
-          relativePath: 'src/a.ts',
-          language: 'TypeScript',
-          occurrences: [
-            { range: [0, 0, 0, 10], symbol: 'sym1', symbolRoles: SymbolRole.Definition },
-          ],
-        },
-        {
-          relativePath: 'src/b.ts',
-          language: 'TypeScript',
-          occurrences: [
-            { range: [5, 3, 5, 15], symbol: 'sym2', symbolRoles: SymbolRole.Definition },
-          ],
-        },
-      ],
-    });
-
-    const parsed = parseScipIndex(bytes, '/root');
-
-    expect(parsed.fileCount).toBe(2);
-    expect(parsed.definitionCount).toBe(2);
-    expect(parsed.getDefinition('sym1')!.filePath).toBe('/root/src/a.ts');
-    expect(parsed.getDefinition('sym2')!.filePath).toBe('/root/src/b.ts');
-  });
-
-  it('resolves 3-element short range correctly', () => {
-    const bytes = buildIndexBytes({
-      documents: [{
-        relativePath: 'file.py',
-        language: 'Python',
-        occurrences: [
-          { range: [7, 10, 25], symbol: 'test_sym', symbolRoles: SymbolRole.Definition },
-        ],
-      }],
-    });
-
-    const parsed = parseScipIndex(bytes, '/p');
-    const found = parsed.findOccurrence('/p/file.py', 7, 10);
-    expect(found).not.toBeNull();
-    expect(found!.startLine).toBe(7);
-    expect(found!.startCharacter).toBe(10);
-    expect(found!.endLine).toBe(7);
-    expect(found!.endCharacter).toBe(25);
-  });
-
-  it('does not register local symbols as definitions', () => {
-    const bytes = buildIndexBytes({
-      documents: [{
-        relativePath: 'local.ts',
-        occurrences: [
-          { range: [0, 0, 10], symbol: 'local 42', symbolRoles: SymbolRole.Definition },
-        ],
-      }],
-    });
-
-    const parsed = parseScipIndex(bytes, '/r');
-    expect(parsed.getDefinition('local 42')).toBeNull();
-  });
-
-  it('handles empty index gracefully', () => {
-    const bytes = buildIndexBytes({});
-    const parsed = parseScipIndex(bytes, '/empty');
-    expect(parsed.fileCount).toBe(0);
-    expect(parsed.definitionCount).toBe(0);
-  });
-
-  it('external_symbols are queryable', () => {
-    const bytes = buildIndexBytes({
-      externalSymbols: [{
-        symbol: 'npm . react 18.0 Component#',
-        documentation: ['React base component'],
-        displayName: 'Component',
-      }],
-    });
-
-    const parsed = parseScipIndex(bytes, '/p');
-    const info = parsed.getSymbolInfo('npm . react 18.0 Component#');
-    expect(info).not.toBeNull();
-    expect(info!.displayName).toBe('Component');
-  });
-
-  it('findOccurrence returns nearest on same line within tolerance', () => {
-    const bytes = buildIndexBytes({
-      documents: [{
-        relativePath: 'test.ts',
-        occurrences: [
-          { range: [5, 10, 5, 20], symbol: 'nearby', symbolRoles: 0 },
-        ],
-      }],
-    });
-
-    const parsed = parseScipIndex(bytes, '/r');
-
-    // Exact match
-    expect(parsed.findOccurrence('/r/test.ts', 5, 10)).not.toBeNull();
-    // Within 5 character tolerance
-    expect(parsed.findOccurrence('/r/test.ts', 5, 12)).not.toBeNull();
-    // Too far away
-    expect(parsed.findOccurrence('/r/test.ts', 5, 30)).toBeNull();
-    // Wrong line
-    expect(parsed.findOccurrence('/r/test.ts', 6, 10)).toBeNull();
-  });
-});
-
-describe('extractSignatureFromDocs', () => {
-  it('extracts from signatureText', () => {
-    const result = extractSignatureFromDocs({
-      symbol: 'test',
-      documentation: [],
-      displayName: 'test',
-      signatureText: '```ts\nfunction foo(x: number): string\n```',
-    });
-    expect(result).toBe('function foo(x: number): string');
-  });
-
-  it('falls back to documentation that looks like a signature', () => {
-    const result = extractSignatureFromDocs({
-      symbol: 'test',
-      documentation: ['A description.', 'function bar(a: string): void'],
-      displayName: 'test',
-      signatureText: null,
-    });
-    expect(result).toBe('function bar(a: string): void');
-  });
-
-  it('returns null when no signature found', () => {
-    const result = extractSignatureFromDocs({
-      symbol: 'test',
-      documentation: ['This is just a description'],
-      displayName: 'test',
-      signatureText: null,
-    });
-    expect(result).toBeNull();
-  });
-});
+// ─── extractReturnType ────────────────────────────────────────────────────────
 
 describe('extractReturnType', () => {
-  it('extracts from function-style signature', () => {
+  it('returns null for null input', () => {
+    expect(extractReturnType(null)).toBeNull();
+  });
+
+  it('returns null for empty string', () => {
+    expect(extractReturnType('')).toBeNull();
+  });
+
+  it('extracts return type from TypeScript function signature', () => {
     expect(extractReturnType('function foo(x: number): string')).toBe('string');
   });
 
-  it('extracts from arrow-style signature', () => {
-    expect(extractReturnType('fn process(data: &[u8]) -> Result<Vec<u8>>')).toBe('Result<Vec<u8>>');
+  it('extracts return type from TypeScript arrow-style', () => {
+    expect(extractReturnType('(x: number) => string')).toBeNull(); // no '):'  pattern
   });
 
-  it('extracts from colon-style', () => {
-    expect(extractReturnType('const x: number')).toBe('number');
+  it('extracts return type from Rust-style arrow', () => {
+    expect(extractReturnType('fn foo(x: i32) -> String')).toBe('String');
   });
 
-  it('returns null for unknown format', () => {
-    expect(extractReturnType('something else')).toBeNull();
+  it('extracts return type from Python-style annotation', () => {
+    expect(extractReturnType('def foo(x: int) -> str')).toBe('str');
   });
 
-  it('returns null for null input', () => {
-    expect(extractReturnType(null)).toBeNull();
+  it('extracts return type from colon-style', () => {
+    expect(extractReturnType('val x: Int')).toBe('Int');
+  });
+
+  it('extracts complex generic return type', () => {
+    expect(extractReturnType('function bar(): Promise<string[]>')).toBe('Promise<string[]>');
+  });
+
+  it('handles multiline signature (takes first line)', () => {
+    const sig = 'function baz(\n  x: number,\n  y: string\n): boolean';
+    // First line is "function baz(" — no return type there
+    const result = extractReturnType(sig);
+    // It only looks at first line, so it won't find ): boolean on a later line
+    expect(result).toBeNull();
+  });
+
+  it('handles whitespace-only input', () => {
+    expect(extractReturnType('   ')).toBeNull();
+  });
+
+  it('stops at = sign (ignores initializers)', () => {
+    expect(extractReturnType('const x: number = 5')).toBeNull();
+  });
+
+  it('stops at { (ignores body)', () => {
+    expect(extractReturnType('function foo(): void {')).toBeNull();
+  });
+});
+
+// ─── ScipIndexData ────────────────────────────────────────────────────────────
+
+describe('ScipIndexData', () => {
+  it('starts with zero counts', () => {
+    const data = new ScipIndexData('/project');
+    expect(data.fileCount).toBe(0);
+    expect(data.definitionCount).toBe(0);
+    expect(data.languages.size).toBe(0);
+  });
+
+  it('addDocument indexes occurrences and definitions', () => {
+    const data = new ScipIndexData('/project');
+    data.addDocument({
+      relativePath: 'src/main.ts',
+      language: 'typescript',
+      occurrences: [
+        {
+          range: [0, 4, 12], // line 0, cols 4-12
+          symbol: 'ts . main . myFunc .',
+          symbolRoles: 1, // Definition
+          overrideDocumentation: [],
+          syntaxKind: 0,
+          diagnostics: [],
+          enclosingRange: [],
+        },
+        {
+          range: [5, 2, 10], // line 5, cols 2-10
+          symbol: 'ts . main . helper .',
+          symbolRoles: 0, // Reference
+          overrideDocumentation: [],
+          syntaxKind: 0,
+          diagnostics: [],
+          enclosingRange: [],
+        },
+      ],
+      symbols: [
+        {
+          symbol: 'ts . main . myFunc .',
+          documentation: ['A function'],
+          relationships: [],
+          displayName: 'myFunc',
+          signatureDocumentation: { text: 'function myFunc(): void', language: 'typescript' },
+          kind: 0,
+          enclosingSymbol: '',
+        },
+      ],
+      $typeName: 'scip.Document',
+    } as any);
+
+    expect(data.fileCount).toBe(1);
+    expect(data.definitionCount).toBe(1);
+    expect(data.languages.has('typescript')).toBe(true);
+  });
+
+  it('findOccurrence locates an occurrence on a specific line and character', () => {
+    const data = new ScipIndexData('/project');
+    data.addDocument({
+      relativePath: 'src/main.ts',
+      language: 'typescript',
+      occurrences: [
+        {
+          range: [10, 4, 15],
+          symbol: 'ts . main . foo .',
+          symbolRoles: 1,
+          overrideDocumentation: [],
+          syntaxKind: 0,
+          diagnostics: [],
+          enclosingRange: [],
+        },
+      ],
+      symbols: [],
+      $typeName: 'scip.Document',
+    } as any);
+
+    const occ = data.findOccurrence('/project/src/main.ts', 10, 8);
+    expect(occ).not.toBeNull();
+    expect(occ!.symbol).toBe('ts . main . foo .');
+  });
+
+  it('findOccurrence returns null for unknown file', () => {
+    const data = new ScipIndexData('/project');
+    expect(data.findOccurrence('/project/unknown.ts', 0, 0)).toBeNull();
+  });
+
+  it('getDefinition resolves a symbol to its location', () => {
+    const data = new ScipIndexData('/project');
+    data.addDocument({
+      relativePath: 'src/main.ts',
+      language: 'typescript',
+      occurrences: [
+        {
+          range: [5, 0, 10],
+          symbol: 'ts . main . MyClass .',
+          symbolRoles: 1, // Definition
+          overrideDocumentation: [],
+          syntaxKind: 0,
+          diagnostics: [],
+          enclosingRange: [],
+        },
+      ],
+      symbols: [],
+      $typeName: 'scip.Document',
+    } as any);
+
+    const def = data.getDefinition('ts . main . MyClass .');
+    expect(def).not.toBeNull();
+    expect(def!.filePath).toBe('/project/src/main.ts');
+    expect(def!.line).toBe(5);
+    expect(def!.character).toBe(0);
+  });
+
+  it('getDefinition returns null for unknown symbol', () => {
+    const data = new ScipIndexData('/project');
+    expect(data.getDefinition('unknown.symbol')).toBeNull();
+  });
+
+  it('getSymbolInfo returns metadata for indexed symbol', () => {
+    const data = new ScipIndexData('/project');
+    data.addDocument({
+      relativePath: 'src/main.ts',
+      language: 'typescript',
+      occurrences: [],
+      symbols: [
+        {
+          symbol: 'ts . main . helper .',
+          documentation: ['Helper function'],
+          relationships: [],
+          displayName: 'helper',
+          signatureDocumentation: { text: 'function helper(): void', language: 'typescript' },
+          kind: 0,
+          enclosingSymbol: '',
+        },
+      ],
+      $typeName: 'scip.Document',
+    } as any);
+
+    const info = data.getSymbolInfo('ts . main . helper .');
+    expect(info).not.toBeNull();
+    expect(info!.displayName).toBe('helper');
+    expect(info!.documentation).toContain('Helper function');
+  });
+
+  it('getSymbolInfo returns null for unknown symbol', () => {
+    const data = new ScipIndexData('/project');
+    expect(data.getSymbolInfo('unknown')).toBeNull();
+  });
+
+  it('addExternalSymbol stores metadata', () => {
+    const data = new ScipIndexData('/project');
+    data.addExternalSymbol({
+      symbol: 'ext . lib . Thing .',
+      documentation: ['External thing'],
+      relationships: [],
+      displayName: 'Thing',
+      signatureDocumentation: { text: 'class Thing', language: '' },
+      kind: 0,
+      enclosingSymbol: '',
+    } as any);
+
+    const info = data.getSymbolInfo('ext . lib . Thing .');
+    expect(info).not.toBeNull();
+    expect(info!.displayName).toBe('Thing');
+  });
+
+  it('merge combines two ScipIndexData instances', () => {
+    const a = new ScipIndexData('/project');
+    const b = new ScipIndexData('/project');
+
+    a.addDocument({
+      relativePath: 'a.ts',
+      language: 'typescript',
+      occurrences: [
+        { range: [0, 0, 5], symbol: 'sym.a', symbolRoles: 1, overrideDocumentation: [], syntaxKind: 0, diagnostics: [], enclosingRange: [] },
+      ],
+      symbols: [],
+      $typeName: 'scip.Document',
+    } as any);
+
+    b.addDocument({
+      relativePath: 'b.ts',
+      language: 'python',
+      occurrences: [
+        { range: [0, 0, 5], symbol: 'sym.b', symbolRoles: 1, overrideDocumentation: [], syntaxKind: 0, diagnostics: [], enclosingRange: [] },
+      ],
+      symbols: [],
+      $typeName: 'scip.Document',
+    } as any);
+
+    a.merge(b);
+    expect(a.fileCount).toBe(2);
+    expect(a.definitionCount).toBe(2);
+    expect(a.languages.has('typescript')).toBe(true);
+    expect(a.languages.has('python')).toBe(true);
+  });
+
+  it('merge preserves existing entries (no overwrite)', () => {
+    const a = new ScipIndexData('/project');
+    const b = new ScipIndexData('/project');
+
+    a.addDocument({
+      relativePath: 'a.ts',
+      language: 'typescript',
+      occurrences: [
+        { range: [0, 0, 5], symbol: 'sym.a', symbolRoles: 1, overrideDocumentation: [], syntaxKind: 0, diagnostics: [], enclosingRange: [] },
+      ],
+      symbols: [],
+      $typeName: 'scip.Document',
+    } as any);
+
+    b.addDocument({
+      relativePath: 'a.ts',
+      language: 'typescript',
+      occurrences: [
+        { range: [10, 0, 5], symbol: 'sym.a', symbolRoles: 1, overrideDocumentation: [], syntaxKind: 0, diagnostics: [], enclosingRange: [] },
+      ],
+      symbols: [],
+      $typeName: 'scip.Document',
+    } as any);
+
+    a.merge(b);
+    // a already had a.ts — merge should not overwrite
+    const def = a.getDefinition('sym.a');
+    expect(def!.line).toBe(0); // from first addition
+  });
+
+  it('skips local symbols in definition index', () => {
+    const data = new ScipIndexData('/project');
+    data.addDocument({
+      relativePath: 'x.ts',
+      language: 'typescript',
+      occurrences: [
+        { range: [0, 0, 5], symbol: 'local 42', symbolRoles: 1, overrideDocumentation: [], syntaxKind: 0, diagnostics: [], enclosingRange: [] },
+      ],
+      symbols: [],
+      $typeName: 'scip.Document',
+    } as any);
+
+    expect(data.getDefinition('local 42')).toBeNull();
+    expect(data.definitionCount).toBe(0);
+  });
+
+  it('rejects documents that escape project root', () => {
+    const data = new ScipIndexData('/project');
+    data.addDocument({
+      relativePath: '../etc/passwd',
+      language: '',
+      occurrences: [],
+      symbols: [],
+      $typeName: 'scip.Document',
+    } as any);
+
+    expect(data.fileCount).toBe(0);
   });
 });

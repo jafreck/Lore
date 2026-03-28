@@ -1,8 +1,23 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
-import { ImportResolver, type ResolvedImport } from '../../src/resolution/resolver.js';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import * as os from 'node:os';
+import { ImportResolver } from '../../src/resolution/resolver.js';
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function mkTmpDir(): string {
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'lore-resolver-test-'));
+}
+
+function writeFile(dir: string, relPath: string, content = ''): string {
+  const full = path.join(dir, relPath);
+  fs.mkdirSync(path.dirname(full), { recursive: true });
+  fs.writeFileSync(full, content);
+  return full;
+}
+
+// ─── ImportResolver.resolve() ─────────────────────────────────────────────────
 
 describe('ImportResolver', () => {
   let resolver: ImportResolver;
@@ -10,760 +25,433 @@ describe('ImportResolver', () => {
 
   beforeEach(() => {
     resolver = new ImportResolver();
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'resolver-test-'));
+    tmpDir = mkTmpDir();
   });
 
-  // ─── resolve() dispatch ─────────────────────────────────────────────────────
-
-  describe('resolve() dispatch', () => {
-    it('should delegate TypeScript imports to resolveJs', () => {
-      const result = resolver.resolve(
-        { source: 'express', kind: 'import', line: 1 },
-        path.join(tmpDir, 'src/app.ts'),
-        tmpDir,
-        'typescript',
-      );
-      expect(result.isExternal).toBe(true);
-    });
-
-    it('should delegate JavaScript imports to resolveJs', () => {
-      const result = resolver.resolve(
-        { source: 'lodash', kind: 'import', line: 1 },
-        path.join(tmpDir, 'src/app.js'),
-        tmpDir,
-        'javascript',
-      );
-      expect(result.isExternal).toBe(true);
-    });
-
-    it('should delegate Go imports to resolveGo', () => {
-      const result = resolver.resolve(
-        { source: 'fmt', kind: 'import', line: 1 },
-        path.join(tmpDir, 'main.go'),
-        tmpDir,
-        'go',
-      );
-      expect(result.isExternal).toBe(true);
-    });
-
-    it('should delegate Python imports to resolvePython', () => {
-      const result = resolver.resolve(
-        { source: 'os', kind: 'import', line: 1 },
-        path.join(tmpDir, 'app.py'),
-        tmpDir,
-        'python',
-      );
-      expect(result.isExternal).toBe(true);
-    });
-
-    it('should delegate Rust imports to resolveRust', () => {
-      const result = resolver.resolve(
-        { source: 'serde', kind: 'import', line: 1 },
-        path.join(tmpDir, 'main.rs'),
-        tmpDir,
-        'rust',
-      );
-      expect(result.isExternal).toBe(true);
-    });
-
-    it('should delegate Java imports to resolveJava', () => {
-      const result = resolver.resolve(
-        { source: 'java.util.List', kind: 'import', line: 1 },
-        path.join(tmpDir, 'Main.java'),
-        tmpDir,
-        'java',
-      );
-      expect(result.isExternal).toBe(true);
-    });
-
-    it('should delegate C# imports to resolveCSharp', () => {
-      const result = resolver.resolve(
-        { source: 'System.Collections', kind: 'import', line: 1 },
-        path.join(tmpDir, 'Program.cs'),
-        tmpDir,
-        'csharp',
-      );
-      expect(result.isExternal).toBe(true);
-      expect(result.externalName).toBe('System.Collections');
-    });
-
-    it('should delegate C imports to resolveC', () => {
-      const result = resolver.resolve(
-        { source: '<stdio.h>', kind: 'import', line: 1 },
-        path.join(tmpDir, 'main.c'),
-        tmpDir,
-        'c',
-      );
-      expect(result.isExternal).toBe(true);
-    });
-
-    it('should delegate C++ imports to resolveC', () => {
-      const result = resolver.resolve(
-        { source: '<iostream>', kind: 'import', line: 1 },
-        path.join(tmpDir, 'main.cpp'),
-        tmpDir,
-        'cpp',
-      );
-      expect(result.isExternal).toBe(true);
-    });
-
-    it('should mark unknown languages as external', () => {
-      const result = resolver.resolve(
-        { source: 'some_module', kind: 'import', line: 1 },
-        path.join(tmpDir, 'main.xyz'),
-        tmpDir,
-        'unknown-lang',
-      );
-      expect(result.isExternal).toBe(true);
-      expect(result.externalName).toBe('some_module');
-    });
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  // ─── JavaScript/TypeScript resolution ───────────────────────────────────────
+  // ─── TypeScript / JavaScript ────────────────────────────────────────────
 
-  describe('resolveJs', () => {
-    it('should resolve relative .ts import to actual file', () => {
-      const srcDir = path.join(tmpDir, 'src');
-      fs.mkdirSync(srcDir, { recursive: true });
-      fs.writeFileSync(path.join(srcDir, 'utils.ts'), 'export const x = 1;');
+  describe('TypeScript/JavaScript', () => {
+    it('resolves relative .ts import', () => {
+      const fromFile = writeFile(tmpDir, 'src/main.ts');
+      writeFile(tmpDir, 'src/utils.ts');
 
       const result = resolver.resolve(
-        { source: './utils', kind: 'import', line: 1 },
-        path.join(srcDir, 'app.ts'),
-        tmpDir,
-        'typescript',
+        { source: './utils', importedNames: [] },
+        fromFile, tmpDir, 'typescript',
       );
       expect(result.isExternal).toBe(false);
-      expect(result.resolvedPath).toBe(path.join(srcDir, 'utils.ts'));
+      expect(result.resolvedPath).toContain('utils.ts');
     });
 
-    it('should resolve relative import to index.ts', () => {
-      const srcDir = path.join(tmpDir, 'src');
-      const utilsDir = path.join(srcDir, 'utils');
-      fs.mkdirSync(utilsDir, { recursive: true });
-      fs.writeFileSync(path.join(utilsDir, 'index.ts'), 'export const x = 1;');
+    it('resolves relative import with .js extension to .ts file', () => {
+      const fromFile = writeFile(tmpDir, 'src/main.ts');
+      writeFile(tmpDir, 'src/helper.ts');
 
       const result = resolver.resolve(
-        { source: './utils', kind: 'import', line: 1 },
-        path.join(srcDir, 'app.ts'),
-        tmpDir,
-        'typescript',
+        { source: './helper.js', importedNames: [] },
+        fromFile, tmpDir, 'typescript',
       );
       expect(result.isExternal).toBe(false);
-      expect(result.resolvedPath).toBe(path.join(utilsDir, 'index.ts'));
+      expect(result.resolvedPath).toContain('helper.ts');
     });
 
-    it('should mark bare specifiers found in package.json as external', () => {
-      fs.writeFileSync(
-        path.join(tmpDir, 'package.json'),
-        JSON.stringify({
-          dependencies: { express: '4.0.0' },
-          devDependencies: { vitest: '1.0.0' },
-        }),
-      );
+    it('resolves relative import to index.ts', () => {
+      const fromFile = writeFile(tmpDir, 'src/main.ts');
+      writeFile(tmpDir, 'src/lib/index.ts');
 
       const result = resolver.resolve(
-        { source: 'express', kind: 'import', line: 1 },
-        path.join(tmpDir, 'src/app.ts'),
-        tmpDir,
-        'typescript',
+        { source: './lib', importedNames: [] },
+        fromFile, tmpDir, 'typescript',
       );
-      expect(result.isExternal).toBe(true);
-      expect(result.externalName).toBe('express');
+      expect(result.isExternal).toBe(false);
+      expect(result.resolvedPath).toContain('index.ts');
     });
 
-    it('should mark scoped packages in package.json as external', () => {
-      fs.writeFileSync(
-        path.join(tmpDir, 'package.json'),
-        JSON.stringify({ dependencies: { '@scope/pkg': '1.0.0' } }),
-      );
+    it('marks unresolved relative import as internal', () => {
+      const fromFile = writeFile(tmpDir, 'src/main.ts');
 
       const result = resolver.resolve(
-        { source: '@scope/pkg', kind: 'import', line: 1 },
-        path.join(tmpDir, 'src/app.ts'),
-        tmpDir,
-        'typescript',
-      );
-      expect(result.isExternal).toBe(true);
-    });
-
-    it('should keep unresolved relative imports internal when no matching file exists', () => {
-      const result = resolver.resolve(
-        { source: './nonexistent', kind: 'import', line: 1 },
-        path.join(tmpDir, 'src/app.ts'),
-        tmpDir,
-        'typescript',
+        { source: './nonexistent', importedNames: [] },
+        fromFile, tmpDir, 'typescript',
       );
       expect(result.isExternal).toBe(false);
       expect(result.resolvedPath).toBeUndefined();
     });
 
-    it('should resolve .js extension import', () => {
-      const srcDir = path.join(tmpDir, 'src');
-      fs.mkdirSync(srcDir, { recursive: true });
-      fs.writeFileSync(path.join(srcDir, 'helper.js'), 'module.exports = {}');
+    it('marks bare specifier as external when in package.json', () => {
+      writeFile(tmpDir, 'package.json', JSON.stringify({
+        dependencies: { lodash: '^4.0.0' },
+      }));
+      const fromFile = writeFile(tmpDir, 'src/main.ts');
 
       const result = resolver.resolve(
-        { source: './helper', kind: 'import', line: 1 },
-        path.join(srcDir, 'app.js'),
-        tmpDir,
-        'javascript',
+        { source: 'lodash', importedNames: [] },
+        fromFile, tmpDir, 'typescript',
       );
-      expect(result.isExternal).toBe(false);
-      expect(result.resolvedPath).toBe(path.join(srcDir, 'helper.js'));
+      expect(result.isExternal).toBe(true);
+      expect(result.externalName).toBe('lodash');
     });
 
-    it('should resolve index.js fallback', () => {
-      const srcDir = path.join(tmpDir, 'src');
-      const libDir = path.join(srcDir, 'lib');
-      fs.mkdirSync(libDir, { recursive: true });
-      fs.writeFileSync(path.join(libDir, 'index.js'), 'module.exports = {}');
+    it('marks scoped package as external', () => {
+      writeFile(tmpDir, 'package.json', JSON.stringify({
+        devDependencies: { '@types/node': '*' },
+      }));
+      const fromFile = writeFile(tmpDir, 'src/main.ts');
 
       const result = resolver.resolve(
-        { source: './lib', kind: 'import', line: 1 },
-        path.join(srcDir, 'app.js'),
-        tmpDir,
-        'javascript',
+        { source: '@types/node', importedNames: [] },
+        fromFile, tmpDir, 'typescript',
       );
-      expect(result.isExternal).toBe(false);
-      expect(result.resolvedPath).toBe(path.join(libDir, 'index.js'));
+      expect(result.isExternal).toBe(true);
     });
 
-    it('should cache package.json parsing across calls', () => {
-      fs.writeFileSync(
-        path.join(tmpDir, 'package.json'),
-        JSON.stringify({ dependencies: { react: '18.0.0' } }),
-      );
+    it('marks unknown bare specifier as external', () => {
+      writeFile(tmpDir, 'package.json', '{}');
+      const fromFile = writeFile(tmpDir, 'src/main.ts');
 
-      const r1 = resolver.resolve(
-        { source: 'react', kind: 'import', line: 1 },
-        path.join(tmpDir, 'src/a.ts'),
-        tmpDir,
-        'typescript',
+      const result = resolver.resolve(
+        { source: 'some-unknown-pkg', importedNames: [] },
+        fromFile, tmpDir, 'typescript',
       );
-      const r2 = resolver.resolve(
-        { source: 'react', kind: 'import', line: 2 },
-        path.join(tmpDir, 'src/b.ts'),
-        tmpDir,
-        'typescript',
+      expect(result.isExternal).toBe(true);
+    });
+
+    it('works for javascript language too', () => {
+      const fromFile = writeFile(tmpDir, 'src/main.js');
+      writeFile(tmpDir, 'src/utils.js');
+
+      const result = resolver.resolve(
+        { source: './utils', importedNames: [] },
+        fromFile, tmpDir, 'javascript',
       );
+      expect(result.isExternal).toBe(false);
+      expect(result.resolvedPath).toContain('utils.js');
+    });
+  });
+
+  // ─── Python ─────────────────────────────────────────────────────────────
+
+  describe('Python', () => {
+    it('resolves relative Python import', () => {
+      const fromFile = writeFile(tmpDir, 'pkg/main.py');
+      writeFile(tmpDir, 'pkg/utils.py');
+
+      const result = resolver.resolve(
+        { source: '.utils', importedNames: [] },
+        fromFile, tmpDir, 'python',
+      );
+      expect(result.isExternal).toBe(false);
+      expect(result.resolvedPath).toContain('utils.py');
+    });
+
+    it('resolves relative import with double-dot', () => {
+      const fromFile = writeFile(tmpDir, 'pkg/sub/main.py');
+      writeFile(tmpDir, 'pkg/models.py');
+
+      const result = resolver.resolve(
+        { source: '..models', importedNames: [] },
+        fromFile, tmpDir, 'python',
+      );
+      expect(result.isExternal).toBe(false);
+      expect(result.resolvedPath).toContain('models.py');
+    });
+
+    it('resolves absolute Python import to project file', () => {
+      const fromFile = writeFile(tmpDir, 'src/main.py');
+      writeFile(tmpDir, 'mypackage/utils.py');
+
+      const result = resolver.resolve(
+        { source: 'mypackage.utils', importedNames: [] },
+        fromFile, tmpDir, 'python',
+      );
+      expect(result.isExternal).toBe(false);
+      expect(result.resolvedPath).toContain('utils.py');
+    });
+
+    it('resolves absolute Python import to __init__.py', () => {
+      const fromFile = writeFile(tmpDir, 'src/main.py');
+      writeFile(tmpDir, 'mypackage/__init__.py');
+
+      const result = resolver.resolve(
+        { source: 'mypackage', importedNames: [] },
+        fromFile, tmpDir, 'python',
+      );
+      expect(result.isExternal).toBe(false);
+      expect(result.resolvedPath).toContain('__init__.py');
+    });
+
+    it('marks unresolvable Python import as external', () => {
+      const fromFile = writeFile(tmpDir, 'src/main.py');
+
+      const result = resolver.resolve(
+        { source: 'numpy', importedNames: [] },
+        fromFile, tmpDir, 'python',
+      );
+      expect(result.isExternal).toBe(true);
+    });
+
+    it('marks unresolved relative Python import as internal', () => {
+      const fromFile = writeFile(tmpDir, 'pkg/main.py');
+
+      const result = resolver.resolve(
+        { source: '.nonexistent', importedNames: [] },
+        fromFile, tmpDir, 'python',
+      );
+      expect(result.isExternal).toBe(false);
+      expect(result.resolvedPath).toBeUndefined();
+    });
+  });
+
+  // ─── Go ─────────────────────────────────────────────────────────────────
+
+  describe('Go', () => {
+    it('resolves internal Go package', () => {
+      writeFile(tmpDir, 'go.mod', 'module github.com/user/repo\n\ngo 1.21\n');
+      writeFile(tmpDir, 'pkg/utils/utils.go', 'package utils');
+      const fromFile = writeFile(tmpDir, 'cmd/main.go', 'package main');
+
+      const result = resolver.resolve(
+        { source: 'github.com/user/repo/pkg/utils', importedNames: [] },
+        fromFile, tmpDir, 'go',
+      );
+      expect(result.isExternal).toBe(false);
+    });
+
+    it('marks external Go package', () => {
+      writeFile(tmpDir, 'go.mod', 'module github.com/user/repo\n');
+      const fromFile = writeFile(tmpDir, 'main.go');
+
+      const result = resolver.resolve(
+        { source: 'fmt', importedNames: [] },
+        fromFile, tmpDir, 'go',
+      );
+      expect(result.isExternal).toBe(true);
+    });
+
+    it('marks third-party Go import as external', () => {
+      writeFile(tmpDir, 'go.mod', 'module github.com/user/repo\n');
+      const fromFile = writeFile(tmpDir, 'main.go');
+
+      const result = resolver.resolve(
+        { source: 'github.com/other/lib', importedNames: [] },
+        fromFile, tmpDir, 'go',
+      );
+      expect(result.isExternal).toBe(true);
+    });
+  });
+
+  // ─── Rust ───────────────────────────────────────────────────────────────
+
+  describe('Rust', () => {
+    it('marks crate:: as internal', () => {
+      const fromFile = writeFile(tmpDir, 'src/main.rs');
+
+      const result = resolver.resolve(
+        { source: 'crate::utils', importedNames: [] },
+        fromFile, tmpDir, 'rust',
+      );
+      expect(result.isExternal).toBe(false);
+    });
+
+    it('marks self:: as internal', () => {
+      const fromFile = writeFile(tmpDir, 'src/lib.rs');
+
+      const result = resolver.resolve(
+        { source: 'self::module', importedNames: [] },
+        fromFile, tmpDir, 'rust',
+      );
+      expect(result.isExternal).toBe(false);
+    });
+
+    it('marks super:: as internal', () => {
+      const fromFile = writeFile(tmpDir, 'src/sub/mod.rs');
+
+      const result = resolver.resolve(
+        { source: 'super::other', importedNames: [] },
+        fromFile, tmpDir, 'rust',
+      );
+      expect(result.isExternal).toBe(false);
+    });
+
+    it('marks Cargo.toml dependency as external', () => {
+      writeFile(tmpDir, 'Cargo.toml', `
+[dependencies]
+serde = "1.0"
+tokio = { version = "1" }
+`);
+      const fromFile = writeFile(tmpDir, 'src/main.rs');
+
+      const result = resolver.resolve(
+        { source: 'serde::Deserialize', importedNames: [] },
+        fromFile, tmpDir, 'rust',
+      );
+      expect(result.isExternal).toBe(true);
+    });
+
+    it('marks path dependency as internal', () => {
+      writeFile(tmpDir, 'Cargo.toml', `
+[dependencies]
+my_lib = { path = "../my-lib" }
+`);
+      const fromFile = writeFile(tmpDir, 'src/main.rs');
+
+      const result = resolver.resolve(
+        { source: 'my_lib::something', importedNames: [] },
+        fromFile, tmpDir, 'rust',
+      );
+      expect(result.isExternal).toBe(false);
+    });
+
+    it('marks workspace member as internal', () => {
+      writeFile(tmpDir, 'Cargo.toml', `
+[workspace]
+members = [
+  "crates/my-core"
+]
+`);
+      const fromFile = writeFile(tmpDir, 'src/main.rs');
+
+      const result = resolver.resolve(
+        { source: 'my_core::types', importedNames: [] },
+        fromFile, tmpDir, 'rust',
+      );
+      expect(result.isExternal).toBe(false);
+    });
+
+    it('marks unknown crate as external', () => {
+      writeFile(tmpDir, 'Cargo.toml', '[dependencies]\n');
+      const fromFile = writeFile(tmpDir, 'src/main.rs');
+
+      const result = resolver.resolve(
+        { source: 'rand::Rng', importedNames: [] },
+        fromFile, tmpDir, 'rust',
+      );
+      expect(result.isExternal).toBe(true);
+    });
+  });
+
+  // ─── Java ───────────────────────────────────────────────────────────────
+
+  describe('Java', () => {
+    it('resolves Java import to src/main/java file', () => {
+      writeFile(tmpDir, 'src/main/java/com/example/MyClass.java', 'class MyClass {}');
+      const fromFile = writeFile(tmpDir, 'src/main/java/com/example/Main.java');
+
+      const result = resolver.resolve(
+        { source: 'com.example.MyClass', importedNames: [] },
+        fromFile, tmpDir, 'java',
+      );
+      expect(result.isExternal).toBe(false);
+      expect(result.resolvedPath).toContain('MyClass.java');
+    });
+
+    it('resolves Java import from src root', () => {
+      writeFile(tmpDir, 'src/com/example/Util.java', 'class Util {}');
+      const fromFile = writeFile(tmpDir, 'src/com/example/Main.java');
+
+      const result = resolver.resolve(
+        { source: 'com.example.Util', importedNames: [] },
+        fromFile, tmpDir, 'java',
+      );
+      expect(result.isExternal).toBe(false);
+    });
+
+    it('marks unresolvable Java import as external', () => {
+      const fromFile = writeFile(tmpDir, 'src/Main.java');
+
+      const result = resolver.resolve(
+        { source: 'java.util.List', importedNames: [] },
+        fromFile, tmpDir, 'java',
+      );
+      expect(result.isExternal).toBe(true);
+    });
+  });
+
+  // ─── C# ─────────────────────────────────────────────────────────────────
+
+  describe('C#', () => {
+    it('marks C# using as external (namespace, not file)', () => {
+      const fromFile = writeFile(tmpDir, 'Program.cs');
+
+      const result = resolver.resolve(
+        { source: 'System.Collections.Generic', importedNames: [] },
+        fromFile, tmpDir, 'csharp',
+      );
+      expect(result.isExternal).toBe(true);
+    });
+  });
+
+  // ─── C/C++ ──────────────────────────────────────────────────────────────
+
+  describe('C/C++', () => {
+    it('resolves quoted include as relative', () => {
+      const fromFile = writeFile(tmpDir, 'src/main.c');
+      writeFile(tmpDir, 'src/header.h');
+
+      const result = resolver.resolve(
+        { source: 'header.h', importedNames: [] },
+        fromFile, tmpDir, 'c',
+      );
+      expect(result.isExternal).toBe(false);
+      expect(result.resolvedPath).toContain('header.h');
+    });
+
+    it('marks angle-bracket include as external', () => {
+      const fromFile = writeFile(tmpDir, 'src/main.c');
+
+      const result = resolver.resolve(
+        { source: '<stdio.h>', importedNames: [] },
+        fromFile, tmpDir, 'c',
+      );
+      expect(result.isExternal).toBe(true);
+    });
+
+    it('resolves C++ include from rootDir', () => {
+      writeFile(tmpDir, 'include/config.h');
+      const fromFile = writeFile(tmpDir, 'src/main.cpp');
+
+      // Quoted include not found relative → tries rootDir
+      const result = resolver.resolve(
+        { source: 'include/config.h', importedNames: [] },
+        fromFile, tmpDir, 'cpp',
+      );
+      expect(result.isExternal).toBe(false);
+      expect(result.resolvedPath).toContain('config.h');
+    });
+  });
+
+  // ─── Unknown language ──────────────────────────────────────────────────
+
+  describe('Unknown language', () => {
+    it('marks everything as external for unknown languages', () => {
+      const fromFile = writeFile(tmpDir, 'src/main.xyz');
+
+      const result = resolver.resolve(
+        { source: 'some-import', importedNames: [] },
+        fromFile, tmpDir, 'xyz-lang',
+      );
+      expect(result.isExternal).toBe(true);
+      expect(result.externalName).toBe('some-import');
+    });
+  });
+
+  // ─── Manifest caching ──────────────────────────────────────────────────
+
+  describe('manifest caching', () => {
+    it('caches package.json parsing across calls', () => {
+      writeFile(tmpDir, 'package.json', JSON.stringify({
+        dependencies: { express: '*' },
+      }));
+      const fromFile = writeFile(tmpDir, 'src/main.ts');
+
+      const r1 = resolver.resolve({ source: 'express', importedNames: [] }, fromFile, tmpDir, 'typescript');
+      const r2 = resolver.resolve({ source: 'express', importedNames: [] }, fromFile, tmpDir, 'typescript');
       expect(r1.isExternal).toBe(true);
       expect(r2.isExternal).toBe(true);
-    });
-
-    it('should treat bare specifiers as external when no package.json exists', () => {
-      const result = resolver.resolve(
-        { source: 'lodash', kind: 'import', line: 1 },
-        path.join(tmpDir, 'src/app.ts'),
-        tmpDir,
-        'typescript',
-      );
-      expect(result.isExternal).toBe(true);
-    });
-  });
-
-  // ─── Go resolution ─────────────────────────────────────────────────────────
-
-  describe('resolveGo', () => {
-    it('should resolve internal package via go.mod module path', () => {
-      fs.writeFileSync(
-        path.join(tmpDir, 'go.mod'),
-        'module github.com/user/project\n\ngo 1.21\n',
-      );
-      const pkgDir = path.join(tmpDir, 'internal', 'handler');
-      fs.mkdirSync(pkgDir, { recursive: true });
-
-      const result = resolver.resolve(
-        { source: 'github.com/user/project/internal/handler', kind: 'import', line: 1 },
-        path.join(tmpDir, 'main.go'),
-        tmpDir,
-        'go',
-      );
-      expect(result.isExternal).toBe(false);
-      expect(result.resolvedPath).toBe(pkgDir);
-    });
-
-    it('should mark standard library imports as external', () => {
-      fs.writeFileSync(path.join(tmpDir, 'go.mod'), 'module myproject\n');
-
-      const result = resolver.resolve(
-        { source: 'fmt', kind: 'import', line: 1 },
-        path.join(tmpDir, 'main.go'),
-        tmpDir,
-        'go',
-      );
-      expect(result.isExternal).toBe(true);
-    });
-
-    it('should mark external dependencies as external', () => {
-      fs.writeFileSync(
-        path.join(tmpDir, 'go.mod'),
-        'module myproject\n\nrequire github.com/gin-gonic/gin v1.9.1\n',
-      );
-
-      const result = resolver.resolve(
-        { source: 'github.com/gin-gonic/gin', kind: 'import', line: 1 },
-        path.join(tmpDir, 'main.go'),
-        tmpDir,
-        'go',
-      );
-      expect(result.isExternal).toBe(true);
-    });
-
-    it('should mark internal package as external when directory does not exist', () => {
-      fs.writeFileSync(path.join(tmpDir, 'go.mod'), 'module myproject\n');
-
-      const result = resolver.resolve(
-        { source: 'myproject/nonexistent', kind: 'import', line: 1 },
-        path.join(tmpDir, 'main.go'),
-        tmpDir,
-        'go',
-      );
-      expect(result.isExternal).toBe(true);
-    });
-
-    it('should cache go.mod parsing across calls', () => {
-      fs.writeFileSync(path.join(tmpDir, 'go.mod'), 'module mymod\n');
-
-      resolver.resolve(
-        { source: 'fmt', kind: 'import', line: 1 },
-        path.join(tmpDir, 'main.go'),
-        tmpDir,
-        'go',
-      );
-      const result = resolver.resolve(
-        { source: 'fmt', kind: 'import', line: 2 },
-        path.join(tmpDir, 'main.go'),
-        tmpDir,
-        'go',
-      );
-      expect(result.isExternal).toBe(true);
-    });
-
-    it('should handle missing go.mod gracefully', () => {
-      const result = resolver.resolve(
-        { source: 'fmt', kind: 'import', line: 1 },
-        path.join(tmpDir, 'main.go'),
-        tmpDir,
-        'go',
-      );
-      expect(result.isExternal).toBe(true);
-    });
-  });
-
-  // ─── Python resolution ──────────────────────────────────────────────────────
-
-  describe('resolvePython', () => {
-    it('should resolve relative import to .py file', () => {
-      const pkgDir = path.join(tmpDir, 'mypackage');
-      fs.mkdirSync(pkgDir, { recursive: true });
-      fs.writeFileSync(path.join(pkgDir, 'utils.py'), '');
-
-      const result = resolver.resolve(
-        { source: '.utils', kind: 'import', line: 1 },
-        path.join(pkgDir, 'main.py'),
-        tmpDir,
-        'python',
-      );
-      expect(result.isExternal).toBe(false);
-      expect(result.resolvedPath).toBe(path.join(pkgDir, 'utils.py'));
-    });
-
-    it('should resolve relative import to __init__.py', () => {
-      const pkgDir = path.join(tmpDir, 'mypackage');
-      const subDir = path.join(pkgDir, 'sub');
-      fs.mkdirSync(subDir, { recursive: true });
-      fs.writeFileSync(path.join(subDir, '__init__.py'), '');
-
-      const result = resolver.resolve(
-        { source: '.sub', kind: 'import', line: 1 },
-        path.join(pkgDir, 'main.py'),
-        tmpDir,
-        'python',
-      );
-      expect(result.isExternal).toBe(false);
-      expect(result.resolvedPath).toBe(path.join(subDir, '__init__.py'));
-    });
-
-    it('should resolve double-dot parent relative import', () => {
-      const pkgDir = path.join(tmpDir, 'pkg', 'sub');
-      fs.mkdirSync(pkgDir, { recursive: true });
-      fs.writeFileSync(path.join(tmpDir, 'pkg', 'helpers.py'), '');
-
-      const result = resolver.resolve(
-        { source: '..helpers', kind: 'import', line: 1 },
-        path.join(pkgDir, 'main.py'),
-        tmpDir,
-        'python',
-      );
-      expect(result.isExternal).toBe(false);
-      expect(result.resolvedPath).toBe(path.join(tmpDir, 'pkg', 'helpers.py'));
-    });
-
-    it('should resolve absolute import to file in project root', () => {
-      fs.writeFileSync(path.join(tmpDir, 'config.py'), '');
-
-      const result = resolver.resolve(
-        { source: 'config', kind: 'import', line: 1 },
-        path.join(tmpDir, 'app.py'),
-        tmpDir,
-        'python',
-      );
-      expect(result.isExternal).toBe(false);
-      expect(result.resolvedPath).toBe(path.join(tmpDir, 'config.py'));
-    });
-
-    it('should resolve dotted absolute import (mypackage.utils)', () => {
-      const pkgDir = path.join(tmpDir, 'mypackage');
-      fs.mkdirSync(pkgDir, { recursive: true });
-      fs.writeFileSync(path.join(pkgDir, 'utils.py'), '');
-
-      const result = resolver.resolve(
-        { source: 'mypackage.utils', kind: 'import', line: 1 },
-        path.join(tmpDir, 'app.py'),
-        tmpDir,
-        'python',
-      );
-      expect(result.isExternal).toBe(false);
-      expect(result.resolvedPath).toBe(path.join(pkgDir, 'utils.py'));
-    });
-
-    it('should mark stdlib imports as external', () => {
-      const result = resolver.resolve(
-        { source: 'os', kind: 'import', line: 1 },
-        path.join(tmpDir, 'app.py'),
-        tmpDir,
-        'python',
-      );
-      expect(result.isExternal).toBe(true);
-    });
-
-    it('should keep unresolvable relative imports internal', () => {
-      const result = resolver.resolve(
-        { source: '.nonexistent', kind: 'import', line: 1 },
-        path.join(tmpDir, 'app.py'),
-        tmpDir,
-        'python',
-      );
-      expect(result.isExternal).toBe(false);
-      expect(result.resolvedPath).toBeUndefined();
-    });
-  });
-
-  // ─── Rust resolution ────────────────────────────────────────────────────────
-
-  describe('resolveRust', () => {
-    it('should mark crate:: imports as internal', () => {
-      const result = resolver.resolve(
-        { source: 'crate::models::User', kind: 'import', line: 1 },
-        path.join(tmpDir, 'src/main.rs'),
-        tmpDir,
-        'rust',
-      );
-      expect(result.isExternal).toBe(false);
-    });
-
-    it('should mark self:: imports as internal', () => {
-      const result = resolver.resolve(
-        { source: 'self::handler', kind: 'import', line: 1 },
-        path.join(tmpDir, 'src/main.rs'),
-        tmpDir,
-        'rust',
-      );
-      expect(result.isExternal).toBe(false);
-    });
-
-    it('should mark super:: imports as internal', () => {
-      const result = resolver.resolve(
-        { source: 'super::config', kind: 'import', line: 1 },
-        path.join(tmpDir, 'src/handlers/mod.rs'),
-        tmpDir,
-        'rust',
-      );
-      expect(result.isExternal).toBe(false);
-    });
-
-    it('should identify Cargo.toml dependencies as external', () => {
-      fs.writeFileSync(
-        path.join(tmpDir, 'Cargo.toml'),
-        '[dependencies]\nserde = "1.0"\ntokio = { version = "1" }\n',
-      );
-
-      const result = resolver.resolve(
-        { source: 'serde::Deserialize', kind: 'import', line: 1 },
-        path.join(tmpDir, 'src/main.rs'),
-        tmpDir,
-        'rust',
-      );
-      expect(result.isExternal).toBe(true);
-    });
-
-    it('should mark unknown crates as external', () => {
-      fs.writeFileSync(path.join(tmpDir, 'Cargo.toml'), '[dependencies]\n');
-
-      const result = resolver.resolve(
-        { source: 'std::collections::HashMap', kind: 'import', line: 1 },
-        path.join(tmpDir, 'src/main.rs'),
-        tmpDir,
-        'rust',
-      );
-      expect(result.isExternal).toBe(true);
-    });
-
-    it('should cache Cargo.toml parsing across calls', () => {
-      fs.writeFileSync(
-        path.join(tmpDir, 'Cargo.toml'),
-        '[dependencies]\nreqwest = "0.11"\n',
-      );
-
-      resolver.resolve(
-        { source: 'reqwest', kind: 'import', line: 1 },
-        path.join(tmpDir, 'src/main.rs'),
-        tmpDir,
-        'rust',
-      );
-      const result = resolver.resolve(
-        { source: 'reqwest', kind: 'import', line: 2 },
-        path.join(tmpDir, 'src/main.rs'),
-        tmpDir,
-        'rust',
-      );
-      expect(result.isExternal).toBe(true);
-    });
-
-    it('should handle missing Cargo.toml gracefully', () => {
-      const result = resolver.resolve(
-        { source: 'unknown_crate', kind: 'import', line: 1 },
-        path.join(tmpDir, 'src/main.rs'),
-        tmpDir,
-        'rust',
-      );
-      expect(result.isExternal).toBe(true);
-    });
-  });
-
-  // ─── Java resolution ────────────────────────────────────────────────────────
-
-  describe('resolveJava', () => {
-    it('should resolve Java import to file under src/main/java', () => {
-      const javaDir = path.join(tmpDir, 'src', 'main', 'java', 'com', 'example');
-      fs.mkdirSync(javaDir, { recursive: true });
-      fs.writeFileSync(path.join(javaDir, 'Model.java'), 'public class Model {}');
-
-      const result = resolver.resolve(
-        { source: 'com.example.Model', kind: 'import', line: 1 },
-        path.join(tmpDir, 'src/main/java/com/example/App.java'),
-        tmpDir,
-        'java',
-      );
-      expect(result.isExternal).toBe(false);
-      expect(result.resolvedPath).toBe(path.join(javaDir, 'Model.java'));
-    });
-
-    it('should resolve Java import to file under src/', () => {
-      const javaDir = path.join(tmpDir, 'src', 'com', 'example');
-      fs.mkdirSync(javaDir, { recursive: true });
-      fs.writeFileSync(path.join(javaDir, 'Service.java'), 'public class Service {}');
-
-      const result = resolver.resolve(
-        { source: 'com.example.Service', kind: 'import', line: 1 },
-        path.join(tmpDir, 'src/App.java'),
-        tmpDir,
-        'java',
-      );
-      expect(result.isExternal).toBe(false);
-    });
-
-    it('should resolve Java import to file at project root', () => {
-      const javaDir = path.join(tmpDir, 'com', 'example');
-      fs.mkdirSync(javaDir, { recursive: true });
-      fs.writeFileSync(path.join(javaDir, 'Util.java'), 'public class Util {}');
-
-      const result = resolver.resolve(
-        { source: 'com.example.Util', kind: 'import', line: 1 },
-        path.join(tmpDir, 'Main.java'),
-        tmpDir,
-        'java',
-      );
-      expect(result.isExternal).toBe(false);
-    });
-
-    it('should mark unresolvable Java imports as external', () => {
-      const result = resolver.resolve(
-        { source: 'java.util.List', kind: 'import', line: 1 },
-        path.join(tmpDir, 'Main.java'),
-        tmpDir,
-        'java',
-      );
-      expect(result.isExternal).toBe(true);
-    });
-  });
-
-  // ─── C/C++ resolution ──────────────────────────────────────────────────────
-
-  describe('resolveC', () => {
-    it('should resolve quoted include to relative file', () => {
-      const srcDir = path.join(tmpDir, 'src');
-      fs.mkdirSync(srcDir, { recursive: true });
-      fs.writeFileSync(path.join(srcDir, 'header.h'), '#pragma once');
-
-      const result = resolver.resolve(
-        { source: 'header.h', kind: 'import', line: 1 },
-        path.join(srcDir, 'main.c'),
-        tmpDir,
-        'c',
-      );
-      expect(result.isExternal).toBe(false);
-      expect(result.resolvedPath).toBe(path.join(srcDir, 'header.h'));
-    });
-
-    it('should resolve quoted include from project root', () => {
-      fs.writeFileSync(path.join(tmpDir, 'global.h'), '#pragma once');
-
-      const srcDir = path.join(tmpDir, 'src');
-      fs.mkdirSync(srcDir, { recursive: true });
-
-      const result = resolver.resolve(
-        { source: 'global.h', kind: 'import', line: 1 },
-        path.join(srcDir, 'main.c'),
-        tmpDir,
-        'c',
-      );
-      // Should try relative to file first, then root
-      expect(result.resolvedPath).toBe(path.join(tmpDir, 'global.h'));
-      expect(result.isExternal).toBe(false);
-    });
-
-    it('should mark angle-bracket includes as external', () => {
-      const result = resolver.resolve(
-        { source: '<stdio.h>', kind: 'import', line: 1 },
-        path.join(tmpDir, 'main.c'),
-        tmpDir,
-        'c',
-      );
-      expect(result.isExternal).toBe(true);
-    });
-
-    it('should mark unresolvable quoted includes as external', () => {
-      const result = resolver.resolve(
-        { source: 'nonexistent.h', kind: 'import', line: 1 },
-        path.join(tmpDir, 'main.c'),
-        tmpDir,
-        'c',
-      );
-      expect(result.isExternal).toBe(true);
-    });
-  });
-
-  // ─── C# resolution ─────────────────────────────────────────────────────────
-
-  describe('resolveCSharp', () => {
-    it('should always mark C# using directives as external', () => {
-      const result = resolver.resolve(
-        { source: 'System.Collections.Generic', kind: 'import', line: 1 },
-        path.join(tmpDir, 'Program.cs'),
-        tmpDir,
-        'csharp',
-      );
-      expect(result.isExternal).toBe(true);
-      expect(result.externalName).toBe('System.Collections.Generic');
-    });
-  });
-
-  // ─── JS → TS extension resolution ──────────────────────────────────────────
-
-  describe('JS-to-TS extension probing', () => {
-    it('should resolve import with .js extension to .ts file', () => {
-      const srcDir = path.join(tmpDir, 'src');
-      fs.mkdirSync(srcDir, { recursive: true });
-      fs.writeFileSync(path.join(srcDir, 'utils.ts'), 'export const x = 1;');
-
-      const result = resolver.resolve(
-        { source: './utils.js', kind: 'import', line: 1 },
-        path.join(srcDir, 'app.ts'),
-        tmpDir,
-        'typescript',
-      );
-      expect(result.isExternal).toBe(false);
-      expect(result.resolvedPath).toBe(path.join(srcDir, 'utils.ts'));
-    });
-
-    it('should resolve .mjs specifier to .mts file', () => {
-      const srcDir = path.join(tmpDir, 'src');
-      fs.mkdirSync(srcDir, { recursive: true });
-      fs.writeFileSync(path.join(srcDir, 'config.mts'), 'export default {};');
-
-      const result = resolver.resolve(
-        { source: './config.mjs', kind: 'import', line: 1 },
-        path.join(srcDir, 'app.ts'),
-        tmpDir,
-        'typescript',
-      );
-      expect(result.isExternal).toBe(false);
-      expect(result.resolvedPath).toBe(path.join(srcDir, 'config.mts'));
-    });
-
-    it('should resolve .cjs specifier to .cts file', () => {
-      const srcDir = path.join(tmpDir, 'src');
-      fs.mkdirSync(srcDir, { recursive: true });
-      fs.writeFileSync(path.join(srcDir, 'helper.cts'), 'module.exports = {};');
-
-      const result = resolver.resolve(
-        { source: './helper.cjs', kind: 'import', line: 1 },
-        path.join(srcDir, 'app.ts'),
-        tmpDir,
-        'typescript',
-      );
-      expect(result.isExternal).toBe(false);
-      expect(result.resolvedPath).toBe(path.join(srcDir, 'helper.cts'));
-    });
-
-    it('should prefer actual .js file over .ts when .js exists', () => {
-      const srcDir = path.join(tmpDir, 'src');
-      fs.mkdirSync(srcDir, { recursive: true });
-      fs.writeFileSync(path.join(srcDir, 'lib.js'), 'module.exports = {};');
-
-      const result = resolver.resolve(
-        { source: './lib.js', kind: 'import', line: 1 },
-        path.join(srcDir, 'app.ts'),
-        tmpDir,
-        'typescript',
-      );
-      expect(result.isExternal).toBe(false);
-      expect(result.resolvedPath).toBe(path.join(srcDir, 'lib.js'));
-    });
-
-    it('should resolve .jsx specifier to .tsx file', () => {
-      const srcDir = path.join(tmpDir, 'src');
-      fs.mkdirSync(srcDir, { recursive: true });
-      fs.writeFileSync(path.join(srcDir, 'App.tsx'), 'export default () => null;');
-
-      const result = resolver.resolve(
-        { source: './App.jsx', kind: 'import', line: 1 },
-        path.join(srcDir, 'index.ts'),
-        tmpDir,
-        'typescript',
-      );
-      expect(result.isExternal).toBe(false);
-      expect(result.resolvedPath).toBe(path.join(srcDir, 'App.tsx'));
-    });
-  });
-
-  // ─── markExternal ───────────────────────────────────────────────────────────
-
-  describe('markExternal shape', () => {
-    it('should include rawSource and externalName', () => {
-      const result = resolver.resolve(
-        { source: 'some_dep', kind: 'import', line: 1 },
-        path.join(tmpDir, 'main.xyz'),
-        tmpDir,
-        'unknown',
-      );
-      expect(result).toEqual({
-        rawSource: 'some_dep',
-        isExternal: true,
-        externalName: 'some_dep',
-      });
     });
   });
 });

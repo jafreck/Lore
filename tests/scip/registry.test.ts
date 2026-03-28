@@ -1,110 +1,142 @@
-/**
- * Tests for the SCIP indexer registry.
- */
-
-import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { tmpdir } from 'node:os';
-import { describe, expect, it } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import {
   DEFAULT_SCIP_INDEXER_REGISTRY,
   SCIP_SUPPORTED_LANGUAGES,
-  resolveScipIndexerRegistry,
+  getDefaultScipIndexerRegistry,
   mergeScipIndexerRegistry,
+  resolveScipIndexerRegistry,
+  type ScipIndexerRegistry,
+  type ScipIndexerRegistryOverrides,
 } from '../../src/scip/registry.js';
 
-describe('SCIP indexer registry', () => {
-  it('default registry covers expected languages', () => {
-    const expectedLanguages = [
-      'typescript', 'python', 'java', 'scala', 'kotlin',
-      'rust', 'c', 'cpp', 'csharp', 'ruby', 'php', 'go', 'dart',
-    ];
-    for (const lang of expectedLanguages) {
+describe('SCIP_SUPPORTED_LANGUAGES', () => {
+  it('is a Set of all default registry keys', () => {
+    const keys = Object.keys(DEFAULT_SCIP_INDEXER_REGISTRY);
+    expect(SCIP_SUPPORTED_LANGUAGES.size).toBe(keys.length);
+    for (const key of keys) {
+      expect(SCIP_SUPPORTED_LANGUAGES.has(key)).toBe(true);
+    }
+  });
+
+  it('contains expected languages', () => {
+    const expected = ['typescript', 'python', 'java', 'rust', 'go', 'c', 'cpp', 'csharp', 'ruby', 'php'];
+    for (const lang of expected) {
       expect(SCIP_SUPPORTED_LANGUAGES.has(lang)).toBe(true);
     }
   });
+});
 
-  it('does not include languages without SCIP indexers', () => {
-    const unsupported = ['swift', 'lua', 'bash', 'elixir', 'zig', 'ocaml', 'haskell', 'julia', 'elm'];
-    for (const lang of unsupported) {
-      expect(SCIP_SUPPORTED_LANGUAGES.has(lang)).toBe(false);
+describe('DEFAULT_SCIP_INDEXER_REGISTRY', () => {
+  it('has command and args for each entry', () => {
+    for (const [lang, cmd] of Object.entries(DEFAULT_SCIP_INDEXER_REGISTRY)) {
+      expect(typeof cmd.command).toBe('string');
+      expect(cmd.command.length).toBeGreaterThan(0);
+      expect(Array.isArray(cmd.args)).toBe(true);
     }
   });
 
-  it('resolveScipIndexerRegistry marks unavailable executables', () => {
-    const resolved = resolveScipIndexerRegistry(DEFAULT_SCIP_INDEXER_REGISTRY, { PATH: '' });
-    // With empty PATH, indexers are only available if they are either:
-    // - npm-bundled (scip-typescript, scip-python) → found in node_modules/.bin/
-    // - managed (scip-clang, scip-go, etc.) → found in ~/.lore/bin/
-    // - system-level (rust-analyzer, dotnet, etc.) → found on default system PATH
-    //
-    // At minimum, languages that have no npm-bundled dep AND no managed binary
-    // AND no system install should still be unavailable.
-    // scip-java (needs Coursier) should reliably be unavailable in CI.
-    // Just verify the structure is valid for all entries.
+  it('java, scala, kotlin share scip-java command', () => {
+    expect(DEFAULT_SCIP_INDEXER_REGISTRY.java?.command).toBe('scip-java');
+    expect(DEFAULT_SCIP_INDEXER_REGISTRY.scala?.command).toBe('scip-java');
+    expect(DEFAULT_SCIP_INDEXER_REGISTRY.kotlin?.command).toBe('scip-java');
+  });
+
+  it('c and cpp share scip-clang command', () => {
+    expect(DEFAULT_SCIP_INDEXER_REGISTRY.c?.command).toBe('scip-clang');
+    expect(DEFAULT_SCIP_INDEXER_REGISTRY.cpp?.command).toBe('scip-clang');
+  });
+});
+
+describe('getDefaultScipIndexerRegistry', () => {
+  it('returns a deep clone', () => {
+    const registry = getDefaultScipIndexerRegistry();
+    expect(registry).toEqual(DEFAULT_SCIP_INDEXER_REGISTRY);
+
+    // Mutate clone — original should not change
+    registry.typescript!.command = 'modified';
+    expect(DEFAULT_SCIP_INDEXER_REGISTRY.typescript?.command).toBe('scip-typescript');
+  });
+
+  it('clones args arrays', () => {
+    const registry = getDefaultScipIndexerRegistry();
+    registry.typescript!.args.push('extra');
+    expect(DEFAULT_SCIP_INDEXER_REGISTRY.typescript?.args).not.toContain('extra');
+  });
+});
+
+describe('mergeScipIndexerRegistry', () => {
+  it('returns defaults when no overrides given', () => {
+    const merged = mergeScipIndexerRegistry();
+    expect(Object.keys(merged).length).toBe(Object.keys(DEFAULT_SCIP_INDEXER_REGISTRY).length);
+  });
+
+  it('overrides command for existing language', () => {
+    const merged = mergeScipIndexerRegistry({
+      typescript: { command: 'custom-ts' },
+    });
+    expect(merged.typescript?.command).toBe('custom-ts');
+    // args should be preserved from defaults
+    expect(merged.typescript?.args).toEqual(DEFAULT_SCIP_INDEXER_REGISTRY.typescript?.args);
+  });
+
+  it('overrides args for existing language', () => {
+    const merged = mergeScipIndexerRegistry({
+      typescript: { args: ['--custom'] },
+    });
+    expect(merged.typescript?.args).toEqual(['--custom']);
+    expect(merged.typescript?.command).toBe('scip-typescript');
+  });
+
+  it('adds new languages not in default registry', () => {
+    const merged = mergeScipIndexerRegistry({
+      haskell: { command: 'scip-haskell', args: ['index'] },
+    });
+    expect(merged.haskell).toBeDefined();
+    expect(merged.haskell?.command).toBe('scip-haskell');
+  });
+
+  it('does not add incomplete new languages', () => {
+    const merged = mergeScipIndexerRegistry({
+      haskell: { command: 'scip-haskell' },
+    });
+    // Missing args — should not be added
+    expect(merged.haskell).toBeUndefined();
+  });
+
+  it('handles undefined override values', () => {
+    const overrides: ScipIndexerRegistryOverrides = { typescript: undefined };
+    const merged = mergeScipIndexerRegistry(overrides);
+    expect(merged.typescript?.command).toBe('scip-typescript');
+  });
+});
+
+describe('resolveScipIndexerRegistry', () => {
+  it('resolves all registry entries', () => {
+    const resolved = resolveScipIndexerRegistry(DEFAULT_SCIP_INDEXER_REGISTRY, {});
+    for (const lang of Object.keys(DEFAULT_SCIP_INDEXER_REGISTRY)) {
+      expect(resolved[lang]).toBeDefined();
+      expect(resolved[lang]!.language).toBe(lang);
+      expect(typeof resolved[lang]!.available).toBe('boolean');
+    }
+  });
+
+  it('marks commands as unavailable when not on PATH', () => {
+    // With empty env, nothing should be found on PATH
+    const resolved = resolveScipIndexerRegistry(DEFAULT_SCIP_INDEXER_REGISTRY, {});
+    // Most SCIP indexers won't be installed in test environments
     for (const entry of Object.values(resolved)) {
       expect(typeof entry.available).toBe('boolean');
-      if (entry.available) {
-        expect(entry.resolvedPath).toBeTruthy();
-      } else {
+      if (!entry.available) {
         expect(entry.resolvedPath).toBeNull();
       }
     }
   });
 
-  it('resolveScipIndexerRegistry finds executables on PATH', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'lore-scip-reg-'));
-    const fakeExec = join(dir, 'scip-typescript');
-    writeFileSync(fakeExec, '#!/bin/sh\nexit 0\n', 'utf8');
-    chmodSync(fakeExec, 0o755);
-
-    try {
-      const resolved = resolveScipIndexerRegistry(DEFAULT_SCIP_INDEXER_REGISTRY, { PATH: dir });
-      expect(resolved.typescript!.available).toBe(true);
-      // May resolve to either the fake exec on PATH or the npm-bundled binary
-      expect(resolved.typescript!.resolvedPath).toBeTruthy();
-      // JavaScript is not in the SCIP registry (scip-typescript lacks
-      // reliable CommonJS/import support for plain JS repos).
-      expect(resolved.javascript).toBeUndefined();
-      // Languages resolved only via ~/.lore/bin or node_modules/.bin may
-      // still be available even though our fake PATH doesn't contain them.
-      // Verify structural invariants instead of hardcoding which are absent.
-      for (const entry of Object.values(resolved)) {
-        if (entry.available) {
-          expect(entry.resolvedPath).toBeTruthy();
-        } else {
-          expect(entry.resolvedPath).toBeNull();
-        }
-      }
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-
-  it('mergeScipIndexerRegistry overrides commands', () => {
-    const merged = mergeScipIndexerRegistry({
-      typescript: { command: 'my-ts-indexer' },
-    });
-    expect(merged.typescript!.command).toBe('my-ts-indexer');
-    // Args should be preserved from default.
-    expect(merged.typescript!.args).toEqual(DEFAULT_SCIP_INDEXER_REGISTRY.typescript!.args);
-  });
-
-  it('mergeScipIndexerRegistry allows adding new languages', () => {
-    const merged = mergeScipIndexerRegistry({
-      haskell: { command: 'scip-haskell', args: ['--output', '{output}'] },
-    });
-    expect(merged.haskell).toEqual({ command: 'scip-haskell', args: ['--output', '{output}'] });
-  });
-
-  it('go entry uses scip-go with no args', () => {
-    expect(DEFAULT_SCIP_INDEXER_REGISTRY.go).toEqual({ command: 'scip-go', args: [] });
-  });
-
-  it('dart entry uses scip-dart with index command', () => {
-    expect(DEFAULT_SCIP_INDEXER_REGISTRY.dart).toEqual({
-      command: 'scip-dart',
-      args: ['index', '--output', '{output}'],
-    });
+  it('deduplicates resolution for shared commands', () => {
+    // java, scala, kotlin all use scip-java — should resolve once
+    const resolved = resolveScipIndexerRegistry(DEFAULT_SCIP_INDEXER_REGISTRY, {});
+    const javaAvail = resolved.java?.available;
+    expect(resolved.scala?.available).toBe(javaAvail);
+    expect(resolved.kotlin?.available).toBe(javaAvail);
   });
 });

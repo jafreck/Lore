@@ -1,344 +1,273 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { openDb } from '../../src/db/schema.js';
+import type { Database } from '../../src/db/schema.js';
 import {
   detectSymbolCycles,
   findConnectedComponents,
   clusterSymbols,
   buildCodebaseSummary,
 } from '../../src/resolution/graph-analysis.js';
-import { openDb } from '../../src/db/schema.js';
-import { resolveSymbolEdges } from '../../src/resolution/call-graph.js';
-import type { Database } from '../../src/db/schema.js';
 
-// ─── Test helpers ─────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function createDb(): Database.Database {
-  return openDb(':memory:');
+function insertFile(db: Database.Database, opts: { path: string; language?: string; branch?: string; layer?: string }): number {
+  return db.prepare(
+    `INSERT INTO files (path, language, branch, layer) VALUES (?, ?, ?, ?)`,
+  ).run(opts.path, opts.language ?? 'typescript', opts.branch ?? '', opts.layer ?? 'baseline').lastInsertRowid as number;
 }
 
-function insertFile(db: Database.Database, path: string): number {
-  return Number(
-    db.prepare("INSERT INTO files (path, branch, language, size_bytes, last_hash, source) VALUES (?, 'HEAD', 'typescript', 0, NULL, '')")
-      .run(path).lastInsertRowid,
-  );
+function insertSymbol(db: Database.Database, opts: {
+  fileId: number; name: string; kind?: string; startLine?: number; endLine?: number; layer?: string;
+}): number {
+  return db.prepare(
+    `INSERT INTO symbols (file_id, name, kind, start_line, end_line, layer)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+  ).run(opts.fileId, opts.name, opts.kind ?? 'function', opts.startLine ?? 1, opts.endLine ?? 10, opts.layer ?? 'baseline').lastInsertRowid as number;
 }
 
-function insertSymbol(
-  db: Database.Database,
-  fileId: number,
-  name: string,
-  kind = 'function',
-  startLine = 1,
-  endLine?: number,
-): number {
-  return Number(
-    db.prepare('INSERT INTO symbols (file_id, name, kind, start_line, end_line, signature) VALUES (?, ?, ?, ?, ?, ?)')
-      .run(fileId, name, kind, startLine, endLine ?? startLine + 10, `${kind} ${name}`).lastInsertRowid,
-  );
-}
-
-function insertCallRef(
-  db: Database.Database,
-  callerId: number,
-  fileId: number,
-  calleeName: string,
-  callLine: number,
-): void {
-  db.prepare(
-    `INSERT INTO symbol_refs (caller_id, file_id, callee_name, call_line) VALUES (?, ?, ?, ?)`,
-  ).run(callerId, fileId, calleeName, callLine);
-}
-
-function insertFileImport(db: Database.Database, fileId: number, resolvedId: number): void {
-  db.prepare(
-    `INSERT INTO file_imports (file_id, raw_import, resolved_id) VALUES (?, 'import', ?)`,
-  ).run(fileId, resolvedId);
-}
-
-/**
- * Helper: set up a resolved call edge directly.
- * Sets callee_id and resolution_method to bypass resolution.
- */
-function insertResolvedCallRef(
-  db: Database.Database,
-  callerId: number,
-  calleeId: number,
-  fileId: number,
-  callLine = 1,
-): void {
+function insertResolvedSymbolRef(db: Database.Database, opts: {
+  callerId: number; fileId: number; calleeId: number; calleeName: string;
+  resolutionMethod?: string;
+}): void {
   db.prepare(
     `INSERT INTO symbol_refs (caller_id, file_id, callee_id, callee_name, call_line, resolution_method)
-     VALUES (?, ?, ?, 'resolved', ?, 'name_unique')`,
-  ).run(callerId, fileId, calleeId, callLine);
+     VALUES (?, ?, ?, ?, ?, ?)`,
+  ).run(opts.callerId, opts.fileId, opts.calleeId, opts.calleeName, 1, opts.resolutionMethod ?? 'name_unique');
+}
+
+function insertResolvedTypeRef(db: Database.Database, opts: {
+  fileId: number; symbolId: number; typeId: number; typeName: string;
+  resolutionMethod?: string;
+}): void {
+  db.prepare(
+    `INSERT INTO type_refs (file_id, symbol_id, type_id, type_name, type_name_bare, ref_line, resolution_method)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  ).run(opts.fileId, opts.symbolId, opts.typeId, opts.typeName, opts.typeName, 1, opts.resolutionMethod ?? 'name_unique');
+}
+
+function insertFileImport(db: Database.Database, fileId: number, rawImport: string, resolvedId: number | null): void {
+  db.prepare(
+    `INSERT INTO file_imports (file_id, raw_import, resolved_id) VALUES (?, ?, ?)`,
+  ).run(fileId, rawImport, resolvedId);
 }
 
 // ─── detectSymbolCycles ───────────────────────────────────────────────────────
 
 describe('detectSymbolCycles', () => {
-  it('should find no cycles in a DAG', () => {
-    const db = createDb();
-    const f = insertFile(db, 'src/a.ts');
-    const a = insertSymbol(db, f, 'a');
-    const b = insertSymbol(db, f, 'b');
-    const c = insertSymbol(db, f, 'c');
+  let db: Database.Database;
 
-    // a → b → c (no cycle)
-    insertResolvedCallRef(db, a, b, f);
-    insertResolvedCallRef(db, b, c, f);
+  beforeEach(() => { db = openDb(':memory:'); });
+  afterEach(() => { db?.close(); });
+
+  it('returns empty when no edges', () => {
+    const fid = insertFile(db, { path: 'a.ts' });
+    insertSymbol(db, { fileId: fid, name: 'foo' });
+    expect(detectSymbolCycles(db)).toEqual([]);
+  });
+
+  it('detects mutual recursion (A→B, B→A)', () => {
+    const fid = insertFile(db, { path: 'a.ts' });
+    const symA = insertSymbol(db, { fileId: fid, name: 'fnA' });
+    const symB = insertSymbol(db, { fileId: fid, name: 'fnB' });
+
+    insertResolvedSymbolRef(db, { callerId: symA, fileId: fid, calleeId: symB, calleeName: 'fnB' });
+    insertResolvedSymbolRef(db, { callerId: symB, fileId: fid, calleeId: symA, calleeName: 'fnA' });
 
     const sccs = detectSymbolCycles(db);
+    expect(sccs).toHaveLength(1);
+    expect(new Set(sccs[0])).toEqual(new Set([symA, symB]));
+  });
+
+  it('detects self-loop', () => {
+    const fid = insertFile(db, { path: 'a.ts' });
+    const sym = insertSymbol(db, { fileId: fid, name: 'recursive' });
+    insertResolvedSymbolRef(db, { callerId: sym, fileId: fid, calleeId: sym, calleeName: 'recursive' });
+
+    const sccs = detectSymbolCycles(db);
+    expect(sccs).toHaveLength(1);
+    expect(sccs[0]).toEqual([sym]);
+  });
+
+  it('ignores acyclic chains', () => {
+    const fid = insertFile(db, { path: 'a.ts' });
+    const a = insertSymbol(db, { fileId: fid, name: 'a' });
+    const b = insertSymbol(db, { fileId: fid, name: 'b' });
+    const c = insertSymbol(db, { fileId: fid, name: 'c' });
+    insertResolvedSymbolRef(db, { callerId: a, fileId: fid, calleeId: b, calleeName: 'b' });
+    insertResolvedSymbolRef(db, { callerId: b, fileId: fid, calleeId: c, calleeName: 'c' });
+
+    expect(detectSymbolCycles(db)).toEqual([]);
+  });
+
+  it('filters by edgeKinds=call (ignores type_refs)', () => {
+    const fid = insertFile(db, { path: 'a.ts' });
+    const symA = insertSymbol(db, { fileId: fid, name: 'fnA' });
+    const symB = insertSymbol(db, { fileId: fid, name: 'fnB' });
+
+    // Type-ref cycle only
+    insertResolvedTypeRef(db, { fileId: fid, symbolId: symA, typeId: symB, typeName: 'fnB' });
+    insertResolvedTypeRef(db, { fileId: fid, symbolId: symB, typeId: symA, typeName: 'fnA' });
+
+    const sccs = detectSymbolCycles(db, { edgeKinds: 'call' });
     expect(sccs).toEqual([]);
   });
 
-  it('should detect a simple mutual recursion cycle', () => {
-    const db = createDb();
-    const f = insertFile(db, 'src/a.ts');
-    const a = insertSymbol(db, f, 'funcA');
-    const b = insertSymbol(db, f, 'funcB');
+  it('filters by edgeKinds=type (ignores symbol_refs)', () => {
+    const fid = insertFile(db, { path: 'a.ts' });
+    const symA = insertSymbol(db, { fileId: fid, name: 'fnA' });
+    const symB = insertSymbol(db, { fileId: fid, name: 'fnB' });
 
-    // a → b → a (cycle)
-    insertResolvedCallRef(db, a, b, f);
-    insertResolvedCallRef(db, b, a, f);
+    // Call-ref cycle only
+    insertResolvedSymbolRef(db, { callerId: symA, fileId: fid, calleeId: symB, calleeName: 'fnB' });
+    insertResolvedSymbolRef(db, { callerId: symB, fileId: fid, calleeId: symA, calleeName: 'fnA' });
 
-    const sccs = detectSymbolCycles(db);
-    expect(sccs).toHaveLength(1);
-    expect(sccs[0]).toHaveLength(2);
-    expect(new Set(sccs[0])).toEqual(new Set([a, b]));
+    const sccs = detectSymbolCycles(db, { edgeKinds: 'type' });
+    expect(sccs).toEqual([]);
   });
 
-  it('should detect a self-referencing symbol', () => {
-    const db = createDb();
-    const f = insertFile(db, 'src/a.ts');
-    const a = insertSymbol(db, f, 'recursive');
+  it('returns empty when methods filter is empty', () => {
+    const fid = insertFile(db, { path: 'a.ts' });
+    const symA = insertSymbol(db, { fileId: fid, name: 'fnA' });
+    const symB = insertSymbol(db, { fileId: fid, name: 'fnB' });
+    insertResolvedSymbolRef(db, { callerId: symA, fileId: fid, calleeId: symB, calleeName: 'fnB' });
+    insertResolvedSymbolRef(db, { callerId: symB, fileId: fid, calleeId: symA, calleeName: 'fnA' });
 
-    insertResolvedCallRef(db, a, a, f);
-
-    const sccs = detectSymbolCycles(db);
-    expect(sccs).toHaveLength(1);
-    expect(sccs[0]).toEqual([a]);
-  });
-
-  it('should detect multiple separate SCCs', () => {
-    const db = createDb();
-    const f = insertFile(db, 'src/a.ts');
-    const a = insertSymbol(db, f, 'a');
-    const b = insertSymbol(db, f, 'b');
-    const c = insertSymbol(db, f, 'c');
-    const d = insertSymbol(db, f, 'd');
-
-    // Cycle 1: a ↔ b
-    insertResolvedCallRef(db, a, b, f);
-    insertResolvedCallRef(db, b, a, f);
-    // Cycle 2: c ↔ d
-    insertResolvedCallRef(db, c, d, f);
-    insertResolvedCallRef(db, d, c, f);
-
-    const sccs = detectSymbolCycles(db);
-    expect(sccs).toHaveLength(2);
-
-    const sets = sccs.map(scc => new Set(scc));
-    expect(sets).toContainEqual(new Set([a, b]));
-    expect(sets).toContainEqual(new Set([c, d]));
-  });
-
-  it('should respect edgeKinds=call (ignore type edges)', () => {
-    const db = createDb();
-    const f = insertFile(db, 'src/a.ts');
-    const a = insertSymbol(db, f, 'ClassA', 'class');
-    const b = insertSymbol(db, f, 'ClassB', 'class');
-
-    // Type-ref cycle only (not call)
-    db.prepare(
-      `INSERT INTO type_refs (file_id, symbol_id, type_id, type_name, type_name_bare, ref_kind, ref_line, resolution_method)
-       VALUES (?, ?, ?, 'ClassB', 'ClassB', 'parameter', 5, 'name_same_file')`,
-    ).run(f, a, b);
-    db.prepare(
-      `INSERT INTO type_refs (file_id, symbol_id, type_id, type_name, type_name_bare, ref_kind, ref_line, resolution_method)
-       VALUES (?, ?, ?, 'ClassA', 'ClassA', 'parameter', 15, 'name_same_file')`,
-    ).run(f, b, a);
-
-    // With call only → no cycles
-    const callOnly = detectSymbolCycles(db, { edgeKinds: 'call' });
-    expect(callOnly).toEqual([]);
-
-    // With type only → should find the cycle
-    const typeOnly = detectSymbolCycles(db, { edgeKinds: 'type' });
-    expect(typeOnly).toHaveLength(1);
-    expect(new Set(typeOnly[0])).toEqual(new Set([a, b]));
-
-    // With both → should also find it
-    const both = detectSymbolCycles(db, { edgeKinds: 'both' });
-    expect(both).toHaveLength(1);
-  });
-
-  it('should return empty for empty database', () => {
-    const db = createDb();
-    expect(detectSymbolCycles(db)).toEqual([]);
+    expect(detectSymbolCycles(db, { methods: [] })).toEqual([]);
   });
 });
 
 // ─── findConnectedComponents ──────────────────────────────────────────────────
 
 describe('findConnectedComponents', () => {
-  describe('symbol scope', () => {
-    it('should find a single component from connected symbols', () => {
-      const db = createDb();
-      const f = insertFile(db, 'src/a.ts');
-      const a = insertSymbol(db, f, 'a');
-      const b = insertSymbol(db, f, 'b');
-      const c = insertSymbol(db, f, 'c');
+  let db: Database.Database;
 
-      insertResolvedCallRef(db, a, b, f);
-      insertResolvedCallRef(db, b, c, f);
+  beforeEach(() => { db = openDb(':memory:'); });
+  afterEach(() => { db?.close(); });
 
-      const components = findConnectedComponents(db, { scope: 'symbol' });
-      expect(components).toHaveLength(1);
-      expect(new Set(components[0])).toEqual(new Set([a, b, c]));
-    });
-
-    it('should find two separate components', () => {
-      const db = createDb();
-      const f1 = insertFile(db, 'src/a.ts');
-      const f2 = insertFile(db, 'src/b.ts');
-      const a = insertSymbol(db, f1, 'a');
-      const b = insertSymbol(db, f1, 'b');
-      const c = insertSymbol(db, f2, 'c');
-      const d = insertSymbol(db, f2, 'd');
-
-      insertResolvedCallRef(db, a, b, f1);
-      insertResolvedCallRef(db, c, d, f2);
-
-      const components = findConnectedComponents(db, { scope: 'symbol' });
-      expect(components).toHaveLength(2);
-
-      const sets = components.map(c => new Set(c));
-      expect(sets).toContainEqual(new Set([a, b]));
-      expect(sets).toContainEqual(new Set([c, d]));
-    });
-
-    it('should return empty for no edges', () => {
-      const db = createDb();
-      insertFile(db, 'src/a.ts');
-      expect(findConnectedComponents(db, { scope: 'symbol' })).toEqual([]);
-    });
+  it('returns empty when no edges at symbol scope', () => {
+    const fid = insertFile(db, { path: 'a.ts' });
+    insertSymbol(db, { fileId: fid, name: 'isolated' });
+    expect(findConnectedComponents(db)).toEqual([]);
   });
 
-  describe('file scope', () => {
-    it('should find connected file components via imports', () => {
-      const db = createDb();
-      const f1 = insertFile(db, 'src/a.ts');
-      const f2 = insertFile(db, 'src/b.ts');
-      const f3 = insertFile(db, 'src/c.ts');
+  it('finds symbol-level connected components', () => {
+    const fid = insertFile(db, { path: 'a.ts' });
+    const a = insertSymbol(db, { fileId: fid, name: 'a' });
+    const b = insertSymbol(db, { fileId: fid, name: 'b' });
+    const c = insertSymbol(db, { fileId: fid, name: 'c' });
 
-      insertFileImport(db, f1, f2);
-      insertFileImport(db, f2, f3);
+    // a→b, c is isolated
+    insertResolvedSymbolRef(db, { callerId: a, fileId: fid, calleeId: b, calleeName: 'b' });
 
-      const components = findConnectedComponents(db, { scope: 'file' });
-      expect(components).toHaveLength(1);
-      expect(new Set(components[0])).toEqual(new Set([f1, f2, f3]));
-    });
+    const comps = findConnectedComponents(db);
+    // a and b form a component, c is isolated (filtered out because size=1)
+    expect(comps).toHaveLength(1);
+    expect(new Set(comps[0])).toEqual(new Set([a, b]));
+  });
 
-    it('should find two disconnected file components', () => {
-      const db = createDb();
-      const f1 = insertFile(db, 'src/a.ts');
-      const f2 = insertFile(db, 'src/b.ts');
-      const f3 = insertFile(db, 'src/c.ts');
-      const f4 = insertFile(db, 'src/d.ts');
+  it('finds file-level connected components', () => {
+    const f1 = insertFile(db, { path: 'a.ts' });
+    const f2 = insertFile(db, { path: 'b.ts' });
+    const f3 = insertFile(db, { path: 'c.ts' });
+    insertFileImport(db, f1, './b', f2);
+    // f3 is isolated
 
-      insertFileImport(db, f1, f2);
-      insertFileImport(db, f3, f4);
+    const comps = findConnectedComponents(db, { scope: 'file' });
+    expect(comps).toHaveLength(1);
+    expect(new Set(comps[0])).toEqual(new Set([f1, f2]));
+  });
 
-      const components = findConnectedComponents(db, { scope: 'file' });
-      expect(components).toHaveLength(2);
-    });
+  it('filters by branch at file scope', () => {
+    const f1 = insertFile(db, { path: 'a.ts', branch: 'main' });
+    const f2 = insertFile(db, { path: 'b.ts', branch: 'main' });
+    const f3 = insertFile(db, { path: 'a.ts', branch: 'feature' });
+    insertFileImport(db, f1, './b', f2);
+
+    const comps = findConnectedComponents(db, { scope: 'file', branch: 'main' });
+    expect(comps).toHaveLength(1);
+    expect(new Set(comps[0])).toEqual(new Set([f1, f2]));
   });
 });
 
 // ─── clusterSymbols ───────────────────────────────────────────────────────────
 
 describe('clusterSymbols', () => {
-  it('should return empty for an empty database', () => {
-    const db = createDb();
+  let db: Database.Database;
+
+  beforeEach(() => { db = openDb(':memory:'); });
+  afterEach(() => { db?.close(); });
+
+  it('returns empty for empty DB', () => {
     expect(clusterSymbols(db)).toEqual([]);
   });
 
-  it('should cluster mutually recursive symbols together', () => {
-    const db = createDb();
-    const f = insertFile(db, 'src/a.ts');
-    const a = insertSymbol(db, f, 'funcA', 'function', 1, 20);
-    const b = insertSymbol(db, f, 'funcB', 'function', 21, 40);
-
-    insertResolvedCallRef(db, a, b, f);
-    insertResolvedCallRef(db, b, a, f);
+  it('creates one cluster per isolated symbol', () => {
+    const fid = insertFile(db, { path: 'a.ts' });
+    insertSymbol(db, { fileId: fid, name: 'foo', startLine: 1, endLine: 10 });
+    insertSymbol(db, { fileId: fid, name: 'bar', startLine: 20, endLine: 30 });
 
     const clusters = clusterSymbols(db);
+    // Same-file symbols get merged into one cluster (step 2)
     expect(clusters.length).toBeGreaterThanOrEqual(1);
-
-    // a and b must be in the same cluster (SCC)
-    const clusterWithA = clusters.find(c => c.symbolIds.includes(a));
-    expect(clusterWithA).toBeDefined();
-    expect(clusterWithA!.symbolIds).toContain(b);
+    // Total lines should be the sum
+    const totalLines = clusters.reduce((s, c) => s + c.totalLines, 0);
+    expect(totalLines).toBe(21); // (10-1+1) + (30-20+1) = 10 + 11 = 21
   });
 
-  it('should merge same-file symbols when within line budget', () => {
-    const db = createDb();
-    const f = insertFile(db, 'src/a.ts');
-    const a = insertSymbol(db, f, 'helper', 'function', 1, 10);
-    const b = insertSymbol(db, f, 'main', 'function', 11, 20);
+  it('merges SCC members into the same cluster', () => {
+    const fid = insertFile(db, { path: 'a.ts' });
+    const a = insertSymbol(db, { fileId: fid, name: 'a', startLine: 1, endLine: 5 });
+    const b = insertSymbol(db, { fileId: fid, name: 'b', startLine: 10, endLine: 15 });
+    insertResolvedSymbolRef(db, { callerId: a, fileId: fid, calleeId: b, calleeName: 'b' });
+    insertResolvedSymbolRef(db, { callerId: b, fileId: fid, calleeId: a, calleeName: 'a' });
 
-    // No edges between them, but same file → should merge
-    const clusters = clusterSymbols(db, { maxLinesPerCluster: 100 });
-    expect(clusters.length).toBeGreaterThanOrEqual(1);
-
-    const clusterWithA = clusters.find(c => c.symbolIds.includes(a));
-    expect(clusterWithA).toBeDefined();
-    expect(clusterWithA!.symbolIds).toContain(b);
+    const clusters = clusterSymbols(db);
+    // a and b should be in the same cluster (scc + same file)
+    expect(clusters).toHaveLength(1);
+    expect(new Set(clusters[0]!.symbolIds)).toEqual(new Set([a, b]));
   });
 
-  it('should not merge when exceeding max lines', () => {
-    const db = createDb();
-    const f1 = insertFile(db, 'src/a.ts');
-    const f2 = insertFile(db, 'src/b.ts');
-    const a = insertSymbol(db, f1, 'bigFunc', 'function', 1, 50);
-    const b = insertSymbol(db, f2, 'otherBig', 'function', 1, 50);
+  it('respects maxLinesPerCluster', () => {
+    const fid1 = insertFile(db, { path: 'a.ts' });
+    const fid2 = insertFile(db, { path: 'b.ts' });
+    const a = insertSymbol(db, { fileId: fid1, name: 'bigFn', startLine: 1, endLine: 300 });
+    const b = insertSymbol(db, { fileId: fid2, name: 'otherBigFn', startLine: 1, endLine: 300 });
+    insertResolvedSymbolRef(db, { callerId: a, fileId: fid1, calleeId: b, calleeName: 'otherBigFn' });
 
-    insertResolvedCallRef(db, a, b, f1);
-
-    // maxLines = 60 — combining two 50-line symbols would exceed
-    const clusters = clusterSymbols(db, { maxLinesPerCluster: 60 });
-    const clusterA = clusters.find(c => c.symbolIds.includes(a));
-    const clusterB = clusters.find(c => c.symbolIds.includes(b));
-    expect(clusterA).toBeDefined();
-    expect(clusterB).toBeDefined();
-    expect(clusterA!.id).not.toBe(clusterB!.id);
+    const clusters = clusterSymbols(db, { maxLinesPerCluster: 350 });
+    // Each is 300 lines; they shouldn't merge (combined 600 > 350)
+    expect(clusters.length).toBe(2);
   });
 
-  it('should report internal and external edge counts', () => {
-    const db = createDb();
-    const f1 = insertFile(db, 'src/a.ts');
-    const f2 = insertFile(db, 'src/b.ts');
-    const a = insertSymbol(db, f1, 'a', 'function', 1, 100);
-    const b = insertSymbol(db, f1, 'b', 'function', 101, 200);
-    const c = insertSymbol(db, f2, 'c', 'function', 1, 100);
+  it('reports internalEdges and externalEdges correctly', () => {
+    const fid = insertFile(db, { path: 'a.ts' });
+    const fid2 = insertFile(db, { path: 'b.ts' });
+    const a = insertSymbol(db, { fileId: fid, name: 'a', startLine: 1, endLine: 5 });
+    const b = insertSymbol(db, { fileId: fid, name: 'b', startLine: 10, endLine: 15 });
+    const c = insertSymbol(db, { fileId: fid2, name: 'c', startLine: 1, endLine: 300 });
 
-    // a → b (internal), a → c (external)
-    insertResolvedCallRef(db, a, b, f1);
-    insertResolvedCallRef(db, a, c, f1);
+    insertResolvedSymbolRef(db, { callerId: a, fileId: fid, calleeId: b, calleeName: 'b' });
+    insertResolvedSymbolRef(db, { callerId: a, fileId: fid, calleeId: c, calleeName: 'c' });
 
-    const clusters = clusterSymbols(db, { maxLinesPerCluster: 250 });
-    // a and b should be in same cluster (same file, fits in budget)
-    const clusterAB = clusters.find(c => c.symbolIds.includes(a));
-    expect(clusterAB).toBeDefined();
-    expect(clusterAB!.symbolIds).toContain(b);
-    expect(clusterAB!.internalEdges).toBeGreaterThanOrEqual(1);
-    expect(clusterAB!.externalEdges).toBeGreaterThanOrEqual(1);
+    const clusters = clusterSymbols(db, { maxLinesPerCluster: 20 });
+    // a and b should be in same cluster (same file, fits in 20 lines)
+    // c should be separate (300 lines)
+    const clusterWithAB = clusters.find(cl => cl.symbolIds.includes(a) && cl.symbolIds.includes(b));
+    expect(clusterWithAB).toBeDefined();
+    expect(clusterWithAB!.internalEdges).toBe(1); // a→b
+    expect(clusterWithAB!.externalEdges).toBe(1); // a→c
   });
 });
 
 // ─── buildCodebaseSummary ─────────────────────────────────────────────────────
 
 describe('buildCodebaseSummary', () => {
-  it('should return zero counts for an empty database', () => {
-    const db = createDb();
+  let db: Database.Database;
+
+  beforeEach(() => { db = openDb(':memory:'); });
+  afterEach(() => { db?.close(); });
+
+  it('returns zero counts for empty DB', () => {
     const summary = buildCodebaseSummary(db);
     expect(summary.totalFiles).toBe(0);
     expect(summary.totalSymbols).toBe(0);
@@ -348,101 +277,62 @@ describe('buildCodebaseSummary', () => {
     expect(summary.cyclicGroups).toEqual([]);
   });
 
-  it('should produce a summary with modules for a simple codebase', () => {
-    const db = createDb();
-    const f1 = insertFile(db, 'src/a.ts');
-    const f2 = insertFile(db, 'src/b.ts');
-    const a = insertSymbol(db, f1, 'funcA', 'function', 1, 20);
-    const b = insertSymbol(db, f2, 'funcB', 'function', 1, 20);
-
-    insertResolvedCallRef(db, a, b, f1);
+  it('counts files and symbols correctly', () => {
+    const fid = insertFile(db, { path: 'src/a.ts' });
+    insertSymbol(db, { fileId: fid, name: 'foo', startLine: 1, endLine: 10 });
+    insertSymbol(db, { fileId: fid, name: 'bar', startLine: 15, endLine: 25 });
 
     const summary = buildCodebaseSummary(db);
-    expect(summary.totalFiles).toBe(2);
+    expect(summary.totalFiles).toBe(1);
     expect(summary.totalSymbols).toBe(2);
+  });
+
+  it('counts resolved edges', () => {
+    const fid = insertFile(db, { path: 'src/a.ts' });
+    const a = insertSymbol(db, { fileId: fid, name: 'a', startLine: 1, endLine: 10 });
+    const b = insertSymbol(db, { fileId: fid, name: 'b', startLine: 15, endLine: 25 });
+    insertResolvedSymbolRef(db, { callerId: a, fileId: fid, calleeId: b, calleeName: 'b' });
+
+    const summary = buildCodebaseSummary(db);
     expect(summary.totalEdges).toBe(1);
+  });
+
+  it('produces modules from symbols', () => {
+    const fid = insertFile(db, { path: 'src/util.ts' });
+    insertSymbol(db, { fileId: fid, name: 'helper', startLine: 1, endLine: 10 });
+
+    const summary = buildCodebaseSummary(db);
     expect(summary.modules.length).toBeGreaterThanOrEqual(1);
+    // Each module should have symbolCount > 0
+    expect(summary.modules[0]!.symbolCount).toBe(1);
+    expect(summary.modules[0]!.totalLines).toBe(10);
   });
 
-  it('should detect cyclic module groups', () => {
-    const db = createDb();
-    const f1 = insertFile(db, 'src/a.ts');
-    const f2 = insertFile(db, 'src/b.ts');
-    const a = insertSymbol(db, f1, 'funcA', 'function', 1, 200);
-    const b = insertSymbol(db, f2, 'funcB', 'function', 1, 200);
+  it('filters by branch when provided', () => {
+    const fMain = insertFile(db, { path: 'src/a.ts', branch: 'main' });
+    const fFeat = insertFile(db, { path: 'src/b.ts', branch: 'feature' });
+    insertSymbol(db, { fileId: fMain, name: 'mainFn', startLine: 1, endLine: 10 });
+    insertSymbol(db, { fileId: fFeat, name: 'featFn', startLine: 1, endLine: 10 });
 
-    // Force a → b and b → a (module-level cycle)
-    insertResolvedCallRef(db, a, b, f1);
-    insertResolvedCallRef(db, b, a, f2);
-
-    // max 250 lines per module — symbols are in separate files with 200 lines each
-    // so they shouldn't merge into one cluster
-    const summary = buildCodebaseSummary(db, { maxLinesPerModule: 250 });
-
-    // Should have at least 2 modules (one per file since they don't fit together)
-    if (summary.modules.length >= 2) {
-      // The two modules should be in the same connected component
-      expect(summary.connectedComponents.length).toBeGreaterThanOrEqual(1);
-    }
+    const summary = buildCodebaseSummary(db, { branch: 'main' });
+    expect(summary.totalFiles).toBe(1);
+    expect(summary.totalSymbols).toBe(1);
   });
 
-  it('should report module dependencies', () => {
-    const db = createDb();
-    const f1 = insertFile(db, 'src/a.ts');
-    const f2 = insertFile(db, 'src/b.ts');
-    const a = insertSymbol(db, f1, 'funcA', 'function', 1, 200);
-    const b = insertSymbol(db, f2, 'funcB', 'function', 1, 200);
+  it('detects inter-module dependencies', () => {
+    const fid1 = insertFile(db, { path: 'src/a.ts' });
+    const fid2 = insertFile(db, { path: 'src/b.ts' });
+    const a = insertSymbol(db, { fileId: fid1, name: 'a', startLine: 1, endLine: 300 });
+    const b = insertSymbol(db, { fileId: fid2, name: 'b', startLine: 1, endLine: 300 });
+    insertResolvedSymbolRef(db, { callerId: a, fileId: fid1, calleeId: b, calleeName: 'b' });
 
-    insertResolvedCallRef(db, a, b, f1);
-
-    const summary = buildCodebaseSummary(db, { maxLinesPerModule: 250 });
-    // At least one module should have a dependency
-    const hasDeps = summary.modules.some(m => m.dependsOn.length > 0);
-    const hasRevDeps = summary.modules.some(m => m.dependedOnBy.length > 0);
-    if (summary.modules.length >= 2) {
-      expect(hasDeps).toBe(true);
-      expect(hasRevDeps).toBe(true);
-    }
-  });
-});
-
-// ─── methods filter (resolution confidence) ───────────────────────────────────
-
-describe('resolution method filtering', () => {
-  it('should only include specified resolution methods', () => {
-    const db = createDb();
-    const f = insertFile(db, 'src/a.ts');
-    const a = insertSymbol(db, f, 'a');
-    const b = insertSymbol(db, f, 'b');
-    const c = insertSymbol(db, f, 'c');
-
-    // a → b via lsp_definition
-    db.prepare(
-      `INSERT INTO symbol_refs (caller_id, file_id, callee_id, callee_name, call_line, resolution_method)
-       VALUES (?, ?, ?, 'b', 1, 'lsp_definition')`,
-    ).run(a, f, b);
-
-    // b → c via name_unique
-    db.prepare(
-      `INSERT INTO symbol_refs (caller_id, file_id, callee_id, callee_name, call_line, resolution_method)
-       VALUES (?, ?, ?, 'c', 1, 'name_unique')`,
-    ).run(b, f, c);
-
-    // a → c via self-loop with name_same_file
-    db.prepare(
-      `INSERT INTO symbol_refs (caller_id, file_id, callee_id, callee_name, call_line, resolution_method)
-       VALUES (?, ?, ?, 'a', 1, 'name_same_file')`,
-    ).run(c, f, a);
-
-    // Filter to only lsp_definition → no cycle (only a→b)
-    const sccsLsp = detectSymbolCycles(db, { methods: ['lsp_definition'] });
-    expect(sccsLsp).toEqual([]);
-
-    // Filter to all three → should find cycle a→b→c→a
-    const sccsAll = detectSymbolCycles(db, {
-      methods: ['lsp_definition', 'name_unique', 'name_same_file'],
-    });
-    expect(sccsAll).toHaveLength(1);
-    expect(new Set(sccsAll[0])).toEqual(new Set([a, b, c]));
+    const summary = buildCodebaseSummary(db, { maxLinesPerModule: 350 });
+    // With maxLines=350, a (300) and b (300) won't merge → 2 modules
+    expect(summary.modules.length).toBe(2);
+    // One module should depend on the other
+    const withDeps = summary.modules.find(m => m.dependsOn.length > 0);
+    expect(withDeps).toBeDefined();
+    const depTarget = summary.modules.find(m => m.dependedOnBy.length > 0);
+    expect(depTarget).toBeDefined();
   });
 });

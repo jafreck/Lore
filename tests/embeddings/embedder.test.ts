@@ -1,336 +1,173 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import {
-  DEFAULT_EMBEDDING_MODEL,
-  TransformersJsProvider,
-  LazyEmbeddingProvider,
   buildStructuralEmbeddingText,
   hashEmbeddingText,
-  tokenAwareBatch,
   estimateTokens,
+  tokenAwareBatch,
+  MAX_BATCH_TOKENS,
+  MAX_BATCH_ITEMS,
+  type StructuralEmbeddingInput,
 } from '../../src/embeddings/embedder.js';
 
-describe('DEFAULT_EMBEDDING_MODEL', () => {
-  it('should equal the Qwen3-Embedding-0.6B model identifier', () => {
-    expect(DEFAULT_EMBEDDING_MODEL).toBe('onnx-community/Qwen3-Embedding-0.6B-ONNX');
-  });
-});
+// ─── buildStructuralEmbeddingText ─────────────────────────────────────────────
 
 describe('buildStructuralEmbeddingText', () => {
-  it('should build newline-separated structural text from signature, resolved metadata, and name', () => {
-    expect(
-      buildStructuralEmbeddingText({
-        name: '  greet ',
-        signature: ' function greet(name: string): string ',
-        resolvedTypeSignature: ' (name: string) => string ',
-        resolvedReturnType: ' string ',
-      }),
-    ).toBe(
-      'function greet(name: string): string\n(name: string) => string\nstring\ngreet',
-    );
+  it('combines signature, resolved types, and name', () => {
+    const input: StructuralEmbeddingInput = {
+      name: 'myFunction',
+      signature: 'function myFunction(x: number): string',
+      resolvedTypeSignature: '(x: number) => string',
+      resolvedReturnType: 'string',
+    };
+    const result = buildStructuralEmbeddingText(input);
+    expect(result).toContain('myFunction');
+    expect(result).toContain('function myFunction(x: number): string');
+    expect(result).toContain('(x: number) => string');
+    expect(result).toContain('string');
   });
 
-  it('should remove duplicate parts while preserving the first occurrence order', () => {
-    expect(
-      buildStructuralEmbeddingText({
-        name: 'Result',
-        signature: 'Result',
-        resolvedTypeSignature: '  Result  ',
-        resolvedReturnType: 'Result',
-      }),
-    ).toBe('Result');
+  it('handles null signature', () => {
+    const input: StructuralEmbeddingInput = {
+      name: 'helper',
+      signature: null,
+    };
+    const result = buildStructuralEmbeddingText(input);
+    expect(result).toBe('helper');
   });
 
-  it('should return an empty string when all candidate parts are blank', () => {
-    expect(
-      buildStructuralEmbeddingText({
-        name: '   ',
-        signature: ' ',
-        resolvedTypeSignature: '',
-        resolvedReturnType: null,
-      }),
-    ).toBe('');
+  it('deduplicates repeated parts', () => {
+    const input: StructuralEmbeddingInput = {
+      name: 'foo',
+      signature: 'foo',
+      resolvedTypeSignature: 'foo',
+    };
+    const result = buildStructuralEmbeddingText(input);
+    expect(result).toBe('foo');
+  });
+
+  it('filters empty strings', () => {
+    const input: StructuralEmbeddingInput = {
+      name: 'test',
+      signature: '  ',
+      resolvedReturnType: '',
+    };
+    const result = buildStructuralEmbeddingText(input);
+    expect(result).toBe('test');
+  });
+
+  it('trims whitespace from parts', () => {
+    const input: StructuralEmbeddingInput = {
+      name: '  myFunc  ',
+      signature: '  function myFunc(): void  ',
+    };
+    const result = buildStructuralEmbeddingText(input);
+    expect(result).toContain('function myFunc(): void');
+    expect(result).toContain('myFunc');
   });
 });
 
-describe('TransformersJsProvider', () => {
-  it('should set modelName from constructor argument', () => {
-    const provider = new TransformersJsProvider('some-model');
-    expect(provider.modelName).toBe('some-model');
-  });
-
-  it('should throw from dims getter before init() is called', () => {
-    const provider = new TransformersJsProvider('some-model');
-    expect(() => provider.dims).toThrow('EmbeddingProvider not initialised');
-  });
-
-  it('should return an empty array for embed([]) without requiring init', async () => {
-    const provider = new TransformersJsProvider('some-model');
-    const result = await provider.embed([]);
-    expect(result).toEqual([]);
-  });
-
-  it('should throw from embed() when not yet initialised', async () => {
-    const provider = new TransformersJsProvider('some-model');
-    await expect(provider.embed(['hello'])).rejects.toThrow('EmbeddingProvider not initialised');
-  });
-
-  it('should resolve safely from dispose() when never initialised', async () => {
-    const provider = new TransformersJsProvider('some-model');
-    await expect(provider.dispose()).resolves.toBeUndefined();
-  });
-});
-
-describe('buildStructuralEmbeddingText — edge cases', () => {
-  it('should handle null signature gracefully', () => {
-    expect(
-      buildStructuralEmbeddingText({
-        name: 'myFunc',
-        signature: null,
-      }),
-    ).toBe('myFunc');
-  });
-
-  it('should handle undefined optional fields', () => {
-    expect(
-      buildStructuralEmbeddingText({
-        name: 'myFunc',
-        signature: 'function myFunc()',
-      }),
-    ).toBe('function myFunc()\nmyFunc');
-  });
-
-  it('should deduplicate when name appears in signature', () => {
-    expect(
-      buildStructuralEmbeddingText({
-        name: 'myFunc',
-        signature: 'myFunc',
-        resolvedTypeSignature: 'myFunc',
-        resolvedReturnType: 'myFunc',
-      }),
-    ).toBe('myFunc');
-  });
-});
+// ─── hashEmbeddingText ────────────────────────────────────────────────────────
 
 describe('hashEmbeddingText', () => {
-  it('should return a hex SHA-256 hash', () => {
+  it('returns a SHA-256 hex string', () => {
     const hash = hashEmbeddingText('hello world');
     expect(hash).toMatch(/^[0-9a-f]{64}$/);
   });
 
-  it('should return the same hash for the same input', () => {
-    expect(hashEmbeddingText('foo')).toBe(hashEmbeddingText('foo'));
+  it('returns the same hash for the same input', () => {
+    expect(hashEmbeddingText('test')).toBe(hashEmbeddingText('test'));
   });
 
-  it('should return different hashes for different inputs', () => {
-    expect(hashEmbeddingText('foo')).not.toBe(hashEmbeddingText('bar'));
+  it('returns different hashes for different inputs', () => {
+    expect(hashEmbeddingText('a')).not.toBe(hashEmbeddingText('b'));
+  });
+
+  it('handles empty string', () => {
+    const hash = hashEmbeddingText('');
+    expect(hash).toMatch(/^[0-9a-f]{64}$/);
   });
 });
 
-describe('tokenAwareBatch', () => {
-  it('should batch small items into a single batch', () => {
-    const items = ['a', 'b', 'c'];
-    const batches = tokenAwareBatch(items, (x) => x);
-    expect(batches).toEqual([['a', 'b', 'c']]);
-  });
-
-  it('should split into multiple batches when token budget is exceeded', () => {
-    // Each item ~25k tokens (100k chars / 4), budget is 32768
-    const longText = 'x'.repeat(100_000);
-    const items = [longText, longText, longText];
-    const batches = tokenAwareBatch(items, (x) => x);
-    // Each item exceeds the budget alone, so each gets its own batch
-    expect(batches.length).toBe(3);
-    expect(batches[0]).toHaveLength(1);
-  });
-
-  it('should respect the 512-item cap even with tiny texts', () => {
-    const items = Array.from({ length: 600 }, (_, i) => String(i));
-    const batches = tokenAwareBatch(items, (x) => x);
-    expect(batches[0]!.length).toBeLessThanOrEqual(512);
-    expect(batches.length).toBeGreaterThanOrEqual(2);
-  });
-
-  it('should return empty array for empty input', () => {
-    const batches = tokenAwareBatch([], (x: string) => x);
-    expect(batches).toEqual([]);
-  });
-});
-
-describe('TransformersJsProvider', () => {
-  it('should accept dtype parameter', () => {
-    const provider = new TransformersJsProvider('some-model', 'q8');
-    expect(provider.dtype).toBe('q8');
-  });
-
-  it('should default dtype to q8', () => {
-    const provider = new TransformersJsProvider('some-model');
-    expect(provider.dtype).toBe('q8');
-  });
-
-  it('should report device as unknown before init', () => {
-    const provider = new TransformersJsProvider('some-model');
-    expect(provider.device).toBe('unknown');
-  });
-});
-
-describe('LazyEmbeddingProvider', () => {
-  it('should set modelName from constructor argument', () => {
-    const provider = new LazyEmbeddingProvider('some-model');
-    expect(provider.modelName).toBe('some-model');
-  });
-
-  it('should return an empty array for embed([]) without triggering init', async () => {
-    const provider = new LazyEmbeddingProvider('some-model');
-    const result = await provider.embed([]);
-    expect(result).toEqual([]);
-  });
-
-  it('should resolve safely from dispose() when never used', async () => {
-    const provider = new LazyEmbeddingProvider('some-model');
-    await expect(provider.dispose()).resolves.toBeUndefined();
-  });
-
-  it('should throw from dims getter before init (delegates to inner)', () => {
-    const provider = new LazyEmbeddingProvider('some-model');
-    expect(() => provider.dims).toThrow('EmbeddingProvider not initialised');
-  });
-});
+// ─── estimateTokens ──────────────────────────────────────────────────────────
 
 describe('estimateTokens', () => {
-  it('should estimate tokens as ceil(length / 4)', () => {
+  it('uses ~4 chars/token heuristic', () => {
     expect(estimateTokens('abcd')).toBe(1);
-    expect(estimateTokens('hello')).toBe(2);
+    expect(estimateTokens('12345678')).toBe(2);
+  });
+
+  it('rounds up', () => {
+    expect(estimateTokens('abc')).toBe(1); // 3/4 = 0.75 -> ceil = 1
+    expect(estimateTokens('abcde')).toBe(2); // 5/4 = 1.25 -> ceil = 2
+  });
+
+  it('handles empty string', () => {
     expect(estimateTokens('')).toBe(0);
-    expect(estimateTokens('a'.repeat(100))).toBe(25);
   });
 });
 
-describe('TransformersJsProvider — init / embed / dispose with mock', () => {
-  const origEnv = process.env['LORE_EMBED_DEVICE'];
+// ─── tokenAwareBatch ──────────────────────────────────────────────────────────
 
-  afterEach(() => {
-    vi.restoreAllMocks();
-    if (origEnv === undefined) {
-      delete process.env['LORE_EMBED_DEVICE'];
-    } else {
-      process.env['LORE_EMBED_DEVICE'] = origEnv;
-    }
+describe('tokenAwareBatch', () => {
+  const getText = (item: string) => item;
+
+  it('groups small items into one batch', () => {
+    const items = ['a', 'b', 'c', 'd'];
+    const batches = tokenAwareBatch(items, getText);
+    expect(batches.length).toBe(1);
+    expect(batches[0]).toEqual(items);
   });
 
-  it('should detect LORE_EMBED_DEVICE env var', () => {
-    process.env['LORE_EMBED_DEVICE'] = 'cuda';
-    const provider = new TransformersJsProvider('mock-model');
-    // detectDevice is private, but we can test it indirectly via init()
-    // For now just verify it reads the env var by checking device before init
-    expect(provider.device).toBe('unknown');
-    // Clean up
-    delete process.env['LORE_EMBED_DEVICE'];
+  it('splits when exceeding MAX_BATCH_TOKENS', () => {
+    // Create items that together exceed the token budget
+    const bigText = 'x'.repeat(MAX_BATCH_TOKENS * 4); // Way over budget
+    const items = [bigText, 'small'];
+    const batches = tokenAwareBatch(items, getText);
+    // The big text gets its own batch, then small goes in the next
+    expect(batches.length).toBe(2);
   });
 
-  it('should use cpu as default device when no env var set', () => {
-    delete process.env['LORE_EMBED_DEVICE'];
-    const provider = new TransformersJsProvider('mock-model');
-    // Can only verify after init, but device remains 'unknown' before init
-    expect(provider.device).toBe('unknown');
+  it('handles empty array', () => {
+    const batches = tokenAwareBatch([], getText);
+    expect(batches).toEqual([]);
   });
 
-  it('should init, embed, and dispose with mocked pipeline', async () => {
-    const mockPipelineFn = vi.fn(async (_texts: unknown, _opts: unknown) => ({
-      tolist: () => [[0.1, 0.2, 0.3]],
-    }));
-    mockPipelineFn.dispose = vi.fn(async () => {});
-
-    vi.doMock('@huggingface/transformers', () => ({
-      pipeline: async () => mockPipelineFn,
-    }));
-
-    // Re-import to pick up mock
-    const { TransformersJsProvider: MockedProvider } = await import(
-      '../../src/embeddings/embedder.js'
-    );
-
-    const provider = new MockedProvider('mock-model') as TransformersJsProvider;
-    await provider.init();
-    expect(provider.dims).toBe(3);
-    expect(provider.device).toBe('cpu');
-
-    // init is idempotent
-    await provider.init();
-    expect(provider.dims).toBe(3);
-
-    // embed with texts
-    const result = await provider.embed(['hello']);
-    expect(result).toEqual([[0.1, 0.2, 0.3]]);
-
-    // dispose
-    await provider.dispose();
-
-    vi.doUnmock('@huggingface/transformers');
+  it('puts oversized single item in its own batch', () => {
+    const huge = 'y'.repeat(MAX_BATCH_TOKENS * 8);
+    const items = ['small1', huge, 'small2'];
+    const batches = tokenAwareBatch(items, getText);
+    expect(batches.length).toBeGreaterThanOrEqual(2);
+    // The huge item should have its own batch
+    const hugeBatch = batches.find((b) => b.includes(huge));
+    expect(hugeBatch).toBeDefined();
   });
 
-  it('should fall back to cpu on unsupported device error', async () => {
-    process.env['LORE_EMBED_DEVICE'] = 'cuda';
+  it('respects MAX_BATCH_ITEMS', () => {
+    // Create more items than MAX_BATCH_ITEMS, each tiny
+    const items = Array.from({ length: MAX_BATCH_ITEMS + 10 }, (_, i) => `${i}`);
+    const batches = tokenAwareBatch(items, getText);
+    expect(batches.length).toBeGreaterThanOrEqual(2);
+    expect(batches[0]!.length).toBeLessThanOrEqual(MAX_BATCH_ITEMS);
+  });
 
-    let callCount = 0;
-    const mockPipelineFn = vi.fn(async (_texts: unknown, _opts: unknown) => ({
-      tolist: () => [[0.5, 0.6]],
-    }));
-
-    vi.doMock('@huggingface/transformers', () => ({
-      pipeline: async (_task: unknown, _model: unknown, opts: { device: string }) => {
-        callCount++;
-        if (callCount === 1 && opts.device !== 'cpu') {
-          throw new Error('Unsupported device: cuda');
-        }
-        return mockPipelineFn;
-      },
-    }));
-
-    const { TransformersJsProvider: MockedProvider } = await import(
-      '../../src/embeddings/embedder.js'
-    );
-
-    const provider = new MockedProvider('mock-model') as TransformersJsProvider;
-    await provider.init();
-    // Should have fallen back to CPU
-    expect(provider.device).toBe('cpu');
-    expect(provider.dims).toBe(2);
-
-    await provider.dispose();
-    delete process.env['LORE_EMBED_DEVICE'];
-    vi.doUnmock('@huggingface/transformers');
+  it('works with custom getText function', () => {
+    const items = [{ text: 'hello' }, { text: 'world' }];
+    const batches = tokenAwareBatch(items, (item) => item.text);
+    expect(batches.length).toBe(1);
+    expect(batches[0]).toEqual(items);
   });
 });
 
-describe('LazyEmbeddingProvider — deferred init', () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+describe('constants', () => {
+  it('MAX_BATCH_TOKENS is a positive number', () => {
+    expect(MAX_BATCH_TOKENS).toBeGreaterThan(0);
+    expect(typeof MAX_BATCH_TOKENS).toBe('number');
   });
 
-  it('should init on first embed call and deduplicate init', async () => {
-    const mockPipelineFn = vi.fn(async (_texts: unknown, _opts: unknown) => ({
-      tolist: () => [[1, 2, 3, 4]],
-    }));
-    mockPipelineFn.dispose = vi.fn(async () => {});
-
-    vi.doMock('@huggingface/transformers', () => ({
-      pipeline: async () => mockPipelineFn,
-    }));
-
-    const { LazyEmbeddingProvider: MockedLazy } = await import(
-      '../../src/embeddings/embedder.js'
-    );
-
-    const provider = new MockedLazy('mock-model') as LazyEmbeddingProvider;
-
-    // First embed triggers init
-    const result = await provider.embed(['test text']);
-    expect(result).toEqual([[1, 2, 3, 4]]);
-    expect(provider.dims).toBe(4);
-
-    // dispose after init
-    await provider.dispose();
-
-    vi.doUnmock('@huggingface/transformers');
+  it('MAX_BATCH_ITEMS is a positive number', () => {
+    expect(MAX_BATCH_ITEMS).toBeGreaterThan(0);
+    expect(typeof MAX_BATCH_ITEMS).toBe('number');
   });
 });

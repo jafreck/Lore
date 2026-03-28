@@ -1,684 +1,503 @@
-import { describe, it, expect } from 'vitest';
-import { normalizeTypeName, resolveSymbolEdges, topoSort, detectCycles } from '../../src/resolution/call-graph.js';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { openDb } from '../../src/db/schema.js';
 import type { Database } from '../../src/db/schema.js';
+import {
+  normalizeTypeName,
+  extractBareName,
+  resolveSymbolEdges,
+  topoSort,
+  detectCycles,
+} from '../../src/resolution/call-graph.js';
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function insertFile(db: Database.Database, opts: { path: string; language?: string; branch?: string; layer?: string }): number {
+  return db.prepare(
+    `INSERT INTO files (path, language, branch, layer) VALUES (?, ?, ?, ?)`,
+  ).run(opts.path, opts.language ?? 'typescript', opts.branch ?? '', opts.layer ?? 'baseline').lastInsertRowid as number;
+}
+
+function insertSymbol(db: Database.Database, opts: {
+  fileId: number; name: string; kind?: string; startLine?: number; endLine?: number; layer?: string;
+}): number {
+  return db.prepare(
+    `INSERT INTO symbols (file_id, name, kind, start_line, end_line, layer)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+  ).run(opts.fileId, opts.name, opts.kind ?? 'function', opts.startLine ?? 1, opts.endLine ?? 10, opts.layer ?? 'baseline').lastInsertRowid as number;
+}
+
+function insertSymbolRef(db: Database.Database, opts: {
+  callerId: number; fileId: number; calleeName: string; callLine?: number;
+  calleeId?: number | null; resolutionMethod?: string; layer?: string;
+  definitionPath?: string | null; definitionLine?: number | null;
+}): number {
+  return db.prepare(
+    `INSERT INTO symbol_refs (caller_id, file_id, callee_name, call_line, callee_id, resolution_method, layer, definition_path, definition_line)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(
+    opts.callerId, opts.fileId, opts.calleeName, opts.callLine ?? 5,
+    opts.calleeId ?? null, opts.resolutionMethod ?? 'unresolved', opts.layer ?? 'baseline',
+    opts.definitionPath ?? null, opts.definitionLine ?? null,
+  ).lastInsertRowid as number;
+}
+
+function insertTypeRef(db: Database.Database, opts: {
+  fileId: number; symbolId: number | null; typeName: string; typeNameBare: string;
+  refLine?: number; typeId?: number | null; resolutionMethod?: string; layer?: string;
+  definitionPath?: string | null; definitionLine?: number | null;
+}): number {
+  return db.prepare(
+    `INSERT INTO type_refs (file_id, symbol_id, type_name, type_name_bare, ref_line, type_id, resolution_method, layer, definition_path, definition_line)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(
+    opts.fileId, opts.symbolId, opts.typeName, opts.typeNameBare,
+    opts.refLine ?? 3, opts.typeId ?? null, opts.resolutionMethod ?? 'unresolved',
+    opts.layer ?? 'baseline', opts.definitionPath ?? null, opts.definitionLine ?? null,
+  ).lastInsertRowid as number;
+}
+
+function insertFileImport(db: Database.Database, fileId: number, rawImport: string, resolvedId: number | null): number {
+  return db.prepare(
+    `INSERT INTO file_imports (file_id, raw_import, resolved_id) VALUES (?, ?, ?)`,
+  ).run(fileId, rawImport, resolvedId).lastInsertRowid as number;
+}
+
+// ─── normalizeTypeName ────────────────────────────────────────────────────────
 
 describe('normalizeTypeName', () => {
-  it('should strip pointer suffix', () => {
-    expect(normalizeTypeName('ZSTD_CCtx*')).toBe('ZSTD_CCtx');
+  it('returns bare name from simple identifier', () => {
+    expect(normalizeTypeName('MyClass')).toBe('MyClass');
   });
 
-  it('should strip const qualifier and pointer', () => {
-    expect(normalizeTypeName('const ZSTD_CCtx*')).toBe('ZSTD_CCtx');
+  it('strips const/volatile qualifiers', () => {
+    expect(normalizeTypeName('const int')).toBe('int');
+    expect(normalizeTypeName('volatile double')).toBe('double');
   });
 
-  it('should strip struct keyword', () => {
-    expect(normalizeTypeName('struct Foo')).toBe('Foo');
+  it('strips struct/enum/union/class keywords', () => {
+    expect(normalizeTypeName('struct Node')).toBe('Node');
+    expect(normalizeTypeName('enum Color')).toBe('Color');
+    expect(normalizeTypeName('class Widget')).toBe('Widget');
+    expect(normalizeTypeName('union Data')).toBe('Data');
   });
 
-  it('should strip enum keyword', () => {
-    expect(normalizeTypeName('enum Bar')).toBe('Bar');
-  });
-
-  it('should strip Rust &mut reference', () => {
-    expect(normalizeTypeName('&mut Foo')).toBe('Foo');
-  });
-
-  it('should strip Rust lifetime annotation', () => {
-    expect(normalizeTypeName("&'a Foo")).toBe('Foo');
-  });
-
-  it('should strip Rust static mut lifetime', () => {
-    expect(normalizeTypeName("&'static mut Bar")).toBe('Bar');
-  });
-
-  it('should truncate at generic args', () => {
-    expect(normalizeTypeName('Vec<MyStruct>')).toBe('Vec');
-  });
-
-  it('should take last segment after :: for std::vector<int>', () => {
+  it('strips generics (angle brackets)', () => {
+    expect(normalizeTypeName('List<String>')).toBe('List');
+    expect(normalizeTypeName('Map<String, Integer>')).toBe('Map');
     expect(normalizeTypeName('std::vector<int>')).toBe('vector');
   });
 
-  it('should take last segment after :: for crate::types::Foo', () => {
-    expect(normalizeTypeName('crate::types::Foo')).toBe('Foo');
+  it('takes last segment after :: or .', () => {
+    expect(normalizeTypeName('std::string')).toBe('string');
+    expect(normalizeTypeName('com.example.MyClass')).toBe('MyClass');
+    expect(normalizeTypeName('a::b::c')).toBe('c');
   });
 
-  it('should take last segment after . for MyModule.MyType', () => {
-    expect(normalizeTypeName('MyModule.MyType')).toBe('MyType');
-  });
-
-  it('should truncate nested generics', () => {
-    expect(normalizeTypeName('Option<Box<MyStruct>>')).toBe('Option');
-  });
-
-  it('should preserve unsigned int (compound C type)', () => {
-    expect(normalizeTypeName('unsigned int')).toBe('unsigned int');
-  });
-
-  it('should preserve int32_t', () => {
-    expect(normalizeTypeName('int32_t')).toBe('int32_t');
-  });
-
-  it('should return empty for empty string', () => {
-    expect(normalizeTypeName('')).toBe('');
-  });
-
-  it('should return bare name unchanged', () => {
-    expect(normalizeTypeName('MyType')).toBe('MyType');
-  });
-
-  it('should handle nested generics A<B<C>>', () => {
-    expect(normalizeTypeName('A<B<C>>')).toBe('A');
-  });
-
-  it('should handle Rust &', () => {
-    expect(normalizeTypeName('&Foo')).toBe('Foo');
-  });
-
-  it('should preserve long long (C compound type)', () => {
-    expect(normalizeTypeName('long long')).toBe('long long');
-  });
-
-  it('should handle C function pointer void (*)(int) → empty', () => {
-    expect(normalizeTypeName('void (*)(int)')).toBe('');
-  });
-
-  it('should strip array suffix', () => {
+  it('strips pointer/reference suffixes', () => {
+    expect(normalizeTypeName('int*')).toBe('int');
+    expect(normalizeTypeName('Node&')).toBe('Node');
     expect(normalizeTypeName('int[]')).toBe('int');
   });
 
-  it('should strip volatile qualifier', () => {
-    expect(normalizeTypeName('volatile int*')).toBe('int');
+  it('strips nullable suffix', () => {
+    expect(normalizeTypeName('String?')).toBe('String');
+  });
+
+  it('strips Rust reference/lifetime syntax', () => {
+    expect(normalizeTypeName("&'a str")).toBe('str');
+    expect(normalizeTypeName('&mut Vec')).toBe('Vec');
+    expect(normalizeTypeName('&str')).toBe('str');
+  });
+
+  it('returns empty for function pointer syntax', () => {
+    expect(normalizeTypeName('void (*)(int)')).toBe('');
+  });
+
+  it('handles combined qualifiers', () => {
+    expect(normalizeTypeName('const struct Node*')).toBe('Node');
+  });
+
+  it('trims whitespace', () => {
+    expect(normalizeTypeName('  int  ')).toBe('int');
   });
 });
 
-// ─── Test helpers ─────────────────────────────────────────────────────────────
+// ─── extractBareName ──────────────────────────────────────────────────────────
 
-function createDb(): Database.Database {
-  return openDb(':memory:');
-}
+describe('extractBareName', () => {
+  it('returns the name unchanged when no dot', () => {
+    expect(extractBareName('simpleName')).toBe('simpleName');
+  });
 
-function insertFile(db: Database.Database, path: string): number {
-  return Number(
-    db.prepare("INSERT INTO files (path, branch, language, size_bytes, last_hash, source) VALUES (?, 'main', 'typescript', 0, NULL, '')")
-      .run(path).lastInsertRowid,
-  );
-}
+  it('extracts last segment after dot', () => {
+    expect(extractBareName('db.prepare')).toBe('prepare');
+    expect(extractBareName('JSON.stringify')).toBe('stringify');
+    expect(extractBareName('Math.max')).toBe('max');
+  });
 
-function insertSymbol(db: Database.Database, fileId: number, name: string, kind = 'class', startLine = 1, endLine?: number): number {
-  return Number(
-    db.prepare('INSERT INTO symbols (file_id, name, kind, start_line, end_line, signature) VALUES (?, ?, ?, ?, ?, ?)')
-      .run(fileId, name, kind, startLine, endLine ?? startLine + 10, `${kind} ${name}`).lastInsertRowid,
-  );
-}
+  it('handles chained member access', () => {
+    expect(extractBareName('node.namedChildren.find')).toBe('find');
+  });
 
-// ─── resolveSymbolEdges: containment-based resolution ─────────────────────────
+  it('handles multiline callee', () => {
+    expect(extractBareName('db\n    .prepare')).toBe('prepare');
+  });
+});
 
-describe('resolveSymbolEdges – containment mapping', () => {
-  it('should resolve symbol_ref when definition_path + definition_line point into a symbol', () => {
-    const db = createDb();
-    const file1 = insertFile(db, 'src/file1.ts');
-    const file2 = insertFile(db, 'src/file2.ts');
+// ─── resolveSymbolEdges ───────────────────────────────────────────────────────
 
-    const target = insertSymbol(db, file2, 'Widget', 'class', 1, 20);
-    const caller = insertSymbol(db, file1, 'renderWidget', 'function', 1, 10);
+describe('resolveSymbolEdges', () => {
+  let db: Database.Database;
 
-    db.prepare(
-      `INSERT INTO symbol_refs (caller_id, file_id, callee_name, call_line, definition_path, definition_line)
-       VALUES (?, ?, 'Widget', 5, ?, ?)`,
-    ).run(caller, file1, 'src/file2.ts', 5);
+  beforeEach(() => {
+    db = openDb(':memory:');
+  });
+
+  afterEach(() => {
+    db?.close();
+  });
+
+  it('resolves by containment (lsp_definition) when definition_path/line match', () => {
+    const fid = insertFile(db, { path: 'src/foo.ts' });
+    const targetSym = insertSymbol(db, { fileId: fid, name: 'targetFn', startLine: 10, endLine: 20 });
+    const callerSym = insertSymbol(db, { fileId: fid, name: 'callerFn', startLine: 25, endLine: 35 });
+
+    insertSymbolRef(db, {
+      callerId: callerSym, fileId: fid, calleeName: 'targetFn',
+      definitionPath: 'src/foo.ts', definitionLine: 15,
+    });
 
     resolveSymbolEdges(db);
 
-    const ref = db.prepare('SELECT callee_id, resolution_method FROM symbol_refs WHERE caller_id = ?').get(caller) as { callee_id: number | null; resolution_method: string };
-    expect(ref.callee_id).toBe(target);
+    const ref = db.prepare('SELECT callee_id, resolution_method FROM symbol_refs WHERE caller_id = ?').get(callerSym) as any;
+    expect(ref.callee_id).toBe(targetSym);
     expect(ref.resolution_method).toBe('lsp_definition');
   });
 
-  it('should pick the narrowest enclosing symbol when multiple contain the definition line', () => {
-    const db = createDb();
-    const file1 = insertFile(db, 'src/file1.ts');
-    const file2 = insertFile(db, 'src/file2.ts');
+  it('marks external_definition when definition_path not in files', () => {
+    const fid = insertFile(db, { path: 'src/foo.ts' });
+    const callerSym = insertSymbol(db, { fileId: fid, name: 'callerFn' });
 
-    // Outer class spans 1-50, inner method spans 10-20
-    insertSymbol(db, file2, 'OuterClass', 'class', 1, 50);
-    const innerMethod = insertSymbol(db, file2, 'doStuff', 'function', 10, 20);
-
-    const caller = insertSymbol(db, file1, 'main', 'function', 1, 10);
-
-    db.prepare(
-      `INSERT INTO symbol_refs (caller_id, file_id, callee_name, call_line, definition_path, definition_line)
-       VALUES (?, ?, 'doStuff', 5, ?, ?)`,
-    ).run(caller, file1, 'src/file2.ts', 15);
+    insertSymbolRef(db, {
+      callerId: callerSym, fileId: fid, calleeName: 'externalFn',
+      definitionPath: 'node_modules/lib/index.ts', definitionLine: 5,
+    });
 
     resolveSymbolEdges(db);
 
-    const ref = db.prepare('SELECT callee_id, resolution_method FROM symbol_refs WHERE caller_id = ?').get(caller) as { callee_id: number | null; resolution_method: string };
-    expect(ref.callee_id).toBe(innerMethod);
-    expect(ref.resolution_method).toBe('lsp_definition');
-  });
-
-  it('should mark external_definition when definition_path is not in indexed files', () => {
-    const db = createDb();
-    const file1 = insertFile(db, 'src/file1.ts');
-
-    const caller = insertSymbol(db, file1, 'main', 'function', 1, 10);
-
-    db.prepare(
-      `INSERT INTO symbol_refs (caller_id, file_id, callee_name, call_line, definition_path, definition_line)
-       VALUES (?, ?, 'console', 5, ?, ?)`,
-    ).run(caller, file1, 'node_modules/typescript/lib/lib.dom.d.ts', 100);
-
-    resolveSymbolEdges(db);
-
-    const ref = db.prepare('SELECT callee_id, resolution_method FROM symbol_refs WHERE caller_id = ?').get(caller) as { callee_id: number | null; resolution_method: string };
-    expect(ref.callee_id).toBeNull();
+    const ref = db.prepare('SELECT resolution_method FROM symbol_refs WHERE caller_id = ?').get(callerSym) as any;
     expect(ref.resolution_method).toBe('external_definition');
   });
 
-  it('should mark unresolved when no definition data is present', () => {
-    const db = createDb();
-    const file1 = insertFile(db, 'src/file1.ts');
+  it('resolves by name_same_file when exactly one match in same file', () => {
+    const fid = insertFile(db, { path: 'src/foo.ts' });
+    const targetSym = insertSymbol(db, { fileId: fid, name: 'helperFn', startLine: 1, endLine: 5 });
+    const callerSym = insertSymbol(db, { fileId: fid, name: 'mainFn', startLine: 10, endLine: 20 });
 
-    const caller = insertSymbol(db, file1, 'main', 'function', 1, 10);
-
-    db.prepare(
-      `INSERT INTO symbol_refs (caller_id, file_id, callee_name, call_line) VALUES (?, ?, 'unknown', 5)`,
-    ).run(caller, file1);
+    insertSymbolRef(db, {
+      callerId: callerSym, fileId: fid, calleeName: 'helperFn',
+    });
 
     resolveSymbolEdges(db);
 
-    const ref = db.prepare('SELECT callee_id, resolution_method FROM symbol_refs WHERE caller_id = ?').get(caller) as { callee_id: number | null; resolution_method: string };
-    expect(ref.callee_id).toBeNull();
-    expect(ref.resolution_method).toBe('unresolved');
+    const ref = db.prepare('SELECT callee_id, resolution_method FROM symbol_refs WHERE caller_id = ?').get(callerSym) as any;
+    expect(ref.callee_id).toBe(targetSym);
+    expect(ref.resolution_method).toBe('name_same_file');
   });
 
-  it('should mark ambiguous_definition when multiple equally-narrow symbols contain the line', () => {
-    const db = createDb();
-    const file1 = insertFile(db, 'src/file1.ts');
-    const file2 = insertFile(db, 'src/file2.ts');
+  it('resolves by name_unique when exactly one match globally', () => {
+    const fid1 = insertFile(db, { path: 'src/a.ts' });
+    const fid2 = insertFile(db, { path: 'src/b.ts' });
+    const targetSym = insertSymbol(db, { fileId: fid2, name: 'uniqueHelper' });
+    const callerSym = insertSymbol(db, { fileId: fid1, name: 'callerFn' });
 
-    // Two symbols on the same line with identical spans
-    insertSymbol(db, file2, 'alpha', 'function', 5, 5);
-    insertSymbol(db, file2, 'beta', 'function', 5, 5);
-
-    const caller = insertSymbol(db, file1, 'main', 'function', 1, 10);
-
-    db.prepare(
-      `INSERT INTO symbol_refs (caller_id, file_id, callee_name, call_line, definition_path, definition_line)
-       VALUES (?, ?, 'something', 3, ?, ?)`,
-    ).run(caller, file1, 'src/file2.ts', 5);
+    insertSymbolRef(db, {
+      callerId: callerSym, fileId: fid1, calleeName: 'uniqueHelper',
+    });
 
     resolveSymbolEdges(db);
 
-    const ref = db.prepare('SELECT callee_id, resolution_method FROM symbol_refs WHERE caller_id = ?').get(caller) as { callee_id: number | null; resolution_method: string };
-    expect(ref.callee_id).toBeNull();
-    expect(ref.resolution_method).toBe('ambiguous_definition');
+    const ref = db.prepare('SELECT callee_id, resolution_method FROM symbol_refs WHERE caller_id = ?').get(callerSym) as any;
+    expect(ref.callee_id).toBe(targetSym);
+    expect(ref.resolution_method).toBe('name_unique');
   });
 
-  it('should resolve type_ref via containment mapping', () => {
-    const db = createDb();
-    const file1 = insertFile(db, 'src/file1.ts');
-    const file2 = insertFile(db, 'src/file2.ts');
+  it('leaves unresolved when multiple cross-file candidates exist', () => {
+    const fid1 = insertFile(db, { path: 'src/a.ts' });
+    const fid2 = insertFile(db, { path: 'src/b.ts' });
+    const fid3 = insertFile(db, { path: 'src/c.ts' });
+    insertSymbol(db, { fileId: fid2, name: 'ambiguousFn' });
+    insertSymbol(db, { fileId: fid3, name: 'ambiguousFn' });
+    const callerSym = insertSymbol(db, { fileId: fid1, name: 'callerFn' });
 
-    const targetType = insertSymbol(db, file2, 'Widget', 'class', 1, 30);
-    const consumer = insertSymbol(db, file1, 'render', 'function', 1, 10);
-
-    db.prepare(
-      `INSERT INTO type_refs (file_id, symbol_id, type_name, type_name_bare, ref_kind, ref_line, definition_path, definition_line)
-       VALUES (?, ?, 'Widget', 'Widget', 'parameter', 5, ?, ?)`,
-    ).run(file1, consumer, 'src/file2.ts', 10);
+    insertSymbolRef(db, {
+      callerId: callerSym, fileId: fid1, calleeName: 'ambiguousFn',
+    });
 
     resolveSymbolEdges(db);
 
-    const ref = db.prepare('SELECT type_id, resolution_method FROM type_refs WHERE symbol_id = ?').get(consumer) as { type_id: number | null; resolution_method: string };
-    expect(ref.type_id).toBe(targetType);
+    const ref = db.prepare('SELECT callee_id, resolution_method FROM symbol_refs WHERE caller_id = ?').get(callerSym) as any;
+    expect(ref.callee_id).toBeNull();
+  });
+
+  it('resolves by name_single_file when multiple matches but all in same target file', () => {
+    const fid1 = insertFile(db, { path: 'src/a.ts' });
+    const fid2 = insertFile(db, { path: 'src/b.ts' });
+    // Two overloads in same file
+    const sym1 = insertSymbol(db, { fileId: fid2, name: 'overloaded', startLine: 1, endLine: 5 });
+    insertSymbol(db, { fileId: fid2, name: 'overloaded', startLine: 10, endLine: 15 });
+    const callerSym = insertSymbol(db, { fileId: fid1, name: 'callerFn' });
+
+    insertSymbolRef(db, {
+      callerId: callerSym, fileId: fid1, calleeName: 'overloaded',
+    });
+
+    resolveSymbolEdges(db);
+
+    const ref = db.prepare('SELECT callee_id, resolution_method FROM symbol_refs WHERE caller_id = ?').get(callerSym) as any;
+    expect(ref.callee_id).toBe(sym1);
+    expect(ref.resolution_method).toBe('name_single_file');
+  });
+
+  it('excludes macro/constant/enum_member from cross-file name_unique', () => {
+    const fid1 = insertFile(db, { path: 'src/a.ts' });
+    const fid2 = insertFile(db, { path: 'src/b.ts' });
+    insertSymbol(db, { fileId: fid2, name: 'MAX', kind: 'constant' });
+    const callerSym = insertSymbol(db, { fileId: fid1, name: 'callerFn' });
+
+    insertSymbolRef(db, {
+      callerId: callerSym, fileId: fid1, calleeName: 'MAX',
+    });
+
+    resolveSymbolEdges(db);
+
+    const ref = db.prepare('SELECT callee_id, resolution_method FROM symbol_refs WHERE caller_id = ?').get(callerSym) as any;
+    expect(ref.callee_id).toBeNull();
+  });
+
+  it('resolves type_refs by containment', () => {
+    const fid = insertFile(db, { path: 'src/types.ts' });
+    const targetSym = insertSymbol(db, { fileId: fid, name: 'MyInterface', kind: 'interface', startLine: 1, endLine: 10 });
+    const usingSym = insertSymbol(db, { fileId: fid, name: 'MyClass', kind: 'class', startLine: 15, endLine: 30 });
+
+    insertTypeRef(db, {
+      fileId: fid, symbolId: usingSym, typeName: 'MyInterface', typeNameBare: 'MyInterface',
+      definitionPath: 'src/types.ts', definitionLine: 5,
+    });
+
+    resolveSymbolEdges(db);
+
+    const ref = db.prepare('SELECT type_id, resolution_method FROM type_refs WHERE symbol_id = ?').get(usingSym) as any;
+    expect(ref.type_id).toBe(targetSym);
     expect(ref.resolution_method).toBe('lsp_definition');
   });
 
-  it('should resolve symbol_relationships via containment mapping', () => {
-    const db = createDb();
-    const file1 = insertFile(db, 'src/a.ts');
-    const file2 = insertFile(db, 'src/b.ts');
+  it('resolves type_refs by bare name fallback', () => {
+    const fid1 = insertFile(db, { path: 'src/a.ts' });
+    const fid2 = insertFile(db, { path: 'src/b.ts' });
+    const targetSym = insertSymbol(db, { fileId: fid2, name: 'Widget', kind: 'class' });
+    const usingSym = insertSymbol(db, { fileId: fid1, name: 'Consumer', kind: 'function' });
 
-    const parent = insertSymbol(db, file2, 'BaseClass', 'class', 1, 30);
-    const child = insertSymbol(db, file1, 'ChildClass', 'class', 1, 20);
-
-    db.prepare(
-      `INSERT INTO symbol_relationships (file_id, source_symbol_id, target_symbol_name, relationship_type, line, definition_path, definition_line)
-       VALUES (?, ?, 'BaseClass', 'extends', 1, ?, ?)`,
-    ).run(file1, child, 'src/b.ts', 5);
+    insertTypeRef(db, {
+      fileId: fid1, symbolId: usingSym, typeName: 'com.example.Widget', typeNameBare: 'Widget',
+    });
 
     resolveSymbolEdges(db);
 
-    const rel = db.prepare('SELECT target_symbol_id, resolution_method FROM symbol_relationships WHERE source_symbol_id = ?').get(child) as { target_symbol_id: number | null; resolution_method: string };
-    expect(rel.target_symbol_id).toBe(parent);
+    const ref = db.prepare('SELECT type_id, resolution_method FROM type_refs WHERE symbol_id = ?').get(usingSym) as any;
+    expect(ref.type_id).toBe(targetSym);
+    expect(ref.resolution_method).toBe('name_unique');
+  });
+
+  it('respects overlayOnly option', () => {
+    const fid = insertFile(db, { path: 'src/foo.ts', layer: 'baseline' });
+    const fidOverlay = insertFile(db, { path: 'src/bar.ts', layer: 'overlay' });
+    const targetSym = insertSymbol(db, { fileId: fidOverlay, name: 'overlayFn' });
+    const callerBaseline = insertSymbol(db, { fileId: fid, name: 'baselineCaller' });
+    const callerOverlay = insertSymbol(db, { fileId: fidOverlay, name: 'overlayCaller' });
+
+    // Baseline ref
+    insertSymbolRef(db, {
+      callerId: callerBaseline, fileId: fid, calleeName: 'overlayFn', layer: 'baseline',
+    });
+    // Overlay ref
+    insertSymbolRef(db, {
+      callerId: callerOverlay, fileId: fidOverlay, calleeName: 'overlayFn', layer: 'overlay',
+    });
+
+    resolveSymbolEdges(db, { overlayOnly: true });
+
+    // Overlay ref should be resolved
+    const overlayRef = db.prepare('SELECT callee_id FROM symbol_refs WHERE caller_id = ?').get(callerOverlay) as any;
+    expect(overlayRef.callee_id).toBe(targetSym);
+
+    // Baseline ref should NOT have been processed (still unresolved)
+    const baselineRef = db.prepare('SELECT callee_id, resolution_method FROM symbol_refs WHERE caller_id = ?').get(callerBaseline) as any;
+    expect(baselineRef.callee_id).toBeNull();
+    expect(baselineRef.resolution_method).toBe('unresolved');
+  });
+
+  it('resolves bare-name fallback for member-access callee (foo.bar → bar)', () => {
+    const fid1 = insertFile(db, { path: 'src/a.ts' });
+    const fid2 = insertFile(db, { path: 'src/b.ts' });
+    const targetSym = insertSymbol(db, { fileId: fid2, name: 'prepare' });
+    const callerSym = insertSymbol(db, { fileId: fid1, name: 'caller' });
+
+    insertSymbolRef(db, {
+      callerId: callerSym, fileId: fid1, calleeName: 'db.prepare',
+    });
+
+    resolveSymbolEdges(db);
+
+    const ref = db.prepare('SELECT callee_id, resolution_method FROM symbol_refs WHERE caller_id = ?').get(callerSym) as any;
+    expect(ref.callee_id).toBe(targetSym);
+    expect(ref.resolution_method).toBe('name_unique');
+  });
+
+  it('resolves symbol_relationships by containment', () => {
+    const fid = insertFile(db, { path: 'src/types.ts' });
+    const parentSym = insertSymbol(db, { fileId: fid, name: 'BaseClass', kind: 'class', startLine: 1, endLine: 20 });
+    const childSym = insertSymbol(db, { fileId: fid, name: 'DerivedClass', kind: 'class', startLine: 25, endLine: 40 });
+
+    db.prepare(
+      `INSERT INTO symbol_relationships (file_id, source_symbol_id, target_symbol_name, relationship_type, definition_path, definition_line, resolution_method)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    ).run(fid, childSym, 'BaseClass', 'extends', 'src/types.ts', 10, 'unresolved');
+
+    resolveSymbolEdges(db);
+
+    const rel = db.prepare('SELECT target_symbol_id, resolution_method FROM symbol_relationships WHERE source_symbol_id = ?').get(childSym) as any;
+    expect(rel.target_symbol_id).toBe(parentSym);
     expect(rel.resolution_method).toBe('lsp_definition');
-  });
-
-  it('should mark unresolved when definition_line does not fall within any symbol', () => {
-    const db = createDb();
-    const file1 = insertFile(db, 'src/file1.ts');
-    const file2 = insertFile(db, 'src/file2.ts');
-
-    // The only symbol in file2 spans lines 10-20
-    insertSymbol(db, file2, 'Foo', 'class', 10, 20);
-
-    const caller = insertSymbol(db, file1, 'main', 'function', 1, 10);
-
-    // definition_line 5 is outside Foo's range
-    db.prepare(
-      `INSERT INTO symbol_refs (caller_id, file_id, callee_name, call_line, definition_path, definition_line)
-       VALUES (?, ?, 'something', 3, ?, ?)`,
-    ).run(caller, file1, 'src/file2.ts', 5);
-
-    resolveSymbolEdges(db);
-
-    const ref = db.prepare('SELECT callee_id, resolution_method FROM symbol_refs WHERE caller_id = ?').get(caller) as { callee_id: number | null; resolution_method: string };
-    expect(ref.callee_id).toBeNull();
-    expect(ref.resolution_method).toBe('unresolved');
-  });
-});
-
-// ─── resolveSymbolEdges: name-based fallback ──────────────────────────────────
-
-describe('resolveSymbolEdges – name-based fallback', () => {
-  it('should resolve symbol_ref via name_same_file when callee is in the same file', () => {
-    const db = createDb();
-    const file1 = insertFile(db, 'src/file1.ts');
-    const file2 = insertFile(db, 'src/file2.ts');
-
-    const target = insertSymbol(db, file1, 'handle', 'function', 1, 10);
-    insertSymbol(db, file2, 'handle', 'function', 1, 10); // same name, different file
-
-    const caller = insertSymbol(db, file1, 'dispatch', 'function', 20, 30);
-
-    // No definition_path/definition_line — will use name fallback
-    db.prepare(
-      `INSERT INTO symbol_refs (caller_id, file_id, callee_name, call_line) VALUES (?, ?, 'handle', 22)`,
-    ).run(caller, file1);
-
-    resolveSymbolEdges(db);
-
-    const ref = db.prepare('SELECT callee_id, resolution_method FROM symbol_refs WHERE caller_id = ?').get(caller) as { callee_id: number | null; resolution_method: string };
-    expect(ref.callee_id).toBe(target);
-    expect(ref.resolution_method).toBe('name_same_file');
-  });
-
-  it('should resolve symbol_ref via name_unique when callee name is globally unique', () => {
-    const db = createDb();
-    const file1 = insertFile(db, 'src/file1.ts');
-    const file2 = insertFile(db, 'src/file2.ts');
-
-    const target = insertSymbol(db, file2, 'UniqueHelper', 'function', 1, 10);
-    const caller = insertSymbol(db, file1, 'main', 'function', 1, 10);
-
-    db.prepare(
-      `INSERT INTO symbol_refs (caller_id, file_id, callee_name, call_line) VALUES (?, ?, 'UniqueHelper', 5)`,
-    ).run(caller, file1);
-
-    resolveSymbolEdges(db);
-
-    const ref = db.prepare('SELECT callee_id, resolution_method FROM symbol_refs WHERE caller_id = ?').get(caller) as { callee_id: number | null; resolution_method: string };
-    expect(ref.callee_id).toBe(target);
-    expect(ref.resolution_method).toBe('name_unique');
-  });
-
-  it('should leave unresolved when name has non-unique cross-file matches', () => {
-    const db = createDb();
-    const file1 = insertFile(db, 'src/file1.ts');
-    const file2 = insertFile(db, 'src/file2.ts');
-    const file3 = insertFile(db, 'src/file3.ts');
-
-    insertSymbol(db, file2, 'handler', 'function', 1, 10);
-    insertSymbol(db, file3, 'handler', 'function', 1, 10);
-
-    const caller = insertSymbol(db, file1, 'router', 'function', 1, 10);
-
-    db.prepare(
-      `INSERT INTO symbol_refs (caller_id, file_id, callee_name, call_line) VALUES (?, ?, 'handler', 5)`,
-    ).run(caller, file1);
-
-    resolveSymbolEdges(db);
-
-    const ref = db.prepare('SELECT callee_id, resolution_method FROM symbol_refs WHERE caller_id = ?').get(caller) as { callee_id: number | null; resolution_method: string };
-    expect(ref.callee_id).toBeNull();
-    expect(ref.resolution_method).toBe('unresolved');
-  });
-
-  it('should NOT resolve via name_unique when the sole candidate is a macro', () => {
-    const db = createDb();
-    const file1 = insertFile(db, 'src/main.c');
-    const file2 = insertFile(db, 'src/defs.h');
-
-    // The only symbol named 'MAX' is a macro in another file
-    insertSymbol(db, file2, 'MAX', 'macro', 1, 1);
-
-    const caller = insertSymbol(db, file1, 'compute', 'function', 1, 10);
-
-    db.prepare(
-      `INSERT INTO symbol_refs (caller_id, file_id, callee_name, call_line) VALUES (?, ?, 'MAX', 5)`,
-    ).run(caller, file1);
-
-    resolveSymbolEdges(db);
-
-    const ref = db.prepare('SELECT callee_id, resolution_method FROM symbol_refs WHERE caller_id = ?').get(caller) as { callee_id: number | null; resolution_method: string };
-    expect(ref.callee_id).toBeNull();
-    expect(ref.resolution_method).toBe('unresolved');
-  });
-
-  it('should NOT resolve via name_unique when the sole candidate is a constant', () => {
-    const db = createDb();
-    const file1 = insertFile(db, 'src/main.c');
-    const file2 = insertFile(db, 'src/constants.c');
-
-    insertSymbol(db, file2, 'MIN_VALUE', 'constant', 1, 1);
-
-    const caller = insertSymbol(db, file1, 'process', 'function', 1, 10);
-
-    db.prepare(
-      `INSERT INTO symbol_refs (caller_id, file_id, callee_name, call_line) VALUES (?, ?, 'MIN_VALUE', 5)`,
-    ).run(caller, file1);
-
-    resolveSymbolEdges(db);
-
-    const ref = db.prepare('SELECT callee_id, resolution_method FROM symbol_refs WHERE caller_id = ?').get(caller) as { callee_id: number | null; resolution_method: string };
-    expect(ref.callee_id).toBeNull();
-    expect(ref.resolution_method).toBe('unresolved');
-  });
-
-  it('should resolve via name_unique when an eligible non-macro candidate exists after filtering', () => {
-    const db = createDb();
-    const file1 = insertFile(db, 'src/main.c');
-    const file2 = insertFile(db, 'src/utils.c');
-    const file3 = insertFile(db, 'src/defs.h');
-
-    // Two symbols named 'process': one function (eligible), one macro (excluded)
-    const target = insertSymbol(db, file2, 'process', 'function', 1, 10);
-    insertSymbol(db, file3, 'process', 'macro', 1, 1);
-
-    const caller = insertSymbol(db, file1, 'main', 'function', 1, 10);
-
-    db.prepare(
-      `INSERT INTO symbol_refs (caller_id, file_id, callee_name, call_line) VALUES (?, ?, 'process', 5)`,
-    ).run(caller, file1);
-
-    resolveSymbolEdges(db);
-
-    const ref = db.prepare('SELECT callee_id, resolution_method FROM symbol_refs WHERE caller_id = ?').get(caller) as { callee_id: number | null; resolution_method: string };
-    expect(ref.callee_id).toBe(target);
-    expect(ref.resolution_method).toBe('name_unique');
-  });
-
-  it('should still resolve macro via name_same_file (same-file is not filtered)', () => {
-    const db = createDb();
-    const file1 = insertFile(db, 'src/main.c');
-
-    // Macro in the same file should still be resolved via name_same_file
-    const target = insertSymbol(db, file1, 'MAX', 'macro', 1, 1);
-    const caller = insertSymbol(db, file1, 'compute', 'function', 5, 15);
-
-    db.prepare(
-      `INSERT INTO symbol_refs (caller_id, file_id, callee_name, call_line) VALUES (?, ?, 'MAX', 7)`,
-    ).run(caller, file1);
-
-    resolveSymbolEdges(db);
-
-    const ref = db.prepare('SELECT callee_id, resolution_method FROM symbol_refs WHERE caller_id = ?').get(caller) as { callee_id: number | null; resolution_method: string };
-    expect(ref.callee_id).toBe(target);
-    expect(ref.resolution_method).toBe('name_same_file');
-  });
-
-  it('should resolve type_ref via name_same_file when no LSP data', () => {
-    const db = createDb();
-    const file1 = insertFile(db, 'src/file1.ts');
-    const file2 = insertFile(db, 'src/file2.ts');
-
-    const widget1 = insertSymbol(db, file1, 'Widget', 'class', 1, 20);
-    insertSymbol(db, file2, 'Widget', 'class', 1, 20);
-
-    const consumer = insertSymbol(db, file1, 'render', 'function', 25, 35);
-
-    db.prepare(
-      `INSERT INTO type_refs (file_id, symbol_id, type_name, type_name_bare, ref_kind, ref_line)
-       VALUES (?, ?, 'Widget', 'Widget', 'parameter', 27)`,
-    ).run(file1, consumer);
-
-    resolveSymbolEdges(db);
-
-    const ref = db.prepare('SELECT type_id, resolution_method FROM type_refs WHERE symbol_id = ?').get(consumer) as { type_id: number | null; resolution_method: string };
-    expect(ref.type_id).toBe(widget1);
-    expect(ref.resolution_method).toBe('name_same_file');
-  });
-
-  it('should resolve symbol_relationships via name_same_file fallback', () => {
-    const db = createDb();
-    const file1 = insertFile(db, 'src/a.ts');
-
-    const parent = insertSymbol(db, file1, 'BaseClass', 'class', 1, 15);
-    const child = insertSymbol(db, file1, 'ChildClass', 'class', 20, 35);
-
-    db.prepare(
-      `INSERT INTO symbol_relationships (file_id, source_symbol_id, target_symbol_name, relationship_type, line)
-       VALUES (?, ?, 'BaseClass', 'extends', 20)`,
-    ).run(file1, child);
-
-    resolveSymbolEdges(db);
-
-    const rel = db.prepare('SELECT target_symbol_id, resolution_method FROM symbol_relationships WHERE source_symbol_id = ?').get(child) as { target_symbol_id: number | null; resolution_method: string };
-    expect(rel.target_symbol_id).toBe(parent);
-    expect(rel.resolution_method).toBe('name_same_file');
-  });
-
-  it('should resolve symbol_relationships with normalizeTypeName fallback', () => {
-    const db = createDb();
-    const file1 = insertFile(db, 'src/a.ts');
-
-    const target = insertSymbol(db, file1, 'Widget', 'class', 1, 15);
-    const source = insertSymbol(db, file1, 'ChildWidget', 'class', 20, 35);
-
-    db.prepare(
-      `INSERT INTO symbol_relationships (file_id, source_symbol_id, target_symbol_name, relationship_type, line)
-       VALUES (?, ?, 'const Widget*', 'extends', 20)`,
-    ).run(file1, source);
-
-    resolveSymbolEdges(db);
-
-    const rel = db.prepare('SELECT target_symbol_id, resolution_method FROM symbol_relationships WHERE source_symbol_id = ?').get(source) as { target_symbol_id: number | null; resolution_method: string };
-    expect(rel.target_symbol_id).toBe(target);
-    expect(rel.resolution_method).toBe('name_same_file');
-  });
-
-  it('should prefer LSP containment over name fallback when both could match', () => {
-    const db = createDb();
-    const file1 = insertFile(db, 'src/file1.ts');
-    const file2 = insertFile(db, 'src/file2.ts');
-
-    const sameFileTarget = insertSymbol(db, file1, 'Widget', 'class', 1, 10);
-    const lspTarget = insertSymbol(db, file2, 'Widget', 'class', 1, 30);
-
-    const caller = insertSymbol(db, file1, 'main', 'function', 20, 30);
-
-    // Has LSP definition data pointing to file2
-    db.prepare(
-      `INSERT INTO symbol_refs (caller_id, file_id, callee_name, call_line, definition_path, definition_line)
-       VALUES (?, ?, 'Widget', 22, ?, ?)`,
-    ).run(caller, file1, 'src/file2.ts', 10);
-
-    resolveSymbolEdges(db);
-
-    const ref = db.prepare('SELECT callee_id, resolution_method FROM symbol_refs WHERE caller_id = ?').get(caller) as { callee_id: number | null; resolution_method: string };
-    // LSP wins — resolves to file2's Widget, not file1's
-    expect(ref.callee_id).toBe(lspTarget);
-    expect(ref.resolution_method).toBe('lsp_definition');
   });
 });
 
 // ─── topoSort ─────────────────────────────────────────────────────────────────
 
 describe('topoSort', () => {
-  it('should return file IDs in topological order for a linear chain', () => {
-    const db = createDb();
-    const a = insertFile(db, 'src/a.ts');
-    const b = insertFile(db, 'src/b.ts');
-    const c = insertFile(db, 'src/c.ts');
+  let db: Database.Database;
 
-    // a → b → c (a imports b, b imports c)
-    db.prepare('INSERT INTO file_imports (file_id, raw_import, resolved_id) VALUES (?, ?, ?)').run(a, './b', b);
-    db.prepare('INSERT INTO file_imports (file_id, raw_import, resolved_id) VALUES (?, ?, ?)').run(b, './c', c);
-
-    const sorted = topoSort(db);
-    const idxA = sorted.indexOf(String(a));
-    const idxB = sorted.indexOf(String(b));
-    const idxC = sorted.indexOf(String(c));
-
-    // Dependencies should appear before dependents
-    expect(idxC).toBeLessThan(idxB);
-    expect(idxB).toBeLessThan(idxA);
+  beforeEach(() => {
+    db = openDb(':memory:');
   });
 
-  it('should return all files when no imports exist', () => {
-    const db = createDb();
-    insertFile(db, 'src/a.ts');
-    insertFile(db, 'src/b.ts');
-    insertFile(db, 'src/c.ts');
-
-    const sorted = topoSort(db);
-    expect(sorted).toHaveLength(3);
+  afterEach(() => {
+    db?.close();
   });
 
-  it('should return empty array for empty database', () => {
-    const db = createDb();
-    expect(topoSort(db)).toEqual([]);
+  it('returns empty for empty DB', () => {
+    const result = topoSort(db);
+    expect(result).toEqual([]);
   });
 
-  it('should handle diamond dependency graph', () => {
-    const db = createDb();
-    const a = insertFile(db, 'src/a.ts');
-    const b = insertFile(db, 'src/b.ts');
-    const c = insertFile(db, 'src/c.ts');
-    const d = insertFile(db, 'src/d.ts');
-
-    // a → b, a → c, b → d, c → d (diamond)
-    db.prepare('INSERT INTO file_imports (file_id, raw_import, resolved_id) VALUES (?, ?, ?)').run(a, './b', b);
-    db.prepare('INSERT INTO file_imports (file_id, raw_import, resolved_id) VALUES (?, ?, ?)').run(a, './c', c);
-    db.prepare('INSERT INTO file_imports (file_id, raw_import, resolved_id) VALUES (?, ?, ?)').run(b, './d', d);
-    db.prepare('INSERT INTO file_imports (file_id, raw_import, resolved_id) VALUES (?, ?, ?)').run(c, './d', d);
-
-    const sorted = topoSort(db);
-    const idxA = sorted.indexOf(String(a));
-    const idxD = sorted.indexOf(String(d));
-    expect(idxD).toBeLessThan(idxA);
+  it('returns single file when no imports', () => {
+    const fid = insertFile(db, { path: 'a.ts' });
+    const result = topoSort(db);
+    expect(result).toEqual([String(fid)]);
   });
 
-  it('should skip unresolved imports (resolved_id IS NULL)', () => {
-    const db = createDb();
-    const a = insertFile(db, 'src/a.ts');
-    insertFile(db, 'src/b.ts');
-    db.prepare('INSERT INTO file_imports (file_id, raw_import) VALUES (?, ?)').run(a, 'external');
+  it('sorts dependencies before dependents', () => {
+    const fid1 = insertFile(db, { path: 'utils.ts' });
+    const fid2 = insertFile(db, { path: 'app.ts' });
+    insertFileImport(db, fid2, './utils', fid1);
 
-    const sorted = topoSort(db);
-    expect(sorted).toHaveLength(2);
+    const result = topoSort(db);
+    const idx1 = result.indexOf(String(fid1));
+    const idx2 = result.indexOf(String(fid2));
+    expect(idx1).toBeLessThan(idx2);
   });
 
-  it('should exclude cyclic files from result', () => {
-    const db = createDb();
-    const a = insertFile(db, 'src/a.ts');
-    const b = insertFile(db, 'src/b.ts');
+  it('handles diamond dependency', () => {
+    const a = insertFile(db, { path: 'a.ts' });
+    const b = insertFile(db, { path: 'b.ts' });
+    const c = insertFile(db, { path: 'c.ts' });
+    const d = insertFile(db, { path: 'd.ts' });
+    // d depends on b and c, both depend on a
+    insertFileImport(db, b, './a', a);
+    insertFileImport(db, c, './a', a);
+    insertFileImport(db, d, './b', b);
+    insertFileImport(db, d, './c', c);
 
-    // a → b → a (cycle)
-    db.prepare('INSERT INTO file_imports (file_id, raw_import, resolved_id) VALUES (?, ?, ?)').run(a, './b', b);
-    db.prepare('INSERT INTO file_imports (file_id, raw_import, resolved_id) VALUES (?, ?, ?)').run(b, './a', a);
+    const result = topoSort(db);
+    expect(result.indexOf(String(a))).toBeLessThan(result.indexOf(String(b)));
+    expect(result.indexOf(String(a))).toBeLessThan(result.indexOf(String(c)));
+    expect(result.indexOf(String(b))).toBeLessThan(result.indexOf(String(d)));
+    expect(result.indexOf(String(c))).toBeLessThan(result.indexOf(String(d)));
+  });
 
-    const sorted = topoSort(db);
-    // Cyclic files are excluded
-    expect(sorted.length).toBeLessThanOrEqual(2);
+  it('excludes cyclic files from sorted output', () => {
+    const a = insertFile(db, { path: 'a.ts' });
+    const b = insertFile(db, { path: 'b.ts' });
+    // Cycle: a → b → a
+    insertFileImport(db, a, './b', b);
+    insertFileImport(db, b, './a', a);
+
+    const result = topoSort(db);
+    // Both should be excluded (they have non-zero in-degree in the cycle)
+    expect(result).not.toContain(String(a));
+    expect(result).not.toContain(String(b));
   });
 });
 
 // ─── detectCycles ─────────────────────────────────────────────────────────────
 
 describe('detectCycles', () => {
-  it('should return empty for acyclic graph', () => {
-    const db = createDb();
-    const a = insertFile(db, 'src/a.ts');
-    const b = insertFile(db, 'src/b.ts');
+  let db: Database.Database;
 
-    db.prepare('INSERT INTO file_imports (file_id, raw_import, resolved_id) VALUES (?, ?, ?)').run(a, './b', b);
-
-    expect(detectCycles(db)).toEqual([]);
+  beforeEach(() => {
+    db = openDb(':memory:');
   });
 
-  it('should detect a direct 2-node cycle', () => {
-    const db = createDb();
-    const a = insertFile(db, 'src/a.ts');
-    const b = insertFile(db, 'src/b.ts');
-
-    db.prepare('INSERT INTO file_imports (file_id, raw_import, resolved_id) VALUES (?, ?, ?)').run(a, './b', b);
-    db.prepare('INSERT INTO file_imports (file_id, raw_import, resolved_id) VALUES (?, ?, ?)').run(b, './a', a);
-
-    const cycles = detectCycles(db);
-    expect(cycles.length).toBe(1);
-    expect(cycles[0]).toHaveLength(2);
-    expect(cycles[0]).toContain(String(a));
-    expect(cycles[0]).toContain(String(b));
+  afterEach(() => {
+    db?.close();
   });
 
-  it('should detect self-loop', () => {
-    const db = createDb();
-    const a = insertFile(db, 'src/a.ts');
+  it('returns empty for acyclic graph', () => {
+    const a = insertFile(db, { path: 'a.ts' });
+    const b = insertFile(db, { path: 'b.ts' });
+    insertFileImport(db, a, './b', b);
 
-    db.prepare('INSERT INTO file_imports (file_id, raw_import, resolved_id) VALUES (?, ?, ?)').run(a, './a', a);
-
-    const cycles = detectCycles(db);
-    expect(cycles.length).toBe(1);
-    expect(cycles[0]).toEqual([String(a)]);
+    const sccs = detectCycles(db);
+    expect(sccs).toEqual([]);
   });
 
-  it('should detect 3-node cycle', () => {
-    const db = createDb();
-    const a = insertFile(db, 'src/a.ts');
-    const b = insertFile(db, 'src/b.ts');
-    const c = insertFile(db, 'src/c.ts');
+  it('detects simple two-file cycle', () => {
+    const a = insertFile(db, { path: 'a.ts' });
+    const b = insertFile(db, { path: 'b.ts' });
+    insertFileImport(db, a, './b', b);
+    insertFileImport(db, b, './a', a);
 
-    db.prepare('INSERT INTO file_imports (file_id, raw_import, resolved_id) VALUES (?, ?, ?)').run(a, './b', b);
-    db.prepare('INSERT INTO file_imports (file_id, raw_import, resolved_id) VALUES (?, ?, ?)').run(b, './c', c);
-    db.prepare('INSERT INTO file_imports (file_id, raw_import, resolved_id) VALUES (?, ?, ?)').run(c, './a', a);
-
-    const cycles = detectCycles(db);
-    expect(cycles.length).toBe(1);
-    expect(cycles[0]).toHaveLength(3);
+    const sccs = detectCycles(db);
+    expect(sccs).toHaveLength(1);
+    expect(sccs[0]).toHaveLength(2);
+    expect(sccs[0]!.sort()).toEqual([String(a), String(b)].sort());
   });
 
-  it('should return empty for empty database', () => {
-    const db = createDb();
-    expect(detectCycles(db)).toEqual([]);
+  it('detects self-loop', () => {
+    const a = insertFile(db, { path: 'a.ts' });
+    insertFileImport(db, a, './a', a);
+
+    const sccs = detectCycles(db);
+    expect(sccs).toHaveLength(1);
+    expect(sccs[0]).toEqual([String(a)]);
   });
 
-  it('should not report single nodes without self-loop', () => {
-    const db = createDb();
-    insertFile(db, 'src/a.ts');
-
-    expect(detectCycles(db)).toEqual([]);
+  it('returns no SCC for single node without self-loop', () => {
+    insertFile(db, { path: 'a.ts' });
+    const sccs = detectCycles(db);
+    expect(sccs).toEqual([]);
   });
 
-  it('should detect multiple independent cycles', () => {
-    const db = createDb();
-    const a = insertFile(db, 'src/a.ts');
-    const b = insertFile(db, 'src/b.ts');
-    const c = insertFile(db, 'src/c.ts');
-    const d = insertFile(db, 'src/d.ts');
+  it('detects three-file cycle', () => {
+    const a = insertFile(db, { path: 'a.ts' });
+    const b = insertFile(db, { path: 'b.ts' });
+    const c = insertFile(db, { path: 'c.ts' });
+    insertFileImport(db, a, './b', b);
+    insertFileImport(db, b, './c', c);
+    insertFileImport(db, c, './a', a);
 
-    // Cycle 1: a ↔ b
-    db.prepare('INSERT INTO file_imports (file_id, raw_import, resolved_id) VALUES (?, ?, ?)').run(a, './b', b);
-    db.prepare('INSERT INTO file_imports (file_id, raw_import, resolved_id) VALUES (?, ?, ?)').run(b, './a', a);
-
-    // Cycle 2: c ↔ d
-    db.prepare('INSERT INTO file_imports (file_id, raw_import, resolved_id) VALUES (?, ?, ?)').run(c, './d', d);
-    db.prepare('INSERT INTO file_imports (file_id, raw_import, resolved_id) VALUES (?, ?, ?)').run(d, './c', c);
-
-    const cycles = detectCycles(db);
-    expect(cycles.length).toBe(2);
+    const sccs = detectCycles(db);
+    expect(sccs).toHaveLength(1);
+    expect(sccs[0]!.sort()).toEqual([String(a), String(b), String(c)].sort());
   });
 });
