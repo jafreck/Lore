@@ -68,7 +68,16 @@ export async function ingestGitHistory(
 
   // Fetch log with numstat for diff stats.
   // --numstat outputs insertion/deletion counts per file after each commit header.
-  const logResult = await git.raw(logArgs);
+  // git log exits non-zero on repos with no commits — handle gracefully.
+  let logResult: string;
+  try {
+    logResult = await git.raw(logArgs);
+  } catch (err) {
+    if (err instanceof Error && err.message.includes('does not have any commits yet')) {
+      return;
+    }
+    throw err;
+  }
 
   // Capture heads/tags that currently point to commits so branch/tag metadata
   // is also available in the Lore.
