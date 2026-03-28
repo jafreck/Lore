@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { extractReturnType } from '../../src/enrichment-types.js';
-import { ScipIndexData } from '../../src/scip/index-reader.js';
+import { ScipIndexData, extractSignatureFromDocs, type ScipSymbolInfo } from '../../src/scip/index-reader.js';
 
 // ─── extractReturnType ────────────────────────────────────────────────────────
 
@@ -310,5 +310,225 @@ describe('ScipIndexData', () => {
     } as any);
 
     expect(data.fileCount).toBe(0);
+  });
+
+  it('handles 4-element range (multi-line occurrence)', () => {
+    const data = new ScipIndexData('/project');
+    data.addDocument({
+      relativePath: 'src/multi.ts',
+      language: 'typescript',
+      occurrences: [
+        {
+          range: [5, 2, 8, 10], // startLine=5, startChar=2, endLine=8, endChar=10
+          symbol: 'ts . multi . bigBlock .',
+          symbolRoles: 1,
+          overrideDocumentation: [],
+          syntaxKind: 0,
+          diagnostics: [],
+          enclosingRange: [],
+        },
+      ],
+      symbols: [],
+      $typeName: 'scip.Document',
+    } as any);
+
+    // Should find the occurrence when querying within the multi-line range
+    const occ = data.findOccurrence('/project/src/multi.ts', 5, 5);
+    expect(occ).not.toBeNull();
+    expect(occ!.symbol).toBe('ts . multi . bigBlock .');
+    expect(occ!.endLine).toBe(8);
+  });
+
+  it('findOccurrence returns null for empty occurrence list', () => {
+    const data = new ScipIndexData('/project');
+    data.addDocument({
+      relativePath: 'src/empty.ts',
+      language: 'typescript',
+      occurrences: [],
+      symbols: [],
+      $typeName: 'scip.Document',
+    } as any);
+
+    expect(data.findOccurrence('/project/src/empty.ts', 0, 0)).toBeNull();
+  });
+
+  it('findOccurrence uses nearby match within 5 characters', () => {
+    const data = new ScipIndexData('/project');
+    data.addDocument({
+      relativePath: 'src/near.ts',
+      language: 'typescript',
+      occurrences: [
+        {
+          range: [10, 20, 30],
+          symbol: 'ts . near . sym .',
+          symbolRoles: 0,
+          overrideDocumentation: [],
+          syntaxKind: 0,
+          diagnostics: [],
+          enclosingRange: [],
+        },
+      ],
+      symbols: [],
+      $typeName: 'scip.Document',
+    } as any);
+
+    // Query 3 chars away — should still match
+    const occ = data.findOccurrence('/project/src/near.ts', 10, 23);
+    expect(occ).not.toBeNull();
+    expect(occ!.symbol).toBe('ts . near . sym .');
+  });
+
+  it('findOccurrence returns null when too far away', () => {
+    const data = new ScipIndexData('/project');
+    data.addDocument({
+      relativePath: 'src/far.ts',
+      language: 'typescript',
+      occurrences: [
+        {
+          range: [10, 20, 30],
+          symbol: 'ts . far . sym .',
+          symbolRoles: 0,
+          overrideDocumentation: [],
+          syntaxKind: 0,
+          diagnostics: [],
+          enclosingRange: [],
+        },
+      ],
+      symbols: [],
+      $typeName: 'scip.Document',
+    } as any);
+
+    // Query 50 chars away — should NOT match
+    const occ = data.findOccurrence('/project/src/far.ts', 10, 70);
+    expect(occ).toBeNull();
+  });
+
+  it('merges duplicate documents for same path', () => {
+    const data = new ScipIndexData('/project');
+    data.addDocument({
+      relativePath: 'src/dup.ts',
+      language: 'typescript',
+      occurrences: [
+        { range: [0, 0, 5], symbol: 'sym.first', symbolRoles: 1, overrideDocumentation: [], syntaxKind: 0, diagnostics: [], enclosingRange: [] },
+      ],
+      symbols: [],
+      $typeName: 'scip.Document',
+    } as any);
+    data.addDocument({
+      relativePath: 'src/dup.ts',
+      language: 'typescript',
+      occurrences: [
+        { range: [10, 0, 5], symbol: 'sym.second', symbolRoles: 1, overrideDocumentation: [], syntaxKind: 0, diagnostics: [], enclosingRange: [] },
+      ],
+      symbols: [],
+      $typeName: 'scip.Document',
+    } as any);
+
+    // Both symbols should be accessible
+    expect(data.getDefinition('sym.first')).not.toBeNull();
+    expect(data.getDefinition('sym.second')).not.toBeNull();
+    // But file count stays 1 since path is the same
+    expect(data.fileCount).toBe(1);
+  });
+
+  it('skips occurrences with range < 3 elements', () => {
+    const data = new ScipIndexData('/project');
+    data.addDocument({
+      relativePath: 'src/badrange.ts',
+      language: 'typescript',
+      occurrences: [
+        { range: [0, 5], symbol: 'bad.range', symbolRoles: 1, overrideDocumentation: [], syntaxKind: 0, diagnostics: [], enclosingRange: [] },
+        { range: [1, 0, 10], symbol: 'good.range', symbolRoles: 1, overrideDocumentation: [], syntaxKind: 0, diagnostics: [], enclosingRange: [] },
+      ],
+      symbols: [],
+      $typeName: 'scip.Document',
+    } as any);
+
+    expect(data.getDefinition('bad.range')).toBeNull();
+    expect(data.getDefinition('good.range')).not.toBeNull();
+  });
+});
+
+// ─── extractSignatureFromDocs ─────────────────────────────────────────────────
+
+describe('extractSignatureFromDocs', () => {
+  it('returns signatureText when available', () => {
+    const info: ScipSymbolInfo = {
+      symbol: 'test',
+      documentation: [],
+      displayName: 'test',
+      signatureText: 'function test(): void',
+    };
+    expect(extractSignatureFromDocs(info)).toBe('function test(): void');
+  });
+
+  it('strips code fences from signatureText', () => {
+    const info: ScipSymbolInfo = {
+      symbol: 'test',
+      documentation: [],
+      displayName: 'test',
+      signatureText: '```typescript\nfunction test(): void\n```',
+    };
+    expect(extractSignatureFromDocs(info)).toBe('function test(): void');
+  });
+
+  it('returns null when signatureText is empty', () => {
+    const info: ScipSymbolInfo = {
+      symbol: 'test',
+      documentation: [],
+      displayName: 'test',
+      signatureText: '',
+    };
+    expect(extractSignatureFromDocs(info)).toBeNull();
+  });
+
+  it('falls back to documentation when no signatureText', () => {
+    const info: ScipSymbolInfo = {
+      symbol: 'test',
+      documentation: ['function test(x: number): string'],
+      displayName: 'test',
+      signatureText: null,
+    };
+    expect(extractSignatureFromDocs(info)).toBe('function test(x: number): string');
+  });
+
+  it('returns null when documentation has no signature-like text', () => {
+    const info: ScipSymbolInfo = {
+      symbol: 'test',
+      documentation: ['This is just a description with no code.'],
+      displayName: 'test',
+      signatureText: null,
+    };
+    expect(extractSignatureFromDocs(info)).toBeNull();
+  });
+
+  it('detects signature with arrow return type', () => {
+    const info: ScipSymbolInfo = {
+      symbol: 'test',
+      documentation: ['fn foo(x: i32) -> String'],
+      displayName: 'test',
+      signatureText: null,
+    };
+    expect(extractSignatureFromDocs(info)).toBe('fn foo(x: i32) -> String');
+  });
+
+  it('detects signature with colon type annotation', () => {
+    const info: ScipSymbolInfo = {
+      symbol: 'test',
+      documentation: ['val x: Int'],
+      displayName: 'test',
+      signatureText: null,
+    };
+    expect(extractSignatureFromDocs(info)).toBe('val x: Int');
+  });
+
+  it('detects signature with parentheses', () => {
+    const info: ScipSymbolInfo = {
+      symbol: 'test',
+      documentation: ['greet(name)'],
+      displayName: 'test',
+      signatureText: null,
+    };
+    expect(extractSignatureFromDocs(info)).toBe('greet(name)');
   });
 });

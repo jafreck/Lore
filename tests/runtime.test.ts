@@ -42,6 +42,8 @@ describe('LoreRuntime', () => {
     it('uses global logger when none provided', () => {
       const runtime = new LoreRuntime(makeConfig());
       expect(runtime.log).toBeDefined();
+      // Should be the global logger instance
+      expect(typeof runtime.log.info).toBe('function');
     });
   });
 
@@ -107,6 +109,61 @@ describe('LoreRuntime', () => {
       expect(config.scip).toBeNull();
       expect(config.history).toBe(false);
       expect(config.indexDependencies).toBe(false);
+    });
+  });
+
+  describe('shutdown disposes resources', () => {
+    it('embedder remains undefined when not configured', async () => {
+      const runtime = new LoreRuntime(makeConfig());
+      await runtime.start();
+      expect(runtime.embedder).toBeUndefined(); // no embeddingModel configured
+      await runtime.shutdown();
+      expect(runtime.embedder).toBeUndefined();
+    });
+
+    it('refresher remains undefined when refreshMode=none', async () => {
+      const runtime = new LoreRuntime(makeConfig());
+      await runtime.start();
+      expect(runtime.refresher).toBeUndefined(); // refreshMode=none
+      await runtime.shutdown();
+      expect(runtime.refresher).toBeUndefined();
+    });
+  });
+
+  describe('installSignalHandlers', () => {
+    it('installs without throwing', () => {
+      const runtime = new LoreRuntime(makeConfig());
+      expect(() => runtime.installSignalHandlers()).not.toThrow();
+    });
+
+    it('is idempotent (calling twice does not throw)', () => {
+      const runtime = new LoreRuntime(makeConfig());
+      runtime.installSignalHandlers();
+      expect(() => runtime.installSignalHandlers()).not.toThrow();
+    });
+  });
+
+  describe('start with embeddingModel', () => {
+    it('does not crash when embeddingModel is set but model unavailable', async () => {
+      const runtime = new LoreRuntime(makeConfig({
+        embeddingModel: 'nonexistent-model',
+      }));
+      // start() should catch the error and continue
+      await runtime.start();
+      // embedder may or may not be set depending on whether lazy init catches
+      expect(runtime.started).toBe(true);
+      await runtime.shutdown();
+    });
+  });
+
+  describe('double shutdown', () => {
+    it('multiple shutdowns are safe after started', async () => {
+      const runtime = new LoreRuntime(makeConfig());
+      await runtime.start();
+      await runtime.shutdown();
+      await runtime.shutdown();
+      await runtime.shutdown();
+      expect(runtime.started).toBe(false);
     });
   });
 });

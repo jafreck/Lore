@@ -51,6 +51,9 @@ describe('extractReturnType', () => {
 
 describe('ResolvedTypeMetadata', () => {
   it('has the expected shape', () => {
+    // This test validates interface compliance at compile time.
+    // The runtime assertions are intentionally simple since
+    // ResolvedTypeMetadata is a plain TypeScript interface.
     const metadata: ResolvedTypeMetadata = {
       resolvedTypeSignature: 'function foo(): string',
       resolvedReturnType: 'string',

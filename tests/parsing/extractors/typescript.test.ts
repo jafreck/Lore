@@ -198,6 +198,145 @@ describe('TypeScriptExtractor', () => {
       const ref = result.typeRefs.find(r => r.typeRaw === 'MyType');
       expect(ref).toBeDefined();
     });
+
+    it('extracts type assertion type refs from as expression', () => {
+      const source = `const x = someValue as MyInterface;`;
+      const result = extract(source);
+      const ref = result.typeRefs.find(r => r.typeRaw === 'MyInterface');
+      expect(ref).toBeDefined();
+      expect(ref!.refKind).toBe('cast');
+    });
+
+    it('extracts class field type refs', () => {
+      const source = `class Foo {
+  name: string;
+  logger: Logger;
+}`;
+      const result = extract(source);
+      const ref = result.typeRefs.find(r => r.typeRaw === 'Logger' && r.refKind === 'field');
+      expect(ref).toBeDefined();
+    });
+
+    it('extracts class method type refs', () => {
+      const source = `class Service {
+  handle(req: Request): Response {}
+}`;
+      const result = extract(source);
+      const paramRef = result.typeRefs.find(r => r.typeRaw === 'Request');
+      expect(paramRef).toBeDefined();
+    });
+
+    it('extracts implements clause type refs', () => {
+      const source = `class Foo extends Base implements Serializable, Comparable {}`;
+      const result = extract(source);
+      const baseRef = result.typeRefs.find(r => r.typeRaw === 'Base');
+      expect(baseRef).toBeDefined();
+      const serRef = result.typeRefs.find(r => r.typeRaw === 'Serializable');
+      expect(serRef).toBeDefined();
+    });
+
+    it('extracts interface extends type refs', () => {
+      const source = `interface ReadWrite extends Readable, Writable {}`;
+      const result = extract(source);
+      const ref = result.typeRefs.find(r => r.typeRaw === 'Readable');
+      expect(ref).toBeDefined();
+    });
+
+    it('extracts interface property type refs', () => {
+      const source = `interface Config {
+  host: string;
+  logger: Logger;
+}`;
+      const result = extract(source);
+      const ref = result.typeRefs.find(r => r.typeRaw === 'Logger' && r.refKind === 'field');
+      expect(ref).toBeDefined();
+    });
+
+    it('extracts interface method signature param/return type refs', () => {
+      const source = `interface Handler {
+  handle(req: Request): Response;
+}`;
+      const result = extract(source);
+      const paramRef = result.typeRefs.find(r => r.typeRaw === 'Request' && r.refKind === 'parameter');
+      expect(paramRef).toBeDefined();
+      const retRef = result.typeRefs.find(r => r.typeRaw === 'Response' && r.refKind === 'return');
+      expect(retRef).toBeDefined();
+    });
+
+    it('extracts variable declaration type refs', () => {
+      const source = `const x: MyType = getValue();`;
+      const result = extract(source);
+      const ref = result.typeRefs.find(r => r.typeRaw === 'MyType' && r.refKind === 'variable');
+      expect(ref).toBeDefined();
+    });
+  });
+
+  describe('type alias and advanced types', () => {
+    it('extracts type alias declaration', () => {
+      const source = `type Result<T> = { ok: true; value: T } | { ok: false; error: Error };`;
+      const result = extract(source);
+      const sym = result.symbols.find(s => s.name === 'Result');
+      expect(sym).toBeDefined();
+      expect(sym!.kind).toBe('type');
+    });
+
+    it('extracts mapped type alias', () => {
+      const source = `type Readonly<T> = { readonly [K in keyof T]: T[K] };`;
+      const result = extract(source);
+      const sym = result.symbols.find(s => s.name === 'Readonly');
+      expect(sym).toBeDefined();
+      expect(sym!.kind).toBe('type');
+    });
+
+    it('extracts conditional type alias', () => {
+      const source = `type IsString<T> = T extends string ? true : false;`;
+      const result = extract(source);
+      const sym = result.symbols.find(s => s.name === 'IsString');
+      expect(sym).toBeDefined();
+      expect(sym!.kind).toBe('type');
+    });
+  });
+
+  describe('re-exports and export patterns', () => {
+    it('marks exported class as exported', () => {
+      const source = `export class PublicClass {}`;
+      const result = extract(source);
+      const sym = result.symbols.find(s => s.name === 'PublicClass');
+      expect(sym).toBeDefined();
+      expect(sym!.isExported).toBe(true);
+    });
+
+    it('marks exported arrow function as exported', () => {
+      const source = `export const handler = () => {};`;
+      const result = extract(source);
+      const sym = result.symbols.find(s => s.name === 'handler');
+      expect(sym).toBeDefined();
+      expect(sym!.isExported).toBe(true);
+    });
+
+    it('extracts dynamic import as import edge', () => {
+      const source = `const lazy = import('./lazy-module');`;
+      const result = extract(source);
+      expect(result.imports.some(i => i.source === './lazy-module')).toBe(true);
+    });
+  });
+
+  describe('declaration files', () => {
+    it('extracts doc comments from .d.ts for classes', () => {
+      const source = `/** A service class */\ndeclare class Service {}`;
+      const result = extract(source, 'types.d.ts');
+      const sym = result.symbols.find(s => s.name === 'Service');
+      expect(sym).toBeDefined();
+      expect(sym!.docComment).toContain('service class');
+    });
+
+    it('extracts doc comments from .d.ts for interfaces', () => {
+      const source = `/** Options for config */\ninterface ConfigOptions { host: string; }`;
+      const result = extract(source, 'types.d.ts');
+      const sym = result.symbols.find(s => s.name === 'ConfigOptions');
+      expect(sym).toBeDefined();
+      expect(sym!.docComment).toContain('Options');
+    });
   });
 
   describe('edge cases', () => {
@@ -218,6 +357,12 @@ describe('TypeScriptExtractor', () => {
       const sym = result.symbols.find(s => s.name === 'foo');
       expect(sym).toBeDefined();
       expect(sym!.astNode).toBeDefined();
+    });
+
+    it('extracts chained call expressions', () => {
+      const source = `function foo() { a.b().c().d(); }`;
+      const result = extract(source);
+      expect(result.callRefs.length).toBeGreaterThan(0);
     });
   });
 });

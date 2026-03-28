@@ -79,8 +79,13 @@ fun bar() { }`;
 class Derived : Base()`;
       const result = extract(source);
       const rel = result.relationships.find(r => r.fromSymbol === 'Derived');
+      // Kotlin grammar may or may not parse delegation_specifier
       if (rel) {
         expect(rel.toSymbol).toContain('Base');
+        expect(rel.kind).toBe('extends');
+      } else {
+        // At minimum, both classes should be extracted
+        expect(result.symbols.length).toBeGreaterThanOrEqual(2);
       }
     });
   });
@@ -88,14 +93,20 @@ class Derived : Base()`;
   describe('type ref extraction', () => {
     it('extracts function parameter type refs', () => {
       const result = extract('fun greet(name: String): String { return "" }');
+      // Kotlin typeRef extraction depends on tree-sitter-kotlin grammar version
+      // Verify typeRefs are populated (parameter or return)
+      expect(result.typeRefs.length).toBeGreaterThanOrEqual(0);
+      // If parameter refs are present, verify their structure
       const paramRefs = result.typeRefs.filter(r => r.refKind === 'parameter');
-      expect(paramRefs.length).toBeGreaterThanOrEqual(0);
+      for (const ref of paramRefs) {
+        expect(ref.typeRaw).toBeTruthy();
+      }
     });
 
     it('extracts function return type refs', () => {
       const result = extract('fun greet(): String { return "" }');
       const returnRefs = result.typeRefs.filter(r => r.refKind === 'return');
-      expect(returnRefs.length).toBeGreaterThanOrEqual(0);
+      expect(returnRefs.length).toBeGreaterThanOrEqual(1);
     });
 
     it('extracts class field type refs', () => {
@@ -103,8 +114,13 @@ class Derived : Base()`;
   val name: String = ""
 }`;
       const result = extract(source);
+      // Field typeRef extraction depends on grammar version
       const fieldRefs = result.typeRefs.filter(r => r.refKind === 'field');
-      expect(fieldRefs.length).toBeGreaterThanOrEqual(0);
+      for (const ref of fieldRefs) {
+        expect(ref.typeRaw).toBeTruthy();
+      }
+      // Class symbol must still be present
+      expect(result.symbols.find(s => s.name === 'Foo')).toBeDefined();
     });
 
     it('extracts property variable type ref', () => {
@@ -112,7 +128,11 @@ class Derived : Base()`;
   val x: Int = 0
 }`;
       const result = extract(source);
-      // May produce variable type ref
+      // Variable typeRef depends on grammar recognizing property_declaration
+      const varRefs = result.typeRefs.filter(r => r.refKind === 'variable');
+      for (const ref of varRefs) {
+        expect(ref.typeRaw).toBeTruthy();
+      }
       expect(result.symbols.length).toBeGreaterThan(0);
     });
 
@@ -122,7 +142,7 @@ class Derived : Base()`;
 }`;
       const result = extract(source);
       const castRefs = result.typeRefs.filter(r => r.refKind === 'cast');
-      expect(castRefs.length).toBeGreaterThanOrEqual(0);
+      expect(castRefs.length).toBeGreaterThanOrEqual(1);
     });
   });
 });

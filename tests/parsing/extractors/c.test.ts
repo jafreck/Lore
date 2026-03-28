@@ -87,9 +87,8 @@ describe('CExtractor', () => {
 int main() { LOG("hi"); return 0; }`;
       const result = extract(source);
       const ref = result.callRefs.find(r => r.calleeRaw === 'LOG');
-      if (ref) {
-        expect(ref.callKind).toBe('macro');
-      }
+      expect(ref).toBeDefined();
+      expect(ref!.callKind).toBe('macro');
     });
 
     it('detects indirect calls', () => {
@@ -97,9 +96,8 @@ int main() { LOG("hi"); return 0; }`;
 void call(Callback cb) { (*cb)(); }`;
       const result = extract(source);
       const indirect = result.callRefs.find(r => r.isIndirect);
-      if (indirect) {
-        expect(indirect.isIndirect).toBe(true);
-      }
+      expect(indirect).toBeDefined();
+      expect(indirect!.isIndirect).toBe(true);
     });
   });
 
@@ -128,18 +126,20 @@ void call(Callback cb) { (*cb)(); }`;
       const source = `void foo() { int s = sizeof(struct MyStruct); }`;
       const result = extract(source);
       const ref = result.typeRefs.find(r => r.refKind === 'sizeof');
-      if (ref) {
-        expect(ref.typeRaw).toContain('MyStruct');
-      }
+      expect(ref).toBeDefined();
+      expect(ref!.typeRaw).toContain('MyStruct');
     });
 
     it('extracts cast type ref', () => {
       const source = `void foo() { int x = (int)3.14; }`;
       const result = extract(source);
       const ref = result.typeRefs.find(r => r.refKind === 'cast');
+      // Cast typeRef extraction depends on grammar parsing cast_expression
       if (ref) {
-        expect(ref).toBeDefined();
+        expect(ref.typeRaw).toBeTruthy();
       }
+      // Function symbol must still be present
+      expect(result.symbols.find(s => s.name === 'foo')).toBeDefined();
     });
   });
 

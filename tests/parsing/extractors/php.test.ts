@@ -112,10 +112,9 @@ class Base { }
 class Derived extends Base { }`;
       const result = extract(source);
       const rel = result.relationships.find(r => r.fromSymbol === 'Derived');
-      if (rel) {
-        expect(rel.toSymbol).toBe('Base');
-        expect(rel.kind).toBe('extends');
-      }
+      expect(rel).toBeDefined();
+      expect(rel!.toSymbol).toBe('Base');
+      expect(rel!.kind).toBe('extends');
     });
 
     it('extracts class implements', () => {
@@ -124,9 +123,8 @@ interface Drawable { }
 class Circle implements Drawable { }`;
       const result = extract(source);
       const rel = result.relationships.find(r => r.fromSymbol === 'Circle');
-      if (rel) {
-        expect(rel.kind).toBe('implements');
-      }
+      expect(rel).toBeDefined();
+      expect(rel!.kind).toBe('implements');
     });
   });
 
@@ -136,7 +134,7 @@ class Circle implements Drawable { }`;
 function greet(string $name): void { }`;
       const result = extract(source);
       const paramRefs = result.typeRefs.filter(r => r.refKind === 'parameter');
-      expect(paramRefs.length).toBeGreaterThanOrEqual(0);
+      expect(paramRefs.length).toBeGreaterThanOrEqual(1);
     });
 
     it('extracts function return type refs', () => {
@@ -144,7 +142,7 @@ function greet(string $name): void { }`;
 function greet(): string { return ""; }`;
       const result = extract(source);
       const returnRefs = result.typeRefs.filter(r => r.refKind === 'return');
-      expect(returnRefs.length).toBeGreaterThanOrEqual(0);
+      expect(returnRefs.length).toBeGreaterThanOrEqual(1);
     });
 
     it('extracts class field type refs', () => {
@@ -153,7 +151,8 @@ class Foo {
   public int $x;
 }`;
       const result = extract(source);
-      expect(result.symbols.find(s => s.name === 'Foo')).toBeDefined();
+      const fieldRefs = result.typeRefs.filter(r => r.refKind === 'field');
+      expect(fieldRefs.length).toBeGreaterThanOrEqual(1);
     });
   });
 });

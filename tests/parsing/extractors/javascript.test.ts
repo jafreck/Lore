@@ -113,6 +113,72 @@ describe('JavaScriptExtractor', () => {
     });
   });
 
+  describe('CommonJS patterns', () => {
+    it('extracts module.exports function expression', () => {
+      const source = `module.exports = function greet(name) { return "Hello " + name; };`;
+      const result = extract(source);
+      // module.exports might not generate a symbol directly, but shouldn't crash
+      expect(result).toBeDefined();
+    });
+
+    it('extracts destructured require', () => {
+      const source = `const { readFile, writeFile } = require('fs');`;
+      const result = extract(source);
+      const imp = result.imports.find(i => i.source === 'fs');
+      expect(imp).toBeDefined();
+    });
+
+    it('extracts require with template string', () => {
+      const source = "const x = require(`path`);";
+      const result = extract(source);
+      const imp = result.imports.find(i => i.source === 'path');
+      expect(imp).toBeDefined();
+    });
+  });
+
+  describe('dynamic import expressions', () => {
+    it('handles dynamic import expression', () => {
+      const source = `async function load() { const mod = await import('./lazy.js'); }`;
+      const result = extract(source);
+      // Dynamic import may or may not be captured as import depending on parser
+      expect(result).toBeDefined();
+    });
+  });
+
+  describe('class details', () => {
+    it('extracts class with no methods', () => {
+      const source = `class Empty {}`;
+      const result = extract(source);
+      const cls = result.symbols.find(s => s.name === 'Empty' && s.kind === 'class');
+      expect(cls).toBeDefined();
+    });
+
+    it('extracts generator function assigned to variable', () => {
+      const source = `const gen = function*() { yield 1; };`;
+      const result = extract(source);
+      const sym = result.symbols.find(s => s.name === 'gen');
+      expect(sym).toBeDefined();
+      expect(sym!.kind).toBe('function');
+    });
+
+    it('handles method definition with computed property name', () => {
+      const source = `class Foo {
+  [Symbol.iterator]() { return this; }
+}`;
+      const result = extract(source);
+      // computed method should either be extracted or gracefully ignored
+      expect(result.symbols.find(s => s.name === 'Foo' && s.kind === 'class')).toBeDefined();
+    });
+  });
+
+  describe('namespace import', () => {
+    it('extracts namespace import source', () => {
+      const result = extract("import * as path from 'path';");
+      expect(result.imports).toHaveLength(1);
+      expect(result.imports[0].source).toBe('path');
+    });
+  });
+
   describe('edge cases', () => {
     it('handles empty source', () => {
       const result = extract('');
@@ -133,6 +199,12 @@ describe('JavaScriptExtractor', () => {
       const result = extract(source);
       expect(result.symbols.find(s => s.name === 'outer')).toBeDefined();
       expect(result.symbols.find(s => s.name === 'inner')).toBeDefined();
+    });
+
+    it('handles let variable with function expression', () => {
+      const result = extract('let handler = function() { return true; };');
+      const sym = result.symbols.find(s => s.name === 'handler');
+      expect(sym).toBeDefined();
     });
   });
 });

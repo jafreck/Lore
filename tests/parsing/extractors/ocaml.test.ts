@@ -24,18 +24,16 @@ describe('OcamlExtractor', () => {
       const source = `let add x y = x + y`;
       const result = extract(source);
       const sym = result.symbols.find(s => s.name === 'add');
-      if (sym) {
-        expect(sym.kind).toBe('function');
-      }
+      expect(sym).toBeDefined();
+      expect(sym!.kind).toBe('function');
     });
 
     it('extracts type definition', () => {
       const source = `type color = Red | Green | Blue`;
       const result = extract(source);
       const sym = result.symbols.find(s => s.name === 'color');
-      if (sym) {
-        expect(sym.kind).toBe('type');
-      }
+      expect(sym).toBeDefined();
+      expect(sym!.kind).toBe('type');
     });
 
     it('extracts module definition', () => {
@@ -44,9 +42,8 @@ describe('OcamlExtractor', () => {
 end`;
       const result = extract(source);
       const sym = result.symbols.find(s => s.kind === 'module');
-      if (sym) {
-        expect(sym).toBeDefined();
-      }
+      expect(sym).toBeDefined();
+      expect(sym!.name).toBeTruthy();
     });
 
     it('extracts module type definition', () => {
@@ -55,9 +52,8 @@ end`;
 end`;
       const result = extract(source);
       const sym = result.symbols.find(s => s.kind === 'module_type');
-      if (sym) {
-        expect(sym).toBeDefined();
-      }
+      expect(sym).toBeDefined();
+      expect(sym!.name).toBeTruthy();
     });
   });
 

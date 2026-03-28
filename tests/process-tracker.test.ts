@@ -76,7 +76,9 @@ describe('process-tracker', () => {
       child.once('exit', () => resolve());
     });
 
-    // Process already exited but killAllTracked should not throw
+    // trackProcess removes the process on exit, so tracked set is empty.
+    // This verifies killAllTracked doesn't throw on an empty set.
+    expect(trackedCount()).toBe(0);
     expect(() => killAllTracked()).not.toThrow();
   });
 });
