@@ -86,9 +86,8 @@ export function openReadOnly(path: string): Database.Database {
 /** Freshness info describing the data source for a query result. */
 export interface FreshnessInfo {
   /** 'baseline' = all data from last full SCIP build.
-      'mixed'    = some files use overlay data.
-      'overlay'  = all queried files have overlay data. */
-  source: 'baseline' | 'mixed' | 'overlay';
+      'mixed'    = some files use overlay data. */
+  source: 'baseline' | 'mixed';
   /** Seconds since the baseline was last rebuilt. */
   baseline_age_s: number;
   /** Number of dirty files in the index. */
@@ -218,7 +217,7 @@ export interface ListSymbolsOptions {
 export function getSymbolById(db: Database.Database, id: number): SymbolRow | undefined {
   return db
     .prepare(
-      'SELECT s.*, sp.name AS parent_name, f.path AS file_path, f.branch AS file_branch, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting FROM symbols s JOIN files f ON f.id = s.file_id LEFT JOIN symbols sp ON sp.id = s.parent_symbol_id LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id WHERE s.id = ?'
+      `SELECT s.*, sp.name AS parent_name, f.path AS file_path, f.branch AS file_branch, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting FROM ${symbolsTable(db)} s JOIN ${filesTable(db)} f ON f.id = s.file_id LEFT JOIN symbols sp ON sp.id = s.parent_symbol_id LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id WHERE s.id = ?`
     )
     .get(id) as SymbolRow | undefined;
 }
@@ -258,8 +257,8 @@ export function listSymbolRangesByName(
               f.branch,
               s.start_line,
               s.end_line
-         FROM symbols s
-         JOIN files f ON f.id = s.file_id
+         FROM ${symbolsTable(db)} s
+         JOIN ${filesTable(db)} f ON f.id = s.file_id
         WHERE ${where.join(' AND ')}
         ORDER BY f.path ASC, f.branch ASC, s.start_line ASC, s.end_line ASC, s.id ASC`,
     )
@@ -519,9 +518,9 @@ export function getFileById(db: Database.Database, id: number, branch?: string):
 export function getFileByPath(db: Database.Database, path: string, branch?: string): FileRow | undefined {
   const ft = filesTable(db);
   if (branch !== undefined) {
-    return db.prepare(`SELECT * FROM ${ft} WHERE path = ? AND branch = ?`).get(path, branch) as FileRow | undefined;
+    return db.prepare(`SELECT * FROM ${ft} WHERE path = ? AND branch = ? LIMIT 1`).get(path, branch) as FileRow | undefined;
   }
-  return db.prepare(`SELECT * FROM ${ft} WHERE path = ?`).get(path) as FileRow | undefined;
+  return db.prepare(`SELECT * FROM ${ft} WHERE path = ? ORDER BY indexed_at DESC, id DESC LIMIT 1`).get(path) as FileRow | undefined;
 }
 
 /**
@@ -902,8 +901,8 @@ export function listAnnotations(
                 s.name AS symbol_name,
                 s.kind AS symbol_kind
            FROM annotations a
-           JOIN files f ON f.id = a.file_id
-      LEFT JOIN symbols s ON s.id = a.symbol_id
+           JOIN ${filesTable(db)} f ON f.id = a.file_id
+      LEFT JOIN ${symbolsTable(db)} s ON s.id = a.symbol_id
           WHERE a.kind = ? AND f.path = ?
           ORDER BY a.line ASC, a.id ASC
           LIMIT ?`,
@@ -920,8 +919,8 @@ export function listAnnotations(
               s.name AS symbol_name,
               s.kind AS symbol_kind
          FROM annotations a
-         JOIN files f ON f.id = a.file_id
-    LEFT JOIN symbols s ON s.id = a.symbol_id
+         JOIN ${filesTable(db)} f ON f.id = a.file_id
+    LEFT JOIN ${symbolsTable(db)} s ON s.id = a.symbol_id
         WHERE a.kind = ?
         ORDER BY f.path ASC, a.line ASC, a.id ASC
         LIMIT ?`,

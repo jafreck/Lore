@@ -33,6 +33,7 @@ import {
   LORE_META_LAST_HEAD_SHA,
   LORE_META_GENERATION,
   LORE_META_GENERATION_PENDING,
+  deleteLoreMeta,
   LORE_META_BASELINE_HEAD_SHA,
 } from '../db/schema.js';
 import type { Database } from '../db/schema.js';
@@ -323,6 +324,7 @@ export class IndexBuilder {
     try {
       await pipeline.run(context, 'build');
       this.saveLastKnownHead(db);
+      deleteLoreMeta(db, LORE_META_GENERATION_PENDING);
 
       const indexDurationMs = Math.round(performance.now() - rebuildStart);
       log.indexing('baseline rebuild complete', { generation: newGeneration, durationMs: indexDurationMs });

@@ -212,7 +212,7 @@ function resolveByContainment(
   if (unresolvedWithDef.length === 0) {
     db.prepare(
       `UPDATE ${tableName} SET resolution_method = 'unresolved'
-       WHERE ${targetIdColumn} IS NULL AND resolution_method = 'unresolved'`,
+       WHERE ${targetIdColumn} IS NULL AND resolution_method = 'unresolved'${layerFilter}`,
     ).run();
     return;
   }
@@ -284,7 +284,7 @@ function resolveByContainment(
   db.prepare(
     `UPDATE ${tableName} SET resolution_method = 'unresolved'
      WHERE ${targetIdColumn} IS NULL AND resolution_method = 'unresolved'
-       AND (${defPathColumn} IS NULL OR ${defLineColumn} IS NULL)`,
+       AND (${defPathColumn} IS NULL OR ${defLineColumn} IS NULL)${layerFilter}`,
   ).run();
 }
 

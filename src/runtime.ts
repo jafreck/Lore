@@ -199,7 +199,12 @@ export class LoreRuntime {
    * event to SIGTERM any child processes that slipped past the async path
    * (e.g. LSP servers spawned by an in-flight pipeline stage).
    */
+  private _signalHandlersInstalled = false;
+
   installSignalHandlers(): void {
+    if (this._signalHandlersInstalled) return;
+    this._signalHandlersInstalled = true;
+
     let shuttingDown = false;
 
     const handler = () => {
