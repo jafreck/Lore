@@ -1098,6 +1098,7 @@ function loadBuildCheckpoint(
   try {
     const parsed = JSON.parse(raw) as Partial<BuildCheckpoint>;
     if (parsed.branch !== branch || parsed.rootDir !== rootDir) return { resumeAt: 0, failedFiles: [] };
+    if (parsed.totalFiles !== totalFiles) return { resumeAt: 0, failedFiles: [] };
     const nextFileIndex = parsed.nextFileIndex ?? 0;
     return {
       resumeAt: Math.max(0, Math.min(totalFiles, nextFileIndex)),
