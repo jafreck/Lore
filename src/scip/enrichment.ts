@@ -18,7 +18,7 @@ import { join } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { pathToFileURL } from 'node:url';
-import type { ResolvedTypeMetadata } from '../lsp/enrichment.js';
+import type { ResolvedTypeMetadata } from '../enrichment-types.js';
 import type { EffectiveScipSettings } from './config.js';
 import type { ResolvedScipIndexerCommand } from './registry.js';
 import { resolveScipIndexerRegistry, SCIP_SUPPORTED_LANGUAGES } from './registry.js';

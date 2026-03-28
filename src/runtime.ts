@@ -129,12 +129,34 @@ export class LoreRuntime {
     // ── Refresher (watch / poll) ─────────────────────────────────────────────
     if (this.config.refreshMode === 'watch') {
       const { FileWatcher } = await import('./discovery/watcher.js');
-      const watcher = new FileWatcher(this.config.dbPath, this.config.walkerConfig, {
-        history: this.config.history,
-        indexDependencies: this.config.indexDependencies,
-        lsp: this.config.lsp ?? undefined,
-        scip: this.config.scip ?? undefined,
-        embedder: this._embedder ?? undefined,
+      const { IndexBuilder } = await import('./indexer/index.js');
+      const cfg = this.config;
+      const embedder = this._embedder ?? undefined;
+      const watcher = new FileWatcher(cfg.dbPath, cfg.walkerConfig, {
+        history: cfg.history,
+        indexDependencies: cfg.indexDependencies,
+        lsp: cfg.lsp ?? undefined,
+        scip: cfg.scip ?? undefined,
+        embedder,
+        onUpdate: async (changedFiles) => {
+          const builder = new IndexBuilder(cfg.dbPath, cfg.walkerConfig, embedder, {
+            history: cfg.history,
+            ...(cfg.indexDependencies && { indexDependencies: true }),
+            ...(cfg.lsp && { lsp: cfg.lsp }),
+          });
+          await builder.update(changedFiles);
+        },
+        ...(cfg.scip && {
+          onBaselineRebuild: async () => {
+            const builder = new IndexBuilder(cfg.dbPath, cfg.walkerConfig, embedder, {
+              history: cfg.history,
+              ...(cfg.indexDependencies && { indexDependencies: true }),
+              ...(cfg.lsp && { lsp: cfg.lsp }),
+              ...(cfg.scip && { scip: cfg.scip }),
+            });
+            await builder.baselineRebuild();
+          },
+        }),
       });
       watcher.start();
       this._refresher = watcher;
@@ -147,12 +169,34 @@ export class LoreRuntime {
       );
     } else if (this.config.refreshMode === 'poll') {
       const { FilePoller } = await import('./discovery/poller.js');
-      const poller = new FilePoller(this.config.dbPath, this.config.walkerConfig, {
-        history: this.config.history,
-        indexDependencies: this.config.indexDependencies,
-        lsp: this.config.lsp ?? undefined,
-        scip: this.config.scip ?? undefined,
-        embedder: this._embedder ?? undefined,
+      const { IndexBuilder } = await import('./indexer/index.js');
+      const cfg = this.config;
+      const embedder = this._embedder ?? undefined;
+      const poller = new FilePoller(cfg.dbPath, cfg.walkerConfig, {
+        history: cfg.history,
+        indexDependencies: cfg.indexDependencies,
+        lsp: cfg.lsp ?? undefined,
+        scip: cfg.scip ?? undefined,
+        embedder,
+        onUpdate: async (changedFiles) => {
+          const builder = new IndexBuilder(cfg.dbPath, cfg.walkerConfig, embedder, {
+            history: cfg.history,
+            ...(cfg.indexDependencies && { indexDependencies: true }),
+            ...(cfg.lsp && { lsp: cfg.lsp }),
+          });
+          await builder.update(changedFiles);
+        },
+        ...(cfg.scip && {
+          onBaselineRebuild: async () => {
+            const builder = new IndexBuilder(cfg.dbPath, cfg.walkerConfig, embedder, {
+              history: cfg.history,
+              ...(cfg.indexDependencies && { indexDependencies: true }),
+              ...(cfg.lsp && { lsp: cfg.lsp }),
+              ...(cfg.scip && { scip: cfg.scip }),
+            });
+            await builder.baselineRebuild();
+          },
+        }),
       });
       poller.start();
       this._refresher = poller;
