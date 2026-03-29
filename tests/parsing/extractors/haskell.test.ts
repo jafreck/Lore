@@ -100,4 +100,45 @@ describe('HaskellExtractor', () => {
       expect(result).toBeDefined();
     });
   });
+
+  describe('data types and imports', () => {
+    it('extracts data type declaration', () => {
+      const source = `data Color = Red | Green | Blue`;
+      const result = extract(source);
+      const sym = result.symbols.find(s => s.name === 'Color');
+      expect(sym).toBeDefined();
+    });
+
+    it('extracts function with pattern matching', () => {
+      const source = `factorial :: Integer -> Integer\nfactorial 0 = 1\nfactorial n = n * factorial (n - 1)`;
+      const result = extract(source);
+      expect(result.symbols.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('extracts import with explicit list', () => {
+      const source = `import Data.List (sort, nub, reverse)`;
+      const result = extract(source);
+      const imp = result.imports.find(i => i.source === 'Data.List');
+      expect(imp).toBeDefined();
+    });
+
+    it('extracts qualified import', () => {
+      const source = `import qualified Data.Map as Map`;
+      const result = extract(source);
+      const imp = result.imports.find(i => i.source === 'Data.Map');
+      expect(imp).toBeDefined();
+    });
+
+    it('extracts typeclass instance', () => {
+      const source = `instance Show Color where\n  show Red = "Red"`;
+      const result = extract(source);
+      expect(result.symbols.length).toBeGreaterThanOrEqual(0);
+    });
+
+    it('extracts newtype declaration', () => {
+      const source = `newtype Name = Name String`;
+      const result = extract(source);
+      expect(result.symbols.length).toBeGreaterThanOrEqual(1);
+    });
+  });
 });

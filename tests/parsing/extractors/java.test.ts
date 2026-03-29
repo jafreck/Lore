@@ -179,4 +179,82 @@ describe('JavaExtractor', () => {
       expect(result.symbols).toEqual([]);
     });
   });
+
+  describe('inheritance and type ref coverage', () => {
+    it('extracts class extending another class', () => {
+      const source = `class Child extends Parent {
+  void method() {}
+}`;
+      const result = extract(source);
+      const rels = result.relationships.filter(r => r.fromSymbol === 'Child' && r.kind === 'extends');
+      expect(rels.length).toBe(1);
+      expect(rels[0]!.toSymbol).toBe('Parent');
+    });
+
+    it('extracts class implementing multiple interfaces', () => {
+      const source = `class MyClass implements Serializable, Comparable<MyClass> {
+  public int compareTo(MyClass other) { return 0; }
+}`;
+      const result = extract(source);
+      const rels = result.relationships.filter(r => r.fromSymbol === 'MyClass' && r.kind === 'implements');
+      expect(rels.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('extracts interface extending interfaces', () => {
+      const source = `interface ReadWrite extends Readable, Writable {}`;
+      const result = extract(source);
+      const rels = result.relationships.filter(r => r.fromSymbol === 'ReadWrite');
+      expect(rels.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('extracts field type refs', () => {
+      const source = `class Config {
+  private String name;
+  public int count;
+}`;
+      const result = extract(source);
+      const refs = result.typeRefs.filter(r => r.typeRaw === 'String' || r.typeRaw === 'int');
+      expect(refs.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('extracts varargs parameter', () => {
+      const source = `class Logger {
+  void log(String... messages) {}
+}`;
+      const result = extract(source);
+      expect(result.symbols.find(s => s.name === 'log')).toBeDefined();
+    });
+
+    it('extracts local variable type ref', () => {
+      const source = `class Foo {
+  void run() {
+    int x = 5;
+    String name = "test";
+  }
+}`;
+      const result = extract(source);
+      const refs = result.typeRefs.filter(r => r.typeRaw === 'int' || r.typeRaw === 'String');
+      expect(refs.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('extracts cast expression type ref', () => {
+      const source = `class Converter {
+  void convert(Object obj) {
+    String s = (String) obj;
+  }
+}`;
+      const result = extract(source);
+      const ref = result.typeRefs.find(r => r.typeRaw === 'String');
+      expect(ref).toBeDefined();
+    });
+
+    it('extracts method return type', () => {
+      const source = `class Service {
+  public String getName() { return "test"; }
+}`;
+      const result = extract(source);
+      const ref = result.typeRefs.find(r => r.typeRaw === 'String' && r.refKind === 'return');
+      expect(ref).toBeDefined();
+    });
+  });
 });

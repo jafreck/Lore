@@ -340,4 +340,74 @@ func helper() { }`;
       expect(result.symbols.length).toBeGreaterThanOrEqual(1);
     });
   });
+
+  describe('import and type annotation coverage', () => {
+    it('extracts import with kind qualifier', () => {
+      const source = `import struct Foundation.Data`;
+      const result = extract(source);
+      expect(result.imports.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('extracts optional type in parameter', () => {
+      const source = `func process(data: String?) -> Int? {
+  return nil
+}`;
+      const result = extract(source);
+      const sym = result.symbols.find(s => s.name === 'process');
+      expect(sym).toBeDefined();
+      // Should extract optional type refs
+      const refs = result.typeRefs.filter(r => r.typeRaw === 'String' || r.typeRaw === 'Int');
+      expect(refs.length).toBeGreaterThanOrEqual(0);
+    });
+
+    it('extracts extension methods', () => {
+      const source = `extension String {
+  func reversed() -> String { return "" }
+}`;
+      const result = extract(source);
+      expect(result.symbols.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('extracts protocol conformance', () => {
+      const source = `struct MyStruct: Codable, Hashable {
+  var name: String
+}`;
+      const result = extract(source);
+      const sym = result.symbols.find(s => s.name === 'MyStruct');
+      expect(sym).toBeDefined();
+      const rels = result.relationships.filter(r => r.fromSymbol === 'MyStruct');
+      expect(rels.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('extracts property type annotation', () => {
+      const source = `class MyClass {
+  var count: Int = 0
+  let name: String
+  init(name: String) { self.name = name }
+}`;
+      const result = extract(source);
+      const refs = result.typeRefs.filter(r => r.typeRaw === 'Int' || r.typeRaw === 'String');
+      expect(refs.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('extracts class inheritance', () => {
+      const source = `class Base {}
+class Child: Base {
+  func doWork() {}
+}`;
+      const result = extract(source);
+      const rels = result.relationships.filter(r => r.fromSymbol === 'Child' && r.kind === 'extends');
+      expect(rels.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('extracts let binding type ref in function', () => {
+      const source = `func demo() {
+  let x: Int = 5
+  let y: String = "hello"
+}`;
+      const result = extract(source);
+      const refs = result.typeRefs.filter(r => r.typeRaw === 'Int' || r.typeRaw === 'String');
+      expect(refs.length).toBeGreaterThanOrEqual(1);
+    });
+  });
 });

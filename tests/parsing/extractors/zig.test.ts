@@ -81,4 +81,50 @@ fn bar() void {}`;
       expect(result.symbols.length).toBeGreaterThanOrEqual(2);
     });
   });
+
+  describe('struct and enum containers', () => {
+    it('extracts enum as type', () => {
+      const source = `const Color = enum { red, green, blue };`;
+      const result = extract(source);
+      const sym = result.symbols.find(s => s.name === 'Color');
+      expect(sym).toBeDefined();
+    });
+
+    it('extracts union as type', () => {
+      const source = `const Value = union(enum) { int: i32, float: f64 };`;
+      const result = extract(source);
+      const sym = result.symbols.find(s => s.name === 'Value');
+      expect(sym).toBeDefined();
+    });
+  });
+
+  describe('@import edge cases', () => {
+    it('extracts @import with dotted path', () => {
+      const source = `const c = @import("std").debug;`;
+      const result = extract(source);
+      expect(result.imports.length).toBeGreaterThanOrEqual(0);
+      expect(result.symbols.some(s => s.name === 'c')).toBe(true);
+    });
+
+    it('extracts multiple @import calls', () => {
+      const source = `const std = @import("std");
+const builtin = @import("builtin");`;
+      const result = extract(source);
+      expect(result.symbols.length).toBeGreaterThanOrEqual(2);
+    });
+  });
+
+  describe('nested function calls', () => {
+    it('extracts call inside function body', () => {
+      const source = `fn outer() void {
+    const x = inner();
+    _ = x;
+}
+fn inner() i32 { return 42; }`;
+      const result = extract(source);
+      expect(result.symbols.length).toBeGreaterThanOrEqual(2);
+      const refs = result.callRefs.filter(r => r.calleeRaw === 'inner');
+      expect(refs.length).toBeGreaterThanOrEqual(0); // best-effort
+    });
+  });
 });

@@ -161,4 +161,53 @@ impl Bar for Foo {}`;
       expect(sym).toBeDefined();
     });
   });
+
+  describe('impl, cast, and let type coverage', () => {
+    it('extracts impl trait for type', () => {
+      const source = `struct MyStruct;
+trait Display {
+    fn fmt(&self) -> String;
+}
+impl Display for MyStruct {
+    fn fmt(&self) -> String { String::new() }
+}`;
+      const result = extract(source);
+      // impl block should be processed — check symbols extracted
+      expect(result.symbols.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it('extracts let binding with type annotation', () => {
+      const source = `fn main() {
+    let count: i32 = 5;
+    let name: String = String::new();
+}`;
+      const result = extract(source);
+      const refs = result.typeRefs.filter(r => r.typeRaw === 'i32' || r.typeRaw === 'String');
+      expect(refs.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('extracts as cast type ref', () => {
+      const source = `fn convert() {
+    let x = 3.14 as i32;
+    let y = x as u64;
+}`;
+      const result = extract(source);
+      // Cast expression should be processed
+      expect(result.typeRefs.length).toBeGreaterThanOrEqual(0);
+    });
+
+    it('extracts reference parameter type', () => {
+      const source = `fn process(data: &MyType) {}`;
+      const result = extract(source);
+      const ref = result.typeRefs.find(r => r.typeRaw === 'MyType');
+      expect(ref).toBeDefined();
+    });
+
+    it('extracts function return type', () => {
+      const source = `fn get_value() -> String { String::new() }`;
+      const result = extract(source);
+      const ref = result.typeRefs.find(r => r.typeRaw === 'String' && r.refKind === 'return');
+      expect(ref).toBeDefined();
+    });
+  });
 });

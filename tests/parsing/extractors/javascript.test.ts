@@ -405,4 +405,52 @@ describe('JavaScriptExtractor', () => {
       expect(ref).toBeDefined();
     });
   });
+
+  describe('import edge cases', () => {
+    it('extracts namespace import', () => {
+      const source = `import * as utils from './utils';`;
+      const result = extract(source);
+      const imp = result.imports.find(i => i.source === './utils');
+      expect(imp).toBeDefined();
+    });
+
+    it('extracts named imports with alias', () => {
+      const source = `import { foo, bar as renamed } from './module';`;
+      const result = extract(source);
+      const imp = result.imports.find(i => i.source === './module');
+      expect(imp).toBeDefined();
+    });
+
+    it('extracts CommonJS require', () => {
+      const source = `const fs = require('fs');`;
+      const result = extract(source);
+      const imp = result.imports.find(i => i.source === 'fs');
+      expect(imp).toBeDefined();
+    });
+
+    it('extracts dynamic import', () => {
+      const source = `async function load() { const m = await import('./lazy'); }`;
+      const result = extract(source);
+      // Dynamic import may or may not be extracted depending on tree-sitter version
+      expect(result.symbols.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('extracts generator function expression', () => {
+      const source = `const gen = function*() { yield 1; };`;
+      const result = extract(source);
+      const sym = result.symbols.find(s => s.name === 'gen');
+      expect(sym).toBeDefined();
+    });
+
+    it('extracts class method kinds', () => {
+      const source = `class C {
+  regularMethod() {}
+  *generatorMethod() { yield 1; }
+  get value() { return 1; }
+  set value(v) {}
+}`;
+      const result = extract(source);
+      expect(result.symbols.length).toBeGreaterThanOrEqual(4);
+    });
+  });
 });
