@@ -429,4 +429,130 @@ func (c *Conn) Read() {
       }
     });
   });
+
+  describe('uncovered branch coverage', () => {
+    it('extractGoTypeAssertionRef: extracts type assertion as cast ref', () => {
+      const source = `package main
+func convert(v interface{}) {
+  s := v.(MyType)
+  _ = s
+}`;
+      const result = extract(source);
+      const ref = result.typeRefs.find(r => r.typeRaw === 'MyType' && r.refKind === 'cast');
+      expect(ref).toBeDefined();
+      expect(ref!.enclosingSymbol).toBe('convert');
+    });
+
+    it('extractGoVarTypeRefs: extracts var_spec with explicit type', () => {
+      const source = `package main
+func setup() {
+  var logger Logger
+  _ = logger
+}`;
+      const result = extract(source);
+      const ref = result.typeRefs.find(r => r.typeRaw === 'Logger' && r.refKind === 'variable');
+      expect(ref).toBeDefined();
+      expect(ref!.enclosingSymbol).toBe('setup');
+    });
+
+    it('extractGoTypeName: extracts qualified_type ref (pkg.Type)', () => {
+      const source = `package main
+import "net/http"
+func Handle(w http.ResponseWriter, r *http.Request) {}`;
+      const result = extract(source);
+      const rwRef = result.typeRefs.find(r => r.typeRaw === 'http.ResponseWriter');
+      expect(rwRef).toBeDefined();
+      expect(rwRef!.refKind).toBe('parameter');
+      const reqRef = result.typeRefs.find(r => r.typeRaw === 'http.Request');
+      expect(reqRef).toBeDefined();
+    });
+
+    it('extractGoTypeName: returns null for map_type (recurse instead)', () => {
+      const source = `package main
+func GetCache() map[string]Config { return nil }`;
+      const result = extract(source);
+      // map_type returns null, but key/value are extracted via recurseIntoTypes
+      const sym = result.symbols.find(s => s.name === 'GetCache');
+      expect(sym).toBeDefined();
+      // Config should be extracted as a return type ref via recursion
+      const configRef = result.typeRefs.find(r => r.typeRaw === 'Config');
+      expect(configRef).toBeDefined();
+    });
+
+    it('findGoEnclosingSymbolName: resolves type_declaration context', () => {
+      const source = `package main
+type MyType struct{}
+var global MyType`;
+      const result = extract(source);
+      // top-level var_declaration outside any function/method/type
+      const ref = result.typeRefs.find(r => r.typeRaw === 'MyType' && r.refKind === 'variable');
+      expect(ref).toBeDefined();
+      // enclosing should be empty since it's top-level
+      expect(ref!.enclosingSymbol).toBe('');
+    });
+
+    it('extractGoFunctionTypeRefs: handles array type in params', () => {
+      const source = `package main
+func Process(items [5]Record) {}`;
+      const result = extract(source);
+      const ref = result.typeRefs.find(r => r.typeRaw === 'Record' && r.refKind === 'parameter');
+      expect(ref).toBeDefined();
+    });
+
+    it('extractGoMethodTypeRefs: extracts both param and return types', () => {
+      const source = `package main
+type DB struct{}
+func (d *DB) Query(sql string) (rows Rows, err error) {
+  return
+}`;
+      const result = extract(source);
+      const rowsRef = result.typeRefs.find(r => r.typeRaw === 'Rows' && r.refKind === 'return');
+      expect(rowsRef).toBeDefined();
+      expect(rowsRef!.enclosingSymbol).toContain('DB');
+    });
+
+    it('extractGoVarTypeRefs: extracts var inside method context with receiver-qualified name', () => {
+      const source = `package main
+type Server struct{}
+func (s *Server) Init() {
+  var cfg Config
+  _ = cfg
+}`;
+      const result = extract(source);
+      const ref = result.typeRefs.find(r => r.typeRaw === 'Config' && r.refKind === 'variable');
+      expect(ref).toBeDefined();
+      expect(ref!.enclosingSymbol).toContain('Server');
+      expect(ref!.enclosingSymbol).toContain('Init');
+    });
+
+    it('extractGoTypeAssertionRef: enclosing is method-qualified', () => {
+      const source = `package main
+type Handler struct{}
+func (h *Handler) Process(v interface{}) {
+  s := v.(Request)
+  _ = s
+}`;
+      const result = extract(source);
+      const ref = result.typeRefs.find(r => r.typeRaw === 'Request' && r.refKind === 'cast');
+      expect(ref).toBeDefined();
+      expect(ref!.enclosingSymbol).toContain('Handler');
+    });
+
+    it('extractGoTypeName: handles slice of pointer type', () => {
+      const source = `package main
+func GetPtrs() []*Item { return nil }`;
+      const result = extract(source);
+      const ref = result.typeRefs.find(r => r.typeRaw === 'Item' && r.refKind === 'return');
+      expect(ref).toBeDefined();
+    });
+
+    it('extractGoFunctionTypeRefs: handles unnamed return type (no parameter_list)', () => {
+      const source = `package main
+func GetName() string { return "" }`;
+      const result = extract(source);
+      // Simple return type (not wrapped in parameter_list)
+      const ref = result.typeRefs.find(r => r.refKind === 'return');
+      expect(ref).toBeDefined();
+    });
+  });
 });

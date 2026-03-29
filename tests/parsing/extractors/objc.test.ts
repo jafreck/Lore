@@ -376,4 +376,107 @@ describe('ObjcExtractor', () => {
       expect(result.callRefs.length).toBeGreaterThan(0);
     });
   });
+
+  describe('uncovered branch coverage', () => {
+    it('extractModuleImport: extracts @import module name correctly', () => {
+      const source = `@import Foundation;`;
+      const result = extract(source);
+      const imp = result.imports.find(i => i.source === 'Foundation');
+      expect(imp).toBeDefined();
+      expect(imp!.importedNames).toEqual([]);
+    });
+
+    it('extractObjcCastTypeRef: extracts cast type ref with strong assertion', () => {
+      const source = `@implementation Foo
+- (void)test {
+  NSString *str = (NSString *)obj;
+}
+@end`;
+      const result = extract(source);
+      const castRef = result.typeRefs.find(r => r.refKind === 'cast');
+      expect(castRef).toBeDefined();
+      expect(castRef!.typeRaw).toBe('NSString');
+    });
+
+    it('extractObjcVarTypeRef: extracts variable type ref with strong assertion', () => {
+      const source = `@implementation Foo
+- (void)test {
+  NSArray *items;
+}
+@end`;
+      const result = extract(source);
+      const varRef = result.typeRefs.find(r => r.refKind === 'variable');
+      expect(varRef).toBeDefined();
+      expect(varRef!.typeRaw).toBe('NSArray');
+    });
+
+    it('extractHashImports: deduplicates imports captured both by tree-sitter and regex', () => {
+      const source = `#import <Foundation/Foundation.h>
+#import "MyClass.h"`;
+      const result = extract(source);
+      const sources = result.imports.map(i => i.source);
+      const uniqueSources = [...new Set(sources)];
+      expect(sources.length).toBe(uniqueSources.length);
+    });
+
+    it('extractMessageCallRef: extracts callee and caller from message expression', () => {
+      const source = `@implementation Foo
+- (void)bar {
+  [self doSomething];
+}
+@end`;
+      const result = extract(source);
+      expect(result.callRefs.length).toBeGreaterThan(0);
+      const ref = result.callRefs[0];
+      expect(ref!.calleeRaw).toBeTruthy();
+      expect(ref!.line).toBeGreaterThanOrEqual(0);
+    });
+
+    it('extractMessageCallRef: extracts nested message expressions', () => {
+      const source = `@implementation Foo
+- (void)test {
+  [[NSString alloc] initWithString:@"hello"];
+}
+@end`;
+      const result = extract(source);
+      expect(result.callRefs.length).toBeGreaterThan(0);
+    });
+
+    it('module import: extracts multi-word module import', () => {
+      const source = `@import UIKit;`;
+      const result = extract(source);
+      const imp = result.imports.find(i => i.source === 'UIKit');
+      expect(imp).toBeDefined();
+    });
+
+    it('multiple declarations produce correct type refs', () => {
+      const source = `@implementation Foo
+- (void)test {
+  NSString *name = @"hello";
+  NSArray *items = @[];
+  NSDictionary *map = @{};
+}
+@end`;
+      const result = extract(source);
+      const varRefs = result.typeRefs.filter(r => r.refKind === 'variable');
+      // Should have type refs for NSString, NSArray, NSDictionary
+      expect(varRefs.length).toBeGreaterThanOrEqual(3);
+    });
+
+    it('cast and variable in same method body', () => {
+      const source = `@implementation Foo
+- (void)convert {
+  id obj = [self getObject];
+  NSString *str = (NSString *)obj;
+  NSArray *list = (NSArray *)obj;
+}
+@end`;
+      const result = extract(source);
+      const castRefs = result.typeRefs.filter(r => r.refKind === 'cast');
+      expect(castRefs.length).toBeGreaterThanOrEqual(2);
+      const castTypes = castRefs.map(r => r.typeRaw);
+      expect(castTypes).toContain('NSString');
+      expect(castTypes).toContain('NSArray');
+    });
+  });
 });
