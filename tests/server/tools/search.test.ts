@@ -548,3 +548,114 @@ describe('lore_search semantic/fused with mock embeddings table', () => {
     expect(result.mode_used).toContain('structural');
   });
 });
+
+// ─── FTS5 LIKE fallback ───────────────────────────────────────────────────────
+
+describe('lore_search LIKE fallback', () => {
+  let db: Database.Database;
+
+  beforeEach(() => {
+    db = openDb(':memory:');
+    seedDb(db);
+  });
+
+  afterEach(() => {
+    db.close();
+  });
+
+  it('falls back to LIKE when FTS table is unavailable', async () => {
+    db.prepare('DROP TABLE symbols_fts').run();
+    const result = await handler(db, { query: 'helpers' });
+    expect(result.results.length).toBeGreaterThanOrEqual(1);
+    expect(result.results[0]!.name).toBe('helpers');
+  });
+
+  it('LIKE fallback applies path_prefix filter', async () => {
+    db.prepare('DROP TABLE symbols_fts').run();
+    const result = await handler(db, { query: 'helpers', path_prefix: 'src/' });
+    expect(result.results.length).toBeGreaterThanOrEqual(1);
+    for (const r of result.results) {
+      expect(r.file_path).toMatch(/^src\//);
+    }
+  });
+
+  it('LIKE fallback applies kind filter', async () => {
+    db.prepare('DROP TABLE symbols_fts').run();
+    const result = await handler(db, { query: 'helpers', kind: 'function' });
+    expect(result.results.length).toBeGreaterThanOrEqual(1);
+    for (const r of result.results) {
+      expect(r.kind).toBe('function');
+    }
+  });
+
+  it('LIKE fallback applies language filter', async () => {
+    db.prepare('DROP TABLE symbols_fts').run();
+    const result = await handler(db, { query: 'helpers', language: 'typescript' });
+    expect(result.results.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('LIKE fallback applies branch filter', async () => {
+    db.prepare('DROP TABLE symbols_fts').run();
+    const result = await handler(db, { query: 'helpers', branch: 'main' });
+    expect(result.results.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('LIKE fallback escapes wildcard characters in query', async () => {
+    db.prepare('DROP TABLE symbols_fts').run();
+    const result = await handler(db, { query: 'test%value' });
+    expect(result.results).toHaveLength(0);
+  });
+
+  it('LIKE fallback escapes _ wildcard in path_prefix', async () => {
+    db.prepare('DROP TABLE symbols_fts').run();
+    const result = await handler(db, { query: 'helpers', path_prefix: 'src/%_test/' });
+    expect(result.results).toHaveLength(0);
+  });
+
+  it('LIKE fallback returns score of 0', async () => {
+    db.prepare('DROP TABLE symbols_fts').run();
+    const result = await handler(db, { query: 'helpers' });
+    expect(result.results.length).toBeGreaterThanOrEqual(1);
+    expect(result.results[0]!.score).toBe(0);
+  });
+});
+
+// ─── Embedder error handling ──────────────────────────────────────────────────
+
+describe('lore_search embedder error handling', () => {
+  let db: Database.Database;
+
+  beforeEach(() => {
+    clearQueryEmbeddingCache();
+    db = openDb(':memory:');
+    seedDb(db);
+  });
+
+  afterEach(() => {
+    clearQueryEmbeddingCache();
+    db.close();
+  });
+
+  it('semantic mode catches embedder that throws', async () => {
+    const embedder: EmbeddingProvider = {
+      embed: async () => { throw new Error('embed failed'); },
+      dimensions: 3,
+      modelName: 'test-throw',
+    } as unknown as EmbeddingProvider;
+    const result = await handler(db, { query: 'helpers', mode: 'semantic' }, embedder);
+    // Error caught → semantic returns null → falls back to structural
+    expect(result.mode_used).toContain('structural');
+    expect(result.results.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('fused mode catches embedder that throws', async () => {
+    const embedder: EmbeddingProvider = {
+      embed: async () => { throw new Error('embed failed'); },
+      dimensions: 3,
+      modelName: 'test-throw',
+    } as unknown as EmbeddingProvider;
+    const result = await handler(db, { query: 'helpers', mode: 'fused' }, embedder);
+    // Error caught → semantic null → fused degrades to structural
+    expect(result.results.length).toBeGreaterThanOrEqual(1);
+  });
+});
