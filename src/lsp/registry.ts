@@ -1,6 +1,15 @@
 import { accessSync, constants } from 'node:fs';
 import { delimiter, isAbsolute, join } from 'node:path';
-import { SUPPORTED_PARSER_LANGUAGES } from '../parsing/parser.js';
+
+/**
+ * The set of languages Lore supports, derived from the LSP server registry.
+ * Replaces the former SUPPORTED_PARSER_LANGUAGES from tree-sitter.
+ */
+export const SUPPORTED_LANGUAGES: readonly string[] = [
+  'bash', 'c', 'cpp', 'csharp', 'elixir', 'elm', 'go', 'haskell',
+  'java', 'javascript', 'julia', 'kotlin', 'lua', 'objc', 'ocaml',
+  'php', 'python', 'ruby', 'rust', 'scala', 'swift', 'typescript', 'zig',
+] as const;
 
 export interface LspServerCommand {
   command: string;
@@ -124,7 +133,7 @@ export function getMissingLanguageServerCommands(
 
 export function hasCompleteLanguageCoverage(registry: LspServerRegistry = DEFAULT_LSP_SERVER_REGISTRY): boolean {
   const languages = Object.keys(registry).sort();
-  return JSON.stringify(languages) === JSON.stringify([...SUPPORTED_PARSER_LANGUAGES].sort());
+  return JSON.stringify(languages) === JSON.stringify([...SUPPORTED_LANGUAGES].sort());
 }
 
 function cloneRegistry(registry: LspServerRegistry): LspServerRegistry {

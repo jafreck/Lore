@@ -6,6 +6,7 @@ import {
   buildContainmentIndex,
   findContainingSymbol,
 } from '../../src/indexer/stages/scip-indexer.js';
+import { classifyScipReference } from '../../src/indexer/stages/scip-helpers/symbol-kinds.js';
 import { SymbolRole } from '../../src/scip/scip_pb.js';
 
 describe('buildInternalPrefixes', () => {
@@ -196,5 +197,84 @@ describe('findContainingSymbol', () => {
     expect(findContainingSymbol(index, 100, 10)).toBe(1);
     expect(findContainingSymbol(index, 100, 12)).toBe(2);
     expect(findContainingSymbol(index, 100, 20)).toBe(2);
+  });
+});
+
+// ─── classifyScipReference ────────────────────────────────────────────────────
+
+describe('classifyScipReference', () => {
+  describe('Tier 1: syntaxKind (authoritative when non-zero)', () => {
+    it('classifies IdentifierFunction (15) as call', () => {
+      expect(classifyScipReference('any.symbol.', 15)).toBe('call');
+    });
+
+    it('classifies IdentifierFunctionDefinition (16) as call', () => {
+      expect(classifyScipReference('any.symbol.', 16)).toBe('call');
+    });
+
+    it('classifies IdentifierMacro (17) as call', () => {
+      expect(classifyScipReference('any.symbol.', 17)).toBe('call');
+    });
+
+    it('classifies IdentifierMacroDefinition (18) as call', () => {
+      expect(classifyScipReference('any.symbol.', 18)).toBe('call');
+    });
+
+    it('classifies IdentifierType (19) as type', () => {
+      expect(classifyScipReference('any.symbol.', 19)).toBe('type');
+    });
+
+    it('classifies IdentifierBuiltinType (20) as type', () => {
+      expect(classifyScipReference('any.symbol.', 20)).toBe('type');
+    });
+
+    it('skips IdentifierNamespace (14)', () => {
+      // syntaxKind is non-zero but doesn't match call or type → falls through to tier 2
+      // The symbol suffix '.' → tier 2 returns 'skip'
+      expect(classifyScipReference('some.namespace/', 14)).toBe('skip');
+    });
+
+    it('skips IdentifierParameter (11)', () => {
+      expect(classifyScipReference('some.param.', 11)).toBe('skip');
+    });
+
+    it('syntaxKind overrides descriptor suffix (term . symbol classified as call)', () => {
+      // Term suffix '.' would normally be 'skip', but syntaxKind 15 = call
+      expect(classifyScipReference('scip-typescript npm pkg 1.0 src/a.ts/arrowFn.', 15)).toBe('call');
+    });
+  });
+
+  describe('Tier 2: descriptor suffix (fallback)', () => {
+    it('classifies method/function suffix ().', () => {
+      expect(classifyScipReference('scip-ts npm pkg 1.0 src/a.ts/foo().')).toBe('call');
+    });
+
+    it('classifies disambiguated method (+N).', () => {
+      expect(classifyScipReference('scip-ts npm pkg 1.0 src/a.ts/overloaded(+1).')).toBe('call');
+    });
+
+    it('classifies scip-clang hex hash suffix as call', () => {
+      expect(classifyScipReference('$ parse_analyze_fixedparams(39d222e79bbfb7c0).')).toBe('call');
+    });
+
+    it('classifies type suffix #', () => {
+      expect(classifyScipReference('scip-ts npm pkg 1.0 src/a.ts/MyClass#')).toBe('type');
+    });
+
+    it('classifies type parameter suffix ]', () => {
+      expect(classifyScipReference('scip-ts npm pkg 1.0 src/a.ts/MyClass#[T]')).toBe('type');
+    });
+
+    it('skips term suffix . (variable/property)', () => {
+      expect(classifyScipReference('scip-ts npm pkg 1.0 src/a.ts/myVar.')).toBe('skip');
+    });
+
+    it('skips namespace suffix /', () => {
+      expect(classifyScipReference('scip-ts npm pkg 1.0 src/a.ts/')).toBe('skip');
+    });
+
+    it('syntaxKind 0 falls through to tier 2', () => {
+      expect(classifyScipReference('scip-ts npm pkg 1.0 src/a.ts/foo().', 0)).toBe('call');
+    });
   });
 });

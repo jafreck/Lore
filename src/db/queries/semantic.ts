@@ -43,7 +43,7 @@ export function semanticSearchSymbols(
 
   return db
     .prepare(
-      `SELECT s.*, sp.name AS parent_name, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting,
+      `SELECT s.*, sp.name AS parent_name,
               f.path AS file_path,
               f.branch AS file_branch,
               distance AS score
@@ -51,7 +51,6 @@ export function semanticSearchSymbols(
          JOIN symbols s ON s.rowid = se.rowid
          JOIN files f ON f.id = s.file_id
          LEFT JOIN symbols sp ON sp.id = s.parent_symbol_id
-         LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id
         WHERE ${where.join(' AND ')}
         ORDER BY distance ASC,
                  f.path ASC,

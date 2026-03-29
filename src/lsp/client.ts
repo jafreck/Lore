@@ -68,6 +68,67 @@ export interface TextDocumentContentChangeEvent {
   text: string;
 }
 
+// ─── DocumentSymbol types ─────────────────────────────────────────────────────
+
+export interface DocumentSymbol {
+  name: string;
+  kind: number;
+  range: LspRange;
+  selectionRange: LspRange;
+  detail?: string;
+  children?: DocumentSymbol[];
+}
+
+// ─── CallHierarchy types ──────────────────────────────────────────────────────
+
+export interface CallHierarchyItem {
+  name: string;
+  kind: number;
+  uri: string;
+  range: LspRange;
+  selectionRange: LspRange;
+  detail?: string;
+  data?: unknown;
+}
+
+export interface CallHierarchyOutgoingCall {
+  to: CallHierarchyItem;
+  fromRanges: LspRange[];
+}
+
+export interface CallHierarchyIncomingCall {
+  from: CallHierarchyItem;
+  fromRanges: LspRange[];
+}
+
+// ─── SemanticTokens types ─────────────────────────────────────────────────────
+
+export interface SemanticTokensResult {
+  resultId?: string;
+  data: number[];
+}
+
+/** Standard LSP semantic token type legend (index → type name). */
+export const SEMANTIC_TOKEN_TYPES = [
+  'namespace', 'type', 'class', 'enum', 'interface', 'struct',
+  'typeParameter', 'parameter', 'variable', 'property', 'enumMember',
+  'event', 'function', 'method', 'macro', 'keyword', 'modifier',
+  'comment', 'string', 'number', 'regexp', 'operator', 'decorator',
+] as const;
+
+export const SEMANTIC_TOKEN_MODIFIERS = [
+  'declaration', 'definition', 'readonly', 'static', 'deprecated',
+  'abstract', 'async', 'modification', 'documentation', 'defaultLibrary',
+] as const;
+
+// ─── Server capability tracking ───────────────────────────────────────────────
+
+export interface ServerCapabilities {
+  documentSymbol: boolean;
+  callHierarchy: boolean;
+  semanticTokensFull: boolean;
+}
+
 const DEFAULT_REQUEST_TIMEOUT_MS = 5000;
 
 export class LspClient {
@@ -80,10 +141,20 @@ export class LspClient {
   private exited = false;
   private child: ChildProcessWithoutNullStreams | null = null;
   private exitPromise: Promise<number | null> | null = null;
+  private _serverCapabilities: ServerCapabilities = {
+    documentSymbol: false,
+    callHierarchy: false,
+    semanticTokensFull: false,
+  };
 
   constructor(server: LspServerCommand, options: LspClientOptions = {}) {
     this.server = server;
     this.options = options;
+  }
+
+  /** Capabilities reported by the server after initialization. */
+  get serverCapabilities(): ServerCapabilities {
+    return this._serverCapabilities;
   }
 
   async start(): Promise<void> {
@@ -126,15 +197,33 @@ export class LspClient {
 
     try {
       const rootUri = this.options.rootUri ?? 'file:///';
-      await this.request('initialize', {
+      const initResult = await this.request('initialize', {
         processId: process.pid,
         rootUri,
-        capabilities: {},
+        capabilities: {
+          textDocument: {
+            documentSymbol: {
+              hierarchicalDocumentSymbolSupport: true,
+            },
+            callHierarchy: {
+              dynamicRegistration: false,
+            },
+            semanticTokens: {
+              requests: { full: true },
+              tokenTypes: [...SEMANTIC_TOKEN_TYPES],
+              tokenModifiers: [...SEMANTIC_TOKEN_MODIFIERS],
+              formats: ['relative'],
+            },
+            hover: { contentFormat: ['markdown', 'plaintext'] },
+            definition: { dynamicRegistration: false },
+          },
+        },
         clientInfo: {
           name: this.options.clientName ?? 'lore-indexer',
           version: this.options.clientVersion ?? '0.0.0',
         },
       });
+      this.parseServerCapabilities(initResult);
       this.notify('initialized', {});
     } catch (initErr) {
       // If initialization fails, kill the orphan process and reset state.
@@ -184,6 +273,79 @@ export class LspClient {
     });
   }
 
+  /**
+   * Request the full symbol tree for a document.
+   * Returns hierarchical `DocumentSymbol[]` when the server supports it.
+   */
+  async documentSymbol(document: TextDocumentIdentifier): Promise<DocumentSymbol[]> {
+    this.ensureActive();
+    const result = await this.request('textDocument/documentSymbol', {
+      textDocument: document,
+    });
+    if (!Array.isArray(result)) return [];
+    return result as DocumentSymbol[];
+  }
+
+  /**
+   * Prepare call hierarchy items at a given position.
+   * Returns `CallHierarchyItem[]` that can be passed to `callHierarchyOutgoing`.
+   */
+  async prepareCallHierarchy(
+    document: TextDocumentIdentifier,
+    position: LspPosition,
+  ): Promise<CallHierarchyItem[]> {
+    this.ensureActive();
+    const result = await this.request('textDocument/prepareCallHierarchy', {
+      textDocument: document,
+      position,
+    });
+    if (!Array.isArray(result)) return [];
+    return result as CallHierarchyItem[];
+  }
+
+  /**
+   * Get outgoing calls from a call hierarchy item.
+   */
+  async callHierarchyOutgoing(
+    item: CallHierarchyItem,
+  ): Promise<CallHierarchyOutgoingCall[]> {
+    this.ensureActive();
+    const result = await this.request('callHierarchy/outgoingCalls', {
+      item,
+    });
+    if (!Array.isArray(result)) return [];
+    return result as CallHierarchyOutgoingCall[];
+  }
+
+  /**
+   * Get incoming calls to a call hierarchy item.
+   */
+  async callHierarchyIncoming(
+    item: CallHierarchyItem,
+  ): Promise<CallHierarchyIncomingCall[]> {
+    this.ensureActive();
+    const result = await this.request('callHierarchy/incomingCalls', {
+      item,
+    });
+    if (!Array.isArray(result)) return [];
+    return result as CallHierarchyIncomingCall[];
+  }
+
+  /**
+   * Request full semantic tokens for a document.
+   * Returns encoded token data (relative positions, 5 ints per token).
+   */
+  async semanticTokensFull(
+    document: TextDocumentIdentifier,
+  ): Promise<SemanticTokensResult | null> {
+    this.ensureActive();
+    const result = await this.request('textDocument/semanticTokens/full', {
+      textDocument: document,
+    });
+    if (!result || typeof result !== 'object') return null;
+    return result as SemanticTokensResult;
+  }
+
   async close(): Promise<void> {
     if (!this.started || !this.child || !this.exitPromise) return;
 
@@ -204,6 +366,28 @@ export class LspClient {
     this.child = null;
     this.exitPromise = null;
     this.started = false;
+  }
+
+  /**
+   * Parse server capabilities from the InitializeResult to know which
+   * features are available.
+   */
+  private parseServerCapabilities(initResult: unknown): void {
+    if (!initResult || typeof initResult !== 'object') return;
+    const result = initResult as Record<string, unknown>;
+    const caps = result.capabilities;
+    if (!caps || typeof caps !== 'object') return;
+    const c = caps as Record<string, unknown>;
+
+    this._serverCapabilities = {
+      documentSymbol: c.documentSymbolProvider !== undefined && c.documentSymbolProvider !== false,
+      callHierarchy: c.callHierarchyProvider !== undefined && c.callHierarchyProvider !== false,
+      semanticTokensFull: (() => {
+        if (!c.semanticTokensProvider || typeof c.semanticTokensProvider !== 'object') return false;
+        const stp = c.semanticTokensProvider as Record<string, unknown>;
+        return stp.full !== undefined && stp.full !== false;
+      })(),
+    };
   }
 
   private consumeStdout(chunk: Buffer): void {

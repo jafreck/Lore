@@ -224,7 +224,7 @@ describe('LspEnrichmentStage.execute', () => {
   // ── Overlay layer ──────────────────────────────────────────────────────────
 
   describe('overlay layer', () => {
-    it('runs enrichProjectRefs for non-SCIP and enrichUnresolvedScipRefs for SCIP files', async () => {
+    it('only enriches SCIP files in overlay mode (non-SCIP handled by LspExtractionStage)', async () => {
       const pyFile = join(tmpDir, 'app.py');
       const tsFile = join(tmpDir, 'app.ts');
       writeFileSync(pyFile, 'def greet(): pass');
@@ -253,27 +253,23 @@ describe('LspEnrichmentStage.execute', () => {
 
       await stage.execute(ctx, 'build');
 
+      // In overlay mode, LspEnrichmentStage only handles SCIP files
+      // Non-SCIP files are enriched by LspExtractionStage
       expect(LspEnrichmentCoordinator).toHaveBeenCalledTimes(1);
       expect(mockStart).toHaveBeenCalledTimes(1);
       const startLangs = mockStart.mock.calls[0][0] as Set<string>;
-      expect(startLangs.has('python')).toBe(true);
       expect(startLangs.has('typescript')).toBe(true);
+      // Python is NOT started — it's handled by LspExtractionStage
+      expect(startLangs.has('python')).toBe(false);
 
-      // enrich should have been called for both files
-      expect(mockEnrich.mock.calls.length).toBeGreaterThanOrEqual(2);
-
-      // First call: enrichProjectRefs for python file
-      const pyCall = mockEnrich.mock.calls.find((c: any) => c[0].filePath === pyFile);
-      expect(pyCall).toBeDefined();
-
-      // Second call: enrichUnresolvedScipRefs for typescript file
+      // Only the SCIP file should be enriched
       const tsCall = mockEnrich.mock.calls.find((c: any) => c[0].filePath === tsFile);
       expect(tsCall).toBeDefined();
 
       expect(sourceCache.size).toBe(0);
     });
 
-    it('only calls enrichProjectRefs when no SCIP languages configured', async () => {
+    it('skips when no SCIP languages in overlay mode (all handled by LspExtractionStage)', async () => {
       const pyFile = join(tmpDir, 'app.py');
       writeFileSync(pyFile, 'def greet(): pass');
 
@@ -281,18 +277,19 @@ describe('LspEnrichmentStage.execute', () => {
       insertSymbol(db, fileId, 'greet', 0);
 
       const stage = new LspEnrichmentStage();
+      const sourceCache = new Map<string, string>();
       const ctx = makeContext({
         db,
         layer: 'overlay',
         files: [{ path: pyFile, language: 'python' }],
+        sourceCache,
       });
 
       await stage.execute(ctx, 'build');
 
-      expect(LspEnrichmentCoordinator).toHaveBeenCalledTimes(1);
-      expect(mockEnrich).toHaveBeenCalled();
-      const call = mockEnrich.mock.calls[0][0];
-      expect(call.filePath).toBe(pyFile);
+      // No coordinator created — no SCIP files to enrich
+      expect(LspEnrichmentCoordinator).not.toHaveBeenCalled();
+      expect(sourceCache.size).toBe(0);
     });
 
     it('logs and returns early when all files filtered out', async () => {
@@ -311,21 +308,25 @@ describe('LspEnrichmentStage.execute', () => {
       expect(sourceCache.size).toBe(0);
     });
 
-    it('adds typescript to languages when indexDependencies is true (overlay)', async () => {
-      const pyFile = join(tmpDir, 'app.py');
-      writeFileSync(pyFile, 'x = 1');
-      insertFile(db, pyFile, 'python');
+    it('adds typescript to languages when indexDependencies is true (overlay with SCIP files)', async () => {
+      const tsFile = join(tmpDir, 'app.ts');
+      writeFileSync(tsFile, 'const x = 1;');
+      const fileId = insertFile(db, tsFile, 'typescript');
+      const symId = insertSymbol(db, fileId, 'x', 0);
+      insertCallRef(db, symId, fileId, 'foo', 1, 5, 'unresolved', null);
 
       const stage = new LspEnrichmentStage();
       const ctx = makeContext({
         db,
         layer: 'overlay',
-        files: [{ path: pyFile, language: 'python' }],
+        files: [{ path: tsFile, language: 'typescript' }],
         indexDependencies: true,
+        scipSourcedLanguages: new Set(['typescript']),
       });
 
       await stage.execute(ctx, 'build');
 
+      expect(mockStart).toHaveBeenCalledTimes(1);
       const startLangs = mockStart.mock.calls[0][0] as Set<string>;
       expect(startLangs.has('typescript')).toBe(true);
     });

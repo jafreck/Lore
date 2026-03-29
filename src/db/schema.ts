@@ -402,10 +402,6 @@ function ensureIncrementalSchema(db: Database.Database): void {
     CREATE VIEW effective_file_imports AS
     SELECT fi.* FROM file_imports fi
     JOIN effective_files f ON f.id = fi.file_id;
-
-    CREATE VIEW effective_symbol_metrics AS
-    SELECT sm.* FROM symbol_metrics sm
-    JOIN effective_symbols s ON s.id = sm.symbol_id;
   `);
   })();
 

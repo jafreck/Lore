@@ -3,7 +3,7 @@
  *
  * Pipeline stage: for SCIP-covered languages, populate `files`, `symbols`,
  * `symbol_refs`, `type_refs`, `symbol_relationships`, and `file_imports`
- * **directly from the SCIP index** — bypassing tree-sitter entirely.
+ * **directly from the SCIP index** in a single pass.
  *
  * This is the single-pass SCIP architecture.  SCIP is the source of truth
  * for the symbol table, the call graph, **and** enrichment metadata (type
@@ -21,25 +21,26 @@
  *    definition lookup (where is the referenced SCIP symbol defined?).
  *    Enrichment columns are populated inline from the same SCIP data.
  *
+ * 3. **Virtual dispatch**: Override edges materialised from SCIP
+ *    `isImplementation` relationships.
+ *
  * SCIP refs are inserted **pre-resolved** with `resolution_method =
  * 'scip_definition'`.  The downstream resolution stage only processes
  * refs from non-SCIP languages.
  *
  * ## Data written
  *
- * Same tables as `SourceIndexStage`: `files`, `symbols`, `symbols_fts`,
- * `symbol_refs`, `type_refs`, `symbol_relationships`, `file_imports`.
- * Additionally populates enrichment columns (type signatures, definition
- * locations) inline during the same pass.
+ * `files`, `symbols`, `symbols_fts`, `symbol_refs`, `type_refs`,
+ * `symbol_relationships`, `file_imports`.  Enrichment columns (type
+ * signatures, definition locations) are populated inline.
  *
  * ## Pipeline ordering
  *
- * This stage runs **before** `SourceIndexStage`.  It stores which
+ * This stage runs **before** `FileDiscoveryStage`.  It stores which
  * languages and files it handled in `context.scipSourcedLanguages`,
  * `context.scipSourcedFiles`, and `context.scipCoveredLanguages` so
- * `SourceIndexStage` can skip full extraction (but still compute
- * tree-sitter metrics) and `LspEnrichmentStage` knows not to re-enrich
- * these languages.
+ * `FileDiscoveryStage` can skip those files and `LspEnrichmentStage`
+ * knows not to re-enrich these languages.
  */
 
 import * as fs from 'node:fs';
@@ -58,7 +59,6 @@ import { normalizeTypeName } from '../../resolution/call-graph.js';
 import { SCIP_SUPPORTED_LANGUAGES } from '../../scip/registry.js';
 import { extractReturnType } from '../../scip/index-reader.js';
 import { EXT_TO_LANG } from '../../discovery/walker.js';
-import { ParserPool } from '../../parsing/parser.js';
 
 // ─── Re-exports from helper modules ──────────────────────────────────────────
 
@@ -80,12 +80,6 @@ import {
 
 import {
   inferLoreLanguage,
-  extractImportPathFromTree,
-  inferTypeRefKindFromTree,
-  isCallExpression,
-  extractReceiverName,
-  findMatchingCallRef,
-  findMatchingTypeRefKind,
   materializeVirtualDispatch,
 } from './scip-helpers/ingest.js';
 
@@ -135,18 +129,7 @@ export class ScipIndexerStage implements PipelineStage {
     }
 
     // Decode all SCIP index buffers once and keep the decoded objects alive.
-    // A lazy generator is provided for the deferred ScipRefStage so that
-    // documents are accessed without a redundant flat-array copy.
     const parsedIndexes = indexBuffers.map(buf => fromBinary(IndexSchema, buf));
-
-    // Generator used only for the single-pass ScipRefStage iteration stored in
-    // context.scipRefData.  All in-scope preprocessing passes iterate
-    // parsedIndexes directly (nested for-of) to avoid generator overhead.
-    function* iterateAllDocuments(): Generator<ScipDocument> {
-      for (const idx of parsedIndexes) {
-        yield* idx.documents;
-      }
-    }
 
     const totalDocuments = parsedIndexes.reduce((n, idx) => n + idx.documents.length, 0);
     const totalExternalSymbols = parsedIndexes.reduce((n, idx) => n + idx.externalSymbols.length, 0);
@@ -220,7 +203,6 @@ export class ScipIndexerStage implements PipelineStage {
 
     // Pass 1: Create files and symbols
     const fileIdMap = new Map<string, number>(); // absPath → file_id
-    const importParserPool = new ParserPool();
 
     const SCIP_BATCH_SIZE = 200;
     const processDocumentBatch = db.transaction((batch: ScipDocument[]) => {
@@ -246,7 +228,7 @@ export class ScipIndexerStage implements PipelineStage {
         const sizeBytes = Buffer.byteLength(source, 'utf8');
         const hash = crypto.createHash('sha256').update(source).digest('hex');
 
-        // Delete existing data for this file (like SourceIndexStage does)
+        // Delete existing data for this file (like FileDiscoveryStage does)
         const existing = db.prepare('SELECT id FROM files WHERE path = ? AND branch = ? AND layer = ?').get(absPath, branch, layer) as
           | { id: number } | undefined;
         if (existing) {
@@ -284,7 +266,6 @@ export class ScipIndexerStage implements PipelineStage {
           const { symbol, line, character, enclosingRange } = occ;
 
           // Use enclosing_range for span; fall back to definition line.
-          // Tree-sitter will patch end_line in the SourceIndexStage metrics pass.
           let startLine = line;
           let endLine = line;
           if (enclosingRange.length >= 4) {
@@ -295,8 +276,6 @@ export class ScipIndexerStage implements PipelineStage {
             startLine = enclosingRange[0] ?? line;
             endLine = startLine;
           } else {
-            // No enclosing_range — tree-sitter (SourceIndexStage) will
-            // overwrite end_line with accurate spans.
             endLine = line;
           }
 
@@ -321,7 +300,7 @@ export class ScipIndexerStage implements PipelineStage {
           const name = symInfo.displayName || extractNameFromScipSymbol(symInfo.symbol);
           const firstDoc = symInfo.documentation[0] ?? '';
           const docHint = firstDoc.toLowerCase();
-          const kind = inferKindFromScipSymbol(symInfo.symbol, docHint);
+          const kind = inferKindFromScipSymbol(symInfo.symbol, docHint, symInfo.kind);
 
           // Skip parameters, type parameters, and module-level namespace symbols
           if (kind === 'parameter' || kind === 'module') continue;
@@ -334,17 +313,26 @@ export class ScipIndexerStage implements PipelineStage {
           const resolvedReturnType = extractReturnType(resolvedTypeSig);
           const definitionUri = pathToFileURL(absPath).toString();
 
-          // Resolve parent_symbol_id by walking the SCIP descriptor chain
-          // upward until we find a parent that was already inserted.
+          // Resolve parent_symbol_id.
+          // Prefer SCIP's `enclosingSymbol` (authoritative) when populated;
+          // fall back to walking the descriptor chain with extractParentScipSymbol.
           let parentLoreId: number | null = null;
-          let candidateScip = extractParentScipSymbol(symInfo.symbol);
-          while (candidateScip) {
-            const id = scipToLoreId.get(candidateScip);
-            if (id !== undefined) {
-              parentLoreId = id;
-              break;
+          if (symInfo.enclosingSymbol) {
+            const enclosingId = scipToLoreId.get(symInfo.enclosingSymbol);
+            if (enclosingId !== undefined) {
+              parentLoreId = enclosingId;
             }
-            candidateScip = extractParentScipSymbol(candidateScip);
+          }
+          if (parentLoreId === null) {
+            let candidateScip = extractParentScipSymbol(symInfo.symbol);
+            while (candidateScip) {
+              const id = scipToLoreId.get(candidateScip);
+              if (id !== undefined) {
+                parentLoreId = id;
+                break;
+              }
+              candidateScip = extractParentScipSymbol(candidateScip);
+            }
           }
 
           const info = insertSymbol.run(
@@ -360,28 +348,16 @@ export class ScipIndexerStage implements PipelineStage {
         }
 
         // Insert imports (from Import-role occurrences)
-        // Prefer tree-sitter AST import extraction; fall back to SCIP package descriptor.
+        // Use SCIP symbol string to derive import path.
         // Use symbolDefinitions to pre-resolve imports to target file IDs.
-        let importTree: import('tree-sitter').Tree | null = null;
-        try { importTree = importParserPool.parse(loreLang, source); } catch { /* ignore parse failure */ }
-
         const seenImports = new Map<string, number | null>(); // rawImport → resolved file ID
         for (const occ of doc.occurrences) {
           if ((occ.symbolRoles & SymbolRole.Import) !== 0 && occ.symbol) {
-            const importLine = occ.range[0] ?? 0;
-
-            let srcImport: string | null = null;
-            if (importTree) {
-              srcImport = extractImportPathFromTree(importTree, importLine);
-            }
-            let rawImport: string;
-            if (srcImport) {
-              rawImport = srcImport;
-            } else {
-              // Fall back to SCIP package descriptor
-              const parts = occ.symbol.split(' ');
-              rawImport = parts.length >= 4 ? parts[3]! : occ.symbol;
-            }
+            // Derive import path from SCIP symbol string.
+            // SCIP symbols are: <scheme> <manager> <package> <version> <descriptors>
+            // The package part (parts[3]) gives the module identity.
+            const parts = occ.symbol.split(' ');
+            const rawImport = parts.length >= 4 ? parts[3]! : occ.symbol;
             if (!rawImport) continue;
 
             // Resolve the import's target file via SCIP symbol → definition location
@@ -419,7 +395,7 @@ export class ScipIndexerStage implements PipelineStage {
             if (rel.isImplementation) {
               const targetInfo = symbolInfoMap.get(rel.symbol);
               const targetKind = targetInfo
-                ? inferKindFromScipSymbol(rel.symbol, (targetInfo.documentation[0] ?? '').toLowerCase())
+                ? inferKindFromScipSymbol(rel.symbol, (targetInfo.documentation[0] ?? '').toLowerCase(), targetInfo.kind)
                 : null;
               relType = (targetKind === 'class') ? 'extends' : 'implements';
             } else if (rel.isTypeDefinition) {
@@ -481,73 +457,11 @@ export class ScipIndexerStage implements PipelineStage {
       symbols: scipToLoreId.size,
     });
 
-    // ── Stash data for deferred ref processing ────────────────────────────
-    // Pass 2+3 (containment index + ref insertion) are deferred to
-    // ScipRefStage, which runs AFTER SourceIndexStage patches symbol
-    // end_line values with accurate tree-sitter spans.  This avoids the
-    // brittle estimateSymbolEndLine heuristic for caller resolution.
-    context.scipRefData = {
-      scipToLoreId,
-      symbolDefinitions,
-      symbolInfoMap,
-      fileIdMap,
-      documents: iterateAllDocuments(),
-      isExternalSymbol: isExternalSymbolFn,
-    };
+    // ── Pass 2+3: Containment index + ref insertion ─────────────────────
+    // Build containment index and insert refs inline (no deferred stage).
+    // Symbol end_line values come from SCIP enclosingRange, which is
+    // already populated above.
 
-    // Communicate coverage to downstream stages
-    context.scipSourcedLanguages = coveredLanguages;
-    context.scipSourcedFiles = coveredFiles;
-    context.scipCoveredLanguages = coveredLanguages;
-
-    // Add SCIP-sourced files to context.files so later stages process them
-    for (const idx of parsedIndexes) {
-      for (const doc of idx.documents) {
-        const absPath = resolve(rootDir, doc.relativePath);
-        const loreLang = inferLoreLanguage(doc.language, doc.relativePath);
-        if (loreLang && fileIdMap.has(absPath)) {
-          context.files.push({ path: absPath, language: loreLang });
-        }
-      }
-    }
-  }
-
-  async dispose(): Promise<void> {
-    // No persistent resources to clean up
-  }
-}
-
-// ─── ScipRefStage ─────────────────────────────────────────────────────────────
-
-/**
- * Deferred SCIP ref insertion stage.
- *
- * Runs AFTER `SourceIndexStage` so that symbol `end_line` values have been
- * patched with accurate tree-sitter spans. This ensures the containment
- * index used for `caller_id` resolution is correct, avoiding the brittle
- * `estimateSymbolEndLine` brace-counting heuristic.
- *
- * Reads `context.scipRefData` (stashed by `ScipIndexerStage`) and:
- *  1. Builds a containment index from the DB (with patched spans)
- *  2. Inserts `symbol_refs` and `type_refs` from SCIP occurrences
- *  3. Materializes virtual dispatch edges
- */
-export class ScipRefStage implements PipelineStage {
-  readonly name = 'ScipRefStage';
-
-  async execute(context: PipelineContext, _mode: string): Promise<void> {
-    const data = context.scipRefData;
-    if (!data) return; // No SCIP data — nothing to do
-
-    const { scipToLoreId, symbolDefinitions, symbolInfoMap, fileIdMap, documents, isExternalSymbol } = data;
-    const db = context.db;
-    const branch = context.branch;
-    const layer = context.layer;
-    const generation = context.generation;
-    const log = context.log;
-    const rootDir = context.walkerConfig.rootDir;
-
-    // Prepared statements
     const insertCallRef = db.prepare(
       `INSERT INTO symbol_refs (caller_id, file_id, callee_id, callee_name, call_line, call_character, call_kind, resolution_method, resolved_type_signature, resolved_return_type, definition_uri, definition_path, definition_line, definition_character, layer, generation)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -557,12 +471,7 @@ export class ScipRefStage implements PipelineStage {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
 
-    // Build a containment index for caller resolution.
-    // Because this stage runs AFTER SourceIndexStage, symbol end_line
-    // values have been patched with accurate tree-sitter spans.
-    // Only callable kinds (function, method, class, constructor, variable)
-    // are included — properties and other non-callable symbols should not
-    // be assigned as callers even when they lexically contain a call site.
+    // Build containment index from the symbols we just inserted.
     const fileSymbolSpans = buildContainmentIndex(
       db.prepare(
         `SELECT s.id, s.file_id, s.start_line, s.end_line
@@ -584,27 +493,12 @@ export class ScipRefStage implements PipelineStage {
     let refsSkippedNonCall = 0;
     let typeRefsInserted = 0;
 
-    const scipDocs = [...(documents as Iterable<ScipDocument>)];
-    const sipInfoMap = symbolInfoMap as Map<string, ScipSymbolInformation>;
-    const scipTreeSitterData = context.scipTreeSitterData;
-    const parserPool = new ParserPool();
-
     const SCIP_REF_BATCH_SIZE = 200;
     const processRefBatch = db.transaction((batch: ScipDocument[]) => {
       for (const doc of batch) {
         const absPath = resolve(rootDir, doc.relativePath);
         const fileId = fileIdMap.get(absPath);
         if (!fileId) continue;
-        const treeData = scipTreeSitterData?.get(absPath);
-
-        const source: string | undefined = context.sourceCache.get(absPath);
-        let tree: import('tree-sitter').Tree | null = null;
-        if (source) {
-          const loreLang = inferLoreLanguage(doc.language, doc.relativePath);
-          if (loreLang) {
-            try { tree = parserPool.parse(loreLang, source); } catch { /* ignore parse failure */ }
-          }
-        }
 
         for (const occ of doc.occurrences) {
           if ((occ.symbolRoles & SymbolRole.Definition) !== 0) continue;
@@ -615,23 +509,13 @@ export class ScipRefStage implements PipelineStage {
             continue;
           }
 
-          let refKind = classifyScipReference(occ.symbol);
+          const refKind = classifyScipReference(occ.symbol, occ.syntaxKind);
           const line = occ.range[0] ?? 0;
           const character = occ.range[1] ?? 0;
           const calleeName = extractNameFromScipSymbol(occ.symbol);
-          const matchedCallRef = findMatchingCallRef(treeData, line, character, calleeName);
           if (refKind === 'skip') {
-            // Term-value refs (ending in '.') may be calls to arrow-function
-            // or const-assigned function values. Reuse the tree-sitter call
-            // refs captured during the metrics pass instead of reparsing here.
-            if (matchedCallRef) {
-              refKind = 'call';
-            } else if (tree && isCallExpression(tree, line, character)) {
-              refKind = 'call';
-            } else {
-              refsSkippedNonCall++;
-              continue;
-            }
+            refsSkippedNonCall++;
+            continue;
           }
 
           const callerId = findContainingSymbol(fileSymbolSpans, fileId, line);
@@ -641,15 +525,13 @@ export class ScipRefStage implements PipelineStage {
           }
 
           const calleeId = scipToLoreId.get(occ.symbol) ?? null;
-          const isExternal = !calleeId && isExternalSymbol(occ.symbol);
+          const isExternal = !calleeId && isExternalSymbolFn(occ.symbol);
           const method = calleeId ? 'scip_definition' : (isExternal ? 'external_definition' : 'unresolved');
 
           if (refKind === 'type') {
-            const typeRefKind = findMatchingTypeRefKind(treeData, line, character, calleeName)
-              ?? (tree ? inferTypeRefKindFromTree(tree, line, character) : null)
-              ?? 'other';
+            const typeRefKind = 'other';
             const refDef = symbolDefinitions.get(occ.symbol);
-            const refInfo = sipInfoMap.get(occ.symbol);
+            const refInfo = symbolInfoMap.get(occ.symbol);
             const refSig = refInfo ? extractSignatureFromDoc(refInfo.documentation[0] ?? '') || null : null;
             const refDefUri = refDef ? pathToFileURL(refDef.filePath).toString() : null;
 
@@ -666,18 +548,10 @@ export class ScipRefStage implements PipelineStage {
               refsNoCaller++;
             }
           } else {
-            let resolvedCalleeName = calleeName;
-            if (matchedCallRef?.calleeRaw) {
-              resolvedCalleeName = matchedCallRef.calleeRaw;
-            } else if (tree) {
-              const receiverText = extractReceiverName(tree, line, character);
-              if (receiverText) {
-                resolvedCalleeName = `${receiverText}.${calleeName}`;
-              }
-            }
+            const resolvedCalleeName = calleeName;
 
             const refDef = symbolDefinitions.get(occ.symbol);
-            const refInfo = sipInfoMap.get(occ.symbol);
+            const refInfo = symbolInfoMap.get(occ.symbol);
             const refSig = refInfo ? extractSignatureFromDoc(refInfo.documentation[0] ?? '') || null : null;
             const refReturnType = extractReturnType(refSig);
             const refDefUri = refDef ? pathToFileURL(refDef.filePath).toString() : null;
@@ -698,11 +572,11 @@ export class ScipRefStage implements PipelineStage {
         }
       }
     });
-    for (let batchStart = 0; batchStart < scipDocs.length; batchStart += SCIP_REF_BATCH_SIZE) {
-      processRefBatch(scipDocs.slice(batchStart, batchStart + SCIP_REF_BATCH_SIZE));
+    for (let batchStart = 0; batchStart < allDocsForBatching.length; batchStart += SCIP_REF_BATCH_SIZE) {
+      processRefBatch(allDocsForBatching.slice(batchStart, batchStart + SCIP_REF_BATCH_SIZE));
     }
 
-    log.indexing('scip-refs: refs inserted', {
+    log.indexing('scip-indexer: refs inserted', {
       callRefs: refsInserted,
       typeRefs: typeRefsInserted,
       external: refsExternal,
@@ -711,17 +585,31 @@ export class ScipRefStage implements PipelineStage {
       skippedNonCall: refsSkippedNonCall,
     });
 
-    // Materialize virtual dispatch edges
+    // ── Pass 4: Virtual dispatch ──────────────────────────────────────────
     materializeVirtualDispatch(
-      db, scipToLoreId, sipInfoMap, symbolDefinitions, layer, generation, log,
+      db, scipToLoreId, symbolInfoMap, symbolDefinitions, layer, generation, log,
     );
 
-    // Free the stashed data
-    context.scipRefData = undefined;
-    context.scipTreeSitterData = undefined;
+    // Communicate coverage to downstream stages
+    context.scipSourcedLanguages = coveredLanguages;
+    context.scipSourcedFiles = coveredFiles;
+    context.scipCoveredLanguages = coveredLanguages;
+
+    // Add SCIP-sourced files to context.files so later stages process them
+    for (const idx of parsedIndexes) {
+      for (const doc of idx.documents) {
+        const absPath = resolve(rootDir, doc.relativePath);
+        const loreLang = inferLoreLanguage(doc.language, doc.relativePath);
+        if (loreLang && fileIdMap.has(absPath)) {
+          context.files.push({ path: absPath, language: loreLang });
+        }
+      }
+    }
   }
 
-  async dispose(): Promise<void> {}
+  async dispose(): Promise<void> {
+    // No persistent resources to clean up
+  }
 }
 
 // ─── Extracted pure data-processing functions ────────────────────────────────

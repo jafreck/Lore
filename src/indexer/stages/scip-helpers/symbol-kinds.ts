@@ -5,10 +5,128 @@
  * and reference classification helpers.
  */
 
+// ─── SymbolInformation.kind → Lore kind mapping ──────────────────────────────
+
+/**
+ * Map SCIP `SymbolInformation.kind` (87 enum values) to a Lore kind string.
+ * Returns `null` when `kind` is 0 (UnspecifiedKind), signalling fallback to
+ * descriptor-suffix inference.
+ *
+ * Values from the `SymbolInformation_Kind` enum in scip_pb.ts.
+ */
+function mapScipKindToLore(kind: number): string | null {
+  switch (kind) {
+    // Method family
+    case 26: // Method
+    case 66: // AbstractMethod
+    case 67: // MethodSpecification
+    case 68: // ProtocolMethod
+    case 69: // PureVirtualMethod
+    case 70: // TraitMethod
+    case 71: // TypeClassMethod
+    case 74: // MethodAlias
+    case 76: // SingletonMethod
+    case 80: // StaticMethod
+      return 'method';
+
+    // Function family
+    case 17: // Function
+      return 'function';
+
+    // Constructor
+    case 9:  // Constructor
+      return 'constructor';
+
+    // Class / Struct family
+    case 7:  // Class
+    case 49: // Struct
+    case 75: // SingletonClass
+      return 'class';
+
+    // Interface / Protocol / Trait family
+    case 21: // Interface
+    case 42: // Protocol
+    case 53: // Trait
+      return 'interface';
+
+    // Enum
+    case 11: // Enum
+      return 'enum';
+
+    // Enum member
+    case 12: // EnumMember
+      return 'enum_member';
+
+    // Type alias family
+    case 54: // Type
+    case 55: // TypeAlias
+    case 56: // TypeClass
+    case 57: // TypeFamily
+      return 'type_alias';
+
+    // Constant / static value
+    case 8:  // Constant
+      return 'constant';
+
+    // Property / field family
+    case 15: // Field
+    case 41: // Property
+    case 79: // StaticField
+    case 81: // StaticProperty
+      return 'property';
+
+    // Variable
+    case 61: // Variable
+    case 82: // StaticVariable
+    case 77: // StaticDataMember
+    case 60: // Value
+      return 'variable';
+
+    // Module / namespace / package family
+    case 29: // Module
+    case 30: // Namespace
+    case 35: // Package
+    case 36: // PackageObject
+    case 64: // Library
+      return 'module';
+
+    // Parameter
+    case 37: // Parameter
+    case 38: // ParameterLabel
+    case 44: // SelfParameter
+    case 52: // ThisParameter
+    case 27: // MethodReceiver
+      return 'parameter';
+
+    // Getter / setter / accessor
+    case 18: // Getter
+    case 45: // Setter
+    case 72: // Accessor
+      return 'method';
+
+    // Macro
+    case 25: // Macro
+      return 'function';
+
+    // Type parameter
+    case 58: // TypeParameter
+      return 'parameter';
+
+    // 0 = UnspecifiedKind → fall through to suffix-based inference
+    default:
+      return null;
+  }
+}
+
 // ─── SCIP symbol string → Lore kind mapping ──────────────────────────────────
 
 /**
  * Infer a Lore symbol `kind` from a SCIP symbol string.
+ *
+ * Uses a two-tier strategy:
+ * 1. `SymbolInformation.kind` — authoritative when non-zero. Provides
+ *    compiler-accurate kind classification (87 distinct values).
+ * 2. Descriptor suffix + doc hint — fallback when kind is unspecified.
  *
  * SCIP symbol syntax:  `<scheme> <package> (<descriptor>)+`
  * Descriptor suffixes:
@@ -20,7 +138,24 @@
  *   - `[name]` → Type parameter
  *   - `name:` → Meta (object property)
  */
-export function inferKindFromScipSymbol(scipSymbol: string, docHint: string): string {
+export function inferKindFromScipSymbol(
+  scipSymbol: string,
+  docHint: string,
+  symbolInfoKind: number = 0,
+): string {
+  // Tier 1: Use SymbolInformation.kind when available
+  const mapped = mapScipKindToLore(symbolInfoKind);
+  if (mapped !== null) {
+    // Refine class → interface using doc hint when SymbolInformation.kind
+    // reports generic "Class" but documentation says interface/trait
+    if (mapped === 'class') {
+      if (docHint.includes('interface ')) return 'interface';
+      if (docHint.includes('trait ')) return 'interface';
+    }
+    return mapped;
+  }
+
+  // Tier 2: Descriptor suffix + doc hint fallback
   // Method/function: ends with ().<any> or just ().
   if (/\(\+?\d*\)\.$/.test(scipSymbol)) {
     // Use doc hint to distinguish constructor
@@ -243,16 +378,34 @@ export function extractSignatureFromDoc(doc: string): string {
 /**
  * Classify a SCIP symbol reference into the graph edge type it represents.
  *
- * SCIP descriptor suffixes:
- *   `().`  → Method/Function → call edge (symbol_refs)
- *   `#`    → Type            → type edge (type_refs)
- *   `.`    → Term (variable, property, constant, enum member) → skip
- *   `/`    → Namespace (module) → skip
- *   `:`    → Meta (object property) → skip
- *   `)`    → Parameter → skip
- *   `]`    → Type parameter → type edge (type_refs)
+ * Uses a two-tier strategy:
+ * 1. SCIP `syntaxKind` (from `Occurrence.syntaxKind`) — authoritative when
+ *    populated (non-zero). Maps function/macro identifiers to 'call' and
+ *    type identifiers to 'type'.
+ * 2. SCIP descriptor suffix — fallback when `syntaxKind` is unspecified (0).
+ *
+ * This allows term-suffix `.` symbols (arrow functions, const-assigned
+ * functions) to be correctly classified as calls when the indexer provides
+ * `syntaxKind = IdentifierFunction`.
  */
-export function classifyScipReference(scipSymbol: string): 'call' | 'type' | 'skip' {
+export function classifyScipReference(
+  scipSymbol: string,
+  syntaxKind: number = 0,
+): 'call' | 'type' | 'skip' {
+  // ── Tier 1: syntaxKind (authoritative when populated) ───────────────────
+  if (syntaxKind !== 0) {
+    // SyntaxKind enum values from SCIP spec:
+    //   IdentifierFunction = 15, IdentifierFunctionDefinition = 16,
+    //   IdentifierMacro = 17, IdentifierMacroDefinition = 18
+    if (syntaxKind >= 15 && syntaxKind <= 18) return 'call';
+    //   IdentifierType = 19, IdentifierBuiltinType = 20
+    if (syntaxKind === 19 || syntaxKind === 20) return 'type';
+    //   IdentifierNamespace = 14, IdentifierParameter = 11,
+    //   IdentifierLocal = 12, etc. → skip
+  }
+
+  // ── Tier 2: descriptor suffix (fallback) ────────────────────────────────
+
   // Method/function: ends with ().  or (+N).  (with disambiguator)
   if (/\(\+?\d*\)\.$/.test(scipSymbol)) return 'call';
 

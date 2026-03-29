@@ -5,7 +5,6 @@ import * as os from 'node:os';
 import { openDb } from '../../src/db/schema.js';
 import {
   ScipIndexerStage,
-  ScipRefStage,
   createLoreScipTsconfig,
   buildInternalPrefixes,
   isExternalSymbol,
@@ -197,9 +196,8 @@ describe('ScipIndexerStage', () => {
     expect(ctx.scipSourcedFiles).toBeDefined();
     expect(ctx.files.length).toBe(1);
 
-    // Verify scipRefData stashed for ScipRefStage
-    expect(ctx.scipRefData).toBeDefined();
-    expect(ctx.scipRefData!.scipToLoreId.size).toBe(1);
+    // Verify refs are inserted inline (no deferred ScipRefStage)
+    expect((ctx as any).scipRefData).toBeUndefined();
 
     ctx.db.close();
   });
@@ -508,27 +506,11 @@ describe('ScipIndexerStage', () => {
   });
 });
 
-// ── ScipRefStage ────────────────────────────────────────────────────────────
+// ── Inline ref insertion (formerly ScipRefStage) ────────────────────────────
 
-describe('ScipRefStage', () => {
-  it('returns early when scipRefData is undefined', async () => {
-    const stage = new ScipRefStage();
-    const ctx = makeMinimalContext();
-    await stage.execute(ctx, 'build');
-    ctx.db.close();
-  });
-
-  it('has correct stage name', () => {
-    expect(new ScipRefStage().name).toBe('ScipRefStage');
-  });
-
-  it('dispose does not throw', async () => {
-    const stage = new ScipRefStage();
-    await expect(stage.dispose()).resolves.toBeUndefined();
-  });
-
+describe('ScipIndexerStage - inline ref insertion', () => {
   it('inserts call refs from SCIP reference occurrences', async () => {
-    const indexerStage = new ScipIndexerStage();
+    const stage = new ScipIndexerStage();
     const sourceCache = new Map<string, string>();
 
     const sourceCode = [
@@ -585,11 +567,7 @@ describe('ScipRefStage', () => {
       scip: { enabled: true } as any,
       sourceCache,
     });
-    await indexerStage.execute(ctx, 'build');
-    expect(ctx.scipRefData).toBeDefined();
-
-    const refStage = new ScipRefStage();
-    await refStage.execute(ctx, 'build');
+    await stage.execute(ctx, 'build');
 
     const refs = ctx.db.prepare('SELECT * FROM symbol_refs').all() as any[];
     expect(refs.length).toBeGreaterThanOrEqual(1);
@@ -600,13 +578,11 @@ describe('ScipRefStage', () => {
       expect(callRef.resolution_method).toBeTruthy();
     }
 
-    expect(ctx.scipRefData).toBeUndefined();
-
     ctx.db.close();
   });
 
   it('inserts type refs from SCIP type reference occurrences', async () => {
-    const indexerStage = new ScipIndexerStage();
+    const stage = new ScipIndexerStage();
     const sourceCache = new Map<string, string>();
 
     const sourceCode = [
@@ -653,10 +629,7 @@ describe('ScipRefStage', () => {
       scip: { enabled: true } as any,
       sourceCache,
     });
-    await indexerStage.execute(ctx, 'build');
-
-    const refStage = new ScipRefStage();
-    await refStage.execute(ctx, 'build');
+    await stage.execute(ctx, 'build');
 
     const typeRefs = ctx.db.prepare('SELECT * FROM type_refs').all() as any[];
     expect(typeRefs.length).toBeGreaterThanOrEqual(1);
@@ -1205,9 +1178,9 @@ describe('ScipIndexerStage - additional branches', () => {
   });
 });
 
-describe('ScipRefStage - additional branches', () => {
+describe('ScipIndexerStage - inline ref additional branches', () => {
   it('inserts external call refs', async () => {
-    const indexerStage = new ScipIndexerStage();
+    const stage = new ScipIndexerStage();
     const sourceCache = new Map<string, string>();
 
     const sourceCode = [
@@ -1243,10 +1216,7 @@ describe('ScipRefStage - additional branches', () => {
 
     loadScipIndexesMock.mockResolvedValue([buf]);
     const ctx = makeMinimalContext({ scip: { enabled: true } as any, sourceCache });
-    await indexerStage.execute(ctx, 'build');
-
-    const refStage = new ScipRefStage();
-    await refStage.execute(ctx, 'build');
+    await stage.execute(ctx, 'build');
 
     const refs = ctx.db.prepare('SELECT resolution_method, callee_name FROM symbol_refs').all() as any[];
     const extRef = refs.find((r: any) => r.resolution_method === 'external_definition');
@@ -1256,7 +1226,7 @@ describe('ScipRefStage - additional branches', () => {
   });
 
   it('handles type ref insertion with method-call classification', async () => {
-    const indexerStage = new ScipIndexerStage();
+    const stage = new ScipIndexerStage();
     const sourceCache = new Map<string, string>();
 
     const sourceCode = [
@@ -1288,10 +1258,7 @@ describe('ScipRefStage - additional branches', () => {
 
     loadScipIndexesMock.mockResolvedValue([buf]);
     const ctx = makeMinimalContext({ scip: { enabled: true } as any, sourceCache });
-    await indexerStage.execute(ctx, 'build');
-
-    const refStage = new ScipRefStage();
-    await refStage.execute(ctx, 'build');
+    await stage.execute(ctx, 'build');
 
     const typeRefs = ctx.db.prepare('SELECT type_name, ref_kind FROM type_refs').all() as any[];
     expect(typeRefs.length).toBeGreaterThanOrEqual(1);
@@ -1299,8 +1266,8 @@ describe('ScipRefStage - additional branches', () => {
     ctx.db.close();
   });
 
-  it('handles call ref with receiver name from tree-sitter', async () => {
-    const indexerStage = new ScipIndexerStage();
+  it('handles call ref with receiver name', async () => {
+    const stage = new ScipIndexerStage();
     const sourceCache = new Map<string, string>();
 
     const sourceCode = [
@@ -1325,7 +1292,7 @@ describe('ScipRefStage - additional branches', () => {
         { range: [0, 6, 9], symbol: fooSymbol, symbolRoles: SymbolRole.Definition, enclosingRange: [0, 0, 2, 1] },
         { range: [1, 2, 5], symbol: barSymbol, symbolRoles: SymbolRole.Definition, enclosingRange: [1, 2, 1, 22] },
         { range: [3, 9, 15], symbol: callerSymbol, symbolRoles: SymbolRole.Definition, enclosingRange: [3, 0, 6, 1] },
-        // Reference to bar() inside caller — should get receiver resolution
+        // Reference to bar() inside caller
         { range: [5, 4, 7], symbol: barSymbol, symbolRoles: 0 },
       ],
       symbols: [
@@ -1337,23 +1304,16 @@ describe('ScipRefStage - additional branches', () => {
 
     loadScipIndexesMock.mockResolvedValue([buf]);
     const ctx = makeMinimalContext({ scip: { enabled: true } as any, sourceCache });
-    await indexerStage.execute(ctx, 'build');
-
-    const refStage = new ScipRefStage();
-    await refStage.execute(ctx, 'build');
+    await stage.execute(ctx, 'build');
 
     const refs = ctx.db.prepare('SELECT callee_name FROM symbol_refs').all() as any[];
-    expect(refs.length).toBeGreaterThanOrEqual(1);
-    // One ref should have receiver.method format
-    const receiverRef = refs.find((r: any) => r.callee_name && r.callee_name.includes('.'));
-    // receiver resolution is best-effort, check refs exist
     expect(refs.length).toBeGreaterThanOrEqual(1);
 
     ctx.db.close();
   });
 
   it('skips refs with no containing symbol (refsNoCaller)', async () => {
-    const indexerStage = new ScipIndexerStage();
+    const stage = new ScipIndexerStage();
     const sourceCache = new Map<string, string>();
 
     // A single line top-level file — calls at top level have no enclosing function
@@ -1374,10 +1334,7 @@ describe('ScipRefStage - additional branches', () => {
 
     loadScipIndexesMock.mockResolvedValue([buf]);
     const ctx = makeMinimalContext({ scip: { enabled: true } as any, sourceCache });
-    await indexerStage.execute(ctx, 'build');
-
-    const refStage = new ScipRefStage();
-    await refStage.execute(ctx, 'build');
+    await stage.execute(ctx, 'build');
 
     // Should complete without errors — ref is skipped because no caller
     const refs = ctx.db.prepare('SELECT * FROM symbol_refs').all() as any[];
@@ -1386,8 +1343,8 @@ describe('ScipRefStage - additional branches', () => {
     ctx.db.close();
   });
 
-  it('ScipRefStage handles skip refKind with isCallExpression fallback', async () => {
-    const indexerStage = new ScipIndexerStage();
+  it('handles skip refKind with isCallExpression fallback', async () => {
+    const stage = new ScipIndexerStage();
     const sourceCache = new Map<string, string>();
 
     const sourceCode = [
@@ -1418,20 +1375,14 @@ describe('ScipRefStage - additional branches', () => {
 
     loadScipIndexesMock.mockResolvedValue([buf]);
     const ctx = makeMinimalContext({ scip: { enabled: true } as any, sourceCache });
-    await indexerStage.execute(ctx, 'build');
+    await stage.execute(ctx, 'build');
 
-    const refStage = new ScipRefStage();
-    await refStage.execute(ctx, 'build');
-
-    // The term-value ref should have been rescued as a call via isCallExpression
-    const refs = ctx.db.prepare('SELECT callee_name FROM symbol_refs').all() as any[];
-    // May or may not have been promoted depending on tree-sitter analysis
     // The key thing is no crash and correct processing
     ctx.db.close();
   });
 
-  it('ScipRefStage skips non-call term refs', async () => {
-    const indexerStage = new ScipIndexerStage();
+  it('skips non-call term refs', async () => {
+    const stage = new ScipIndexerStage();
     const sourceCache = new Map<string, string>();
 
     const sourceCode = [
@@ -1462,13 +1413,8 @@ describe('ScipRefStage - additional branches', () => {
 
     loadScipIndexesMock.mockResolvedValue([buf]);
     const ctx = makeMinimalContext({ scip: { enabled: true } as any, sourceCache });
-    await indexerStage.execute(ctx, 'build');
+    await stage.execute(ctx, 'build');
 
-    const refStage = new ScipRefStage();
-    await refStage.execute(ctx, 'build');
-
-    // The term-value ref should be skipped (not a call)
-    const refs = ctx.db.prepare('SELECT * FROM symbol_refs').all() as any[];
     // x is just read, not called, so no call ref
     ctx.db.close();
   });

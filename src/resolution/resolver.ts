@@ -12,7 +12,13 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import type { RawImport } from '../parsing/extractors/types.js';
+
+/** Minimal import type — compatible with the former RawImport from extractors. */
+interface RawImport {
+  source: string;
+  resolvedPath?: string;
+  importedNames: string[];
+}
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 

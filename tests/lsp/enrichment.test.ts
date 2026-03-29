@@ -557,4 +557,137 @@ describe('LspEnrichmentCoordinator', () => {
       expect(results).toEqual([null]);
     });
   });
+
+  // ─── documentSymbol ─────────────────────────────────────────────────────────
+
+  describe('documentSymbol', () => {
+    it('returns symbols from the LSP client', async () => {
+      fakeClient.documentSymbolResult = [
+        {
+          name: 'MyClass',
+          kind: 5,
+          range: { start: { line: 0, character: 0 }, end: { line: 10, character: 1 } },
+          selectionRange: { start: { line: 0, character: 6 }, end: { line: 0, character: 13 } },
+        },
+      ];
+      const coord = createCoordinator();
+      const symbols = await coord.documentSymbol('/tmp/test.ts', 'typescript', 'class MyClass {}');
+      expect(symbols).toEqual([
+        {
+          name: 'MyClass',
+          kind: 5,
+          range: { start: { line: 0, character: 0 }, end: { line: 10, character: 1 } },
+          selectionRange: { start: { line: 0, character: 6 }, end: { line: 0, character: 13 } },
+        },
+      ]);
+    });
+
+    it('returns empty when LSP is disabled', async () => {
+      const coord = createCoordinator({ enabled: false });
+      const symbols = await coord.documentSymbol('/tmp/test.ts', 'typescript', 'class MyClass {}');
+      expect(symbols).toEqual([]);
+    });
+
+    it('returns empty when client has no documentSymbol support', async () => {
+      // Create a client without documentSymbol
+      const minimalClient = {
+        ...fakeClient,
+        documentSymbol: undefined,
+      };
+      factory = () => minimalClient as any;
+      const coord = createCoordinator();
+      const symbols = await coord.documentSymbol('/tmp/test.ts', 'typescript', 'src');
+      expect(symbols).toEqual([]);
+    });
+
+    it('calls didOpen/didClose around the request', async () => {
+      fakeClient.documentSymbolResult = [];
+      const coord = createCoordinator();
+      await coord.documentSymbol('/tmp/test.ts', 'typescript', 'const x = 1;');
+      expect(fakeClient.openedDocuments.length).toBe(1);
+      expect(fakeClient.closedDocuments.length).toBe(1);
+    });
+  });
+
+  // ─── outgoingCalls ──────────────────────────────────────────────────────────
+
+  describe('outgoingCalls', () => {
+    it('returns outgoing calls via prepareCallHierarchy + callHierarchyOutgoing', async () => {
+      fakeClient.prepareCallHierarchyResult = [
+        {
+          name: 'main',
+          kind: 12,
+          uri: 'file:///tmp/test.ts',
+          range: { start: { line: 0, character: 0 }, end: { line: 5, character: 1 } },
+          selectionRange: { start: { line: 0, character: 9 }, end: { line: 0, character: 13 } },
+        },
+      ];
+      fakeClient.callHierarchyOutgoingResult = [
+        {
+          to: {
+            name: 'helper',
+            kind: 12,
+            uri: 'file:///tmp/util.ts',
+            range: { start: { line: 0, character: 0 }, end: { line: 3, character: 1 } },
+            selectionRange: { start: { line: 0, character: 9 }, end: { line: 0, character: 15 } },
+          },
+          fromRanges: [{ start: { line: 2, character: 2 }, end: { line: 2, character: 10 } }],
+        },
+      ];
+      const coord = createCoordinator();
+      const calls = await coord.outgoingCalls('/tmp/test.ts', 'typescript', 'src', { line: 0, character: 9 });
+      expect(calls.length).toBe(1);
+      expect(calls[0]!.to.name).toBe('helper');
+    });
+
+    it('returns empty when LSP is disabled', async () => {
+      const coord = createCoordinator({ enabled: false });
+      const calls = await coord.outgoingCalls('/tmp/test.ts', 'typescript', 'src', { line: 0, character: 0 });
+      expect(calls).toEqual([]);
+    });
+
+    it('returns empty when prepareCallHierarchy returns no items', async () => {
+      fakeClient.prepareCallHierarchyResult = [];
+      const coord = createCoordinator();
+      const calls = await coord.outgoingCalls('/tmp/test.ts', 'typescript', 'src', { line: 0, character: 0 });
+      expect(calls).toEqual([]);
+    });
+  });
+
+  // ─── semanticTokens ────────────────────────────────────────────────────────
+
+  describe('semanticTokens', () => {
+    it('returns semantic tokens from the LSP client', async () => {
+      fakeClient.semanticTokensResult = { data: [0, 0, 5, 0, 0] };
+      const coord = createCoordinator();
+      const result = await coord.semanticTokens('/tmp/test.ts', 'typescript', 'const x = 1;');
+      expect(result).toEqual({ data: [0, 0, 5, 0, 0] });
+    });
+
+    it('returns null when LSP is disabled', async () => {
+      const coord = createCoordinator({ enabled: false });
+      const result = await coord.semanticTokens('/tmp/test.ts', 'typescript', 'src');
+      expect(result).toBeNull();
+    });
+  });
+
+  // ─── getServerCapabilities ──────────────────────────────────────────────────
+
+  describe('getServerCapabilities', () => {
+    it('returns capabilities for a known language', async () => {
+      const coord = createCoordinator();
+      const caps = await coord.getServerCapabilities('typescript');
+      expect(caps).toEqual({
+        documentSymbol: true,
+        callHierarchy: true,
+        semanticTokensFull: true,
+      });
+    });
+
+    it('returns null for unknown language', async () => {
+      const coord = createCoordinator();
+      const caps = await coord.getServerCapabilities('brainfuck');
+      expect(caps).toBeNull();
+    });
+  });
 });

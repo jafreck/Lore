@@ -15,6 +15,7 @@ import type { EmbeddingProvider } from './embeddings/embedder.js';
 import type { EffectiveLspSettings } from './lsp/config.js';
 import type { EffectiveScipSettings } from './scip/config.js';
 import type { WalkerConfig } from './discovery/walker.js';
+import { LspEnrichmentCoordinator } from './lsp/enrichment.js';
 import { getLogger, type LoreLogger } from './logger.js';
 import { killAllTracked } from './process-tracker.js';
 
@@ -73,6 +74,7 @@ export class LoreRuntime {
 
   private _embedder: EmbeddingProvider | null = null;
   private _refresher: Refresher | null = null;
+  private _lspCoordinator: LspEnrichmentCoordinator | null = null;
   private _started = false;
 
   constructor(config: RuntimeConfig, logger?: LoreLogger) {
@@ -90,6 +92,11 @@ export class LoreRuntime {
   /** The live file-change refresher, or `undefined` if refresh mode is `'none'`. */
   get refresher(): Refresher | undefined {
     return this._refresher ?? undefined;
+  }
+
+  /** The persistent LSP coordinator, or `undefined` if LSP is disabled. */
+  get lspCoordinator(): LspEnrichmentCoordinator | undefined {
+    return this._lspCoordinator ?? undefined;
   }
 
   get started(): boolean {
@@ -124,6 +131,17 @@ export class LoreRuntime {
           { embeddingModel: this.config.embeddingModel },
         );
       }
+    }
+
+    // ── LSP Coordinator (persistent) ─────────────────────────────────────────
+    if (this.config.lsp?.enabled) {
+      this._lspCoordinator = new LspEnrichmentCoordinator(
+        this.config.lsp,
+        this.config.rootDir,
+      );
+      this.log.startup('LSP coordinator created (persistent)', {
+        enabled: true,
+      });
     }
 
     // ── Refresher (watch / poll) ─────────────────────────────────────────────
@@ -231,6 +249,15 @@ export class LoreRuntime {
         /* best-effort */
       }
       this._embedder = null;
+    }
+
+    if (this._lspCoordinator) {
+      try {
+        await this._lspCoordinator.dispose();
+      } catch {
+        /* best-effort */
+      }
+      this._lspCoordinator = null;
     }
   }
 

@@ -18,10 +18,6 @@ export interface SymbolRow {
   end_line: number;
   signature: string | null;
   doc_comment: string | null;
-  line_count: number | null;
-  param_count: number | null;
-  cyclomatic: number | null;
-  max_nesting: number | null;
   resolved_type_signature?: string | null;
   resolved_return_type?: string | null;
   definition_uri?: string | null;
@@ -152,7 +148,7 @@ const EXTERNAL_SYMBOL_COLUMNS = `id, dependency_ecosystem, source_type, source_r
 export function getSymbolById(db: Database.Database, id: number): SymbolRow | undefined {
   return db
     .prepare(
-      `SELECT s.*, sp.name AS parent_name, f.path AS file_path, f.branch AS file_branch, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting FROM ${symbolsTable(db)} s JOIN ${filesTable(db)} f ON f.id = s.file_id LEFT JOIN symbols sp ON sp.id = s.parent_symbol_id LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id WHERE s.id = ?`
+      `SELECT s.*, sp.name AS parent_name, f.path AS file_path, f.branch AS file_branch FROM ${symbolsTable(db)} s JOIN ${filesTable(db)} f ON f.id = s.file_id LEFT JOIN symbols sp ON sp.id = s.parent_symbol_id WHERE s.id = ?`
     )
     .get(id) as SymbolRow | undefined;
 }
@@ -244,11 +240,10 @@ export function getSymbolsByName(
 
   return db
     .prepare(
-      `SELECT s.*, sp.name AS parent_name, f.path AS file_path, f.branch AS file_branch, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting
+      `SELECT s.*, sp.name AS parent_name, f.path AS file_path, f.branch AS file_branch
        FROM ${symbolsTable(db)} s
        JOIN ${filesTable(db)} f ON s.file_id = f.id
        LEFT JOIN symbols sp ON sp.id = s.parent_symbol_id
-       LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id
        WHERE ${where.join(' AND ')}`,
     )
     .all(...params) as SymbolRow[];
@@ -274,11 +269,10 @@ export function listSymbols(
 
   return db
     .prepare(
-      `SELECT s.*, sp.name AS parent_name, f.path AS file_path, f.branch AS file_branch, sm.line_count, sm.param_count, sm.cyclomatic, sm.max_nesting
+      `SELECT s.*, sp.name AS parent_name, f.path AS file_path, f.branch AS file_branch
        FROM ${symbolsTable(db)} s
        JOIN ${filesTable(db)} f ON s.file_id = f.id
        LEFT JOIN symbols sp ON sp.id = s.parent_symbol_id
-       LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id
        ${where.length > 0 ? `WHERE ${where.join(' AND ')}` : ''}
        ORDER BY f.path ASC, f.branch ASC, s.name COLLATE NOCASE ASC, s.kind ASC, s.start_line ASC, s.end_line ASC, s.id ASC
        LIMIT ? OFFSET ?`,

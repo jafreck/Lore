@@ -86,7 +86,6 @@ export interface TraceStep {
   source: string;
   call_line?: number;
   resolution_method?: string;
-  cyclomatic?: number;
 }
 
 export interface TraceResult {
@@ -107,7 +106,6 @@ interface SymbolWithSource {
   end_line: number;
   signature: string | null;
   source: string;
-  cyclomatic: number | null;
 }
 
 interface CalleeEdge {
@@ -137,16 +135,6 @@ function resolveSymbolName(db: Database.Database, name: string, branch?: string)
   return rows[0]!.id;
 }
 
-/** Check whether a table exists in the database. */
-function hasTable(db: Database.Database, name: string): boolean {
-  const row = db
-    .prepare(
-      "SELECT 1 AS present FROM sqlite_master WHERE type IN ('table', 'virtual table') AND name = ? LIMIT 1",
-    )
-    .get(name) as { present: number } | undefined;
-  return row?.present === 1;
-}
-
 /** Fetch full symbol info with source for a batch of symbol IDs. */
 function getSymbolsWithSource(
   db: Database.Database,
@@ -154,15 +142,12 @@ function getSymbolsWithSource(
 ): Map<number, SymbolWithSource> {
   if (symbolIds.length === 0) return new Map();
 
-  const hasMetrics = hasTable(db, 'symbol_metrics');
   const placeholders = symbolIds.map(() => '?').join(', ');
   const sql = `
     SELECT s.id, s.name, s.kind, f.path AS file_path,
            s.start_line, s.end_line, s.signature, f.source
-           ${hasMetrics ? ', sm.cyclomatic' : ''}
       FROM symbols s
       JOIN files f ON f.id = s.file_id
-      ${hasMetrics ? 'LEFT JOIN symbol_metrics sm ON sm.symbol_id = s.id' : ''}
      WHERE s.id IN (${placeholders})`;
 
   const rows = db.prepare(sql).all(...symbolIds) as Array<{
@@ -174,15 +159,11 @@ function getSymbolsWithSource(
     end_line: number;
     signature: string | null;
     source: string;
-    cyclomatic: number | null;
   }>;
 
   const map = new Map<number, SymbolWithSource>();
   for (const row of rows) {
-    map.set(row.id, {
-      ...row,
-      cyclomatic: hasMetrics ? row.cyclomatic : null,
-    });
+    map.set(row.id, row);
   }
   return map;
 }
@@ -239,7 +220,6 @@ function buildStep(
   if (sym.signature) step.signature = sym.signature;
   if (callLine !== undefined) step.call_line = callLine;
   if (resolutionMethod !== undefined) step.resolution_method = resolutionMethod;
-  if (sym.cyclomatic !== null && sym.cyclomatic !== undefined) step.cyclomatic = sym.cyclomatic;
   return step;
 }
 

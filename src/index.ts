@@ -3,7 +3,7 @@
  *
  * Public API surface for the Lore knowledge-base toolkit.
  *
- * Exports are intentional and small. Internal helpers like `ParserPool`,
+ * Exports are intentional and small. Internal helpers like
  * `normalizeTypeName`, etc., are not exposed. `buildCallGraph` has been
  * removed — use `resolveSymbolEdges` instead.
  *
@@ -43,13 +43,6 @@ export { installAllMissing as installScipIndexers, SCIP_INSTALL_SPECS } from './
 export type { ScipInstallResult, ScipInstallSpec } from './scip/installer.js';
 export { TransformersJsProvider, LazyEmbeddingProvider, DEFAULT_EMBEDDING_MODEL, tokenAwareBatch, hashEmbeddingText, buildStructuralEmbeddingText } from './embeddings/embedder.js';
 export type { EmbeddingProvider, OnnxDtype } from './embeddings/embedder.js';
-export type {
-  ExtractionResult,
-  RawCallRef,
-  RawImport,
-  RawSymbol,
-  SymbolExtractor,
-} from './parsing/extractors/types.js';
 
 // ── Resolution method taxonomy (shared constant) ─────────────────────────────
 export { RESOLUTION_METHODS, RESOLVED_METHODS, UNRESOLVED_METHODS } from './resolution/resolution-method.js';
@@ -60,9 +53,8 @@ export { IndexPipeline } from './indexer/pipeline.js';
 export type { PipelineContext, PipelineStage } from './indexer/pipeline.js';
 export {
   ScipIndexerStage,
-  SourceIndexStage,
+  FileDiscoveryStage,
   ImportResolutionStage,
-  DependencyApiStage,
   LspEnrichmentStage,
   EmbeddingStage,
 } from './indexer/stages/index.js';
