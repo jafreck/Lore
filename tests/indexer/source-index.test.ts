@@ -3,7 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import * as crypto from 'node:crypto';
-import { openDb } from '../../src/db/schema.js';
+import { openDb, setLoreMeta, LORE_META_INDEX_CHECKPOINT } from '../../src/db/schema.js';
 import type { Database } from '../../src/db/schema.js';
 import { SourceIndexStage, processFile } from '../../src/indexer/stages/source-index.js';
 import type { PipelineContext } from '../../src/indexer/pipeline.js';
@@ -618,5 +618,607 @@ describe('SourceIndexStage', () => {
     }>;
     expect(metrics.length).toBeGreaterThanOrEqual(1);
     expect(metrics[0]!.cyclomatic).toBeGreaterThanOrEqual(2);
+  });
+
+  it('processFile re-indexes when size matches but hash differs', async () => {
+    const filePath = path.join(tmpDir, 'hashchange.ts');
+    const source1 = `export function aaa() { return 1; }\n`;
+    fs.writeFileSync(filePath, source1);
+    const hash1 = crypto.createHash('sha256').update(source1).digest('hex');
+    const sizeBytes = Buffer.byteLength(source1, 'utf8');
+
+    // Pre-insert file row with matching size but different hash
+    db.prepare(
+      `INSERT INTO files (path, branch, language, size_bytes, last_hash, source, layer, generation)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(filePath, 'main', 'typescript', sizeBytes, 'oldhashvalue_not_matching', source1, 'baseline', 0);
+
+    // Write a new file with same byte length but different content
+    const source2 = `export function bbb() { return 2; }\n`;
+    fs.writeFileSync(filePath, source2);
+
+    const pool = new ParserPool();
+    await processFile(db, pool, filePath, 'typescript', 'main', new Map(), 'baseline', 0);
+
+    // The file should have been re-indexed: symbols should be 'bbb'
+    const symbols = db.prepare('SELECT name FROM symbols').all() as Array<{ name: string }>;
+    expect(symbols.some(s => s.name === 'bbb')).toBe(true);
+  });
+
+  it('processFile overlay mode creates new overlay row alongside baseline', async () => {
+    const filePath = path.join(tmpDir, 'overlay_test.ts');
+    const source = `export function baseline() { return 1; }\n`;
+    fs.writeFileSync(filePath, source);
+
+    // First, build baseline
+    const pool = new ParserPool();
+    await processFile(db, pool, filePath, 'typescript', 'main', new Map(), 'baseline', 0);
+
+    // Now write new content and process as overlay
+    const source2 = `export function overlay_fn() { return 2; }\n`;
+    fs.writeFileSync(filePath, source2);
+    await processFile(db, pool, filePath, 'typescript', 'main', new Map(), 'overlay', 1);
+
+    // Both rows should exist
+    const files = db.prepare('SELECT layer FROM files WHERE path = ?').all(filePath) as Array<{ layer: string }>;
+    expect(files.some(f => f.layer === 'baseline')).toBe(true);
+    expect(files.some(f => f.layer === 'overlay')).toBe(true);
+
+    // Overlay symbol should be present
+    const overlaySyms = db.prepare(
+      `SELECT s.name FROM symbols s JOIN files f ON s.file_id = f.id WHERE f.layer = 'overlay'`,
+    ).all() as Array<{ name: string }>;
+    expect(overlaySyms.some(s => s.name === 'overlay_fn')).toBe(true);
+
+    // Dirty file marker should exist
+    const dirty = db.prepare('SELECT * FROM dirty_files WHERE path = ?').all(filePath);
+    expect(dirty.length).toBe(1);
+  });
+
+  it('processFile overlay mode replaces existing overlay row', async () => {
+    const filePath = path.join(tmpDir, 'overlay_replace.ts');
+    const source = `export function v1() { return 1; }\n`;
+    fs.writeFileSync(filePath, source);
+
+    const pool = new ParserPool();
+    // Create baseline
+    await processFile(db, pool, filePath, 'typescript', 'main', new Map(), 'baseline', 0);
+
+    // Create first overlay
+    const source2 = `export function v2() { return 2; }\n`;
+    fs.writeFileSync(filePath, source2);
+    await processFile(db, pool, filePath, 'typescript', 'main', new Map(), 'overlay', 1);
+
+    // Create second overlay (should replace first)
+    const source3 = `export function v3() { return 3; }\n`;
+    fs.writeFileSync(filePath, source3);
+    await processFile(db, pool, filePath, 'typescript', 'main', new Map(), 'overlay', 2);
+
+    // Should be only one overlay file row
+    const overlayFiles = db.prepare(
+      `SELECT * FROM files WHERE path = ? AND layer = 'overlay'`,
+    ).all(filePath);
+    expect(overlayFiles.length).toBe(1);
+
+    // Latest overlay symbol should be v3
+    const syms = db.prepare(
+      `SELECT s.name FROM symbols s JOIN files f ON s.file_id = f.id WHERE f.layer = 'overlay'`,
+    ).all() as Array<{ name: string }>;
+    expect(syms.some(s => s.name === 'v3')).toBe(true);
+    expect(syms.some(s => s.name === 'v2')).toBe(false);
+  });
+
+  it('indexes file with duplicate symbol names and resolves by line', async () => {
+    // Create a file with two functions named the same (method overloads/same name in different contexts)
+    fs.writeFileSync(
+      path.join(tmpDir, 'dup.ts'),
+      [
+        'function helper() { return 1; }',
+        'class Foo {',
+        '  helper() { return 2; }',
+        '}',
+      ].join('\n') + '\n',
+    );
+
+    const stage = new SourceIndexStage();
+    const ctx = makeCtx();
+    await stage.execute(ctx, 'build');
+    await stage.dispose?.();
+
+    // Should have two symbols named 'helper'
+    const helpers = db.prepare(
+      `SELECT id, name, start_line, end_line FROM symbols WHERE name = 'helper'`,
+    ).all() as Array<{ id: number; name: string; start_line: number; end_line: number }>;
+    expect(helpers.length).toBe(2);
+    // They should have different ids
+    expect(helpers[0]!.id).not.toBe(helpers[1]!.id);
+  });
+
+  it('creates module-level symbol for top-level calls', async () => {
+    fs.writeFileSync(
+      path.join(tmpDir, 'toplevel.ts'),
+      `console.log("hello");\nconst x = Math.random();\n`,
+    );
+
+    const stage = new SourceIndexStage();
+    const ctx = makeCtx();
+    await stage.execute(ctx, 'build');
+    await stage.dispose?.();
+
+    // A module-level symbol should have been created
+    const moduleSyms = db.prepare(
+      `SELECT name FROM symbols WHERE kind = 'module'`,
+    ).all() as Array<{ name: string }>;
+    expect(moduleSyms.some(s => s.name.includes('<module:'))).toBe(true);
+
+    // Call refs should exist with the module symbol as caller
+    const refs = db.prepare('SELECT callee_name FROM symbol_refs').all() as Array<{ callee_name: string }>;
+    expect(refs.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('indexes parent_symbol_id for nested symbols', async () => {
+    fs.writeFileSync(
+      path.join(tmpDir, 'nested.ts'),
+      [
+        'class Outer {',
+        '  method() {',
+        '    return 1;',
+        '  }',
+        '}',
+      ].join('\n') + '\n',
+    );
+
+    const stage = new SourceIndexStage();
+    const ctx = makeCtx();
+    await stage.execute(ctx, 'build');
+    await stage.dispose?.();
+
+    const symbols = db.prepare(
+      'SELECT id, name, parent_symbol_id FROM symbols',
+    ).all() as Array<{ id: number; name: string; parent_symbol_id: number | null }>;
+
+    const outer = symbols.find(s => s.name === 'Outer');
+    const method = symbols.find(s => s.name === 'method');
+    expect(outer).toBeDefined();
+    expect(method).toBeDefined();
+    expect(method!.parent_symbol_id).toBe(outer!.id);
+  });
+
+  it('update mode overlay deletion populates staleSymbolIds', async () => {
+    const filePath = path.join(tmpDir, 'stale.ts');
+    fs.writeFileSync(filePath, `export function staleFn() { return 1; }\n`);
+
+    const stage = new SourceIndexStage();
+
+    // Build baseline
+    const ctx = makeCtx({ layer: 'baseline' });
+    await stage.execute(ctx, 'build');
+
+    // Create overlay
+    fs.writeFileSync(filePath, `export function overlayFn() { return 2; }\n`);
+    const updateCtx1 = makeCtx({
+      changedFiles: [filePath],
+      layer: 'overlay',
+      generation: 1,
+    });
+    await stage.execute(updateCtx1, 'update');
+
+    // Now delete the file and run update in overlay mode
+    fs.unlinkSync(filePath);
+    const updateCtx2 = makeCtx({
+      changedFiles: [filePath],
+      layer: 'overlay',
+      generation: 2,
+    });
+    await stage.execute(updateCtx2, 'update');
+    await stage.dispose?.();
+
+    // staleSymbolIds should be populated
+    expect(updateCtx2.staleSymbolIds.length).toBeGreaterThanOrEqual(1);
+    // dirty_files should be marked
+    const dirty = db.prepare('SELECT * FROM dirty_files WHERE path = ?').all(filePath);
+    expect(dirty.length).toBe(1);
+  });
+
+  it('loadBuildCheckpoint resumes from a valid checkpoint', async () => {
+    // Create 5 files
+    for (let i = 0; i < 5; i++) {
+      fs.writeFileSync(
+        path.join(tmpDir, `ckpt${i}.ts`),
+        `export function f${i}() { return ${i}; }\n`,
+      );
+    }
+
+    // Do a full build first
+    const stage = new SourceIndexStage();
+    const ctx1 = makeCtx();
+    await stage.execute(ctx1, 'build');
+
+    // Now save a checkpoint pretending only 3 were done and re-run
+    // with same file count — it should resume from index 3
+    const checkpoint = {
+      branch: 'main',
+      rootDir: tmpDir,
+      totalFiles: 5,
+      nextFileIndex: 3,
+      updatedAt: Math.floor(Date.now() / 1000),
+    };
+    setLoreMeta(db, LORE_META_INDEX_CHECKPOINT, JSON.stringify(checkpoint));
+
+    // Re-build — should resume and process files 3-4 (files 0-2 already in DB)
+    const ctx2 = makeCtx();
+    await stage.execute(ctx2, 'build');
+    await stage.dispose?.();
+
+    // All 5 files should still be in the DB
+    const count = (db.prepare('SELECT count(*) as c FROM files').get() as any).c;
+    expect(count).toBe(5);
+  });
+
+  it('loadBuildCheckpoint ignores checkpoint for different branch', async () => {
+    for (let i = 0; i < 3; i++) {
+      fs.writeFileSync(
+        path.join(tmpDir, `branch${i}.ts`),
+        `export function f${i}() { return ${i}; }\n`,
+      );
+    }
+
+    // Save a checkpoint for a different branch
+    const checkpoint = {
+      branch: 'feature-branch',
+      rootDir: tmpDir,
+      totalFiles: 3,
+      nextFileIndex: 2,
+      updatedAt: Math.floor(Date.now() / 1000),
+    };
+    setLoreMeta(db, LORE_META_INDEX_CHECKPOINT, JSON.stringify(checkpoint));
+
+    const stage = new SourceIndexStage();
+    const ctx = makeCtx();
+    await stage.execute(ctx, 'build');
+    await stage.dispose?.();
+
+    // All 3 files indexed from scratch (checkpoint ignored)
+    const count = (db.prepare('SELECT count(*) as c FROM files').get() as any).c;
+    expect(count).toBe(3);
+  });
+
+  it('loadBuildCheckpoint ignores malformed JSON', async () => {
+    fs.writeFileSync(
+      path.join(tmpDir, 'malformed.ts'),
+      `export function f() { return 1; }\n`,
+    );
+
+    setLoreMeta(db, LORE_META_INDEX_CHECKPOINT, 'NOT_VALID_JSON!!!');
+
+    const stage = new SourceIndexStage();
+    const ctx = makeCtx();
+    await stage.execute(ctx, 'build');
+    await stage.dispose?.();
+
+    const count = (db.prepare('SELECT count(*) as c FROM files').get() as any).c;
+    expect(count).toBe(1);
+  });
+
+  it('loadBuildCheckpoint with failedFiles retries them', async () => {
+    // Create files
+    for (let i = 0; i < 3; i++) {
+      fs.writeFileSync(
+        path.join(tmpDir, `retry${i}.ts`),
+        `export function f${i}() { return ${i}; }\n`,
+      );
+    }
+
+    // Do a full build first so that all files are in the DB
+    const stage = new SourceIndexStage();
+    const ctx1 = makeCtx();
+    await stage.execute(ctx1, 'build');
+
+    // Get the actual file paths from walkFiles order
+    const allFiles = db.prepare('SELECT path FROM files ORDER BY path').all() as Array<{ path: string }>;
+    expect(allFiles.length).toBe(3);
+
+    // Save a checkpoint saying 2 were done, 1 failed
+    const failedPath = allFiles[1]!.path; // second file
+    const checkpoint = {
+      branch: 'main',
+      rootDir: tmpDir,
+      totalFiles: 3,
+      nextFileIndex: 2,
+      updatedAt: Math.floor(Date.now() / 1000),
+      failedFiles: [failedPath],
+    };
+    setLoreMeta(db, LORE_META_INDEX_CHECKPOINT, JSON.stringify(checkpoint));
+
+    const ctx2 = makeCtx();
+    await stage.execute(ctx2, 'build');
+    await stage.dispose?.();
+
+    // All 3 files should be indexed (retry + remaining)
+    const count = (db.prepare('SELECT count(*) as c FROM files').get() as any).c;
+    expect(count).toBe(3);
+  });
+
+  it('computeMetricsForScipFiles reads source from filesystem when not cached', async () => {
+    const filePath = path.join(tmpDir, 'fs_read.ts');
+    fs.writeFileSync(
+      filePath,
+      `export function fsRead(a: number): number {\n  if (a > 0) return a;\n  return 0;\n}\n`,
+    );
+
+    // Pre-insert file and symbol rows
+    const fileInfo = db.prepare(
+      `INSERT INTO files (path, branch, language, size_bytes, last_hash, source, layer, generation)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(filePath, 'main', 'typescript', 100, 'fakehash', '', 'baseline', 0) as { lastInsertRowid: number | bigint };
+    const fileId = Number(fileInfo.lastInsertRowid);
+    db.prepare(
+      `INSERT INTO symbols (file_id, name, kind, start_line, end_line, layer, generation)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    ).run(fileId, 'fsRead', 'function', 0, 3, 'baseline', 0);
+
+    const stage = new SourceIndexStage();
+    // Don't pre-populate sourceCache — force filesystem read
+    const ctx = makeCtx({
+      scipSourcedFiles: new Set([filePath]),
+      maxWorkers: 0,
+      sourceCache: new Map(), // empty cache — triggers fs.readFileSync fallback
+    });
+    await stage.execute(ctx, 'build');
+    await stage.dispose?.();
+
+    const metrics = db.prepare('SELECT * FROM symbol_metrics').all() as Array<{
+      line_count: number; cyclomatic: number;
+    }>;
+    expect(metrics.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('applyScipMetrics patches end_line when tree-sitter span is larger', async () => {
+    const filePath = path.join(tmpDir, 'patchend.ts');
+    fs.writeFileSync(
+      filePath,
+      `export function patchMe(a: number): number {\n  if (a > 0) {\n    return a;\n  }\n  return 0;\n}\n`,
+    );
+
+    // Pre-insert file and symbol with short end_line (as SCIP might produce)
+    const fileInfo = db.prepare(
+      `INSERT INTO files (path, branch, language, size_bytes, last_hash, source, layer, generation)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(filePath, 'main', 'typescript', 100, 'fakehash', '', 'baseline', 0) as { lastInsertRowid: number | bigint };
+    const fileId = Number(fileInfo.lastInsertRowid);
+    db.prepare(
+      `INSERT INTO symbols (file_id, name, kind, start_line, end_line, layer, generation)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    ).run(fileId, 'patchMe', 'function', 0, 0, 'baseline', 0);
+
+    const stage = new SourceIndexStage();
+    const ctx = makeCtx({
+      scipSourcedFiles: new Set([filePath]),
+      maxWorkers: 0,
+    });
+    await stage.execute(ctx, 'build');
+    await stage.dispose?.();
+
+    // end_line should have been patched to the actual function end
+    const sym = db.prepare(
+      `SELECT end_line FROM symbols WHERE name = 'patchMe'`,
+    ).get() as { end_line: number };
+    expect(sym.end_line).toBeGreaterThan(0);
+  });
+
+  it('applyScipMetrics uses dotted name fallback for symbol matching', async () => {
+    const filePath = path.join(tmpDir, 'dotted.ts');
+    fs.writeFileSync(
+      filePath,
+      `class MyClass {\n  myMethod() {\n    return 1;\n  }\n}\n`,
+    );
+
+    // Pre-insert file and symbol using the short name only
+    const fileInfo = db.prepare(
+      `INSERT INTO files (path, branch, language, size_bytes, last_hash, source, layer, generation)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(filePath, 'main', 'typescript', 100, 'fakehash', '', 'baseline', 0) as { lastInsertRowid: number | bigint };
+    const fileId = Number(fileInfo.lastInsertRowid);
+    db.prepare(
+      `INSERT INTO symbols (file_id, name, kind, start_line, end_line, layer, generation)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    ).run(fileId, 'MyClass', 'class', 0, 4, 'baseline', 0);
+    db.prepare(
+      `INSERT INTO symbols (file_id, name, kind, start_line, end_line, layer, generation)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    ).run(fileId, 'myMethod', 'method', 1, 3, 'baseline', 0);
+
+    const stage = new SourceIndexStage();
+    const ctx = makeCtx({
+      scipSourcedFiles: new Set([filePath]),
+      maxWorkers: 0,
+    });
+    await stage.execute(ctx, 'build');
+    await stage.dispose?.();
+
+    // Metrics should have been applied
+    const metrics = db.prepare('SELECT * FROM symbol_metrics').all() as any[];
+    expect(metrics.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('update mode overlay existing file change populates staleSymbolIds', async () => {
+    const filePath = path.join(tmpDir, 'overlay_stale.ts');
+    fs.writeFileSync(filePath, `export function original() { return 1; }\n`);
+
+    const stage = new SourceIndexStage();
+
+    // Build baseline
+    const ctx = makeCtx({ layer: 'baseline' });
+    await stage.execute(ctx, 'build');
+
+    // Create first overlay
+    fs.writeFileSync(filePath, `export function first_overlay() { return 2; }\n`);
+    const updateCtx1 = makeCtx({
+      changedFiles: [filePath],
+      layer: 'overlay',
+      generation: 1,
+    });
+    await stage.execute(updateCtx1, 'update');
+
+    // Modify the file again — second overlay should replace prior overlay
+    fs.writeFileSync(filePath, `export function second_overlay() { return 3; }\n`);
+    const updateCtx2 = makeCtx({
+      changedFiles: [filePath],
+      layer: 'overlay',
+      generation: 2,
+    });
+    await stage.execute(updateCtx2, 'update');
+    await stage.dispose?.();
+
+    // staleSymbolIds from the first overlay should be captured
+    expect(updateCtx2.staleSymbolIds.length).toBeGreaterThanOrEqual(1);
+
+    // Only one overlay file row
+    const overlayFiles = db.prepare(
+      `SELECT * FROM files WHERE path = ? AND layer = 'overlay'`,
+    ).all(filePath);
+    expect(overlayFiles.length).toBe(1);
+
+    // Second overlay symbol
+    const syms = db.prepare(
+      `SELECT s.name FROM symbols s JOIN files f ON s.file_id = f.id WHERE f.layer = 'overlay'`,
+    ).all() as Array<{ name: string }>;
+    expect(syms.some(s => s.name === 'second_overlay')).toBe(true);
+  });
+
+  it('indexes type refs from TypeScript source', async () => {
+    fs.writeFileSync(
+      path.join(tmpDir, 'typerefs.ts'),
+      [
+        'interface Foo { x: number; }',
+        'function useFoo(f: Foo): Foo {',
+        '  return f;',
+        '}',
+      ].join('\n') + '\n',
+    );
+
+    const stage = new SourceIndexStage();
+    const ctx = makeCtx();
+    await stage.execute(ctx, 'build');
+    await stage.dispose?.();
+
+    const typeRefs = db.prepare('SELECT type_name FROM type_refs').all() as Array<{ type_name: string }>;
+    expect(typeRefs.some(r => r.type_name === 'Foo')).toBe(true);
+  });
+
+  it('indexes relationship data (extends/implements)', async () => {
+    fs.writeFileSync(
+      path.join(tmpDir, 'inherit.ts'),
+      [
+        'class Base { }',
+        'class Child extends Base { }',
+      ].join('\n') + '\n',
+    );
+
+    const stage = new SourceIndexStage();
+    const ctx = makeCtx();
+    await stage.execute(ctx, 'build');
+    await stage.dispose?.();
+
+    const rels = db.prepare('SELECT target_symbol_name, relationship_type FROM symbol_relationships').all() as Array<{
+      target_symbol_name: string; relationship_type: string;
+    }>;
+    expect(rels.some(r => r.target_symbol_name === 'Base')).toBe(true);
+  });
+
+  it('loadBuildCheckpoint ignores checkpoint with different totalFiles', async () => {
+    for (let i = 0; i < 2; i++) {
+      fs.writeFileSync(
+        path.join(tmpDir, `total${i}.ts`),
+        `export function f${i}() { return ${i}; }\n`,
+      );
+    }
+
+    // Checkpoint says totalFiles=5, but we only have 2 — should be ignored
+    const checkpoint = {
+      branch: 'main',
+      rootDir: tmpDir,
+      totalFiles: 5,
+      nextFileIndex: 3,
+      updatedAt: Math.floor(Date.now() / 1000),
+    };
+    setLoreMeta(db, LORE_META_INDEX_CHECKPOINT, JSON.stringify(checkpoint));
+
+    const stage = new SourceIndexStage();
+    const ctx = makeCtx();
+    await stage.execute(ctx, 'build');
+    await stage.dispose?.();
+
+    const count = (db.prepare('SELECT count(*) as c FROM files').get() as any).c;
+    expect(count).toBe(2);
+  });
+
+  it('build mode with maxWorkers > 1 uses serial fallback when worker script unavailable', async () => {
+    for (let i = 0; i < 3; i++) {
+      fs.writeFileSync(
+        path.join(tmpDir, `w${i}.ts`),
+        `export function fn${i}() { return ${i}; }\n`,
+      );
+    }
+
+    const stage = new SourceIndexStage();
+    const ctx = makeCtx({ maxWorkers: 2 }); // Force workerCount > 1
+    await stage.execute(ctx, 'build');
+    await stage.dispose?.();
+
+    // All files indexed via the serial fallback
+    const count = (db.prepare('SELECT count(*) as c FROM files').get() as any).c;
+    expect(count).toBe(3);
+  });
+
+  it('build mode maxWorkers > 1 with checkpoint retries and remaining files', async () => {
+    for (let i = 0; i < 4; i++) {
+      fs.writeFileSync(
+        path.join(tmpDir, `mw${i}.ts`),
+        `export function fn${i}() { return ${i}; }\n`,
+      );
+    }
+
+    // First build to populate DB
+    const stage = new SourceIndexStage();
+    const ctx1 = makeCtx({ maxWorkers: 2 });
+    await stage.execute(ctx1, 'build');
+
+    const allFiles = db.prepare('SELECT path FROM files ORDER BY path').all() as Array<{ path: string }>;
+    expect(allFiles.length).toBe(4);
+
+    // Set a checkpoint with a failed file and resume point
+    const failedPath = allFiles[0]!.path;
+    const checkpoint = {
+      branch: 'main',
+      rootDir: tmpDir,
+      totalFiles: 4,
+      nextFileIndex: 2,
+      updatedAt: Math.floor(Date.now() / 1000),
+      failedFiles: [failedPath],
+    };
+    setLoreMeta(db, LORE_META_INDEX_CHECKPOINT, JSON.stringify(checkpoint));
+
+    // Re-run with maxWorkers > 1 to trigger the workerScript fallback path
+    const ctx2 = makeCtx({ maxWorkers: 2 });
+    await stage.execute(ctx2, 'build');
+    await stage.dispose?.();
+
+    const count = (db.prepare('SELECT count(*) as c FROM files').get() as any).c;
+    expect(count).toBe(4);
+  });
+
+  it('processFile parses tree but unknown language returns null extractor', async () => {
+    const filePath = path.join(tmpDir, 'unknown_ext.weird');
+    fs.writeFileSync(filePath, 'content that cannot be parsed');
+
+    const pool = new ParserPool();
+    // Calling processFile with a language that has no extractor
+    // This exercises the `if (!extractor) return;` branch in processFileWithSource
+    await processFile(db, pool, filePath, 'nonexistent_lang', 'main', new Map(), 'baseline', 0);
+
+    // Should return without inserting anything
+    const files = db.prepare('SELECT * FROM files').all();
+    expect(files).toHaveLength(0);
   });
 });
