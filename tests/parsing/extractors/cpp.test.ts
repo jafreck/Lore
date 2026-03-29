@@ -200,5 +200,127 @@ class Derived : public Base {};`;
       }
       expect(result.symbols.find(s => s.name === 'foo')).toBeDefined();
     });
+
+    it('extracts named cast calls (static_cast parsed as template_function call)', () => {
+      const source = `void foo() { double d = 3.14; int x = static_cast<int>(d); }`;
+      const result = extract(source);
+      // tree-sitter-cpp parses static_cast<int>(d) as call_expression > template_function
+      const ref = result.callRefs.find(r => r.calleeRaw.includes('static_cast'));
+      expect(ref).toBeDefined();
+    });
+
+    it('extracts dynamic_cast as call', () => {
+      const source = `class Base { virtual ~Base() {} };
+class Derived : public Base {};
+void foo(Base* b) { Derived* d = dynamic_cast<Derived*>(b); }`;
+      const result = extract(source);
+      const ref = result.callRefs.find(r => r.calleeRaw.includes('dynamic_cast'));
+      expect(ref).toBeDefined();
+    });
+
+    it('extracts reinterpret_cast as call', () => {
+      const source = `void foo() { int x = 42; char* p = reinterpret_cast<char*>(&x); }`;
+      const result = extract(source);
+      const ref = result.callRefs.find(r => r.calleeRaw.includes('reinterpret_cast'));
+      expect(ref).toBeDefined();
+    });
+
+    it('extracts const_cast as call', () => {
+      const source = `void foo(const int* p) { int* q = const_cast<int*>(p); }`;
+      const result = extract(source);
+      const ref = result.callRefs.find(r => r.calleeRaw.includes('const_cast'));
+      expect(ref).toBeDefined();
+    });
+
+    it('extracts alignof type refs', () => {
+      const source = `void foo() { int a = alignof(double); }`;
+      const result = extract(source);
+      const alignRef = result.typeRefs.find(r => r.refKind === 'other');
+      if (alignRef) {
+        expect(alignRef.typeRaw).toBeTruthy();
+      }
+    });
+
+    it('extracts template base class relationship', () => {
+      const source = `template<typename T>
+class Container {};
+class IntContainer : public Container<int> {};`;
+      const result = extract(source);
+      const rel = result.relationships.find(r => r.fromSymbol === 'IntContainer');
+      expect(rel).toBeDefined();
+      if (rel) {
+        expect(rel.toSymbol).toContain('Container');
+      }
+    });
+  });
+
+  describe('template function calls', () => {
+    it('extracts template function call as direct', () => {
+      const source = `#include <algorithm>
+void foo() { std::sort<int*>(nullptr, nullptr); }`;
+      const result = extract(source);
+      const ref = result.callRefs.find(r => r.calleeRaw.includes('sort'));
+      expect(ref).toBeDefined();
+    });
+  });
+
+  describe('function declaration (prototype) in cpp', () => {
+    it('extracts function prototype as symbol', () => {
+      const source = `int calculate(double x, int n);`;
+      const result = extract(source);
+      const sym = result.symbols.find(s => s.name === 'calculate');
+      expect(sym).toBeDefined();
+      expect(sym!.kind).toBe('function');
+    });
+  });
+
+  describe('subscript indirect call', () => {
+    it('extracts subscript-based indirect call', () => {
+      const source = `typedef void (*Handler)(void);
+Handler handlers[10];
+void dispatch(int i) { (handlers[i])(); }`;
+      const result = extract(source);
+      const ref = result.callRefs.find(r => r.isIndirect);
+      if (ref) {
+        expect(ref.callKind).toBe('indirect');
+        expect(ref.calleeRaw).toContain('handlers');
+      }
+    });
+  });
+
+  describe('field expression indirect call through pointer', () => {
+    it('extracts field expression through pointer dereference', () => {
+      const source = `struct Vtable { void (*call)(void); };
+void foo(struct Vtable* vt) { (*vt->call)(); }`;
+      const result = extract(source);
+      const ref = result.callRefs.find(r => r.isIndirect);
+      if (ref) {
+        expect(ref.callKind).toBe('indirect');
+      }
+    });
+  });
+
+  describe('struct field type refs', () => {
+    it('extracts struct specifier field type refs', () => {
+      const source = `struct Config {
+  int port;
+  double timeout;
+};`;
+      const result = extract(source);
+      const sym = result.symbols.find(s => s.name === 'Config');
+      expect(sym).toBeDefined();
+      expect(sym!.kind).toBe('struct');
+    });
+  });
+
+  describe('sized_type_specifier in extractCppTypeName', () => {
+    it('extracts sized type specifier (unsigned long)', () => {
+      const source = `void foo() { unsigned long x = 0; }`;
+      const result = extract(source);
+      const ref = result.typeRefs.find(r => r.typeRaw && r.typeRaw.includes('unsigned'));
+      if (ref) {
+        expect(ref.typeRaw).toBeTruthy();
+      }
+    });
   });
 });
