@@ -1,0 +1,132 @@
+
+[
+scip-go0.1.26Dfile:///Users/jacobfreck/Source/Lore/tests/fixtures/scip-projects/go à
+main.goX
+Oscip-go gomod example.com/scip-fixture b0d0c4810da4 `example.com/scip-fixture`/;
+2scip-go gomod github.com/golang/go/src go1.21 fmt/]
+Tscip-go gomod example.com/scip-fixture b0d0c4810da4 `example.com/scip-fixture/util`/_
+
+	Vscip-go gomod example.com/scip-fixture b0d0c4810da4 `example.com/scip-fixture`/main().
+local 0]
+Tscip-go gomod example.com/scip-fixture b0d0c4810da4 `example.com/scip-fixture/util`/m
+dscip-go gomod example.com/scip-fixture b0d0c4810da4 `example.com/scip-fixture/util`/DefaultConfig().
+local 1]
+Tscip-go gomod example.com/scip-fixture b0d0c4810da4 `example.com/scip-fixture/util`/c
+Zscip-go gomod example.com/scip-fixture b0d0c4810da4 `example.com/scip-fixture/util`/Add().
+local 0i
+`scip-go gomod example.com/scip-fixture b0d0c4810da4 `example.com/scip-fixture/util`/Config#Port.
+local 2]
+Tscip-go gomod example.com/scip-fixture b0d0c4810da4 `example.com/scip-fixture/util`/j
+ascip-go gomod example.com/scip-fixture b0d0c4810da4 `example.com/scip-fixture/util`/StringHelper#q
+$hscip-go gomod example.com/scip-fixture b0d0c4810da4 `example.com/scip-fixture/util`/StringHelper#Prefix.;
+2scip-go gomod github.com/golang/go/src go1.21 fmt/E
+<scip-go gomod github.com/golang/go/src go1.21 fmt/Println().
+local 2s
+jscip-go gomod example.com/scip-fixture b0d0c4810da4 `example.com/scip-fixture/util`/StringHelper#Format().;
+2scip-go gomod github.com/golang/go/src go1.21 fmt/E
+&<scip-go gomod github.com/golang/go/src go1.21 fmt/Sprintf().
+=Clocal 1g
+^scip-go gomod example.com/scip-fixture b0d0c4810da4 `example.com/scip-fixture`/processItems().
+local 3
+local 4
+local 5
+local 3
+local 4]
+
+Tscip-go gomod example.com/scip-fixture b0d0c4810da4 `example.com/scip-fixture/util`/c
+Zscip-go gomod example.com/scip-fixture b0d0c4810da4 `example.com/scip-fixture/util`/Add().
+local 4
+"local 5
+local 4œ
+Vscip-go gomod example.com/scip-fixture b0d0c4810da4 `example.com/scip-fixture`/main().```go
+func main()
+```+main initializes and runs the application.
+Ä
+^scip-go gomod example.com/scip-fixture b0d0c4810da4 `example.com/scip-fixture`/processItems()./```go
+func processItems(items []string) int
+```1processItems computes the total length of items.
+t
+Oscip-go gomod example.com/scip-fixture b0d0c4810da4 `example.com/scip-fixture`/!Package main is the entry point.
+&
+local 52item:"go*var item stringH
+local 02config:5"go*/var config example.com/scip-fixture/util.Config'
+local 12result:"go*var result intO
+local 22helper:<"go*6var helper *example.com/scip-fixture/util.StringHelper*
+local 32items:"go*var items []string%
+local 42total:"go*var total int"go³
+util/util.go]
+Tscip-go gomod example.com/scip-fixture b0d0c4810da4 `example.com/scip-fixture/util`/d
+[scip-go gomod example.com/scip-fixture b0d0c4810da4 `example.com/scip-fixture/util`/Config#i
+`scip-go gomod example.com/scip-fixture b0d0c4810da4 `example.com/scip-fixture/util`/Config#Name.i
+`scip-go gomod example.com/scip-fixture b0d0c4810da4 `example.com/scip-fixture/util`/Config#Port.j
+ascip-go gomod example.com/scip-fixture b0d0c4810da4 `example.com/scip-fixture/util`/Config#Debug.m
+dscip-go gomod example.com/scip-fixture b0d0c4810da4 `example.com/scip-fixture/util`/DefaultConfig().d
+[scip-go gomod example.com/scip-fixture b0d0c4810da4 `example.com/scip-fixture/util`/Config#d
+[scip-go gomod example.com/scip-fixture b0d0c4810da4 `example.com/scip-fixture/util`/Config#i
+`scip-go gomod example.com/scip-fixture b0d0c4810da4 `example.com/scip-fixture/util`/Config#Name.i
+ `scip-go gomod example.com/scip-fixture b0d0c4810da4 `example.com/scip-fixture/util`/Config#Port.j
+(-ascip-go gomod example.com/scip-fixture b0d0c4810da4 `example.com/scip-fixture/util`/Config#Debug.c
+Zscip-go gomod example.com/scip-fixture b0d0c4810da4 `example.com/scip-fixture/util`/Add().
+	
+local 0
+local 1
+	local 0
+local 1j
+ascip-go gomod example.com/scip-fixture b0d0c4810da4 `example.com/scip-fixture/util`/StringHelper#q
+hscip-go gomod example.com/scip-fixture b0d0c4810da4 `example.com/scip-fixture/util`/StringHelper#Prefix.
+local 2j
+	ascip-go gomod example.com/scip-fixture b0d0c4810da4 `example.com/scip-fixture/util`/StringHelper#s
+jscip-go gomod example.com/scip-fixture b0d0c4810da4 `example.com/scip-fixture/util`/StringHelper#Format().
+#local 3
+	local 2q
+
+hscip-go gomod example.com/scip-fixture b0d0c4810da4 `example.com/scip-fixture/util`/StringHelper#Prefix.
+local 3†
+`scip-go gomod example.com/scip-fixture b0d0c4810da4 `example.com/scip-fixture/util`/Config#Name."```go
+struct field Name string
+```Ý
+ascip-go gomod example.com/scip-fixture b0d0c4810da4 `example.com/scip-fixture/util`/StringHelper#"```go
+type StringHelper struct
+```,StringHelper formats strings with a prefix.
+&```go
+struct {
+    Prefix string
+}
+```
+hscip-go gomod example.com/scip-fixture b0d0c4810da4 `example.com/scip-fixture/util`/StringHelper#Prefix.$```go
+struct field Prefix string
+```¾
+dscip-go gomod example.com/scip-fixture b0d0c4810da4 `example.com/scip-fixture/util`/DefaultConfig().%```go
+func DefaultConfig() Config
+```/DefaultConfig returns a default configuration.
+Þ
+jscip-go gomod example.com/scip-fixture b0d0c4810da4 `example.com/scip-fixture/util`/StringHelper#Format().:```go
+func (*StringHelper).Format(value string) string
+```4Format returns the value formatted with the prefix.
+ç
+[scip-go gomod example.com/scip-fixture b0d0c4810da4 `example.com/scip-fixture/util`/Config#```go
+type Config struct
+```(Config holds application configuration.
+@```go
+struct {
+    Name string
+    Port int
+    Debug bool
+}
+```ƒ
+`scip-go gomod example.com/scip-fixture b0d0c4810da4 `example.com/scip-fixture/util`/Config#Port.```go
+struct field Port int
+```†
+ascip-go gomod example.com/scip-fixture b0d0c4810da4 `example.com/scip-fixture/util`/Config#Debug.!```go
+struct field Debug bool
+```©
+Zscip-go gomod example.com/scip-fixture b0d0c4810da4 `example.com/scip-fixture/util`/Add().$```go
+func Add(a int, b int) int
+```%Add returns the sum of two integers.
+€
+Tscip-go gomod example.com/scip-fixture b0d0c4810da4 `example.com/scip-fixture/util`/(Package util provides helper functions.
+(
+local 32value:"go*var value string
+local 02a:"go*	var a int
+local 12b:"go*	var b intE
+local 22h:7"go*1var h *example.com/scip-fixture/util.StringHelper"go
