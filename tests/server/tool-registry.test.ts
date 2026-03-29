@@ -320,10 +320,9 @@ describe('registerTools', () => {
     // The handler returns an object, so freshness should be injected
     expect(parsed.data).toBe('test');
     // Freshness should be present as an object with source field
-    if (parsed.freshness) {
-      expect(typeof parsed.freshness.source).toBe('string');
-      expect(typeof parsed.freshness.dirty_file_count).toBe('number');
-    }
+    expect(parsed.freshness).toBeDefined();
+    expect(typeof parsed.freshness.source).toBe('string');
+    expect(typeof parsed.freshness.dirty_file_count).toBe('number');
     db.close();
   });
 

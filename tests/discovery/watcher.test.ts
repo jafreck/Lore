@@ -121,7 +121,7 @@ describe('FileWatcher', () => {
       }
     });
 
-    it('stop after start cleans up watcher', () => {
+    it('stop after start cleans up watcher without error', () => {
       const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lore-watcher-test-'));
       try {
         const cfg: WalkerConfig = { rootDir: tmpDir };
@@ -302,6 +302,8 @@ describe('FileWatcher', () => {
       (watcher as any).scheduleFlush();
       const timer2 = (watcher as any).debounceTimer;
       expect(timer2).not.toBeNull();
+      // Timer should have been replaced (new timer !== old timer)
+      expect(timer2).not.toBe(timer1);
       watcher.stop();
       vi.useRealTimers();
     });

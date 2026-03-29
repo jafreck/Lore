@@ -107,15 +107,14 @@ describe('lore_trace handler', () => {
     expect(() => handler(db, { from: 1, to: 4, depth: 5 })).toThrow(/No call path found/);
   });
 
-  it('clamps depth to min 1 and max 10', () => {
+  it('clamps depth 0 to min 1', () => {
     // depth: 0 should be clamped to 1
     const result = handler(db, { from: 1, depth: 0 });
     expect(result.steps.length).toBeGreaterThanOrEqual(1);
-    // Verify clamping happened by checking result has data
     expect(result.total_nodes).toBeGreaterThanOrEqual(1);
   });
 
-  it('clamps depth to max 10', () => {
+  it('clamps depth 100 to max 10', () => {
     const result = handler(db, { from: 1, depth: 100 });
     expect(result.steps.length).toBeGreaterThanOrEqual(1);
     // Verify clamping: result should still be valid

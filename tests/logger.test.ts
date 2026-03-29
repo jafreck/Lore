@@ -85,6 +85,8 @@ describe('LoreLogger', () => {
     const content = fs.readFileSync(logFile, 'utf8');
     const lines = content.trim().split('\n');
     expect(lines).toHaveLength(2);
+    const levels = lines.map(l => JSON.parse(l).level);
+    expect(levels).toEqual(['warn', 'error']);
   });
 
   it('includes extra fields', () => {

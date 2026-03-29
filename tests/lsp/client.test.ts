@@ -17,11 +17,6 @@ describe('LspClient', () => {
       expect(client).toBeInstanceOf(LspClient);
     });
 
-    it('creates an instance with default options', () => {
-      const client = new LspClient({ command: 'some-lsp' });
-      expect(client).toBeDefined();
-    });
-
     it('creates an instance with all options', () => {
       const client = new LspClient(
         { command: 'test-lsp', args: ['--flag'] },

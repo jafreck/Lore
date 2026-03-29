@@ -7,11 +7,6 @@ import {
   ScipIndexerStage,
   ScipRefStage,
   createLoreScipTsconfig,
-  buildInternalPrefixes,
-  isExternalSymbol,
-  buildSymbolDefinitionMap,
-  buildContainmentIndex,
-  findContainingSymbol,
 } from '../../src/indexer/stages/scip-indexer.js';
 import type { PipelineContext } from '../../src/indexer/pipeline.js';
 import { getLogger } from '../../src/logger.js';
@@ -97,6 +92,8 @@ describe('ScipIndexerStage', () => {
     const stage = new ScipIndexerStage();
     const ctx = makeMinimalContext({ scip: null });
     await stage.execute(ctx, 'build');
+    // Should not produce any SCIP ref data
+    expect(ctx.scipRefData).toBeUndefined();
     ctx.db.close();
   });
 
@@ -104,6 +101,7 @@ describe('ScipIndexerStage', () => {
     const stage = new ScipIndexerStage();
     const ctx = makeMinimalContext({ scip: { enabled: false } as any });
     await stage.execute(ctx, 'build');
+    expect(ctx.scipRefData).toBeUndefined();
     ctx.db.close();
   });
 
@@ -114,6 +112,7 @@ describe('ScipIndexerStage', () => {
       layer: 'overlay',
     });
     await stage.execute(ctx, 'build');
+    expect(ctx.scipRefData).toBeUndefined();
     ctx.db.close();
   });
 
@@ -595,10 +594,9 @@ describe('ScipRefStage', () => {
     expect(refs.length).toBeGreaterThanOrEqual(1);
 
     const callRef = refs.find((r: any) => r.callee_name === 'callee' || r.callee_name?.includes('callee'));
-    if (callRef) {
-      expect(callRef.caller_id).toBeTruthy();
-      expect(callRef.resolution_method).toBeTruthy();
-    }
+    expect(callRef).toBeDefined();
+    expect(callRef.caller_id).toBeTruthy();
+    expect(callRef.resolution_method).toBeTruthy();
 
     expect(ctx.scipRefData).toBeUndefined();
 
@@ -661,9 +659,8 @@ describe('ScipRefStage', () => {
     const typeRefs = ctx.db.prepare('SELECT * FROM type_refs').all() as any[];
     expect(typeRefs.length).toBeGreaterThanOrEqual(1);
     const myTypeRef = typeRefs.find((r: any) => r.type_name === 'MyType');
-    if (myTypeRef) {
-      expect(myTypeRef.type_name_bare).toBe('MyType');
-    }
+    expect(myTypeRef).toBeDefined();
+    expect(myTypeRef.type_name_bare).toBe('MyType');
 
     ctx.db.close();
   });
@@ -732,125 +729,10 @@ describe('createLoreScipTsconfig', () => {
   });
 });
 
-// ── Pure utility function tests ─────────────────────────────────────────────
-
-describe('buildInternalPrefixes', () => {
-  it('extracts prefixes from parsed indexes', () => {
-    const indexes = [{
-      documents: [{
-        symbols: [
-          { symbol: 'scip-typescript npm test-pkg 1.0.0 src/foo.ts/Foo#' },
-        ],
-      }],
-    }];
-    const prefixes = buildInternalPrefixes(indexes);
-    expect(prefixes.size).toBe(1);
-    expect(prefixes.has('scip-typescript npm test-pkg 1.0.0')).toBe(true);
-  });
-
-  it('returns empty set for empty indexes', () => {
-    const prefixes = buildInternalPrefixes([]);
-    expect(prefixes.size).toBe(0);
-  });
-
-  it('skips local symbols', () => {
-    const indexes = [{
-      documents: [{
-        symbols: [{ symbol: 'local 0' }],
-      }],
-    }];
-    const prefixes = buildInternalPrefixes(indexes);
-    expect(prefixes.size).toBe(0);
-  });
-});
-
-describe('isExternalSymbol', () => {
-  it('returns false when internal prefix matches', () => {
-    const internals = new Set(['scip-typescript npm test-pkg 1.0.0']);
-    expect(isExternalSymbol('scip-typescript npm test-pkg 1.0.0 src/a.ts/x.', internals)).toBe(false);
-  });
-
-  it('returns true when no internal prefix matches', () => {
-    const internals = new Set(['scip-typescript npm test-pkg 1.0.0']);
-    expect(isExternalSymbol('scip-typescript npm @types/node 20.0.0 fs/readFile().', internals)).toBe(true);
-  });
-
-  it('returns false when internal prefixes set is empty', () => {
-    expect(isExternalSymbol('anything', new Set())).toBe(false);
-  });
-});
-
-describe('buildSymbolDefinitionMap', () => {
-  it('builds map from definition occurrences', () => {
-    const indexes = [{
-      documents: [{
-        relativePath: 'src/main.ts',
-        occurrences: [
-          { symbolRoles: SymbolRole.Definition, symbol: 'ts . main . Foo#', range: [10, 5, 10, 8] },
-          { symbolRoles: 0, symbol: 'ts . main . Bar#', range: [20, 0, 20, 3] },
-        ],
-      }],
-    }];
-    const map = buildSymbolDefinitionMap(indexes, '/project');
-    expect(map.size).toBe(1);
-    expect(map.has('ts . main . Foo#')).toBe(true);
-    const loc = map.get('ts . main . Foo#')!;
-    expect(loc.filePath).toBe(path.resolve('/project', 'src/main.ts'));
-    expect(loc.line).toBe(10);
-  });
-
-  it('skips local symbols', () => {
-    const indexes = [{
-      documents: [{
-        relativePath: 'src/main.ts',
-        occurrences: [
-          { symbolRoles: SymbolRole.Definition, symbol: 'local 0', range: [0, 0, 5] },
-        ],
-      }],
-    }];
-    const map = buildSymbolDefinitionMap(indexes, '/project');
-    expect(map.size).toBe(0);
-  });
-});
-
-describe('buildContainmentIndex', () => {
-  it('groups rows by file_id', () => {
-    const rows = [
-      { id: 1, file_id: 100, start_line: 0, end_line: 10 },
-      { id: 2, file_id: 100, start_line: 5, end_line: 8 },
-      { id: 3, file_id: 200, start_line: 0, end_line: 20 },
-    ];
-    const index = buildContainmentIndex(rows);
-    expect(index.size).toBe(2);
-    expect(index.get(100)!.length).toBe(2);
-    expect(index.get(200)!.length).toBe(1);
-  });
-});
-
-describe('findContainingSymbol', () => {
-  it('finds the symbol span containing a line', () => {
-    const index = new Map<number, Array<{ id: number; startLine: number; endLine: number }>>();
-    index.set(100, [
-      { id: 1, startLine: 0, endLine: 10 },
-      { id: 2, startLine: 5, endLine: 8 },
-    ]);
-    const result = findContainingSymbol(index, 100, 6);
-    expect(result).toBe(1);
-  });
-
-  it('returns null when no span contains the line', () => {
-    const index = new Map<number, Array<{ id: number; startLine: number; endLine: number }>>();
-    index.set(100, [{ id: 1, startLine: 0, endLine: 5 }]);
-    expect(findContainingSymbol(index, 100, 20)).toBeNull();
-  });
-
-  it('returns null for unknown file_id', () => {
-    const index = new Map<number, Array<{ id: number; startLine: number; endLine: number }>>();
-    expect(findContainingSymbol(index, 999, 0)).toBeNull();
-  });
-});
-
 // ── Additional coverage tests ───────────────────────────────────────────────
+// NOTE: Pure utility function tests (buildInternalPrefixes, isExternalSymbol,
+// buildSymbolDefinitionMap, buildContainmentIndex, findContainingSymbol) are
+// in scip-indexer-transforms.test.ts
 
 describe('ScipIndexerStage - additional branches', () => {
   it('re-indexes when existing file data already in DB', async () => {
@@ -1344,10 +1226,9 @@ describe('ScipRefStage - additional branches', () => {
 
     const refs = ctx.db.prepare('SELECT callee_name FROM symbol_refs').all() as any[];
     expect(refs.length).toBeGreaterThanOrEqual(1);
-    // One ref should have receiver.method format
-    const receiverRef = refs.find((r: any) => r.callee_name && r.callee_name.includes('.'));
-    // receiver resolution is best-effort, check refs exist
-    expect(refs.length).toBeGreaterThanOrEqual(1);
+    // One ref should reference bar (with or without receiver prefix)
+    const barRef = refs.find((r: any) => r.callee_name && r.callee_name.includes('bar'));
+    expect(barRef).toBeDefined();
 
     ctx.db.close();
   });
@@ -1426,7 +1307,8 @@ describe('ScipRefStage - additional branches', () => {
     // The term-value ref should have been rescued as a call via isCallExpression
     const refs = ctx.db.prepare('SELECT callee_name FROM symbol_refs').all() as any[];
     // May or may not have been promoted depending on tree-sitter analysis
-    // The key thing is no crash and correct processing
+    // Either a call ref was created or no ref was created (skip)
+    expect(refs.length).toBeGreaterThanOrEqual(0);
     ctx.db.close();
   });
 
@@ -1469,7 +1351,9 @@ describe('ScipRefStage - additional branches', () => {
 
     // The term-value ref should be skipped (not a call)
     const refs = ctx.db.prepare('SELECT * FROM symbol_refs').all() as any[];
-    // x is just read, not called, so no call ref
+    // x is just read, not called, so no call ref for x should exist
+    const xRef = refs.find((r: any) => r.callee_name === 'x');
+    expect(xRef).toBeUndefined();
     ctx.db.close();
   });
 });

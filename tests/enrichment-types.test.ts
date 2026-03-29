@@ -50,28 +50,8 @@ describe('extractReturnType', () => {
 });
 
 describe('ResolvedTypeMetadata', () => {
-  it('has the expected shape', () => {
-    // This test validates interface compliance at compile time.
-    // The runtime assertions are intentionally simple since
-    // ResolvedTypeMetadata is a plain TypeScript interface.
-    const metadata: ResolvedTypeMetadata = {
-      resolvedTypeSignature: 'function foo(): string',
-      resolvedReturnType: 'string',
-      definitionUri: 'file:///src/foo.ts',
-      definitionPath: 'src/foo.ts',
-      definitionLine: 10,
-      definitionCharacter: 5,
-    };
-
-    expect(metadata.resolvedTypeSignature).toBe('function foo(): string');
-    expect(metadata.resolvedReturnType).toBe('string');
-    expect(metadata.definitionUri).toBe('file:///src/foo.ts');
-    expect(metadata.definitionPath).toBe('src/foo.ts');
-    expect(metadata.definitionLine).toBe(10);
-    expect(metadata.definitionCharacter).toBe(5);
-  });
-
-  it('allows null values', () => {
+  it('allows null values for all fields', () => {
+    // Compile-time interface check: all fields accept null.
     const metadata: ResolvedTypeMetadata = {
       resolvedTypeSignature: null,
       resolvedReturnType: null,
@@ -82,6 +62,10 @@ describe('ResolvedTypeMetadata', () => {
     };
 
     expect(metadata.resolvedTypeSignature).toBeNull();
+    expect(metadata.resolvedReturnType).toBeNull();
+    expect(metadata.definitionUri).toBeNull();
+    expect(metadata.definitionPath).toBeNull();
     expect(metadata.definitionLine).toBeNull();
+    expect(metadata.definitionCharacter).toBeNull();
   });
 });

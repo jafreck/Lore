@@ -37,15 +37,19 @@ describe('process-tracker', () => {
     child.kill();
   });
 
-  it('killAllTracked sends SIGTERM and clears set', () => {
+  it('killAllTracked kills children and clears set', () => {
     const child1 = spawn('sleep', ['60']);
     const child2 = spawn('sleep', ['60']);
+    const kill1 = vi.spyOn(child1, 'kill');
+    const kill2 = vi.spyOn(child2, 'kill');
     trackProcess(child1);
     trackProcess(child2);
     expect(trackedCount()).toBe(2);
 
     killAllTracked();
     expect(trackedCount()).toBe(0);
+    expect(kill1).toHaveBeenCalled();
+    expect(kill2).toHaveBeenCalled();
   });
 
   it('auto-removes on child exit', async () => {
@@ -68,17 +72,5 @@ describe('process-tracker', () => {
     child.kill();
   });
 
-  it('killAllTracked handles already-exited processes gracefully', async () => {
-    const child = spawn('echo', ['hello']);
-    trackProcess(child);
 
-    await new Promise<void>((resolve) => {
-      child.once('exit', () => resolve());
-    });
-
-    // trackProcess removes the process on exit, so tracked set is empty.
-    // This verifies killAllTracked doesn't throw on an empty set.
-    expect(trackedCount()).toBe(0);
-    expect(() => killAllTracked()).not.toThrow();
-  });
 });

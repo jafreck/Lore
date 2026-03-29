@@ -157,7 +157,7 @@ describe('ingestGitHistory', () => {
     db.close();
   });
 
-  it('uses watermark to only fetch new commits on re-run', async () => {
+  it('incremental ingest adds new commits on re-run', async () => {
     mkFile('a.txt', 'a');
     git('add .');
     git('commit -m "first"');

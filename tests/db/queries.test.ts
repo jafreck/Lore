@@ -261,7 +261,7 @@ describe('queries/files', () => {
       expect(getFileByPath(db, 'a.ts', 'other')).toBeUndefined();
     });
 
-    it('returns most recently indexed file when multiple exist', () => {
+    it('returns branch-specific file when queried by branch', () => {
       // Insert two files with same path but different branches
       insertFile(db, 'dup.ts', 'typescript', '');
       const id2 = insertFile(db, 'dup.ts', 'typescript', 'feature');
@@ -571,6 +571,9 @@ describe('queries/symbols', () => {
       insertSymbol(db, fid, 'uniqueFunc');
       const result = resolveSymbolRangeByName(db, 'uniqueFunc');
       expect(result.outcome).toBe('resolved');
+      if (result.outcome === 'resolved') {
+        expect(result.match.symbol_name).toBe('uniqueFunc');
+      }
     });
 
     it('returns missing for no matches', () => {
@@ -1377,9 +1380,6 @@ describe('queries/semantic', () => {
 
     it('returns empty when no embeddings table exists', () => {
       expect(semanticSearchSymbols(db, { queryVector: [1, 2, 3] })).toEqual([]);
-    });
-
-    it('returns empty with branch filter and no embeddings', () => {
       expect(semanticSearchSymbols(db, { queryVector: [1, 2, 3], branch: 'main' })).toEqual([]);
     });
   });

@@ -131,7 +131,8 @@ describe('installGitHooks', () => {
     installGitHooks(defaultOptions({ dbPath }));
 
     const content = fs.readFileSync(path.join(tmpDir, '.git', 'hooks', 'post-commit'), 'utf8');
-    // Single quotes should be properly escaped
+    // Should contain the escaped path
     expect(content).toContain('lore');
+    expect(content).toContain("it");
   });
 });

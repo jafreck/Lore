@@ -101,11 +101,6 @@ describe('meta', () => {
       setLoreMeta(db, LORE_META_GENERATION, '42');
       expect(getGeneration(db)).toBe(42);
     });
-
-    it('parses integer values correctly', () => {
-      setLoreMeta(db, LORE_META_GENERATION, '999');
-      expect(getGeneration(db)).toBe(999);
-    });
   });
 
   describe('incrementGeneration', () => {
@@ -132,19 +127,6 @@ describe('meta', () => {
       incrementGeneration(db);
       incrementGeneration(db);
       expect(getLoreMeta(db, LORE_META_GENERATION)).toBe('2');
-    });
-  });
-
-  describe('set/get/delete lifecycle', () => {
-    it('full lifecycle: set, get, overwrite, delete, get', () => {
-      setLoreMeta(db, 'lifecycle', 'first');
-      expect(getLoreMeta(db, 'lifecycle')).toBe('first');
-
-      setLoreMeta(db, 'lifecycle', 'second');
-      expect(getLoreMeta(db, 'lifecycle')).toBe('second');
-
-      deleteLoreMeta(db, 'lifecycle');
-      expect(getLoreMeta(db, 'lifecycle')).toBeUndefined();
     });
   });
 });

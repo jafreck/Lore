@@ -238,9 +238,8 @@ describe('inferTypeRefKindFromTree', () => {
     const tree = parseTS(src);
     // col 10 is the literal 42
     const kind = inferTypeRefKindFromTree(tree, 0, 10);
-    // Could be variable or null depending on how deep it walks
-    // The point is it shouldn't crash
-    expect(kind === null || typeof kind === 'string').toBe(true);
+    // Literal value is not a type position
+    expect(kind === null || kind === 'variable').toBe(true);
   });
 });
 
@@ -292,12 +291,10 @@ describe('extractReceiverName', () => {
   it('extracts from chained access', () => {
     const src = 'a.b.c();';
     const tree = parseTS(src);
-    // 'c' is at col 4 within a nested member_expression — the receiver
-    // extraction walks up from col 4-ish; tree-sitter may not see 'c' itself
-    // as a member_expression child at that position.  Verify no crash.
+    // 'c' is at col 4 within a nested member_expression
     const receiver = extractReceiverName(tree, 0, 4);
-    // May be null or a string depending on tree shape
-    expect(receiver === null || typeof receiver === 'string').toBe(true);
+    // Should extract the intermediate object 'b' or nested 'a.b', or null if position misses
+    expect(receiver === null || receiver === 'b' || receiver === 'a.b' || receiver === 'a').toBe(true);
   });
 });
 
@@ -442,7 +439,7 @@ describe('inferTypeRefKindFromTree (additional branches)', () => {
     expect(kind).toBe('field');
   });
 
-  it('identifies field_definition as field', () => {
+  it('identifies field_definition as field or variable', () => {
     // JavaScript class field
     const src = `class Foo {
   bar = 42;
@@ -450,7 +447,7 @@ describe('inferTypeRefKindFromTree (additional branches)', () => {
     const tree = parseTS(src);
     // 'bar' at col 2, line 1 — inside a field_definition
     const kind = inferTypeRefKindFromTree(tree, 1, 2);
-    // field_definition maps to 'field'
+    // field_definition maps to 'field' or 'variable'
     expect(kind === 'field' || kind === 'variable' || kind === null).toBe(true);
   });
 
@@ -470,12 +467,12 @@ describe('inferTypeRefKindFromTree (additional branches)', () => {
     expect(kind).toBe('parameter');
   });
 
-  it('identifies lexical_declaration as variable', () => {
+  it('identifies lexical_declaration as variable or field', () => {
     const src = 'let x: string = "hello";';
     const tree = parseTS(src);
     // 'string' at col 7 on line 0
     const kind = inferTypeRefKindFromTree(tree, 0, 7);
-    expect(['variable', 'field', 'parameter']).toContain(kind);
+    expect(kind === 'variable' || kind === 'field').toBe(true);
   });
 
   it('identifies generic_type as generic_arg', () => {
@@ -486,7 +483,7 @@ describe('inferTypeRefKindFromTree (additional branches)', () => {
     expect(kind === 'generic_arg' || kind === 'variable').toBe(true);
   });
 
-  it('identifies type_argument_list as generic_arg', () => {
+  it('identifies type_argument_list as generic_arg or variable', () => {
     // Java generic invocation
     const src = 'class Foo { void bar() { List<String> x; } }';
     const tree = parseJava(src);

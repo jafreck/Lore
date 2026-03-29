@@ -192,7 +192,7 @@ describe('computeSymbolMetrics', () => {
       expect(metrics.cyclomatic).toBeGreaterThanOrEqual(4);
     });
 
-    it('increments for ternary expressions', () => {
+    it('increments for if statement', () => {
       const source = `function foo(x: number) {
   if (x > 0) return 'positive';
   return 'non-positive';
@@ -303,6 +303,7 @@ describe('computeSymbolMetrics', () => {
       const metrics = computeSymbolMetrics(sym, 'typescript');
       // if → while → catch = 3
       expect(metrics.max_nesting).toBeGreaterThanOrEqual(3);
+      expect(metrics.max_nesting).toBeLessThanOrEqual(5);
     });
 
     it('does not count nesting in nested functions', () => {

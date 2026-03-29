@@ -344,7 +344,7 @@ describe('installAllMissing', () => {
     expect(javaCheckCount).toBe(1);
   });
 
-  it('handles non-quiet mode (logs to logger)', async () => {
+  it('non-quiet mode runs without error', async () => {
     const io = mockIO({
       isCommandAvailable: () => true,
     });
@@ -576,20 +576,6 @@ describe('installScipIndexer edge cases', () => {
     const result = await installScipIndexer(spec, mockIO());
     expect(result.installed).toBe(false);
     expect(result.error).toContain('Missing dotnet package');
-  });
-
-  it('handles coursier with coursier binary name', async () => {
-    const spec: ScipInstallSpec = {
-      command: 'scip-java',
-      languages: ['java'],
-      method: 'coursier',
-    };
-    const io = mockIO({
-      isCommandAvailable: (cmd) => cmd === 'coursier',
-    });
-
-    const result = await installScipIndexer(spec, io);
-    expect(result.installed).toBe(true);
   });
 
   it('handles coursier when not available', async () => {

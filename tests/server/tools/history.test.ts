@@ -60,6 +60,10 @@ describe('lore_history handler', () => {
     const result = await handler(db, { mode: 'file', query: 'src/auth.ts' });
     expect(result.mode).toBe('file');
     expect(result.results.length).toBeGreaterThanOrEqual(1);
+    // All results should reference the queried file
+    for (const r of result.results as any[]) {
+      expect(r.files?.some((f: any) => f.file_path === 'src/auth.ts') ?? true).toBe(true);
+    }
   });
 
   it('queries by commit SHA', async () => {
@@ -92,6 +96,10 @@ describe('lore_history handler', () => {
     const result = await handler(db, { mode: 'ref', query: 'main' });
     expect(result.mode).toBe('ref');
     expect(result.results.length).toBeGreaterThanOrEqual(1);
+    // All results should be associated with the queried ref
+    for (const r of result.results as any[]) {
+      expect(r.refs?.some((ref: any) => ref.ref_name === 'main') ?? true).toBe(true);
+    }
   });
 
   it('respects limit', async () => {
@@ -117,14 +125,18 @@ describe('lore_history handler', () => {
   it('semantic mode falls back without embedder', async () => {
     const result = await handler(db, { mode: 'semantic', query: 'user authentication' });
     expect(result.mode).toBe('semantic');
-    // Falls back to recent commits
+    // Falls back to recent commits since no embedder is available
     expect(result.results.length).toBeGreaterThanOrEqual(1);
+    expect(result.mode_used ?? result.mode).toContain('semantic');
   });
 
   it('commit mode enriches with files and refs', async () => {
     const result = await handler(db, { mode: 'commit', query: 'abc123' });
     const commit = result.results[0] as any;
+    expect(commit).toBeDefined();
     expect(commit.files).toBeDefined();
     expect(commit.refs).toBeDefined();
+    expect(Array.isArray(commit.files)).toBe(true);
+    expect(Array.isArray(commit.refs)).toBe(true);
   });
 });

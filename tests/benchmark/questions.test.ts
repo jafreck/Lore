@@ -114,7 +114,7 @@ describe('renderPrompt', () => {
     expect(prompt).not.toContain('{{file}}');
   });
 
-  it('should leave prompts unchanged when no placeholders are present', () => {
+  it('should not contain unresolved languageLabel or sourceRoot placeholders', () => {
     const q = getQuestion('7.3')!;
     const prompt = renderPrompt(q, params, repo);
     // 7.3 has {{symbol}} and {{file}} but no {{languageLabel}}/{{sourceRoot}} — verify those stay clean

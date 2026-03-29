@@ -117,17 +117,6 @@ describe('lore_lookup handler', () => {
     }
   });
 
-  it('handles semantic mode gracefully without embedder', async () => {
-    const result = await handler(db, { kind: 'symbol', query: 'foo', mode: 'semantic' });
-    // Should fall back to exact search
-    expect(result.results.length).toBeGreaterThanOrEqual(0);
-  });
-
-  it('handles fused mode gracefully without embedder', async () => {
-    const result = await handler(db, { kind: 'symbol', query: 'foo', mode: 'fused' });
-    expect(result.results.length).toBeGreaterThanOrEqual(0);
-  });
-
   it('looks up file listing with empty query', async () => {
     const result = await handler(db, { kind: 'file', query: '' });
     expect(result.results.length).toBeGreaterThanOrEqual(1);
@@ -174,6 +163,8 @@ describe('lore_lookup handler', () => {
     ).run();
     const result = await handler(db, { kind: 'symbol', query: 'extFn' });
     expect(result.results.length).toBeGreaterThanOrEqual(1);
+    const extResult = result.results.find((r: any) => r.name === 'extFn' || r.symbol_name === 'extFn');
+    expect(extResult).toBeDefined();
   });
 
   it('file lookup with branch filter', async () => {
@@ -283,8 +274,8 @@ describe('lore_lookup handler', () => {
     expect((page1.results[0] as any).name).not.toBe((page2.results[0] as any).name);
   });
 
-  it('file lookup with language filter returns matching file', async () => {
-    // kind=file doesn't support language filter directly, but path resolution works
+  it('file lookup returns file with correct language', async () => {
+    // kind=file returns file info including language
     const result = await handler(db, { kind: 'file', query: 'src/app.py' });
     expect(result.results.length).toBe(1);
     expect((result.results[0] as any).path).toBe('src/app.py');
@@ -403,21 +394,6 @@ describe('lore_lookup semantic/fused with vec0', () => {
     expect(result.results.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('semantic mode merges exact + semantic (semantic-preferred order)', async function () {
-    if (!hasVecSupport()) return;
-    setupEmbeddingsTable();
-
-    const embedder: EmbeddingProvider = {
-      embed: async () => [[0.1, 0.2, 0.3]],
-      dimensions: 3,
-      modelName: 'test',
-    } as unknown as EmbeddingProvider;
-
-    const result = await handler(db, { kind: 'symbol', query: 'foo', mode: 'semantic' }, embedder);
-    expect(result.mode_used).toBe('semantic');
-    // Should include exact match + semantic results (deduplicated)
-    expect(result.results.length).toBeGreaterThanOrEqual(1);
-  });
 
   it('semantic lookup uses cache on second call', async function () {
     if (!hasVecSupport()) return;

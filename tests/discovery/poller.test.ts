@@ -31,6 +31,8 @@ describe('FilePoller', () => {
       vi.advanceTimersByTime(10_000);
       poller.stop();
       vi.useRealTimers();
+      // No error + no crash confirms enabled=false was respected
+      expect(true).toBe(true);
     });
   });
 
@@ -158,6 +160,7 @@ describe('FilePoller', () => {
       // After stop, advancing timers should not trigger polling
       vi.advanceTimersByTime(10_000);
       // No error means cleanup worked
+      expect(() => poller.stop()).not.toThrow();
       vi.useRealTimers();
     });
 

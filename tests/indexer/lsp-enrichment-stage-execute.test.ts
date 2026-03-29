@@ -295,7 +295,7 @@ describe('LspEnrichmentStage.execute', () => {
       expect(call.filePath).toBe(pyFile);
     });
 
-    it('logs and returns early when all files filtered out', async () => {
+    it('returns early when files list is empty', async () => {
       const stage = new LspEnrichmentStage();
       const sourceCache = new Map<string, string>();
       const ctx = makeContext({

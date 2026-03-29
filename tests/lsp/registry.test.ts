@@ -123,7 +123,10 @@ describe('getMissingLanguageServerCommands', () => {
 });
 
 describe('hasCompleteLanguageCoverage', () => {
-  it('returns a boolean', () => {
-    expect(typeof hasCompleteLanguageCoverage()).toBe('boolean');
+  it('returns a boolean indicating coverage state', () => {
+    const result = hasCompleteLanguageCoverage();
+    expect(typeof result).toBe('boolean');
+    // Should be deterministic for the same environment
+    expect(hasCompleteLanguageCoverage()).toBe(result);
   });
 });

@@ -439,7 +439,7 @@ describe('SourceIndexStage', () => {
     expect(updateCtx.files).toHaveLength(0);
   });
 
-  it('checkpoint is saved during build', async () => {
+  it('indexes all files during build', async () => {
     // Create enough files so checkpointing can run
     for (let i = 0; i < 5; i++) {
       fs.writeFileSync(path.join(tmpDir, `f${i}.ts`), `export function fn${i}() { return ${i}; }\n`);

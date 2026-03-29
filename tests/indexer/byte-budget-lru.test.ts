@@ -36,7 +36,7 @@ describe('ByteBudgetLRU', () => {
       expect(cache.get('a')).toBe('hi');
     });
 
-    it('defaults to 512 MB budget', () => {
+    it('works with default budget', () => {
       const defaultCache = new ByteBudgetLRU();
       defaultCache.set('k', 'v');
       expect(defaultCache.get('k')).toBe('v');

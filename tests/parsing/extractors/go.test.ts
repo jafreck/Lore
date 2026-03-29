@@ -290,9 +290,10 @@ type ReadWriter interface {
 }`;
       const result = extract(source);
       const extendsRels = result.relationships.filter(r => r.kind === 'extends' && r.fromSymbol === 'ReadWriter');
-      expect(extendsRels.length).toBeGreaterThanOrEqual(0);
       // At least the type should exist
       expect(result.symbols.find(s => s.name === 'ReadWriter')).toBeDefined();
+      // Extends relationships are best-effort for Go interfaces
+      expect(extendsRels).toBeDefined();
     });
 
     it('extracts interface method spec parameter and return type refs', () => {
@@ -377,10 +378,9 @@ func (s *Server) Start() {
 }`;
       const result = extract(source);
       const ref = result.callRefs.find(r => r.calleeRaw === 's.log');
-      if (ref) {
-        expect(ref.callerSymbol).toContain('Server');
-        expect(ref.callerSymbol).toContain('Start');
-      }
+      expect(ref).toBeDefined();
+      expect(ref!.callerSymbol).toContain('Server');
+      expect(ref!.callerSymbol).toContain('Start');
     });
   });
 
@@ -424,9 +424,8 @@ func (c *Conn) Read() {
 }`;
       const result = extract(source);
       const ref = result.typeRefs.find(r => r.typeRaw === 'Buffer' && r.refKind === 'variable');
-      if (ref) {
-        expect(ref.enclosingSymbol).toContain('Conn');
-      }
+      expect(ref).toBeDefined();
+      expect(ref!.enclosingSymbol).toContain('Conn');
     });
   });
 

@@ -133,7 +133,7 @@ describe('extractNameFromScipSymbol', () => {
     )).toBe('MyClass');
   });
 
-  it('strips backtick escaping', () => {
+  it('splits on descriptor chars within backtick-escaped segments', () => {
     // The function splits by descriptor chars (., #, /, :) then strips backticks
     // 'src/`my-file.ts`/' splits by '/' → last segment after strip is 'ts'
     // because '.' inside the filename is treated as a descriptor split

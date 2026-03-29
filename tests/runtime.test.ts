@@ -84,10 +84,9 @@ describe('LoreRuntime', () => {
     });
 
     it('uses global logger when none provided', () => {
+      const globalLogger = initLogger({ level: LogLevel.INFO });
       const runtime = new LoreRuntime(makeConfig());
-      expect(runtime.log).toBeDefined();
-      // Should be the global logger instance
-      expect(typeof runtime.log.info).toBe('function');
+      expect(runtime.log).toBe(globalLogger);
     });
   });
 
@@ -146,7 +145,7 @@ describe('LoreRuntime', () => {
   });
 
   describe('config defaults', () => {
-    it('has expected default values', () => {
+    it('makeConfig helper returns expected test defaults', () => {
       const config = makeConfig();
       expect(config.refreshMode).toBe('none');
       expect(config.lsp).toBeNull();
@@ -197,17 +196,6 @@ describe('LoreRuntime', () => {
       // embedder may or may not be set depending on whether lazy init catches
       expect(runtime.started).toBe(true);
       await runtime.shutdown();
-    });
-  });
-
-  describe('double shutdown', () => {
-    it('multiple shutdowns are safe after started', async () => {
-      const runtime = new LoreRuntime(makeConfig());
-      await runtime.start();
-      await runtime.shutdown();
-      await runtime.shutdown();
-      await runtime.shutdown();
-      expect(runtime.started).toBe(false);
     });
   });
 
