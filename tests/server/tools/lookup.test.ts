@@ -456,3 +456,76 @@ describe('lore_lookup semantic/fused with vec0', () => {
     expect(result.results.length).toBeGreaterThanOrEqual(1);
   });
 });
+
+// ─── Fake vec0 coverage (runs without sqlite-vec native extension) ────────────
+
+describe('lore_lookup semantic paths via fakeVec0', () => {
+  let db: Database.Database;
+
+  const fakeSymbolRows = [
+    {
+      symbol_id: 1,
+      name: 'foo',
+      kind: 'function',
+      file_path: 'src/main.ts',
+      start_line: 2,
+      end_line: 2,
+      score: 0.05,
+      branch: 'main',
+      signature: '(): void',
+      is_exported: 1,
+    },
+  ];
+
+  beforeEach(async () => {
+    clearQueryEmbeddingCache();
+    db = openDb(':memory:');
+    seedDb(db);
+    const { installFakeVec0 } = await import('../../helpers/fakeVec0.js');
+    installFakeVec0(db, fakeSymbolRows);
+  });
+
+  afterEach(async () => {
+    clearQueryEmbeddingCache();
+    const { removeFakeVec0 } = await import('../../helpers/fakeVec0.js');
+    removeFakeVec0(db);
+    db.close();
+  });
+
+  it('semantic mode returns results without real vec0', async () => {
+    const embedder: EmbeddingProvider = {
+      embed: async () => [[0.1, 0.2, 0.3]],
+      dimensions: 3,
+      modelName: 'test',
+    } as unknown as EmbeddingProvider;
+
+    const result = await handler(db, { kind: 'symbol', query: 'foo', mode: 'semantic' }, embedder);
+    expect(result.mode_used).toBe('semantic');
+    expect(result.results.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('fused mode merges exact + semantic without real vec0', async () => {
+    const embedder: EmbeddingProvider = {
+      embed: async () => [[0.1, 0.2, 0.3]],
+      dimensions: 3,
+      modelName: 'test',
+    } as unknown as EmbeddingProvider;
+
+    const result = await handler(db, { kind: 'symbol', query: 'foo', mode: 'fused' }, embedder);
+    expect(result.mode_used).toBe('fused');
+    expect(result.results.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('semantic cache is used on repeated queries', async () => {
+    let embedCalls = 0;
+    const embedder: EmbeddingProvider = {
+      embed: async () => { embedCalls++; return [[0.1, 0.2, 0.3]]; },
+      dimensions: 3,
+      modelName: 'test-cache',
+    } as unknown as EmbeddingProvider;
+
+    await handler(db, { kind: 'symbol', query: 'foo', mode: 'semantic' }, embedder);
+    await handler(db, { kind: 'symbol', query: 'foo', mode: 'semantic' }, embedder);
+    expect(embedCalls).toBe(1);
+  });
+});

@@ -82,6 +82,28 @@ describe('ImportResolutionStage', () => {
       expect(imp.resolved_id).toBe(fileB.id);
     }
   });
+
+  it('inserts external dependency for unresolved non-internal imports', async () => {
+    db.prepare(
+      "INSERT INTO files (path, language, branch, layer, generation) VALUES (?, ?, 'main', 'baseline', 1)",
+    ).run('src/app.ts', 'typescript');
+
+    const fileA = db.prepare("SELECT id FROM files WHERE path = 'src/app.ts'").get() as { id: number };
+
+    // Insert an import that looks external (e.g., npm package)
+    db.prepare(
+      'INSERT INTO file_imports (file_id, raw_import, layer, generation) VALUES (?, ?, ?, ?)',
+    ).run(fileA.id, 'lodash', 'baseline', 1);
+
+    const stage = new ImportResolutionStage();
+    const ctx = makeCtx(db);
+    await stage.execute(ctx, 'build');
+
+    // Should have inserted into external_deps
+    const ext = db.prepare('SELECT package FROM external_deps WHERE file_id = ?').all(fileA.id) as Array<{ package: string }>;
+    expect(ext.length).toBeGreaterThanOrEqual(1);
+    expect(ext.some(e => e.package === 'lodash')).toBe(true);
+  });
 });
 
 describe('ReverseDepsStage', () => {
@@ -187,6 +209,26 @@ describe('OverlayCleanupStage', () => {
     // New generation file should remain
     const newer = db.prepare("SELECT * FROM files WHERE path = 'src/new.ts'").get();
     expect(newer).toBeDefined();
+  });
+
+  it('stores baseline HEAD SHA when headSha provided', async () => {
+    db.prepare(
+      "INSERT INTO files (path, language, branch, layer, generation) VALUES ('src/a.ts', 'typescript', 'main', 'baseline', 2)",
+    ).run();
+
+    const stage = new OverlayCleanupStage({
+      newGeneration: 2,
+      rebuildStartedAt: Math.floor(Date.now() / 1000) + 100,
+      headSha: 'abc123def456',
+    });
+
+    const ctx = makeCtx(db);
+    await stage.execute(ctx, 'build');
+
+    // Verify HEAD SHA was stored
+    const meta = db.prepare("SELECT value FROM lore_meta WHERE key = 'baseline_head_sha'").get() as { value: string } | undefined;
+    expect(meta).toBeDefined();
+    expect(meta!.value).toBe('abc123def456');
   });
 });
 
