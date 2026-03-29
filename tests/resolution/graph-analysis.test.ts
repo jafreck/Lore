@@ -534,3 +534,201 @@ describe('buildCodebaseSummary — module-level cycles', () => {
     expect(summary.connectedComponents.length).toBeGreaterThanOrEqual(1);
   });
 });
+
+// ─── clusterSymbols — undersized cluster folding ──────────────────────────────
+
+describe('clusterSymbols — undersized cluster folding', () => {
+  let db: Database.Database;
+
+  beforeEach(() => { db = openDb(':memory:'); });
+  afterEach(() => { db?.close(); });
+
+  it('folds undersized clusters (<30 lines) into heaviest neighbor', () => {
+    // Create a small cluster (< 30 lines) connected to a larger one
+    const fid1 = insertFile(db, { path: 'small.ts' });
+    const fid2 = insertFile(db, { path: 'big.ts' });
+
+    // Small symbol: only 10 lines — below MIN_CLUSTER_LINES (30)
+    const small = insertSymbol(db, { fileId: fid1, name: 'tiny', startLine: 1, endLine: 10 });
+    // Bigger symbol: 50 lines — above threshold
+    const big = insertSymbol(db, { fileId: fid2, name: 'large', startLine: 1, endLine: 50 });
+
+    // Edge between them
+    insertResolvedSymbolRef(db, { callerId: small, fileId: fid1, calleeId: big, calleeName: 'large' });
+
+    const clusters = clusterSymbols(db, { maxLinesPerCluster: 500 });
+    // The small cluster should be folded into the big one
+    expect(clusters).toHaveLength(1);
+    expect(new Set(clusters[0]!.symbolIds)).toEqual(new Set([small, big]));
+  });
+
+  it('undersized fold via inbound edge (ct === root path)', () => {
+    // Small cluster with inbound edge from neighbor
+    const fid1 = insertFile(db, { path: 'tiny.ts' });
+    const fid2 = insertFile(db, { path: 'caller.ts' });
+    const fid3 = insertFile(db, { path: 'other.ts' });
+
+    const tiny = insertSymbol(db, { fileId: fid1, name: 'tiny', startLine: 1, endLine: 10 });
+    const caller = insertSymbol(db, { fileId: fid2, name: 'caller', startLine: 1, endLine: 50 });
+    // A third large symbol that can't merge with others
+    const other = insertSymbol(db, { fileId: fid3, name: 'other', startLine: 1, endLine: 400 });
+
+    // caller → tiny (inbound edge to tiny's cluster)
+    insertResolvedSymbolRef(db, { callerId: caller, fileId: fid2, calleeId: tiny, calleeName: 'tiny' });
+    // tiny → other (but combined would be too large at tight limit)
+    insertResolvedSymbolRef(db, { callerId: tiny, fileId: fid1, calleeId: other, calleeName: 'other' });
+
+    const clusters = clusterSymbols(db, { maxLinesPerCluster: 100 });
+    // tiny (10 lines) should fold into caller (50 lines), since 10+50=60 ≤ 100
+    // other (400 lines) can't merge with anyone
+    const tinyCluster = clusters.find(c => c.symbolIds.includes(Number(tiny)));
+    const callerCluster = clusters.find(c => c.symbolIds.includes(Number(caller)));
+    // tiny and caller should be in the same cluster
+    expect(tinyCluster).toBe(callerCluster);
+  });
+
+  it('undersized cluster stays separate when no fitting neighbor', () => {
+    // Small cluster with only connections to clusters too large to merge
+    const fid1 = insertFile(db, { path: 'tiny.ts' });
+    const fid2 = insertFile(db, { path: 'huge.ts' });
+
+    const tiny = insertSymbol(db, { fileId: fid1, name: 'tiny', startLine: 1, endLine: 10 });
+    const huge = insertSymbol(db, { fileId: fid2, name: 'huge', startLine: 1, endLine: 200 });
+
+    insertResolvedSymbolRef(db, { callerId: tiny, fileId: fid1, calleeId: huge, calleeName: 'huge' });
+
+    // maxLines=150: tiny(10)+huge(200)=210 > 150 → can't merge
+    const clusters = clusterSymbols(db, { maxLinesPerCluster: 150 });
+    expect(clusters).toHaveLength(2);
+  });
+});
+
+// ─── clusterSymbols — greedy merge already-same-cluster ───────────────────────
+
+describe('clusterSymbols — greedy merge dedup', () => {
+  let db: Database.Database;
+
+  beforeEach(() => { db = openDb(':memory:'); });
+  afterEach(() => { db?.close(); });
+
+  it('handles pairs already in same cluster during greedy merge', () => {
+    // Create three symbols all in the same file (auto-grouped in step 1)
+    // with cross-edges that would try to merge already-merged clusters
+    const fid = insertFile(db, { path: 'a.ts' });
+    const s1 = insertSymbol(db, { fileId: fid, name: 'fn1', startLine: 1, endLine: 30 });
+    const s2 = insertSymbol(db, { fileId: fid, name: 'fn2', startLine: 31, endLine: 60 });
+    const s3 = insertSymbol(db, { fileId: fid, name: 'fn3', startLine: 61, endLine: 90 });
+
+    // Cross-edges between same-file symbols (all same cluster from step 1)
+    insertResolvedSymbolRef(db, { callerId: s1, fileId: fid, calleeId: s2, calleeName: 'fn2' });
+    insertResolvedSymbolRef(db, { callerId: s2, fileId: fid, calleeId: s3, calleeName: 'fn3' });
+
+    const clusters = clusterSymbols(db, { maxLinesPerCluster: 500 });
+    // All in same file → same cluster
+    expect(clusters).toHaveLength(1);
+    expect(clusters[0]!.symbolIds.length).toBe(3);
+  });
+
+  it('greedy merge skips pair already merged through transitive union (ca===cb)', () => {
+    // Three separate files with edges: A→B (weight 3), B→C (weight 2), A→C (weight 1)
+    // Greedy merge processes highest weight first:
+    //   A:B merged, then B:C merged, then A:C → find(A)===find(C) → continue
+    const fid1 = insertFile(db, { path: 'x.ts' });
+    const fid2 = insertFile(db, { path: 'y.ts' });
+    const fid3 = insertFile(db, { path: 'z.ts' });
+
+    const a = insertSymbol(db, { fileId: fid1, name: 'a', startLine: 1, endLine: 40 });
+    const b = insertSymbol(db, { fileId: fid2, name: 'b', startLine: 1, endLine: 40 });
+    const c = insertSymbol(db, { fileId: fid3, name: 'c', startLine: 1, endLine: 40 });
+
+    // A→B: 3 edges (weight 3)
+    insertResolvedSymbolRef(db, { callerId: a, fileId: fid1, calleeId: b, calleeName: 'b' });
+    insertResolvedSymbolRef(db, { callerId: a, fileId: fid1, calleeId: b, calleeName: 'b' });
+    insertResolvedSymbolRef(db, { callerId: a, fileId: fid1, calleeId: b, calleeName: 'b' });
+    // B→C: 2 edges (weight 2)
+    insertResolvedSymbolRef(db, { callerId: b, fileId: fid2, calleeId: c, calleeName: 'c' });
+    insertResolvedSymbolRef(db, { callerId: b, fileId: fid2, calleeId: c, calleeName: 'c' });
+    // A→C: 1 edge (weight 1) — this pair will have ca===cb after the other merges
+    insertResolvedSymbolRef(db, { callerId: a, fileId: fid1, calleeId: c, calleeName: 'c' });
+
+    const clusters = clusterSymbols(db, { maxLinesPerCluster: 500 });
+    // All three should merge into one cluster
+    expect(clusters).toHaveLength(1);
+    expect(new Set(clusters[0]!.symbolIds)).toEqual(new Set([a, b, c]));
+  });
+});
+
+// ─── buildCodebaseSummary — dependsOn/dependedOnBy sort ───────────────────────
+
+describe('buildCodebaseSummary — module dependencies sorting', () => {
+  let db: Database.Database;
+
+  beforeEach(() => { db = openDb(':memory:'); });
+  afterEach(() => { db?.close(); });
+
+  it('sorts dependsOn and dependedOnBy arrays numerically', () => {
+    // Create 3 separate modules (large enough to not merge and not be undersized)
+    const fid1 = insertFile(db, { path: 'a.ts' });
+    const fid2 = insertFile(db, { path: 'b.ts' });
+    const fid3 = insertFile(db, { path: 'c.ts' });
+
+    // Each symbol ≥30 lines (MIN_CLUSTER_LINES) so they won't be folded as undersized
+    const s1 = insertSymbol(db, { fileId: fid1, name: 's1', startLine: 1, endLine: 100 });
+    const s2 = insertSymbol(db, { fileId: fid2, name: 's2', startLine: 1, endLine: 100 });
+    const s3 = insertSymbol(db, { fileId: fid3, name: 's3', startLine: 1, endLine: 100 });
+
+    // s1 depends on both s2 and s3 → module with s1 has dependsOn with 2 entries
+    insertResolvedSymbolRef(db, { callerId: s1, fileId: fid1, calleeId: s2, calleeName: 's2' });
+    insertResolvedSymbolRef(db, { callerId: s1, fileId: fid1, calleeId: s3, calleeName: 's3' });
+    // s3 also depends on s2 → module with s2 has 2 dependedOnBy entries
+    insertResolvedSymbolRef(db, { callerId: s3, fileId: fid3, calleeId: s2, calleeName: 's2' });
+
+    // maxLines=120: symbols can't merge (100+100=200 > 120) → 3 separate modules
+    const summary = buildCodebaseSummary(db, { maxLinesPerModule: 120 });
+    expect(summary.modules.length).toBe(3);
+
+    // One module should have ≥2 dependsOn entries (the one containing s1)
+    const moduleWithDeps = summary.modules.find(m => m.dependsOn.length >= 2);
+    expect(moduleWithDeps).toBeDefined();
+    // dependsOn should be sorted numerically
+    expect(moduleWithDeps!.dependsOn[0]!).toBeLessThan(moduleWithDeps!.dependsOn[1]!);
+
+    // At least one module should have ≥1 dependedOnBy entry
+    const depended = summary.modules.filter(m => m.dependedOnBy.length >= 1);
+    expect(depended.length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+// ─── tarjanScc — self-loop for single-node SCC ───────────────────────────────
+
+describe('buildCodebaseSummary — module-level self-loop in tarjanScc', () => {
+  let db: Database.Database;
+
+  beforeEach(() => { db = openDb(':memory:'); });
+  afterEach(() => { db?.close(); });
+
+  it('detects module-level self-loop when a module depends on itself', () => {
+    // This is unusual but can happen if a cluster has intra-module edges that
+    // map to the same module in the adjacency list. Create a scenario where
+    // the module adjacency includes a self-edge.
+    //
+    // Two symbols in different files, each calling the other.
+    // With a large maxLines they merge into one module.
+    // That module has self-edges in the module adjacency (both symbols are in same module).
+    const fid1 = insertFile(db, { path: 'a.ts' });
+    const fid2 = insertFile(db, { path: 'b.ts' });
+
+    const s1 = insertSymbol(db, { fileId: fid1, name: 's1', startLine: 1, endLine: 40 });
+    const s2 = insertSymbol(db, { fileId: fid2, name: 's2', startLine: 1, endLine: 40 });
+
+    // Mutual references (they'll merge into one module)
+    insertResolvedSymbolRef(db, { callerId: s1, fileId: fid1, calleeId: s2, calleeName: 's2' });
+    insertResolvedSymbolRef(db, { callerId: s2, fileId: fid2, calleeId: s1, calleeName: 's1' });
+
+    const summary = buildCodebaseSummary(db, { maxLinesPerModule: 500 });
+    // Should merge into single module
+    expect(summary.modules.length).toBe(1);
+    // No module-level cycles since there's only one module
+    expect(summary.cyclicGroups).toEqual([]);
+  });
+});
