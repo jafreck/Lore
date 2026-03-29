@@ -336,3 +336,123 @@ describe('lore_lookup handler', () => {
     expect(result.results.length).toBeGreaterThanOrEqual(2);
   });
 });
+
+// ─── Semantic and fused modes with vec0 ───────────────────────────────────────
+
+describe('lore_lookup semantic/fused with vec0', () => {
+  let db: Database.Database;
+
+  beforeEach(() => {
+    clearQueryEmbeddingCache();
+    db = openDb(':memory:');
+    seedDb(db);
+  });
+
+  afterEach(() => {
+    clearQueryEmbeddingCache();
+    db.close();
+  });
+
+  function hasVecSupport(): boolean {
+    try {
+      db.prepare("CREATE VIRTUAL TABLE IF NOT EXISTS _vec_probe USING vec0(v float[3])").run();
+      db.prepare("DROP TABLE IF EXISTS _vec_probe").run();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function setupEmbeddingsTable(): void {
+    db.prepare("CREATE VIRTUAL TABLE symbol_embeddings USING vec0(embedding float[3])").run();
+    for (let i = 1; i <= 3; i++) {
+      db.prepare("INSERT INTO symbol_embeddings (rowid, embedding) VALUES (?, ?)").run(
+        i,
+        JSON.stringify([0.1 * i, 0.2 * i, 0.3 * i]),
+      );
+    }
+  }
+
+  it('semantic mode returns semantic results with working embeddings', async function () {
+    if (!hasVecSupport()) return;
+    setupEmbeddingsTable();
+
+    const embedder: EmbeddingProvider = {
+      embed: async () => [[0.1, 0.2, 0.3]],
+      dimensions: 3,
+      modelName: 'test',
+    } as unknown as EmbeddingProvider;
+
+    const result = await handler(db, { kind: 'symbol', query: 'foo', mode: 'semantic' }, embedder);
+    expect(result.mode_used).toBe('semantic');
+    expect(result.results.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('fused mode returns merged results with working embeddings', async function () {
+    if (!hasVecSupport()) return;
+    setupEmbeddingsTable();
+
+    const embedder: EmbeddingProvider = {
+      embed: async () => [[0.1, 0.2, 0.3]],
+      dimensions: 3,
+      modelName: 'test',
+    } as unknown as EmbeddingProvider;
+
+    const result = await handler(db, { kind: 'symbol', query: 'foo', mode: 'fused' }, embedder);
+    expect(result.mode_used).toBe('fused');
+    expect(result.results.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('semantic mode merges exact + semantic (semantic-preferred order)', async function () {
+    if (!hasVecSupport()) return;
+    setupEmbeddingsTable();
+
+    const embedder: EmbeddingProvider = {
+      embed: async () => [[0.1, 0.2, 0.3]],
+      dimensions: 3,
+      modelName: 'test',
+    } as unknown as EmbeddingProvider;
+
+    const result = await handler(db, { kind: 'symbol', query: 'foo', mode: 'semantic' }, embedder);
+    expect(result.mode_used).toBe('semantic');
+    // Should include exact match + semantic results (deduplicated)
+    expect(result.results.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('semantic lookup uses cache on second call', async function () {
+    if (!hasVecSupport()) return;
+    setupEmbeddingsTable();
+
+    let callCount = 0;
+    const embedder: EmbeddingProvider = {
+      embed: async () => { callCount++; return [[0.1, 0.2, 0.3]]; },
+      dimensions: 3,
+      modelName: 'test',
+    } as unknown as EmbeddingProvider;
+
+    await handler(db, { kind: 'symbol', query: 'foo', mode: 'semantic' }, embedder);
+    expect(callCount).toBe(1);
+    await handler(db, { kind: 'symbol', query: 'foo', mode: 'semantic' }, embedder);
+    expect(callCount).toBe(1); // Cache hit
+  });
+
+  it('fused mode includes external symbols', async function () {
+    if (!hasVecSupport()) return;
+    setupEmbeddingsTable();
+    db.prepare(
+      `INSERT INTO external_symbols (id, symbol_name, symbol_kind, package_name, definition_path, definition_uri)
+       VALUES (1, 'foo', 'function', 'ext-pkg', 'ext/index.d.ts', 'file:///ext/index.d.ts')`,
+    ).run();
+
+    const embedder: EmbeddingProvider = {
+      embed: async () => [[0.1, 0.2, 0.3]],
+      dimensions: 3,
+      modelName: 'test',
+    } as unknown as EmbeddingProvider;
+
+    const result = await handler(db, { kind: 'symbol', query: 'foo', mode: 'fused' }, embedder);
+    expect(result.mode_used).toBe('fused');
+    // Should include both internal and external results
+    expect(result.results.length).toBeGreaterThanOrEqual(1);
+  });
+});

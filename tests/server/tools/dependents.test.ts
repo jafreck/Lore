@@ -403,3 +403,173 @@ describe('lore_dependents handler — file-kind subclasses and type refs', () =>
     expect(ref.ref_kind).toBe('return_type');
   });
 });
+
+// ─── Branch filtering ─────────────────────────────────────────────────────────
+
+describe('lore_dependents handler — branch filtering', () => {
+  let db: Database.Database;
+
+  beforeEach(() => {
+    db = openDb(':memory:');
+    // Main branch files
+    db.prepare(`INSERT INTO files (id, path, branch, language, source) VALUES (1, 'src/core.ts', 'main', 'typescript', '')`).run();
+    db.prepare(`INSERT INTO files (id, path, branch, language, source) VALUES (2, 'src/consumer.ts', 'main', 'typescript', '')`).run();
+    db.prepare(`INSERT INTO files (id, path, branch, language, source) VALUES (5, 'src/types.ts', 'main', 'typescript', '')`).run();
+    db.prepare(`INSERT INTO files (id, path, branch, language, source) VALUES (6, 'src/child.ts', 'main', 'typescript', '')`).run();
+    db.prepare(`INSERT INTO files (id, path, branch, language, source) VALUES (7, 'src/user.ts', 'main', 'typescript', '')`).run();
+    db.prepare(`INSERT INTO files (id, path, branch, language, source) VALUES (8, 'src/mid.ts', 'main', 'typescript', '')`).run();
+    // Feature branch files
+    db.prepare(`INSERT INTO files (id, path, branch, language, source) VALUES (3, 'src/core.ts', 'feature', 'typescript', '')`).run();
+    db.prepare(`INSERT INTO files (id, path, branch, language, source) VALUES (4, 'src/feat-consumer.ts', 'feature', 'typescript', '')`).run();
+
+    // Main branch symbols
+    db.prepare(`INSERT INTO symbols (id, file_id, name, kind, start_line, end_line) VALUES (1, 1, 'coreFunc', 'function', 1, 5)`).run();
+    db.prepare(`INSERT INTO symbols (id, file_id, name, kind, start_line, end_line) VALUES (2, 2, 'consumerFunc', 'function', 1, 5)`).run();
+    db.prepare(`INSERT INTO symbols (id, file_id, name, kind, start_line, end_line) VALUES (5, 5, 'BaseType', 'class', 1, 10)`).run();
+    db.prepare(`INSERT INTO symbols (id, file_id, name, kind, start_line, end_line) VALUES (6, 6, 'ChildType', 'class', 1, 10)`).run();
+    db.prepare(`INSERT INTO symbols (id, file_id, name, kind, start_line, end_line) VALUES (7, 7, 'userFunc', 'function', 1, 5)`).run();
+    // Feature branch symbols
+    db.prepare(`INSERT INTO symbols (id, file_id, name, kind, start_line, end_line) VALUES (3, 3, 'coreFunc', 'function', 1, 5)`).run();
+    db.prepare(`INSERT INTO symbols (id, file_id, name, kind, start_line, end_line) VALUES (4, 4, 'featConsumer', 'function', 1, 5)`).run();
+
+    // Main: consumerFunc calls coreFunc
+    db.prepare(`INSERT INTO symbol_refs (caller_id, file_id, callee_id, callee_name, call_line, resolution_method) VALUES (2, 2, 1, 'coreFunc', 2, 'resolved')`).run();
+    // Feature: featConsumer calls coreFunc (feature)
+    db.prepare(`INSERT INTO symbol_refs (caller_id, file_id, callee_id, callee_name, call_line, resolution_method) VALUES (4, 4, 3, 'coreFunc', 2, 'resolved')`).run();
+
+    // Main: consumer.ts imports core.ts
+    db.prepare(`INSERT INTO file_imports (file_id, raw_import, resolved_id) VALUES (2, './core', 1)`).run();
+    // Main: mid.ts imports consumer.ts (for multi-hop)
+    db.prepare(`INSERT INTO file_imports (file_id, raw_import, resolved_id) VALUES (8, './consumer', 2)`).run();
+    // Feature: feat-consumer.ts imports core.ts (feature)
+    db.prepare(`INSERT INTO file_imports (file_id, raw_import, resolved_id) VALUES (4, './core', 3)`).run();
+
+    // Main: ChildType extends BaseType
+    db.prepare(`INSERT INTO symbol_relationships (file_id, source_symbol_id, target_symbol_id, target_symbol_name, relationship_type, line, character, resolution_method) VALUES (6, 6, 5, 'BaseType', 'extends', 1, 0, 'resolved')`).run();
+
+    // Main: userFunc type-references BaseType
+    db.prepare(`INSERT INTO type_refs (file_id, symbol_id, type_id, type_name, type_name_bare, ref_kind, ref_line, ref_character, resolution_method) VALUES (7, 7, 5, 'BaseType', 'BaseType', 'parameter', 2, 5, 'resolved')`).run();
+  });
+
+  afterEach(() => { db.close(); });
+
+  it('symbol kind with branch restricts callers to that branch', () => {
+    const result = handler(db, { query: 'coreFunc', kind: 'symbol', branch: 'main' });
+    expect(result.target.name).toBe('coreFunc');
+    const callerNames = result.dependents.callers.map((c: any) => c.caller_name);
+    expect(callerNames).toContain('consumerFunc');
+    expect(callerNames).not.toContain('featConsumer');
+  });
+
+  it('symbol kind with branch restricts importers to that branch', () => {
+    const result = handler(db, { query: 'coreFunc', kind: 'symbol', branch: 'main' });
+    const importerPaths = result.dependents.importers.map((i: any) => i.file_path);
+    expect(importerPaths).toContain('src/consumer.ts');
+    expect(importerPaths).not.toContain('src/feat-consumer.ts');
+  });
+
+  it('symbol kind with branch covers subclass and type_ref expansion', () => {
+    const result = handler(db, { query: 'BaseType', kind: 'symbol', branch: 'main' });
+    const subNames = result.dependents.subclasses.map((s: any) => s.symbol_name);
+    expect(subNames).toContain('ChildType');
+    expect(result.dependents.type_references.length).toBe(1);
+  });
+
+  it('file kind with branch restricts all dependent queries', () => {
+    const result = handler(db, { query: 'src/core.ts', kind: 'file', branch: 'main' });
+    expect(result.target.name).toBe('src/core.ts');
+    const importerPaths = result.dependents.importers.map((i: any) => i.file_path);
+    expect(importerPaths).toContain('src/consumer.ts');
+    expect(importerPaths).not.toContain('src/feat-consumer.ts');
+  });
+
+  it('file kind with branch covers type_refs through file symbols', () => {
+    const result = handler(db, { query: 'src/types.ts', kind: 'file', branch: 'main' });
+    expect(result.dependents.type_references.length).toBe(1);
+    const ref = result.dependents.type_references[0] as any;
+    expect(ref.symbol_name).toBe('userFunc');
+  });
+
+  it('compact mode with branch filtering', () => {
+    const result = handler(db, { query: 'coreFunc', kind: 'symbol', branch: 'main', compact: true });
+    expect(result.dependents.callers.length).toBeGreaterThanOrEqual(1);
+    const caller = result.dependents.callers[0] as any;
+    expect(caller.line).toBeUndefined();
+  });
+});
+
+// ─── Parent symbol (enclosing name) handling ──────────────────────────────────
+
+describe('lore_dependents handler — parent symbol', () => {
+  let db: Database.Database;
+
+  beforeEach(() => {
+    db = openDb(':memory:');
+    db.prepare(`INSERT INTO files (id, path, branch, language, source) VALUES (1, 'src/target.ts', 'main', 'typescript', '')`).run();
+    db.prepare(`INSERT INTO files (id, path, branch, language, source) VALUES (2, 'src/caller.ts', 'main', 'typescript', '')`).run();
+
+    // Target symbol
+    db.prepare(`INSERT INTO symbols (id, file_id, name, kind, start_line, end_line) VALUES (1, 1, 'targetFn', 'function', 1, 5)`).run();
+    // Parent class
+    db.prepare(`INSERT INTO symbols (id, file_id, name, kind, start_line, end_line) VALUES (2, 2, 'MyClass', 'class', 1, 20)`).run();
+    // Method in class with parent_symbol_id
+    db.prepare(`INSERT INTO symbols (id, file_id, name, kind, start_line, end_line, parent_symbol_id) VALUES (3, 2, 'myMethod', 'method', 5, 15, 2)`).run();
+
+    // myMethod calls targetFn
+    db.prepare(`INSERT INTO symbol_refs (caller_id, file_id, callee_id, callee_name, call_line, resolution_method) VALUES (3, 2, 1, 'targetFn', 7, 'resolved')`).run();
+
+    // Import for importer coverage
+    db.prepare(`INSERT INTO file_imports (file_id, raw_import, resolved_id) VALUES (2, './target', 1)`).run();
+  });
+
+  afterEach(() => { db.close(); });
+
+  it('full mode includes parent_symbol_id and enclosing_name', () => {
+    const result = handler(db, { query: 'targetFn', kind: 'symbol' });
+    const caller = result.dependents.callers[0] as any;
+    expect(caller.caller_parent_symbol_id).toBe(2);
+    expect(caller.caller_parent_name).toBe('MyClass');
+  });
+
+  it('compact mode includes parent_symbol_id and enclosing_name', () => {
+    const result = handler(db, { query: 'targetFn', kind: 'symbol', compact: true });
+    const caller = result.dependents.callers[0] as any;
+    expect(caller.caller_parent_symbol_id).toBe(2);
+    expect(caller.caller_parent_name).toBe('MyClass');
+  });
+
+  it('compact importers omit raw_import', () => {
+    const result = handler(db, { query: 'targetFn', kind: 'symbol', compact: true });
+    expect(result.dependents.importers.length).toBeGreaterThanOrEqual(1);
+    const imp = result.dependents.importers[0] as any;
+    expect(imp.file_id).toBeDefined();
+    expect(imp.file_path).toBeDefined();
+    expect(imp.raw_import).toBeUndefined();
+  });
+});
+
+// ─── File with no symbols (empty-array guards) ───────────────────────────────
+
+describe('lore_dependents handler — file with no symbols', () => {
+  it('returns empty callers/subclasses/type_refs for symbol-less file', () => {
+    const db = openDb(':memory:');
+    try {
+      // File with no symbols defined in it
+      db.prepare(`INSERT INTO files (id, path, branch, language, source) VALUES (1, 'empty.ts', 'main', 'typescript', '')`).run();
+      // Another file that imports it
+      db.prepare(`INSERT INTO files (id, path, branch, language, source) VALUES (2, 'consumer.ts', 'main', 'typescript', '')`).run();
+      db.prepare(`INSERT INTO file_imports (file_id, raw_import, resolved_id) VALUES (2, './empty', 1)`).run();
+
+      const result = handler(db, { query: 'empty.ts', kind: 'file' });
+      expect(result.target.name).toBe('empty.ts');
+      // Import still found
+      expect(result.dependents.importers.length).toBe(1);
+      // No symbols → empty callers, subclasses, type_refs
+      expect(result.dependents.callers).toHaveLength(0);
+      expect(result.dependents.subclasses).toHaveLength(0);
+      expect(result.dependents.type_references).toHaveLength(0);
+    } finally {
+      db.close();
+    }
+  });
+});
