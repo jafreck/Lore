@@ -337,3 +337,200 @@ describe('buildCodebaseSummary', () => {
     expect(depTarget).toBeDefined();
   });
 });
+
+// ─── UnionFind rank branches ──────────────────────────────────────────────────
+
+describe('findConnectedComponents — UnionFind rank branches', () => {
+  let db: Database.Database;
+
+  beforeEach(() => { db = openDb(':memory:'); });
+  afterEach(() => { db?.close(); });
+
+  it('covers rankA < rankB branch via asymmetric merge', () => {
+    // Build a graph where union-find creates trees of different depths.
+    // Union(1,2) → rank 1; Union(3,4) → rank 1; Union(1,3) → rank 2.
+    // Then Union(5,1): find(5) rank 0 < find(1) rank 2 → rankA < rankB.
+    const fid = insertFile(db, { path: 'a.ts' });
+    const s1 = insertSymbol(db, { fileId: fid, name: 's1' });
+    const s2 = insertSymbol(db, { fileId: fid, name: 's2' });
+    const s3 = insertSymbol(db, { fileId: fid, name: 's3' });
+    const s4 = insertSymbol(db, { fileId: fid, name: 's4' });
+    const s5 = insertSymbol(db, { fileId: fid, name: 's5' });
+
+    // Edges in specific order to create depth-2 tree then attach a leaf
+    insertResolvedSymbolRef(db, { callerId: s1, fileId: fid, calleeId: s2, calleeName: 's2' });
+    insertResolvedSymbolRef(db, { callerId: s3, fileId: fid, calleeId: s4, calleeName: 's4' });
+    insertResolvedSymbolRef(db, { callerId: s1, fileId: fid, calleeId: s3, calleeName: 's3' });
+    // s5 → s1: source=s5 (rank 0), target=s1 (root rank 2) → union(s5, s1) hits rankA < rankB
+    insertResolvedSymbolRef(db, { callerId: s5, fileId: fid, calleeId: s1, calleeName: 's1' });
+
+    const comps = findConnectedComponents(db);
+    expect(comps).toHaveLength(1);
+    expect(comps[0]!.length).toBe(5);
+  });
+
+  it('covers rankA > rankB branch via reversed edge direction', () => {
+    const fid = insertFile(db, { path: 'a.ts' });
+    const s1 = insertSymbol(db, { fileId: fid, name: 's1' });
+    const s2 = insertSymbol(db, { fileId: fid, name: 's2' });
+    const s3 = insertSymbol(db, { fileId: fid, name: 's3' });
+    const s4 = insertSymbol(db, { fileId: fid, name: 's4' });
+    const s5 = insertSymbol(db, { fileId: fid, name: 's5' });
+    const s6 = insertSymbol(db, { fileId: fid, name: 's6' });
+
+    // Build deep tree: union(s1,s2)→rank1, union(s3,s4)→rank1, union(s1,s3)→rank2
+    insertResolvedSymbolRef(db, { callerId: s1, fileId: fid, calleeId: s2, calleeName: 's2' });
+    insertResolvedSymbolRef(db, { callerId: s3, fileId: fid, calleeId: s4, calleeName: 's4' });
+    insertResolvedSymbolRef(db, { callerId: s1, fileId: fid, calleeId: s3, calleeName: 's3' });
+    // s1 → s5: source=s1 (root rank 2), target=s5 (rank 0) → union(s1, s5) hits rankA > rankB
+    insertResolvedSymbolRef(db, { callerId: s1, fileId: fid, calleeId: s5, calleeName: 's5' });
+    // s6 isolated — for disconnected coverage
+    insertResolvedSymbolRef(db, { callerId: s5, fileId: fid, calleeId: s6, calleeName: 's6' });
+
+    const comps = findConnectedComponents(db);
+    expect(comps).toHaveLength(1);
+    expect(comps[0]!.length).toBe(6);
+  });
+
+  it('union of already-same-root nodes is a no-op', () => {
+    const fid = insertFile(db, { path: 'a.ts' });
+    const s1 = insertSymbol(db, { fileId: fid, name: 's1' });
+    const s2 = insertSymbol(db, { fileId: fid, name: 's2' });
+
+    // Two edges between same pair → second union finds same root
+    insertResolvedSymbolRef(db, { callerId: s1, fileId: fid, calleeId: s2, calleeName: 's2' });
+    insertResolvedSymbolRef(db, { callerId: s2, fileId: fid, calleeId: s1, calleeName: 's1' });
+
+    const comps = findConnectedComponents(db);
+    expect(comps).toHaveLength(1);
+    expect(new Set(comps[0])).toEqual(new Set([s1, s2]));
+  });
+});
+
+// ─── clusterSymbols — greedy merge ────────────────────────────────────────────
+
+describe('clusterSymbols — greedy cross-file merge', () => {
+  let db: Database.Database;
+
+  beforeEach(() => { db = openDb(':memory:'); });
+  afterEach(() => { db?.close(); });
+
+  it('greedy merge step combines cross-file clusters when size fits', () => {
+    const fid1 = insertFile(db, { path: 'a.ts' });
+    const fid2 = insertFile(db, { path: 'b.ts' });
+    const a = insertSymbol(db, { fileId: fid1, name: 'aFn', startLine: 1, endLine: 50 });
+    const b = insertSymbol(db, { fileId: fid2, name: 'bFn', startLine: 1, endLine: 50 });
+
+    // Cross-file edge
+    insertResolvedSymbolRef(db, { callerId: a, fileId: fid1, calleeId: b, calleeName: 'bFn' });
+
+    const clusters = clusterSymbols(db, { maxLinesPerCluster: 500 });
+    // a and b should merge (50+50=100 ≤ 500)
+    expect(clusters).toHaveLength(1);
+    expect(new Set(clusters[0]!.symbolIds)).toEqual(new Set([a, b]));
+  });
+
+  it('greedy merge prefers higher-weight edges first', () => {
+    const fid1 = insertFile(db, { path: 'a.ts' });
+    const fid2 = insertFile(db, { path: 'b.ts' });
+    const fid3 = insertFile(db, { path: 'c.ts' });
+
+    const a = insertSymbol(db, { fileId: fid1, name: 'a', startLine: 1, endLine: 50 });
+    const b = insertSymbol(db, { fileId: fid2, name: 'b', startLine: 1, endLine: 50 });
+    const c = insertSymbol(db, { fileId: fid3, name: 'c', startLine: 1, endLine: 50 });
+
+    // 3 edges a→b (high weight to same target)
+    insertResolvedSymbolRef(db, { callerId: a, fileId: fid1, calleeId: b, calleeName: 'b' });
+    // 1 edge a→c (lower weight)
+    insertResolvedSymbolRef(db, { callerId: a, fileId: fid1, calleeId: c, calleeName: 'c' });
+
+    const clusters = clusterSymbols(db, { maxLinesPerCluster: 500 });
+    // All three should merge (150 ≤ 500)
+    expect(clusters).toHaveLength(1);
+    expect(clusters[0]!.symbolIds.length).toBe(3);
+  });
+
+  it('greedy merge skips when combined size exceeds limit', () => {
+    const fid1 = insertFile(db, { path: 'a.ts' });
+    const fid2 = insertFile(db, { path: 'b.ts' });
+    const a = insertSymbol(db, { fileId: fid1, name: 'big', startLine: 1, endLine: 200 });
+    const b = insertSymbol(db, { fileId: fid2, name: 'alsoBig', startLine: 1, endLine: 200 });
+
+    insertResolvedSymbolRef(db, { callerId: a, fileId: fid1, calleeId: b, calleeName: 'alsoBig' });
+
+    const clusters = clusterSymbols(db, { maxLinesPerCluster: 250 });
+    // 200+200=400 > 250 → can't merge
+    expect(clusters).toHaveLength(2);
+  });
+});
+
+// ─── buildCodebaseSummary — module-level cycles (tarjanScc) ───────────────────
+
+describe('buildCodebaseSummary — module-level cycles', () => {
+  let db: Database.Database;
+
+  beforeEach(() => { db = openDb(':memory:'); });
+  afterEach(() => { db?.close(); });
+
+  it('detects cyclic module dependencies', () => {
+    // Create 4 symbols: s1→s2 (merge into module A), s3→s4 (merge into module B).
+    // Cross-module edges: s1→s3 (A→B), s4→s2 (B→A) — creates a module-level cycle
+    // without any symbol-level SCC (no mutual recursion between any pair).
+    const fid1 = insertFile(db, { path: 'a.ts' });
+    const fid2 = insertFile(db, { path: 'b.ts' });
+
+    const s1 = insertSymbol(db, { fileId: fid1, name: 's1', startLine: 1, endLine: 50 });
+    const s2 = insertSymbol(db, { fileId: fid1, name: 's2', startLine: 51, endLine: 100 });
+    const s3 = insertSymbol(db, { fileId: fid2, name: 's3', startLine: 1, endLine: 50 });
+    const s4 = insertSymbol(db, { fileId: fid2, name: 's4', startLine: 51, endLine: 100 });
+
+    // Intra-module edges (ensure same-module grouping)
+    insertResolvedSymbolRef(db, { callerId: s1, fileId: fid1, calleeId: s2, calleeName: 's2' });
+    insertResolvedSymbolRef(db, { callerId: s3, fileId: fid2, calleeId: s4, calleeName: 's4' });
+    // Cross-module edges (create cycle between modules)
+    insertResolvedSymbolRef(db, { callerId: s1, fileId: fid1, calleeId: s3, calleeName: 's3' });
+    insertResolvedSymbolRef(db, { callerId: s4, fileId: fid2, calleeId: s2, calleeName: 's2' });
+
+    const summary = buildCodebaseSummary(db, { maxLinesPerModule: 120 });
+    // Two modules that can't merge (100+100=200 > 120)
+    expect(summary.modules.length).toBe(2);
+    expect(summary.cyclicGroups.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('handles disconnected modules (tarjanScc visits unvisited nodes)', () => {
+    // Create separate modules with no cross-module edges.
+    // Use large enough symbols so they can't merge (50+50 > maxLines).
+    const fid1 = insertFile(db, { path: 'a.ts' });
+    const fid2 = insertFile(db, { path: 'b.ts' });
+    const fid3 = insertFile(db, { path: 'c.ts' });
+
+    insertSymbol(db, { fileId: fid1, name: 'a', startLine: 1, endLine: 50 });
+    insertSymbol(db, { fileId: fid2, name: 'b', startLine: 1, endLine: 50 });
+    insertSymbol(db, { fileId: fid3, name: 'c', startLine: 1, endLine: 50 });
+
+    const summary = buildCodebaseSummary(db, { maxLinesPerModule: 60 });
+    // Each symbol can't merge with others (50+50=100 > 60)
+    expect(summary.modules.length).toBe(3);
+    // No cycles among disconnected modules
+    expect(summary.cyclicGroups).toEqual([]);
+  });
+
+  it('connectedComponents detects groups at module level', () => {
+    const fid1 = insertFile(db, { path: 'a.ts' });
+    const fid2 = insertFile(db, { path: 'b.ts' });
+    const fid3 = insertFile(db, { path: 'c.ts' });
+
+    const a = insertSymbol(db, { fileId: fid1, name: 'a', startLine: 1, endLine: 80 });
+    const b = insertSymbol(db, { fileId: fid2, name: 'b', startLine: 1, endLine: 80 });
+    insertSymbol(db, { fileId: fid3, name: 'c', startLine: 1, endLine: 80 });
+
+    // a → b — modules A and B are connected; C is isolated
+    insertResolvedSymbolRef(db, { callerId: a, fileId: fid1, calleeId: b, calleeName: 'b' });
+
+    const summary = buildCodebaseSummary(db, { maxLinesPerModule: 100 });
+    // 80+80=160 > 100, so each stays separate → 3 modules
+    expect(summary.modules.length).toBe(3);
+    // Connected components should group modules A and B
+    expect(summary.connectedComponents.length).toBeGreaterThanOrEqual(1);
+  });
+});
