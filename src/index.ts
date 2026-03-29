@@ -3,7 +3,7 @@
  *
  * Public API surface for the Lore knowledge-base toolkit.
  *
- * Exports are intentional and small. Internal helpers like `ParserPool`,
+ * Exports are intentional and small. Internal helpers like
  * `normalizeTypeName`, etc., are not exposed. `buildCallGraph` has been
  * removed — use `resolveSymbolEdges` instead.
  *

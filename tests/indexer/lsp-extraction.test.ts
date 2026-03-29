@@ -6,7 +6,6 @@ import { openDb, type Database } from '../../src/db/schema.js';
 import {
   mapLspSymbolKind,
   buildSyntheticId,
-  reconcileSyntheticSymbols,
 } from '../../src/indexer/stages/lsp-extraction.js';
 import type { PipelineContext } from '../../src/indexer/pipeline.js';
 import { initLogger, LogLevel, resetLogger } from '../../src/logger.js';
@@ -205,19 +204,6 @@ describe('buildSyntheticId', () => {
     expect(fnId).not.toBe(varId);
     expect(fnId).toContain('(12)');
     expect(varId).toContain('(13)');
-  });
-});
-
-// ─── reconcileSyntheticSymbols ────────────────────────────────────────────────
-
-describe('reconcileSyntheticSymbols', () => {
-  it('returns 0 (reconciliation is handled by overlay cleanup)', () => {
-    const db = openDb(':memory:');
-    const log = initLogger({ level: LogLevel.SILENT });
-    const result = reconcileSyntheticSymbols(db, log);
-    expect(result).toBe(0);
-    db.close();
-    resetLogger();
   });
 });
 

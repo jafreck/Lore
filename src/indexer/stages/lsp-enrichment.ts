@@ -89,7 +89,7 @@ export class LspEnrichmentStage implements PipelineStage {
     );
 
     if (scipFiles.length === 0) {
-      context.log.indexing('lsp-enrichment: no SCIP files to enrich in overlay mode');
+      context.log.indexing('lsp-enrichment: no SCIP files to enrich');
       context.sourceCache.clear();
       return;
     }

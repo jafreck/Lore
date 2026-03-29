@@ -240,9 +240,9 @@ export class LspExtractionStage implements PipelineStage {
                 if (calleePath) {
                   const row = db.prepare(
                     `SELECT s.id FROM symbols s JOIN files f ON f.id = s.file_id
-                     WHERE f.path = ? AND s.start_line = ? AND s.layer = ?
+                     WHERE f.path = ? AND s.layer = ?
                      ORDER BY ABS(s.start_line - ?) ASC LIMIT 1`,
-                  ).get(calleePath, calleeDefLine, layer, calleeDefLine) as { id: number } | undefined;
+                  ).get(calleePath, layer, calleeDefLine) as { id: number } | undefined;
                   calleeId = row?.id ?? null;
                 }
               }
@@ -260,8 +260,10 @@ export class LspExtractionStage implements PipelineStage {
                     layer, generation,
                   );
                   callRefsInserted++;
-                } catch {
-                  // Duplicate or constraint violation — skip
+                } catch (e: unknown) {
+                  // Skip UNIQUE constraint violations (duplicate call refs);
+                  // rethrow anything else (disk-full, schema corruption, etc.)
+                  if (!(e instanceof Error && e.message.includes('UNIQUE constraint'))) throw e;
                 }
               }
             }
@@ -301,37 +303,4 @@ export class LspExtractionStage implements PipelineStage {
   }
 
   async dispose(): Promise<void> {}
-}
-
-// ─── Baseline reconciliation ──────────────────────────────────────────────────
-
-/**
- * Reconcile synthetic `lsp:` symbol IDs with authoritative SCIP IDs after
- * a baseline rebuild.
- *
- * Matches by `(file_path, start_line)` — both SCIP definition occurrences
- * and LSP `documentSymbol.selectionRange` point at the same name token.
- *
- * - Match found: SCIP row is authoritative — synthetic overlay row is
- *   superseded by the baseline. FKs cascade via overlay cleanup.
- * - No match (orphaned synthetic): the symbol no longer exists; overlay
- *   cleanup deletes it.
- *
- * This function is called by OverlayCleanupStage and does not need to
- * perform explicit cleanup — the existing overlay cleanup mechanism
- * handles stale overlay rows.
- */
-export function reconcileSyntheticSymbols(
-  db: import('better-sqlite3').Database,
-  _log: import('../../logger.js').LoreLogger,
-): number {
-  // The overlay cleanup stage already handles this:
-  // 1. Baseline rebuild produces authoritative symbols at the same positions
-  // 2. Overlay rows with `lsp:` synthetic IDs become stale
-  // 3. OverlayCleanupStage deletes stale overlay rows where a baseline
-  //    row exists at the same (file, name, start_line)
-  //
-  // No additional reconciliation is needed — the position-based identity
-  // is implicit in the overlay/baseline layer system.
-  return 0;
 }

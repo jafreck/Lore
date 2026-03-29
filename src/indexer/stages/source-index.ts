@@ -50,7 +50,7 @@ export class FileDiscoveryStage implements PipelineStage {
       // ── Overlay update mode ──────────────────────────────────────────────
       // Process only changed files.
       for (const absPath of context.changedFiles) {
-        const language = detectLanguageForPath(absPath);
+        const language = detectLanguageForPath(absPath, context.walkerConfig);
         if (!language) continue;
 
         // Skip files already sourced from SCIP
@@ -74,8 +74,8 @@ export class FileDiscoveryStage implements PipelineStage {
           }
           // Insert dirty_files sentinel for overlay cleanup
           db.prepare(
-            'INSERT OR IGNORE INTO dirty_files (path, branch) VALUES (?, ?)',
-          ).run(absPath, branch);
+            'INSERT OR REPLACE INTO dirty_files (path, branch, dirty_since, overlay_gen) VALUES (?, ?, unixepoch(), ?)',
+          ).run(absPath, branch, generation);
           continue;
         }
 
@@ -101,8 +101,8 @@ export class FileDiscoveryStage implements PipelineStage {
 
         // Mark dirty for overlay tracking
         db.prepare(
-          'INSERT OR IGNORE INTO dirty_files (path, branch) VALUES (?, ?)',
-        ).run(absPath, branch);
+          'INSERT OR REPLACE INTO dirty_files (path, branch, dirty_since, overlay_gen) VALUES (?, ?, unixepoch(), ?)',
+        ).run(absPath, branch, generation);
 
         context.files.push({ path: absPath, language });
         context.changedSourcePaths.push(absPath);
@@ -151,7 +151,7 @@ export class FileDiscoveryStage implements PipelineStage {
           continue;
         }
 
-        const language = file.language ?? detectLanguageForPath(absPath);
+        const language = file.language ?? detectLanguageForPath(absPath, context.walkerConfig);
         if (!language) continue;
 
         // Skip languages fully covered by SCIP

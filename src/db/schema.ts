@@ -366,7 +366,6 @@ function ensureIncrementalSchema(db: Database.Database): void {
   db.transaction(() => {
     db.exec(`
     DROP VIEW IF EXISTS effective_symbol_metrics;
-    DROP VIEW IF EXISTS effective_symbol_metrics;
     DROP VIEW IF EXISTS effective_file_imports;
     DROP VIEW IF EXISTS effective_annotations;
     DROP VIEW IF EXISTS effective_symbol_relationships;
