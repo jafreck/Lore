@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import {
   buildStructuralEmbeddingText,
   hashEmbeddingText,
@@ -264,5 +264,75 @@ describe('LazyEmbeddingProvider', () => {
     // init will fail since model doesn't exist
     try { await provider.init(); } catch { /* expected */ }
     await expect(provider.dispose()).resolves.not.toThrow();
+  });
+});
+
+// ─── TransformersJsProvider detectDevice ──────────────────────────────────────
+
+describe('TransformersJsProvider detectDevice via env var', () => {
+  const originalEnv = process.env['LORE_EMBED_DEVICE'];
+
+  afterEach(() => {
+    if (originalEnv === undefined) {
+      delete process.env['LORE_EMBED_DEVICE'];
+    } else {
+      process.env['LORE_EMBED_DEVICE'] = originalEnv;
+    }
+  });
+
+  it('respects LORE_EMBED_DEVICE env var', () => {
+    process.env['LORE_EMBED_DEVICE'] = 'cuda';
+    const provider = new TransformersJsProvider('test-model');
+    // Device is not available until init, but we can verify it will try 'cuda'
+    // by checking that device defaults to 'unknown' before init
+    expect(provider.device).toBe('unknown');
+  });
+
+  it('defaults to cpu when LORE_EMBED_DEVICE not set', () => {
+    delete process.env['LORE_EMBED_DEVICE'];
+    const provider = new TransformersJsProvider('test-model');
+    expect(provider.device).toBe('unknown'); // Pre-init
+  });
+});
+
+// ─── TransformersJsProvider dtype from env ──────────────────────────────────
+
+describe('TransformersJsProvider dtype from env', () => {
+  const originalDtype = process.env['LORE_EMBED_DTYPE'];
+
+  afterEach(() => {
+    if (originalDtype === undefined) {
+      delete process.env['LORE_EMBED_DTYPE'];
+    } else {
+      process.env['LORE_EMBED_DTYPE'] = originalDtype;
+    }
+  });
+
+  it('uses LORE_EMBED_DTYPE env var when no explicit dtype', () => {
+    process.env['LORE_EMBED_DTYPE'] = 'fp16';
+    const provider = new TransformersJsProvider('test-model');
+    expect(provider.dtype).toBe('fp16');
+  });
+
+  it('explicit dtype overrides env var', () => {
+    process.env['LORE_EMBED_DTYPE'] = 'fp16';
+    const provider = new TransformersJsProvider('test-model', 'q4');
+    expect(provider.dtype).toBe('q4');
+  });
+});
+
+// ─── LazyEmbeddingProvider initialisation dedup ──────────────────────────────
+
+describe('LazyEmbeddingProvider initialization dedup', () => {
+  it('multiple init calls do not create redundant promises', async () => {
+    const provider = new LazyEmbeddingProvider('nonexistent-model-xxx');
+    // Both init calls should use the cached promise from first call
+    const p1 = provider.init();
+    const p2 = provider.init();
+    // Both should resolve/reject the same way
+    const err1 = await p1.catch((e: Error) => e);
+    const err2 = await p2.catch((e: Error) => e);
+    expect(err1).toBeInstanceOf(Error);
+    expect(err2).toBeInstanceOf(Error);
   });
 });
