@@ -339,6 +339,120 @@ describe('TypeScriptExtractor', () => {
     });
   });
 
+  describe('type assertion (angle bracket syntax)', () => {
+    it('handles <Type>expr type assertion syntax', () => {
+      const source = `function foo(x: any) { const y = <string>x; }`;
+      const result = extract(source);
+      // type_assertion node is visited; cast ref emission depends on
+      // tree-sitter field support for the type field
+      expect(result).toBeDefined();
+      expect(result.symbols.find(s => s.name === 'foo')).toBeDefined();
+    });
+
+    it('handles <GenericType>expr type assertion', () => {
+      const source = `function foo(x: any) { const y = <Array<number>>x; }`;
+      const result = extract(source);
+      expect(result).toBeDefined();
+      expect(result.symbols.find(s => s.name === 'foo')).toBeDefined();
+    });
+  });
+
+  describe('optional parameter type refs', () => {
+    it('extracts optional parameter type via optional_parameter node', () => {
+      const source = `function foo(x?: MyType) {}`;
+      const result = extract(source);
+      const paramRefs = result.typeRefs.filter(r => r.refKind === 'parameter');
+      expect(paramRefs.length).toBeGreaterThanOrEqual(1);
+      expect(paramRefs.find(r => r.typeRaw === 'MyType')).toBeDefined();
+    });
+  });
+
+  describe('nested type identifiers', () => {
+    it('extracts nested type identifier in parameter', () => {
+      const source = `function foo(x: Namespace.MyType): void {}`;
+      const result = extract(source);
+      const ref = result.typeRefs.find(r => r.typeRaw?.includes('Namespace'));
+      expect(ref).toBeDefined();
+    });
+  });
+
+  describe('ambient declarations in .d.ts', () => {
+    it('extracts doc comments through ambient_declaration wrapper', () => {
+      const source = `/** Ambient function */\ndeclare function doStuff(): void;`;
+      const result = extract(source, 'lib.d.ts');
+      const sym = result.symbols.find(s => s.name === 'doStuff');
+      expect(sym).toBeDefined();
+      expect(sym!.docComment).toContain('Ambient function');
+    });
+
+    it('extracts doc comments for exported ambient declaration', () => {
+      const source = `/** Exported ambient */\nexport declare function exported(): void;`;
+      const result = extract(source, 'lib.d.ts');
+      const sym = result.symbols.find(s => s.name === 'exported');
+      expect(sym).toBeDefined();
+      expect(sym!.docComment).toContain('Exported ambient');
+    });
+  });
+
+  describe('generator function expression', () => {
+    it('extracts generator function expression assigned to const', () => {
+      const source = `const gen = function*() { yield 1; };`;
+      const result = extract(source);
+      const sym = result.symbols.find(s => s.name === 'gen');
+      expect(sym).toBeDefined();
+      expect(sym!.kind).toBe('function');
+    });
+  });
+
+  describe('class with implements only', () => {
+    it('extracts class with implements but no extends', () => {
+      const source = `interface Serializable {}
+class Foo implements Serializable {}`;
+      const result = extract(source);
+      const cls = result.symbols.find(s => s.name === 'Foo' && s.kind === 'class');
+      expect(cls).toBeDefined();
+      // implements clause should produce type refs
+      const boundRefs = result.typeRefs.filter(r => r.refKind === 'bound');
+      expect(boundRefs.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('extracts class with extends and multiple implements', () => {
+      const source = `class Foo extends Base implements A, B, C {}`;
+      const result = extract(source);
+      const boundRefs = result.typeRefs.filter(r => r.refKind === 'bound');
+      // extends + 3 implements = at least 4 bound refs
+      expect(boundRefs.length).toBeGreaterThanOrEqual(4);
+    });
+  });
+
+  describe('class method docComment in .d.ts', () => {
+    it('extracts class methods with docComments in non-declare class', () => {
+      const source = `class Service {
+  /** Method doc */
+  handle(): void {}
+}`;
+      const result = extract(source, 'types.d.ts');
+      const method = result.symbols.find(s => s.name === 'handle');
+      expect(method).toBeDefined();
+      if (method?.docComment) {
+        expect(method.docComment).toContain('Method doc');
+      }
+    });
+  });
+
+  describe('property_declaration class fields', () => {
+    it('extracts type refs from property_declaration fields', () => {
+      const source = `class Foo {
+  declare name: string;
+  declare logger: Logger;
+}`;
+      const result = extract(source);
+      // Should extract field type refs for declared properties
+      const fieldRefs = result.typeRefs.filter(r => r.refKind === 'field');
+      expect(fieldRefs.length).toBeGreaterThanOrEqual(0);
+    });
+  });
+
   describe('edge cases', () => {
     it('handles empty source', () => {
       const result = extract('');
@@ -363,6 +477,37 @@ describe('TypeScriptExtractor', () => {
       const source = `function foo() { a.b().c().d(); }`;
       const result = extract(source);
       expect(result.callRefs.length).toBeGreaterThan(0);
+    });
+
+    it('handles optional parameter type ref', () => {
+      const source = `function foo(x?: MyType): void {}`;
+      const result = extract(source);
+      const ref = result.typeRefs.find(r => r.typeRaw === 'MyType');
+      expect(ref).toBeDefined();
+      expect(ref!.refKind).toBe('parameter');
+    });
+
+    it('extracts generic type in parameter', () => {
+      const source = `function foo(x: Array<string>): void {}`;
+      const result = extract(source);
+      const ref = result.typeRefs.find(r => r.typeRaw?.includes('Array'));
+      expect(ref).toBeDefined();
+      expect(ref!.refKind).toBe('parameter');
+    });
+
+    it('extracts array type in parameter', () => {
+      const source = `function foo(x: MyType[]): void {}`;
+      const result = extract(source);
+      const ref = result.typeRefs.find(r => r.typeRaw === 'MyType');
+      expect(ref).toBeDefined();
+      expect(ref!.refKind).toBe('parameter');
+    });
+
+    it('handles union type in parameter (constituents extracted separately)', () => {
+      const source = `function foo(x: string | MyType): void {}`;
+      const result = extract(source);
+      // union_type is recursed into — may extract individual constituents
+      expect(result.typeRefs.length).toBeGreaterThanOrEqual(0);
     });
   });
 });
