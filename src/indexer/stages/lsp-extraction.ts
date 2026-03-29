@@ -31,7 +31,7 @@ import { extractReturnType } from '../../enrichment-types.js';
 // ─── LSP SymbolKind → Lore kind mapping ──────────────────────────────────────
 
 /** Map LSP SymbolKind enum values to Lore kind strings. */
-function mapLspSymbolKind(kind: number): string {
+export function mapLspSymbolKind(kind: number): string {
   switch (kind) {
     case 5:  return 'class';       // Class
     case 6:  return 'method';      // Method
@@ -64,7 +64,7 @@ function mapLspSymbolKind(kind: number): string {
  * The parent chain ensures uniqueness for nested symbols (e.g., methods
  * inside classes). The kind suffix disambiguates overloaded names.
  */
-function buildSyntheticId(
+export function buildSyntheticId(
   filePath: string,
   parentChain: string[],
   name: string,

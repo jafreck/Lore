@@ -106,6 +106,11 @@ describe('LoreRuntime', () => {
       const runtime = new LoreRuntime(makeConfig());
       expect(runtime.started).toBe(false);
     });
+
+    it('lspCoordinator is undefined before start', () => {
+      const runtime = new LoreRuntime(makeConfig());
+      expect(runtime.lspCoordinator).toBeUndefined();
+    });
   });
 
   describe('start and shutdown', () => {
