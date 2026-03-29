@@ -53,16 +53,19 @@ describe('lore_structure handler', () => {
   it('runs layers analysis', () => {
     const result = handler(db, { analysis: 'layers' });
     expect(result.layer_violations).toBeDefined();
+    expect(Array.isArray(result.layer_violations)).toBe(true);
   });
 
   it('runs outliers analysis', () => {
     const result = handler(db, { analysis: 'outliers' });
     expect(result.outliers).toBeDefined();
+    expect(Array.isArray(result.outliers)).toBe(true);
   });
 
   it('handles custom depth', () => {
     const result = handler(db, { depth: 1 });
     expect(result.cycles).toBeDefined();
+    expect(Array.isArray(result.cycles)).toBe(true);
   });
 
   it('handles empty DB', () => {

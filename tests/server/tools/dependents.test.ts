@@ -285,7 +285,7 @@ describe('lore_dependents handler — transitive callers', () => {
     expect(callerNames).toContain('funcC');
   });
 
-  it('includes both direct and transitive callers in total_count', () => {
+  it('includes both direct and transitive callers', () => {
     const result = handler(db, { query: 'funcA', kind: 'symbol' });
     expect(result.dependents.callers.length).toBe(2);
   });

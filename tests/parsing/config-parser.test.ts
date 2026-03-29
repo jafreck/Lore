@@ -39,6 +39,10 @@ describe('parseConfigFile', () => {
         value: 'true',
         inferredType: 'boolean',
       });
+      expect(entries.find(e => e.key === 'verbose')).toMatchObject({
+        value: 'false',
+        inferredType: 'boolean',
+      });
     });
 
     it('handles null values', () => {

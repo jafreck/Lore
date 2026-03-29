@@ -259,7 +259,7 @@ describe('resolveSymbolEdges', () => {
     expect(ref.resolution_method).toBe('name_single_file');
   });
 
-  it('excludes macro/constant/enum_member from cross-file name_unique', () => {
+  it('excludes constant from cross-file name_unique', () => {
     const fid1 = insertFile(db, { path: 'src/a.ts' });
     const fid2 = insertFile(db, { path: 'src/b.ts' });
     insertSymbol(db, { fileId: fid2, name: 'MAX', kind: 'constant' });

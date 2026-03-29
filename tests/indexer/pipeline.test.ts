@@ -78,7 +78,7 @@ describe('IndexPipeline', () => {
     const pipeline = new IndexPipeline([[a, b]]);
     await pipeline.run(ctx, 'build');
 
-    // Both should have started before either finished
+    // Both should have started and finished
     expect(starts).toContain('a');
     expect(starts).toContain('b');
     expect(ends).toContain('a');

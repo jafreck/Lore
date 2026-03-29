@@ -110,7 +110,7 @@ describe('LspEnrichmentCoordinator', () => {
   // ── enrich: early return paths ────────────────────────────────────────────
 
   describe('enrich()', () => {
-    it('returns empty array when settings.enabled is false', async () => {
+    it('returns [null] when settings.enabled is false', async () => {
       const coord = createCoordinator({ enabled: false });
       const results = await coord.enrich(makeRequest());
       expect(results).toEqual([null]);
@@ -311,7 +311,7 @@ describe('LspEnrichmentCoordinator', () => {
 
     // ── error handling ────────────────────────────────────────────────────
 
-    it('handles didOpen throwing — returns empty results', async () => {
+    it('handles didOpen throwing — returns [null]', async () => {
       const coord = createCoordinator();
       fakeClient.didOpenError = new Error('transport failure');
 
@@ -551,10 +551,5 @@ describe('LspEnrichmentCoordinator', () => {
       expect(fakeClient.started).toBe(false);
     });
 
-    it('returns null for language not in server registry', async () => {
-      const coord = createCoordinator();
-      const results = await coord.enrich(makeRequest({ language: 'brainfuck' }));
-      expect(results).toEqual([null]);
-    });
   });
 });

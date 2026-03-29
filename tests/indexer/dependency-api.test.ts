@@ -159,7 +159,7 @@ describe('DependencyApiStage', () => {
     await stage.dispose?.();
   });
 
-  it('handles devDependencies and peerDependencies', async () => {
+  it('handles devDependencies', async () => {
     const pkgName = 'dev-lib';
     const pkgDir = path.join(tmpDir, 'node_modules', pkgName);
     fs.mkdirSync(pkgDir, { recursive: true });

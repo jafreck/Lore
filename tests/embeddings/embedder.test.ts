@@ -280,15 +280,14 @@ describe('TransformersJsProvider detectDevice via env var', () => {
     }
   });
 
-  it('respects LORE_EMBED_DEVICE env var', () => {
+  it('device is unknown before init regardless of LORE_EMBED_DEVICE', () => {
     process.env['LORE_EMBED_DEVICE'] = 'cuda';
     const provider = new TransformersJsProvider('test-model');
-    // Device is not available until init, but we can verify it will try 'cuda'
-    // by checking that device defaults to 'unknown' before init
+    // Device is not available until init; pre-init is always 'unknown'
     expect(provider.device).toBe('unknown');
   });
 
-  it('defaults to cpu when LORE_EMBED_DEVICE not set', () => {
+  it('device is unknown before init when env var not set', () => {
     delete process.env['LORE_EMBED_DEVICE'];
     const provider = new TransformersJsProvider('test-model');
     expect(provider.device).toBe('unknown'); // Pre-init

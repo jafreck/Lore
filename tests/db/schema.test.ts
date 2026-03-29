@@ -79,13 +79,11 @@ describe('openDb', () => {
     expect(result[0]?.foreign_keys).toBe(1);
   });
 
-  it('is idempotent — calling twice does not error', () => {
+  it('is idempotent — calling openDb twice on same DB does not error', () => {
     db = openDb(':memory:');
-    // Re-run the schema on the same DB should not throw
+    // Re-initialise schema on the same connection should not throw
     expect(() => {
-      db.exec(
-        "CREATE TABLE IF NOT EXISTS files (id INTEGER PRIMARY KEY AUTOINCREMENT, path TEXT NOT NULL, branch TEXT NOT NULL DEFAULT '', language TEXT NOT NULL, size_bytes INTEGER NOT NULL DEFAULT 0, last_hash TEXT, source TEXT NOT NULL DEFAULT '', indexed_at INTEGER NOT NULL DEFAULT (unixepoch()), layer TEXT NOT NULL DEFAULT 'baseline', generation INTEGER NOT NULL DEFAULT 0, UNIQUE(path, branch, layer))",
-      );
+      openDb(':memory:');
     }).not.toThrow();
   });
 

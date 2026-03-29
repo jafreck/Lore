@@ -77,7 +77,7 @@ describe('ImportResolutionStage', () => {
     // Check that the import was resolved
     const imp = db.prepare('SELECT resolved_id FROM file_imports WHERE file_id = ?').get(fileA.id) as { resolved_id: number | null };
     expect(imp).toBeDefined();
-    // resolved_id should point to fileB if the resolver matched
+    // resolved_id may or may not be resolved depending on path resolution
     if (imp.resolved_id !== null) {
       expect(imp.resolved_id).toBe(fileB.id);
     }

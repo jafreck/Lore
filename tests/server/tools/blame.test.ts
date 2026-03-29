@@ -166,9 +166,8 @@ describe('lore_blame handler', () => {
     ).rejects.not.toThrow('File not found');
   });
 
-  it('clears git root cache', () => {
-    // Just verifying the function is callable
-    clearGitRootCache();
+  it('clears git root cache without throwing', () => {
+    expect(() => clearGitRootCache()).not.toThrow();
   });
 
   it('symbol disambiguation provides candidates in error', async () => {

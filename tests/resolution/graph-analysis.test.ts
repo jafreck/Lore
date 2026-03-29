@@ -530,7 +530,7 @@ describe('buildCodebaseSummary — module-level cycles', () => {
     const summary = buildCodebaseSummary(db, { maxLinesPerModule: 100 });
     // 80+80=160 > 100, so each stays separate → 3 modules
     expect(summary.modules.length).toBe(3);
-    // Connected components should group modules A and B
+    // Connected components should detect at least one component
     expect(summary.connectedComponents.length).toBeGreaterThanOrEqual(1);
   });
 });
@@ -696,6 +696,12 @@ describe('buildCodebaseSummary — module dependencies sorting', () => {
     // At least one module should have ≥1 dependedOnBy entry
     const depended = summary.modules.filter(m => m.dependedOnBy.length >= 1);
     expect(depended.length).toBeGreaterThanOrEqual(1);
+    // dependedOnBy should also be sorted numerically
+    for (const m of depended) {
+      if (m.dependedOnBy.length >= 2) {
+        expect(m.dependedOnBy[0]!).toBeLessThan(m.dependedOnBy[1]!);
+      }
+    }
   });
 });
 
@@ -707,11 +713,7 @@ describe('buildCodebaseSummary — module-level self-loop in tarjanScc', () => {
   beforeEach(() => { db = openDb(':memory:'); });
   afterEach(() => { db?.close(); });
 
-  it('detects module-level self-loop when a module depends on itself', () => {
-    // This is unusual but can happen if a cluster has intra-module edges that
-    // map to the same module in the adjacency list. Create a scenario where
-    // the module adjacency includes a self-edge.
-    //
+  it('merges mutual-reference symbols into a single module without cycles', () => {
     // Two symbols in different files, each calling the other.
     // With a large maxLines they merge into one module.
     // That module has self-edges in the module adjacency (both symbols are in same module).

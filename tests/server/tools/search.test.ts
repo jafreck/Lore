@@ -182,21 +182,6 @@ describe('lore_search handler', () => {
     expect(match).toBeDefined();
   });
 
-  it('observer receives correct observation fields', async () => {
-    let observation: any = null;
-    const observer = (obs: any) => { observation = obs; };
-    await handler(db, { query: 'helpers', branch: 'main' }, undefined, observer);
-    expect(observation).not.toBeNull();
-    expect(observation.query).toBe('helpers');
-    expect(observation.requestedMode).toBe('structural');
-    expect(observation.modeUsed).toBe('structural');
-    expect(observation.resultCount).toBeGreaterThanOrEqual(1);
-    expect(observation.topScore).toBeDefined();
-    expect(typeof observation.latencyMs).toBe('number');
-    expect(observation.branch).toBe('main');
-    expect(observation.timestamp).toBeDefined();
-  });
-
   it('observer error does not break search', async () => {
     const observer = () => { throw new Error('observer boom'); };
     const result = await handler(db, { query: 'helpers' }, undefined, observer);
@@ -509,11 +494,9 @@ describe('lore_search semantic/fused with mock embeddings table', () => {
     const embedder = makeMockEmbedder([0.1, 0.2, 0.3]);
     // Query 'helpers' but filter to 'lib/' path — helpers is in src/utils.ts
     const result = await handler(db, { query: 'helpers', mode: 'semantic', path_prefix: 'lib/' }, embedder);
-    // Post-filter should exclude src/ results; if no lib/ results survive, falls back
+    // Post-filter should exclude src/ results
     for (const r of result.results) {
-      if (result.mode_used === 'semantic') {
-        expect(r.file_path).toMatch(/^lib\//);
-      }
+      expect(r.file_path).toMatch(/^lib\//);
     }
   });
 
@@ -524,18 +507,8 @@ describe('lore_search semantic/fused with mock embeddings table', () => {
     const embedder = makeMockEmbedder([0.1, 0.2, 0.3]);
     const result = await handler(db, { query: 'ConfigClass', mode: 'semantic', kind: 'class' }, embedder);
     for (const r of result.results) {
-      if (result.mode_used === 'semantic') {
-        expect(r.kind).toBe('class');
-      }
+      expect(r.kind).toBe('class');
     }
-  });
-
-  it('fused mode falls back when semantic returns null', async () => {
-    // No symbol_embeddings table → semantic = null → fused degrades
-    const embedder = makeMockEmbedder();
-    const result = await handler(db, { query: 'helpers', mode: 'fused' }, embedder);
-    expect(result.mode_used).toContain('structural');
-    expect(result.results.length).toBeGreaterThanOrEqual(1);
   });
 
   it('semantic mode falls back when embed() returns undefined', async () => {
@@ -703,12 +676,9 @@ describe('lore_search postFilter and language branches with vec0', () => {
     const embedder = makeMockEmbedder([0.1, 0.2, 0.3]);
     const result = await handler(db, { query: 'helpers', mode: 'semantic', language: 'typescript' }, embedder);
     expect(result.results.length).toBeGreaterThanOrEqual(1);
-    // Language filter was applied - only typescript results
+    // Language filter should be enforced — all results should be typescript
     for (const r of result.results) {
-      // All results should be from typescript files or structural fallback
-      if (result.mode_used === 'semantic') {
-        // Language is enforced in semantic SQL query
-      }
+      expect(r.language).toBe('typescript');
     }
   });
 

@@ -370,7 +370,7 @@ describe('lore_graph handler — multi-hop expansion', () => {
     expect(edgeKeys.length).toBe(uniqueKeys.length);
   });
 
-  it('truncated flag set when edges reach limit', () => {
+  it('truncated is false when edge count is below limit', () => {
     // The INTERNAL_LIMIT is 1000, so we just verify the truncated field logic
     const result = handler(db, { kind: 'call', source_id: 1 });
     expect(result.truncated).toBe(false);

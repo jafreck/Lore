@@ -17,7 +17,7 @@ describe('extractReturnType', () => {
     expect(extractReturnType('function foo(x: number): string')).toBe('string');
   });
 
-  it('extracts return type from TypeScript arrow-style', () => {
+  it('returns null for arrow-style without colon-return pattern', () => {
     expect(extractReturnType('(x: number) => string')).toBeNull(); // no '):'  pattern
   });
 

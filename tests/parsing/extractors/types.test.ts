@@ -169,14 +169,14 @@ describe('types utilities', () => {
       const tree = pool.parse('typescript', 'let x: Map<string, number>;')!;
       // Find the generic type node
       const genericNode = findFirst(tree.rootNode, 'generic_type');
-      if (genericNode) {
-        const args = extractGenericTypeArgs(genericNode, 'generic_type', 'type_arguments');
-        expect(args.length).toBeGreaterThan(0);
-      }
+      expect(genericNode).not.toBeNull();
+      const args = extractGenericTypeArgs(genericNode!, 'generic_type', 'type_arguments');
+      expect(args.length).toBeGreaterThan(0);
     });
 
     it('returns empty array for non-generic types', () => {
       const tree = pool.parse('typescript', 'let x: string;')!;
+      // type_identifier may not exist for built-in types in some tree-sitter versions
       const typeNode = findFirst(tree.rootNode, 'type_identifier');
       if (typeNode) {
         const args = extractGenericTypeArgs(typeNode, 'generic_type', 'type_arguments');
