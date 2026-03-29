@@ -337,4 +337,72 @@ describe('JavaScriptExtractor', () => {
       expect(sym).toBeUndefined();
     });
   });
+
+  describe('uncovered branch coverage', () => {
+    it('extractImport: handles side-effect import with no clauses', () => {
+      const result = extract("import 'polyfill';");
+      expect(result.imports).toHaveLength(1);
+      expect(result.imports[0].source).toBe('polyfill');
+      expect(result.imports[0].importedNames).toEqual([]);
+    });
+
+    it('maybeExtractRequire: returns null for require with numeric argument', () => {
+      const source = `const x = require(42);`;
+      const result = extract(source);
+      // require(42) should not produce an import
+      const imp = result.imports.find(i => i.source !== '');
+      expect(imp).toBeUndefined();
+    });
+
+    it('maybeExtractArrowOrFunctionExpr: handles generator_function expression', () => {
+      const source = `const gen = function*() { yield 1; };`;
+      const result = extract(source);
+      const sym = result.symbols.find(s => s.name === 'gen');
+      expect(sym).toBeDefined();
+      expect(sym!.kind).toBe('function');
+    });
+
+    it('extractJsClassMembers: skips method with empty/computed name', () => {
+      const source = `class Foo {
+  [Symbol.iterator]() { return this; }
+  bar() { return 1; }
+}`;
+      const result = extract(source);
+      // bar should be extracted, computed method may or may not have a name
+      expect(result.symbols.find(s => s.name === 'Foo')).toBeDefined();
+      const bar = result.symbols.find(s => s.name === 'bar');
+      expect(bar).toBeDefined();
+      expect(bar!.kind).toBe('method');
+    });
+
+    it('extractCallRef: call with no function child returns null gracefully', () => {
+      // Top-level IIFE
+      const source = `(function() { return 1; })();`;
+      const result = extract(source);
+      // Should not crash
+      expect(result).toBeDefined();
+    });
+
+    it('multiple arrow functions in one const declaration', () => {
+      const source = `const a = () => 1, b = () => 2;`;
+      const result = extract(source);
+      expect(result.symbols.find(s => s.name === 'a')).toBeDefined();
+      expect(result.symbols.find(s => s.name === 'b')).toBeDefined();
+    });
+
+    it('maybeExtractRequire: extracts require with single-quoted string', () => {
+      const source = `const mod = require('my-module');`;
+      const result = extract(source);
+      expect(result.imports.find(i => i.source === 'my-module')).toBeDefined();
+    });
+
+    it('extractCallRef: method call inside class method has correct callerSymbol', () => {
+      const source = `class Service {
+  process() { helper(); }
+}`;
+      const result = extract(source);
+      const ref = result.callRefs.find(r => r.calleeRaw === 'helper');
+      expect(ref).toBeDefined();
+    });
+  });
 });

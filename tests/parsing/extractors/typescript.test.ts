@@ -510,4 +510,186 @@ class Foo implements Serializable {}`;
       expect(result.typeRefs.length).toBeGreaterThanOrEqual(0);
     });
   });
+
+  describe('uncovered branch coverage', () => {
+    it('extractTsVariableTypeRefs: extracts let variable type annotation', () => {
+      const source = `let logger: LogService;`;
+      const result = extract(source);
+      const ref = result.typeRefs.find(r => r.typeRaw === 'LogService' && r.refKind === 'variable');
+      expect(ref).toBeDefined();
+    });
+
+    it('extractTsCastTypeRef: extracts as-expression cast ref', () => {
+      const source = `function foo(x: unknown) { const y = x as MyResult; }`;
+      const result = extract(source);
+      const castRef = result.typeRefs.find(r => r.refKind === 'cast' && r.typeRaw === 'MyResult');
+      expect(castRef).toBeDefined();
+    });
+
+    it('extractTsVariableTypeRefs: extracts variable type annotation', () => {
+      const source = `const config: AppConfig = {};`;
+      const result = extract(source);
+      const ref = result.typeRefs.find(r => r.typeRaw === 'AppConfig' && r.refKind === 'variable');
+      expect(ref).toBeDefined();
+    });
+
+    it('extractTsFunctionTypeRefs: extracts rest parameter type', () => {
+      const source = `function collect(...items: Item[]): void {}`;
+      const result = extract(source);
+      const ref = result.typeRefs.find(r => r.typeRaw === 'Item' && r.refKind === 'parameter');
+      expect(ref).toBeDefined();
+    });
+
+    it('extractTsInterfaceTypeRefs: extracts property_signature type ref', () => {
+      const source = `interface Options {
+  timeout: Duration;
+  retries: number;
+}`;
+      const result = extract(source);
+      const ref = result.typeRefs.find(r => r.typeRaw === 'Duration' && r.refKind === 'field');
+      expect(ref).toBeDefined();
+    });
+
+    it('extractTsInterfaceTypeRefs: extracts method_signature return type ref', () => {
+      const source = `interface Service {
+  process(input: InputData): OutputData;
+}`;
+      const result = extract(source);
+      const retRef = result.typeRefs.find(r => r.typeRaw === 'OutputData' && r.refKind === 'return');
+      expect(retRef).toBeDefined();
+      const paramRef = result.typeRefs.find(r => r.typeRaw === 'InputData' && r.refKind === 'parameter');
+      expect(paramRef).toBeDefined();
+    });
+
+    it('extractTsClassFieldTypeRefs: extracts property_declaration field type', () => {
+      const source = `class Foo {
+  declare name: string;
+  declare logger: Logger;
+}`;
+      const result = extract(source);
+      const fieldRef = result.typeRefs.find(r => r.refKind === 'field' && r.typeRaw === 'Logger');
+      expect(fieldRef).toBeDefined();
+    });
+
+    it('maybeDynamicImport: extracts dynamic import as import edge', () => {
+      const source = `async function load() { const mod = await import('./lazy-module'); }`;
+      const result = extract(source);
+      const imp = result.imports.find(i => i.source === './lazy-module');
+      expect(imp).toBeDefined();
+    });
+
+    it('collectImportNames: handles side-effect import (no clause)', () => {
+      const source = `import 'polyfill';`;
+      const result = extract(source);
+      expect(result.imports).toHaveLength(1);
+      expect(result.imports[0].source).toBe('polyfill');
+      expect(result.imports[0].importedNames).toEqual([]);
+    });
+
+    it('extractClassMembers: extracts constructor with docComment in .d.ts', () => {
+      const source = `class Service {
+  /** Creates service */
+  constructor(config: Config) {}
+  /** Does work */
+  work(): void {}
+}`;
+      const result = extract(source, 'types.d.ts');
+      const ctor = result.symbols.find(s => s.name === 'constructor' && s.kind === 'constructor');
+      expect(ctor).toBeDefined();
+      expect(ctor!.parentName).toBe('Service');
+    });
+
+    it('extractTsClassInheritanceTypeRefs: extracts implements clause type refs', () => {
+      const source = `class Processor implements Handler, Serializable {}`;
+      const result = extract(source);
+      const handlerRef = result.typeRefs.find(r => r.typeRaw === 'Handler' && r.refKind === 'bound');
+      expect(handlerRef).toBeDefined();
+      const serRef = result.typeRefs.find(r => r.typeRaw === 'Serializable' && r.refKind === 'bound');
+      expect(serRef).toBeDefined();
+    });
+
+    it('extractTsInterfaceTypeRefs: extracts extends_type_clause bound refs', () => {
+      const source = `interface ReadWriter extends Reader, Writer {}`;
+      const result = extract(source);
+      const readerRef = result.typeRefs.find(r => r.typeRaw === 'Reader' && r.refKind === 'bound');
+      expect(readerRef).toBeDefined();
+      const writerRef = result.typeRefs.find(r => r.typeRaw === 'Writer' && r.refKind === 'bound');
+      expect(writerRef).toBeDefined();
+    });
+
+    it('isNodeExported: traverses parent chain to find export_statement', () => {
+      const source = `export const handler = (req: Request) => {};`;
+      const result = extract(source);
+      const sym = result.symbols.find(s => s.name === 'handler');
+      expect(sym).toBeDefined();
+      expect(sym!.isExported).toBe(true);
+    });
+
+    it('extractLeadingDocComment: traverses through ambient_declaration', () => {
+      const source = `/** Ambient fn */
+declare function ambientFn(): void;`;
+      const result = extract(source, 'lib.d.ts');
+      const sym = result.symbols.find(s => s.name === 'ambientFn');
+      expect(sym).toBeDefined();
+      expect(sym!.docComment).toContain('Ambient fn');
+    });
+
+    it('extractTsClassMethodTypeRefs: extracts method type refs from class body', () => {
+      const source = `class Handler {
+  process(data: InputType): OutputType { return {} as any; }
+}`;
+      const result = extract(source);
+      const paramRef = result.typeRefs.find(r => r.typeRaw === 'InputType' && r.refKind === 'parameter');
+      expect(paramRef).toBeDefined();
+      const retRef = result.typeRefs.find(r => r.typeRaw === 'OutputType' && r.refKind === 'return');
+      expect(retRef).toBeDefined();
+    });
+
+    it('extractTsTypeName: returns null for union_type (handled by recursion)', () => {
+      const source = `function foo(x: Alpha | Beta): void {}`;
+      const result = extract(source);
+      // union_type returns null; individual constituents are extracted via recursion
+      const alphaRef = result.typeRefs.find(r => r.typeRaw === 'Alpha');
+      expect(alphaRef).toBeDefined();
+      const betaRef = result.typeRefs.find(r => r.typeRaw === 'Beta');
+      expect(betaRef).toBeDefined();
+    });
+
+    it('extractArrowOrFunctionExprs: extracts generator_function expression', () => {
+      const source = `const gen = function*() { yield 1; };`;
+      const result = extract(source);
+      const sym = result.symbols.find(s => s.name === 'gen');
+      expect(sym).toBeDefined();
+      expect(sym!.kind).toBe('function');
+    });
+
+    it('extractTsInterfaceTypeRefs: extracts intersection type constituents', () => {
+      const source = `function merge(x: Alpha & Beta): void {}`;
+      const result = extract(source);
+      const alphaRef = result.typeRefs.find(r => r.typeRaw === 'Alpha');
+      expect(alphaRef).toBeDefined();
+      const betaRef = result.typeRefs.find(r => r.typeRaw === 'Beta');
+      expect(betaRef).toBeDefined();
+    });
+
+    it('extractTsFunctionTypeRefs: extracts nested type_annotation correctly', () => {
+      const source = `function process(input: InputData, output: OutputData): ResultType {}`;
+      const result = extract(source);
+      const inputRef = result.typeRefs.find(r => r.typeRaw === 'InputData' && r.refKind === 'parameter');
+      expect(inputRef).toBeDefined();
+      const outputRef = result.typeRefs.find(r => r.typeRaw === 'OutputData' && r.refKind === 'parameter');
+      expect(outputRef).toBeDefined();
+      const retRef = result.typeRefs.find(r => r.typeRaw === 'ResultType' && r.refKind === 'return');
+      expect(retRef).toBeDefined();
+    });
+
+    it('function_signature: extracts function signature in .d.ts', () => {
+      const source = `function greet(name: string): void;`;
+      const result = extract(source, 'types.d.ts');
+      const sym = result.symbols.find(s => s.name === 'greet');
+      expect(sym).toBeDefined();
+      expect(sym!.kind).toBe('function');
+      expect(sym!.docComment).toBeUndefined();
+    });
+  });
 });
