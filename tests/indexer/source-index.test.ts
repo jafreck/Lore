@@ -71,9 +71,11 @@ describe('SourceIndexStage', () => {
       const ctx = makeContext();
       await stage.execute(ctx, 'build');
 
-      const files = db.prepare('SELECT path, language FROM files').all() as Array<{ path: string; language: string }>;
+      const files = db.prepare('SELECT path, language, layer, generation FROM files ORDER BY path').all() as Array<{ path: string; language: string; layer: string; generation: number }>;
       expect(files.length).toBe(2);
-      expect(files.map(f => f.language)).toEqual(['typescript', 'typescript']);
+      expect(files.every(f => f.language === 'typescript')).toBe(true);
+      expect(files.every(f => f.layer === 'baseline')).toBe(true);
+      expect(files.every(f => f.generation === 1)).toBe(true);
       expect(ctx.files.length).toBe(2);
     });
 
@@ -86,6 +88,11 @@ describe('SourceIndexStage', () => {
 
       const absPath = path.resolve(tmpDir, 'main.ts');
       expect(ctx.sourceCache.get(absPath)).toBe(content);
+
+      // Verify DB row has correct size and hash
+      const row = db.prepare('SELECT size_bytes, last_hash FROM files WHERE path = ?').get(absPath) as { size_bytes: number; last_hash: string };
+      expect(row.size_bytes).toBe(Buffer.byteLength(content, 'utf8'));
+      expect(row.last_hash).toMatch(/^[0-9a-f]{64}$/);
     });
 
     it('saves index checkpoint in lore_meta', async () => {
@@ -95,7 +102,8 @@ describe('SourceIndexStage', () => {
 
       const cp = getLoreMeta(db, LORE_META_INDEX_CHECKPOINT);
       expect(cp).toBeDefined();
-      expect(cp!.length).toBeGreaterThan(0);
+      // Should be a valid ISO date string
+      expect(new Date(cp!).getTime()).not.toBeNaN();
     });
 
     it('skips files sourced from SCIP', async () => {
@@ -108,7 +116,7 @@ describe('SourceIndexStage', () => {
 
       const files = db.prepare('SELECT path FROM files').all() as Array<{ path: string }>;
       expect(files.length).toBe(1);
-      expect(files[0]!.path).toContain('b.ts');
+      expect(files[0]!.path).toBe(path.resolve(tmpDir, 'b.ts'));
     });
 
     it('skips languages fully covered by SCIP', async () => {
@@ -176,8 +184,10 @@ describe('SourceIndexStage', () => {
       });
       await new SourceIndexStage().execute(ctx, 'update');
 
-      const dirty = db.prepare('SELECT * FROM dirty_files').all() as Array<{ path: string }>;
+      const dirty = db.prepare('SELECT path, branch FROM dirty_files').all() as Array<{ path: string; branch: string }>;
       expect(dirty.length).toBe(1);
+      expect(dirty[0]!.path).toBe(filePath);
+      expect(dirty[0]!.branch).toBe('main');
     });
 
     it('handles deleted files by cleaning up DB rows', async () => {
@@ -196,8 +206,10 @@ describe('SourceIndexStage', () => {
 
       // File row should be cleaned up, dirty_files sentinel inserted
       expect(db.prepare('SELECT COUNT(*) as cnt FROM files').get()).toEqual({ cnt: 0 });
-      const dirty = db.prepare('SELECT * FROM dirty_files').all();
-      expect(dirty.length).toBeGreaterThanOrEqual(1);
+      expect(db.prepare('SELECT COUNT(*) as cnt FROM symbols').get()).toEqual({ cnt: 0 });
+      const dirty = db.prepare('SELECT path FROM dirty_files').all() as Array<{ path: string }>;
+      expect(dirty.length).toBe(1);
+      expect(dirty[0]!.path).toBe(filePath);
     });
 
     it('skips files already sourced from SCIP', async () => {

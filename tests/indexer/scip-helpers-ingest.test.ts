@@ -205,14 +205,18 @@ describe('materializeVirtualDispatch', () => {
 
     expect(result).toBe(1);
 
-    // Verify the virtual dispatch edge was inserted
+    // Verify the virtual dispatch edge was inserted with correct values
     const edges = db.prepare(
-      "SELECT * FROM symbol_refs WHERE call_kind = 'virtual_dispatch'",
-    ).all() as Array<{ caller_id: number; callee_id: number; callee_name: string }>;
+      "SELECT caller_id, callee_id, callee_name, call_kind, resolution_method, definition_path, definition_line FROM symbol_refs WHERE call_kind = 'virtual_dispatch'",
+    ).all() as Array<{ caller_id: number; callee_id: number; callee_name: string; call_kind: string; resolution_method: string; definition_path: string | null; definition_line: number | null }>;
     expect(edges.length).toBe(1);
     expect(edges[0]!.caller_id).toBe(callerId);
     expect(edges[0]!.callee_id).toBe(concreteMethodId);
     expect(edges[0]!.callee_name).toBe('read');
+    expect(edges[0]!.call_kind).toBe('virtual_dispatch');
+    expect(edges[0]!.resolution_method).toBe('scip_definition');
+    expect(edges[0]!.definition_path).toBe('/src/foo.ts');
+    expect(edges[0]!.definition_line).toBe(10);
   });
 
   it('does not duplicate edges on re-run', () => {
@@ -248,7 +252,10 @@ describe('materializeVirtualDispatch', () => {
     const second = materializeVirtualDispatch(db, scipToLoreId, symbolInfoMap, symbolDefinitions, 'baseline', 1, log);
     expect(second).toBe(0);
 
-    const allVd = db.prepare("SELECT COUNT(*) as cnt FROM symbol_refs WHERE call_kind = 'virtual_dispatch'").get() as { cnt: number };
-    expect(allVd.cnt).toBe(1);
+    // Verify total edges unchanged and original edge intact
+    const allVd = db.prepare("SELECT caller_id, callee_id FROM symbol_refs WHERE call_kind = 'virtual_dispatch'").all() as Array<{ caller_id: number; callee_id: number }>;
+    expect(allVd.length).toBe(1);
+    expect(allVd[0]!.caller_id).toBe(callerId);
+    expect(allVd[0]!.callee_id).toBe(concreteMethodId);
   });
 });

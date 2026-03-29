@@ -572,8 +572,14 @@ describe('LspEnrichmentCoordinator', () => {
       ];
       const coord = createCoordinator();
       const symbols = await coord.documentSymbol('/tmp/test.ts', 'typescript', 'class MyClass {}');
-      expect(symbols.length).toBe(1);
-      expect(symbols[0]!.name).toBe('MyClass');
+      expect(symbols).toEqual([
+        {
+          name: 'MyClass',
+          kind: 5,
+          range: { start: { line: 0, character: 0 }, end: { line: 10, character: 1 } },
+          selectionRange: { start: { line: 0, character: 6 }, end: { line: 0, character: 13 } },
+        },
+      ]);
     });
 
     it('returns empty when LSP is disabled', async () => {
@@ -671,9 +677,11 @@ describe('LspEnrichmentCoordinator', () => {
     it('returns capabilities for a known language', async () => {
       const coord = createCoordinator();
       const caps = await coord.getServerCapabilities('typescript');
-      expect(caps).toBeDefined();
-      expect(caps!.documentSymbol).toBe(true);
-      expect(caps!.callHierarchy).toBe(true);
+      expect(caps).toEqual({
+        documentSymbol: true,
+        callHierarchy: true,
+        semanticTokensFull: true,
+      });
     });
 
     it('returns null for unknown language', async () => {
