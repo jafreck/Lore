@@ -53,7 +53,6 @@ describe('openDb', () => {
     expect(names).toContain('effective_symbol_relationships');
     expect(names).toContain('effective_annotations');
     expect(names).toContain('effective_file_imports');
-    expect(names).toContain('effective_symbol_metrics');
   });
 
   it('creates symbols_fts virtual table', () => {

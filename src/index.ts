@@ -43,13 +43,6 @@ export { installAllMissing as installScipIndexers, SCIP_INSTALL_SPECS } from './
 export type { ScipInstallResult, ScipInstallSpec } from './scip/installer.js';
 export { TransformersJsProvider, LazyEmbeddingProvider, DEFAULT_EMBEDDING_MODEL, tokenAwareBatch, hashEmbeddingText, buildStructuralEmbeddingText } from './embeddings/embedder.js';
 export type { EmbeddingProvider, OnnxDtype } from './embeddings/embedder.js';
-export type {
-  ExtractionResult,
-  RawCallRef,
-  RawImport,
-  RawSymbol,
-  SymbolExtractor,
-} from './parsing/extractors/types.js';
 
 // ── Resolution method taxonomy (shared constant) ─────────────────────────────
 export { RESOLUTION_METHODS, RESOLVED_METHODS, UNRESOLVED_METHODS } from './resolution/resolution-method.js';

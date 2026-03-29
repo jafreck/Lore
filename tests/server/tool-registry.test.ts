@@ -127,15 +127,14 @@ describe('inputSchemaToZodShape', () => {
 describe('buildToolModules', () => {
   it('returns all expected tool modules', async () => {
     const modules = await buildToolModules();
-    expect(modules.length).toBeGreaterThanOrEqual(12);
+  expect(modules.length).toBeGreaterThanOrEqual(11);
 
-    const names = modules.map((m) => m.def.name);
-    expect(names).toContain('lore_lookup');
-    expect(names).toContain('lore_graph');
-    expect(names).toContain('lore_search');
-    expect(names).toContain('lore_snippet');
-    expect(names).toContain('lore_blame');
-    expect(names).toContain('lore_metrics');
+  const names = modules.map((m) => m.def.name);
+  expect(names).toContain('lore_lookup');
+  expect(names).toContain('lore_graph');
+  expect(names).toContain('lore_search');
+  expect(names).toContain('lore_snippet');
+  expect(names).toContain('lore_blame');
     expect(names).toContain('lore_history');
     expect(names).toContain('lore_trace');
     expect(names).toContain('lore_diff');

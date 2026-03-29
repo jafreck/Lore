@@ -366,6 +366,7 @@ function ensureIncrementalSchema(db: Database.Database): void {
   db.transaction(() => {
     db.exec(`
     DROP VIEW IF EXISTS effective_symbol_metrics;
+    DROP VIEW IF EXISTS effective_symbol_metrics;
     DROP VIEW IF EXISTS effective_file_imports;
     DROP VIEW IF EXISTS effective_annotations;
     DROP VIEW IF EXISTS effective_symbol_relationships;
@@ -402,10 +403,6 @@ function ensureIncrementalSchema(db: Database.Database): void {
     CREATE VIEW effective_file_imports AS
     SELECT fi.* FROM file_imports fi
     JOIN effective_files f ON f.id = fi.file_id;
-
-    CREATE VIEW effective_symbol_metrics AS
-    SELECT sm.* FROM symbol_metrics sm
-    JOIN effective_symbols s ON s.id = sm.symbol_id;
   `);
   })();
 

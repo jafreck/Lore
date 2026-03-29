@@ -247,7 +247,6 @@ export async function buildToolModules(): Promise<ToolModule[]> {
     search,
     snippet,
     blame,
-    metrics,
     history,
     trace,
     diff,
@@ -260,7 +259,6 @@ export async function buildToolModules(): Promise<ToolModule[]> {
     import('./tools/search.js'),
     import('./tools/snippet.js'),
     import('./tools/blame.js'),
-    import('./tools/metrics.js'),
     import('./tools/history.js'),
     import('./tools/trace.js'),
     import('./tools/diff.js'),
@@ -289,10 +287,6 @@ export async function buildToolModules(): Promise<ToolModule[]> {
     {
       def: blame.toolDef,
       handlerFactory: (deps) => (args) => blame.handler(deps.db, args),
-    },
-    {
-      def: metrics.toolDef,
-      handlerFactory: (deps) => (args) => metrics.handler(deps.db, args ?? {}),
     },
     {
       def: history.toolDef,

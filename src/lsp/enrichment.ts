@@ -1,10 +1,29 @@
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { LspClient, type LspClientOptions, type LspPosition, type LspServerCommand } from './client.js';
+import {
+  LspClient,
+  type LspClientOptions,
+  type LspPosition,
+  type LspServerCommand,
+  type DocumentSymbol,
+  type CallHierarchyItem,
+  type CallHierarchyOutgoingCall,
+  type CallHierarchyIncomingCall,
+  type SemanticTokensResult,
+  type ServerCapabilities,
+} from './client.js';
 import type { EffectiveLspSettings } from './config.js';
 import { resolveLspServerRegistry, type ResolvedLspServerCommand } from './registry.js';
 import { extractReturnType, type ResolvedTypeMetadata } from '../enrichment-types.js';
 
 export type { ResolvedTypeMetadata } from '../enrichment-types.js';
+export type {
+  DocumentSymbol,
+  CallHierarchyItem,
+  CallHierarchyOutgoingCall,
+  CallHierarchyIncomingCall,
+  SemanticTokensResult,
+  ServerCapabilities,
+} from './client.js';
 
 export interface LspEnrichmentTarget {
   line: number;
@@ -22,9 +41,16 @@ export interface LspClientLike {
   start(): Promise<void>;
   close(): Promise<void>;
   didOpen(document: { uri: string; languageId: string; version: number; text: string }): void;
+  didChange?(document: { uri: string; version: number }, changes: Array<{ text: string }>): void;
   didClose(document: { uri: string }): void;
   hover(document: { uri: string }, position: LspPosition): Promise<unknown>;
   definition(document: { uri: string }, position: LspPosition): Promise<unknown>;
+  documentSymbol?(document: { uri: string }): Promise<DocumentSymbol[]>;
+  prepareCallHierarchy?(document: { uri: string }, position: LspPosition): Promise<CallHierarchyItem[]>;
+  callHierarchyOutgoing?(item: CallHierarchyItem): Promise<CallHierarchyOutgoingCall[]>;
+  callHierarchyIncoming?(item: CallHierarchyItem): Promise<CallHierarchyIncomingCall[]>;
+  semanticTokensFull?(document: { uri: string }): Promise<SemanticTokensResult | null>;
+  readonly serverCapabilities?: ServerCapabilities;
 }
 
 export type LspClientFactory = (server: LspServerCommand, options: LspClientOptions) => LspClientLike;
@@ -153,6 +179,90 @@ export class LspEnrichmentCoordinator {
     const clientPromise = this.createAndStartClient(server).catch(() => null);
     this.clients.set(language, clientPromise);
     return clientPromise;
+  }
+
+  /**
+   * Get the symbol tree for a file via `textDocument/documentSymbol`.
+   * Returns empty array if the server doesn't support documentSymbol.
+   */
+  async documentSymbol(
+    filePath: string,
+    language: string,
+    source: string,
+  ): Promise<DocumentSymbol[]> {
+    if (!this.settings.enabled) return [];
+    const client = await this.getClient(language);
+    if (!client?.documentSymbol) return [];
+
+    const uri = pathToFileURL(filePath).toString();
+    try {
+      client.didOpen({ uri, languageId: language, version: 1, text: source });
+      return await client.documentSymbol({ uri });
+    } catch {
+      return [];
+    } finally {
+      try { client.didClose({ uri }); } catch { /* ignore */ }
+    }
+  }
+
+  /**
+   * Get outgoing calls from a symbol at a given position.
+   * Two-step: prepareCallHierarchy → callHierarchyOutgoing.
+   */
+  async outgoingCalls(
+    filePath: string,
+    language: string,
+    source: string,
+    position: LspPosition,
+  ): Promise<CallHierarchyOutgoingCall[]> {
+    if (!this.settings.enabled) return [];
+    const client = await this.getClient(language);
+    if (!client?.prepareCallHierarchy || !client?.callHierarchyOutgoing) return [];
+
+    const uri = pathToFileURL(filePath).toString();
+    try {
+      client.didOpen({ uri, languageId: language, version: 1, text: source });
+      const items = await client.prepareCallHierarchy({ uri }, position);
+      if (items.length === 0) return [];
+      // Get outgoing calls from the first (primary) item
+      return await client.callHierarchyOutgoing(items[0]!);
+    } catch {
+      return [];
+    } finally {
+      try { client.didClose({ uri }); } catch { /* ignore */ }
+    }
+  }
+
+  /**
+   * Get full semantic tokens for a file.
+   */
+  async semanticTokens(
+    filePath: string,
+    language: string,
+    source: string,
+  ): Promise<SemanticTokensResult | null> {
+    if (!this.settings.enabled) return null;
+    const client = await this.getClient(language);
+    if (!client?.semanticTokensFull) return null;
+
+    const uri = pathToFileURL(filePath).toString();
+    try {
+      client.didOpen({ uri, languageId: language, version: 1, text: source });
+      return await client.semanticTokensFull({ uri });
+    } catch {
+      return null;
+    } finally {
+      try { client.didClose({ uri }); } catch { /* ignore */ }
+    }
+  }
+
+  /**
+   * Get the server capabilities for a language.
+   * Returns null if no client is available for the language.
+   */
+  async getServerCapabilities(language: string): Promise<ServerCapabilities | null> {
+    const client = await this.getClient(language);
+    return client?.serverCapabilities ?? null;
   }
 
   private async createAndStartClient(server: ResolvedLspServerCommand): Promise<LspClientLike> {

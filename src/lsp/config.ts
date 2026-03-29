@@ -5,10 +5,10 @@ import {
   type LspServerRegistry,
   type LspServerRegistryOverrides,
   mergeLspServerRegistry,
+  SUPPORTED_LANGUAGES,
 } from './registry.js';
-import { SUPPORTED_PARSER_LANGUAGES } from '../parsing/parser.js';
 
-export const DEFAULT_LSP_ENABLED = false;
+export const DEFAULT_LSP_ENABLED = true;
 export const DEFAULT_LSP_REQUEST_TIMEOUT_MS = 5000;
 
 export interface EffectiveLspSettings {
@@ -70,7 +70,7 @@ export function loadLspSettingsFromLoreConfig(rootDir: string): LspSettingsOverr
   const lsp = lspParse.data;
   if (lsp.servers) {
     for (const language of Object.keys(lsp.servers)) {
-      if (!SUPPORTED_PARSER_LANGUAGES.includes(language)) {
+      if (!SUPPORTED_LANGUAGES.includes(language)) {
         throw new Error(`Invalid .lore.config lsp settings: unsupported language "${language}"`);
       }
     }

@@ -31,13 +31,7 @@ import type { EmbeddingProvider } from '../embeddings/embedder.js';
 import type { EffectiveLspSettings } from '../lsp/config.js';
 import type { EffectiveScipSettings } from '../scip/config.js';
 import type { LoreLogger } from '../logger.js';
-import type { RawCallRef, RawTypeRef } from '../parsing/extractors/types.js';
 import { getLogger } from '../logger.js';
-
-export interface ScipTreeSitterFileData {
-  callRefsByLine: Map<number, RawCallRef[]>;
-  typeRefsByLine: Map<number, RawTypeRef[]>;
-}
 
 // ─── Stage interface ──────────────────────────────────────────────────────────
 
@@ -116,13 +110,6 @@ export interface PipelineContext {
    * Set by `ScipIndexerStage`; read by `SourceIndexStage` to skip files.
    */
   scipSourcedFiles?: ReadonlySet<string>;
-
-  /**
-   * Tree-sitter-derived call/type lookup data for SCIP-sourced files.
-   * Populated during the SourceIndexStage metrics pass so ScipRefStage can
-   * reuse the same extraction pass instead of reparsing files.
-   */
-  scipTreeSitterData?: Map<string, ScipTreeSitterFileData>;
 
   /**
    * In-memory cache of source file contents (path → source text).

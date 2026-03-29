@@ -189,10 +189,9 @@ describe('lore_trace handler', () => {
     expect(result.steps[0]!.signature).toBe('(a: number): void');
   });
 
-  it('handles symbol_metrics table for cyclomatic complexity', () => {
-    // Create symbol_metrics table and insert data
-    db.prepare(`INSERT INTO symbol_metrics (symbol_id, line_count, param_count, cyclomatic, max_nesting) VALUES (1, 10, 2, 5, 1)`).run();
+  it('does not include cyclomatic complexity in trace steps', () => {
+    // symbol_metrics is no longer joined by trace — complexity was dropped
     const result = handler(db, { from: 1, depth: 0 });
-    expect(result.steps[0]!.cyclomatic).toBe(5);
+    expect(result.steps[0]).not.toHaveProperty('cyclomatic');
   });
 });

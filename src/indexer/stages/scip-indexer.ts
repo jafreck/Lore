@@ -58,7 +58,6 @@ import { normalizeTypeName } from '../../resolution/call-graph.js';
 import { SCIP_SUPPORTED_LANGUAGES } from '../../scip/registry.js';
 import { extractReturnType } from '../../scip/index-reader.js';
 import { EXT_TO_LANG } from '../../discovery/walker.js';
-import { ParserPool } from '../../parsing/parser.js';
 
 // ─── Re-exports from helper modules ──────────────────────────────────────────
 
@@ -80,12 +79,6 @@ import {
 
 import {
   inferLoreLanguage,
-  extractImportPathFromTree,
-  inferTypeRefKindFromTree,
-  isCallExpression,
-  extractReceiverName,
-  findMatchingCallRef,
-  findMatchingTypeRefKind,
   materializeVirtualDispatch,
 } from './scip-helpers/ingest.js';
 
@@ -220,7 +213,6 @@ export class ScipIndexerStage implements PipelineStage {
 
     // Pass 1: Create files and symbols
     const fileIdMap = new Map<string, number>(); // absPath → file_id
-    const importParserPool = new ParserPool();
 
     const SCIP_BATCH_SIZE = 200;
     const processDocumentBatch = db.transaction((batch: ScipDocument[]) => {
@@ -321,7 +313,7 @@ export class ScipIndexerStage implements PipelineStage {
           const name = symInfo.displayName || extractNameFromScipSymbol(symInfo.symbol);
           const firstDoc = symInfo.documentation[0] ?? '';
           const docHint = firstDoc.toLowerCase();
-          const kind = inferKindFromScipSymbol(symInfo.symbol, docHint);
+          const kind = inferKindFromScipSymbol(symInfo.symbol, docHint, symInfo.kind);
 
           // Skip parameters, type parameters, and module-level namespace symbols
           if (kind === 'parameter' || kind === 'module') continue;
@@ -334,17 +326,26 @@ export class ScipIndexerStage implements PipelineStage {
           const resolvedReturnType = extractReturnType(resolvedTypeSig);
           const definitionUri = pathToFileURL(absPath).toString();
 
-          // Resolve parent_symbol_id by walking the SCIP descriptor chain
-          // upward until we find a parent that was already inserted.
+          // Resolve parent_symbol_id.
+          // Prefer SCIP's `enclosingSymbol` (authoritative) when populated;
+          // fall back to walking the descriptor chain with extractParentScipSymbol.
           let parentLoreId: number | null = null;
-          let candidateScip = extractParentScipSymbol(symInfo.symbol);
-          while (candidateScip) {
-            const id = scipToLoreId.get(candidateScip);
-            if (id !== undefined) {
-              parentLoreId = id;
-              break;
+          if (symInfo.enclosingSymbol) {
+            const enclosingId = scipToLoreId.get(symInfo.enclosingSymbol);
+            if (enclosingId !== undefined) {
+              parentLoreId = enclosingId;
             }
-            candidateScip = extractParentScipSymbol(candidateScip);
+          }
+          if (parentLoreId === null) {
+            let candidateScip = extractParentScipSymbol(symInfo.symbol);
+            while (candidateScip) {
+              const id = scipToLoreId.get(candidateScip);
+              if (id !== undefined) {
+                parentLoreId = id;
+                break;
+              }
+              candidateScip = extractParentScipSymbol(candidateScip);
+            }
           }
 
           const info = insertSymbol.run(
@@ -360,28 +361,16 @@ export class ScipIndexerStage implements PipelineStage {
         }
 
         // Insert imports (from Import-role occurrences)
-        // Prefer tree-sitter AST import extraction; fall back to SCIP package descriptor.
+        // Use SCIP symbol string to derive import path.
         // Use symbolDefinitions to pre-resolve imports to target file IDs.
-        let importTree: import('tree-sitter').Tree | null = null;
-        try { importTree = importParserPool.parse(loreLang, source); } catch { /* ignore parse failure */ }
-
         const seenImports = new Map<string, number | null>(); // rawImport → resolved file ID
         for (const occ of doc.occurrences) {
           if ((occ.symbolRoles & SymbolRole.Import) !== 0 && occ.symbol) {
-            const importLine = occ.range[0] ?? 0;
-
-            let srcImport: string | null = null;
-            if (importTree) {
-              srcImport = extractImportPathFromTree(importTree, importLine);
-            }
-            let rawImport: string;
-            if (srcImport) {
-              rawImport = srcImport;
-            } else {
-              // Fall back to SCIP package descriptor
-              const parts = occ.symbol.split(' ');
-              rawImport = parts.length >= 4 ? parts[3]! : occ.symbol;
-            }
+            // Derive import path from SCIP symbol string.
+            // SCIP symbols are: <scheme> <manager> <package> <version> <descriptors>
+            // The package part (parts[3]) gives the module identity.
+            const parts = occ.symbol.split(' ');
+            const rawImport = parts.length >= 4 ? parts[3]! : occ.symbol;
             if (!rawImport) continue;
 
             // Resolve the import's target file via SCIP symbol → definition location
@@ -419,7 +408,7 @@ export class ScipIndexerStage implements PipelineStage {
             if (rel.isImplementation) {
               const targetInfo = symbolInfoMap.get(rel.symbol);
               const targetKind = targetInfo
-                ? inferKindFromScipSymbol(rel.symbol, (targetInfo.documentation[0] ?? '').toLowerCase())
+                ? inferKindFromScipSymbol(rel.symbol, (targetInfo.documentation[0] ?? '').toLowerCase(), targetInfo.kind)
                 : null;
               relType = (targetKind === 'class') ? 'extends' : 'implements';
             } else if (rel.isTypeDefinition) {
@@ -586,8 +575,6 @@ export class ScipRefStage implements PipelineStage {
 
     const scipDocs = [...(documents as Iterable<ScipDocument>)];
     const sipInfoMap = symbolInfoMap as Map<string, ScipSymbolInformation>;
-    const scipTreeSitterData = context.scipTreeSitterData;
-    const parserPool = new ParserPool();
 
     const SCIP_REF_BATCH_SIZE = 200;
     const processRefBatch = db.transaction((batch: ScipDocument[]) => {
@@ -595,16 +582,6 @@ export class ScipRefStage implements PipelineStage {
         const absPath = resolve(rootDir, doc.relativePath);
         const fileId = fileIdMap.get(absPath);
         if (!fileId) continue;
-        const treeData = scipTreeSitterData?.get(absPath);
-
-        const source: string | undefined = context.sourceCache.get(absPath);
-        let tree: import('tree-sitter').Tree | null = null;
-        if (source) {
-          const loreLang = inferLoreLanguage(doc.language, doc.relativePath);
-          if (loreLang) {
-            try { tree = parserPool.parse(loreLang, source); } catch { /* ignore parse failure */ }
-          }
-        }
 
         for (const occ of doc.occurrences) {
           if ((occ.symbolRoles & SymbolRole.Definition) !== 0) continue;
@@ -615,23 +592,15 @@ export class ScipRefStage implements PipelineStage {
             continue;
           }
 
-          let refKind = classifyScipReference(occ.symbol);
+          let refKind = classifyScipReference(occ.symbol, occ.syntaxKind);
           const line = occ.range[0] ?? 0;
           const character = occ.range[1] ?? 0;
           const calleeName = extractNameFromScipSymbol(occ.symbol);
-          const matchedCallRef = findMatchingCallRef(treeData, line, character, calleeName);
           if (refKind === 'skip') {
-            // Term-value refs (ending in '.') may be calls to arrow-function
-            // or const-assigned function values. Reuse the tree-sitter call
-            // refs captured during the metrics pass instead of reparsing here.
-            if (matchedCallRef) {
-              refKind = 'call';
-            } else if (tree && isCallExpression(tree, line, character)) {
-              refKind = 'call';
-            } else {
-              refsSkippedNonCall++;
-              continue;
-            }
+            // Without syntaxKind, term-suffix '.' symbols are skipped.
+            // With syntaxKind, they're already classified by classifyScipReference.
+            refsSkippedNonCall++;
+            continue;
           }
 
           const callerId = findContainingSymbol(fileSymbolSpans, fileId, line);
@@ -645,9 +614,8 @@ export class ScipRefStage implements PipelineStage {
           const method = calleeId ? 'scip_definition' : (isExternal ? 'external_definition' : 'unresolved');
 
           if (refKind === 'type') {
-            const typeRefKind = findMatchingTypeRefKind(treeData, line, character, calleeName)
-              ?? (tree ? inferTypeRefKindFromTree(tree, line, character) : null)
-              ?? 'other';
+            // Type ref sub-kinds dropped per architecture decision.
+            const typeRefKind = 'other';
             const refDef = symbolDefinitions.get(occ.symbol);
             const refInfo = sipInfoMap.get(occ.symbol);
             const refSig = refInfo ? extractSignatureFromDoc(refInfo.documentation[0] ?? '') || null : null;
@@ -666,15 +634,7 @@ export class ScipRefStage implements PipelineStage {
               refsNoCaller++;
             }
           } else {
-            let resolvedCalleeName = calleeName;
-            if (matchedCallRef?.calleeRaw) {
-              resolvedCalleeName = matchedCallRef.calleeRaw;
-            } else if (tree) {
-              const receiverText = extractReceiverName(tree, line, character);
-              if (receiverText) {
-                resolvedCalleeName = `${receiverText}.${calleeName}`;
-              }
-            }
+            const resolvedCalleeName = calleeName;
 
             const refDef = symbolDefinitions.get(occ.symbol);
             const refInfo = sipInfoMap.get(occ.symbol);
@@ -718,7 +678,6 @@ export class ScipRefStage implements PipelineStage {
 
     // Free the stashed data
     context.scipRefData = undefined;
-    context.scipTreeSitterData = undefined;
   }
 
   async dispose(): Promise<void> {}

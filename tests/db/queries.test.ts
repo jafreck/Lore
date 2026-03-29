@@ -388,16 +388,13 @@ describe('queries/symbols', () => {
     });
 
     it('includes metrics when available', () => {
+      // symbol_metrics table still exists for backward compatibility but
+      // queries no longer join it — metrics columns are not returned.
       const fid = insertFile(db, 'main.ts');
       const sid = insertSymbol(db, fid, 'complex');
-      db.prepare(
-        'INSERT INTO symbol_metrics (symbol_id, line_count, param_count, cyclomatic, max_nesting) VALUES (?, 50, 3, 7, 4)',
-      ).run(sid);
       const sym = getSymbolById(db, sid);
-      expect(sym!.line_count).toBe(50);
-      expect(sym!.param_count).toBe(3);
-      expect(sym!.cyclomatic).toBe(7);
-      expect(sym!.max_nesting).toBe(4);
+      expect(sym).toBeDefined();
+      expect(sym!.name).toBe('complex');
     });
   });
 
