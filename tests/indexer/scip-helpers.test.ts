@@ -118,6 +118,92 @@ describe('inferKindFromScipSymbol', () => {
   it('defaults to variable for unknown suffixes', () => {
     expect(inferKindFromScipSymbol('something_weird', '')).toBe('variable');
   });
+
+  // ── SymbolInformation.kind-based inference (Phase 1b) ─────────────────────
+
+  it('uses symbolInfoKind=17 (Function) to infer function', () => {
+    expect(inferKindFromScipSymbol(
+      'scip-typescript npm pkg 1.0 src/`index.ts`/myFunc.',
+      '', 17,
+    )).toBe('function');
+  });
+
+  it('uses symbolInfoKind=26 (Method) to infer method', () => {
+    expect(inferKindFromScipSymbol(
+      'scip-java maven pkg 1.0 com/MyClass#doWork.',
+      '', 26,
+    )).toBe('method');
+  });
+
+  it('uses symbolInfoKind=7 (Class) to infer class', () => {
+    expect(inferKindFromScipSymbol(
+      'scip-typescript npm pkg 1.0 src/`index.ts`/MyClass.',
+      '', 7,
+    )).toBe('class');
+  });
+
+  it('uses symbolInfoKind=21 (Interface) to infer interface', () => {
+    expect(inferKindFromScipSymbol(
+      'scip-typescript npm pkg 1.0 src/`index.ts`/IFoo.',
+      '', 21,
+    )).toBe('interface');
+  });
+
+  it('uses symbolInfoKind=11 (Enum) to infer enum', () => {
+    expect(inferKindFromScipSymbol(
+      'scip-typescript npm pkg 1.0 src/`index.ts`/Status.',
+      '', 11,
+    )).toBe('enum');
+  });
+
+  it('uses symbolInfoKind=9 (Constructor) to infer constructor', () => {
+    expect(inferKindFromScipSymbol(
+      'scip-java maven pkg 1.0 com/MyClass#`<init>`().',
+      '', 9,
+    )).toBe('constructor');
+  });
+
+  it('uses symbolInfoKind=61 (Variable) to infer variable', () => {
+    expect(inferKindFromScipSymbol(
+      'scip-typescript npm pkg 1.0 src/`index.ts`/x.',
+      '', 61,
+    )).toBe('variable');
+  });
+
+  it('uses symbolInfoKind=8 (Constant) to infer constant', () => {
+    expect(inferKindFromScipSymbol(
+      'scip-typescript npm pkg 1.0 src/`index.ts`/MAX.',
+      '', 8,
+    )).toBe('constant');
+  });
+
+  it('uses symbolInfoKind=15 (Field) to infer property', () => {
+    expect(inferKindFromScipSymbol(
+      'scip-java maven pkg 1.0 com/MyClass#name.',
+      '', 15,
+    )).toBe('property');
+  });
+
+  it('uses symbolInfoKind=29 (Module) to infer module', () => {
+    expect(inferKindFromScipSymbol(
+      'scip-typescript npm pkg 1.0 src/`index.ts`/',
+      '', 29,
+    )).toBe('module');
+  });
+
+  it('refines Class kind using doc hint for interface', () => {
+    expect(inferKindFromScipSymbol(
+      'scip-typescript npm pkg 1.0 src/`index.ts`/IFoo#',
+      'interface IFoo', 7,
+    )).toBe('interface');
+  });
+
+  it('falls back to suffix when symbolInfoKind=0 (Unspecified)', () => {
+    expect(inferKindFromScipSymbol(
+      'scip-typescript npm pkg 1.0 src/`index.ts`/MyClass#myMethod().',
+      '', 0,
+    )).toBe('method');
+  });
 });
 
 describe('extractNameFromScipSymbol', () => {
@@ -233,6 +319,60 @@ describe('classifyScipReference', () => {
     expect(classifyScipReference(
       'scip-typescript npm pkg 1.0 src/`index.ts`/',
     )).toBe('skip');
+  });
+
+  // ── syntaxKind-based classification (Phase 1a) ────────────────────────────
+
+  it('uses syntaxKind=15 (IdentifierFunction) to classify as call', () => {
+    // Term suffix '.' would normally be 'skip', but syntaxKind overrides
+    expect(classifyScipReference(
+      'scip-typescript npm pkg 1.0 src/`index.ts`/myFunc.',
+      15,
+    )).toBe('call');
+  });
+
+  it('uses syntaxKind=16 (IdentifierFunctionDefinition) to classify as call', () => {
+    expect(classifyScipReference(
+      'scip-typescript npm pkg 1.0 src/`index.ts`/myFunc.',
+      16,
+    )).toBe('call');
+  });
+
+  it('uses syntaxKind=17 (IdentifierMacro) to classify as call', () => {
+    expect(classifyScipReference(
+      'scip-clang usr pkg 1.0 $ MY_MACRO.',
+      17,
+    )).toBe('call');
+  });
+
+  it('uses syntaxKind=19 (IdentifierType) to classify as type', () => {
+    // Term suffix '.' would normally be 'skip', but syntaxKind overrides
+    expect(classifyScipReference(
+      'scip-typescript npm pkg 1.0 src/`index.ts`/MyType.',
+      19,
+    )).toBe('type');
+  });
+
+  it('uses syntaxKind=20 (IdentifierBuiltinType) to classify as type', () => {
+    expect(classifyScipReference(
+      'scip-typescript npm pkg 1.0 src/`index.ts`/string.',
+      20,
+    )).toBe('type');
+  });
+
+  it('falls back to suffix when syntaxKind=0 (unspecified)', () => {
+    expect(classifyScipReference(
+      'scip-typescript npm pkg 1.0 src/`index.ts`/myVar.',
+      0,
+    )).toBe('skip');
+  });
+
+  it('falls back to suffix when syntaxKind is a non-function/type value', () => {
+    // syntaxKind=11 (IdentifierParameter) → not function or type → falls through to suffix
+    expect(classifyScipReference(
+      'scip-typescript npm pkg 1.0 src/`index.ts`/MyClass#doStuff().',
+      11,
+    )).toBe('call'); // suffix-based
   });
 });
 
