@@ -97,4 +97,56 @@ describe('ScipFlushManager', () => {
 
     manager.stop();
   });
+
+  it('schedule returns early when disposed', async () => {
+    const onBaselineRebuild = vi.fn().mockResolvedValue(undefined);
+    const manager = new ScipFlushManager(makeConfig({ onBaselineRebuild, scipQuietPeriodMs: 100 }));
+
+    // Stop first (sets disposed=true), then try to accumulate
+    manager.stop();
+    // Manually invoke schedule path
+    manager.accumulate(['/tmp/test/a.ts']);
+    await vi.advanceTimersByTimeAsync(200);
+
+    // Should not have called onBaselineRebuild since disposed
+    expect(onBaselineRebuild).not.toHaveBeenCalled();
+  });
+
+  it('flush calls onBaselineRebuild when provided', async () => {
+    const onBaselineRebuild = vi.fn().mockResolvedValue(undefined);
+    const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+
+    const manager = new ScipFlushManager(makeConfig({ onBaselineRebuild, scipQuietPeriodMs: 100 }));
+    manager.accumulate(['/tmp/test/a.ts', '/tmp/test/b.ts']);
+    await vi.advanceTimersByTimeAsync(150);
+
+    expect(onBaselineRebuild).toHaveBeenCalledTimes(1);
+    // Should log success
+    expect(stderrSpy).toHaveBeenCalledWith(
+      expect.stringContaining('baseline rebuild complete'),
+    );
+
+    manager.stop();
+    stderrSpy.mockRestore();
+  });
+
+  it('flush re-queues paths and logs error on callback failure', async () => {
+    const onBaselineRebuild = vi.fn().mockRejectedValue(new Error('rebuild failed'));
+    const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+
+    const manager = new ScipFlushManager(makeConfig({ onBaselineRebuild, scipQuietPeriodMs: 100 }));
+    manager.accumulate(['/tmp/test/fail.ts']);
+    await vi.advanceTimersByTimeAsync(150);
+
+    // Should log error
+    expect(stderrSpy).toHaveBeenCalledWith(
+      expect.stringContaining('rebuild failed'),
+    );
+    // Paths should be re-queued for retry
+    expect((manager as any).pathsSinceLastScip.size).toBe(1);
+    expect((manager as any).pathsSinceLastScip.has('/tmp/test/fail.ts')).toBe(true);
+
+    manager.stop();
+    stderrSpy.mockRestore();
+  });
 });

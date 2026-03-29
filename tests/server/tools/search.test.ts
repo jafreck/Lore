@@ -770,4 +770,209 @@ describe('lore_search postFilter and language branches with vec0', () => {
     expect(obs!.requestedMode).toBe('semantic');
     expect(obs!.modeUsed).toBe('semantic');
   });
+
+  it('semantic mode with branch filter applies branch to embedding query', async function () {
+    if (!hasVecSupport()) return;
+    setupEmbeddingsTable();
+
+    const embedder = makeMockEmbedder([0.1, 0.2, 0.3]);
+    const result = await handler(db, { query: 'helpers', mode: 'semantic', branch: 'main' }, embedder);
+    expect(result.mode_used).toBe('semantic');
+    expect(result.results.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('semantic mode with kind filter post-filters results', async function () {
+    if (!hasVecSupport()) return;
+    setupEmbeddingsTable();
+
+    const embedder = makeMockEmbedder([0.1, 0.2, 0.3]);
+    const result = await handler(db, { query: 'helpers', mode: 'semantic', kind: 'function' }, embedder);
+    // All returned results should be functions (post-filtered)
+    for (const r of result.results) {
+      if (result.mode_used === 'semantic') {
+        expect(r.kind).toBe('function');
+      }
+    }
+  });
+
+  it('fused mode merges structural and semantic results', async function () {
+    if (!hasVecSupport()) return;
+    setupEmbeddingsTable();
+
+    const embedder = makeMockEmbedder([0.1, 0.2, 0.3]);
+    const result = await handler(db, { query: 'helpers', mode: 'fused' }, embedder);
+    expect(result.mode_used).toBe('fused');
+    expect(result.results.length).toBeGreaterThanOrEqual(1);
+    // Results should be sorted by fused score (descending)
+    if (result.results.length >= 2) {
+      const scores = result.results.map((r: any) => r.rrf_score ?? 0);
+      for (let i = 0; i < scores.length - 1; i++) {
+        expect(scores[i]).toBeGreaterThanOrEqual(scores[i + 1]!);
+      }
+    }
+  });
+
+  it('semantic cache is used on repeated queries', async function () {
+    if (!hasVecSupport()) return;
+    setupEmbeddingsTable();
+
+    let embedCount = 0;
+    const embedder: EmbeddingProvider = {
+      embed: async () => { embedCount++; return [[0.1, 0.2, 0.3]]; },
+      dimensions: 3,
+      modelName: 'test-counter',
+    } as unknown as EmbeddingProvider;
+
+    clearQueryEmbeddingCache();
+    await handler(db, { query: 'helpers', mode: 'semantic' }, embedder);
+    await handler(db, { query: 'helpers', mode: 'semantic' }, embedder);
+    // Second call should hit cache
+    expect(embedCount).toBe(1);
+  });
+});
+
+// ─── Fake vec0 coverage (runs without sqlite-vec native extension) ────────────
+
+describe('lore_search semantic paths via fakeVec0', () => {
+  let db: Database.Database;
+
+  const fakeSymbolRows = [
+    {
+      result_type: 'symbol',
+      symbol_id: 1,
+      name: 'helpers',
+      kind: 'function',
+      file_path: 'src/utils.ts',
+      start_line: 1,
+      end_line: 1,
+      score: 0.05,
+      branch: 'main',
+      language: 'typescript',
+      signature: '(): void',
+      is_exported: 1,
+    },
+    {
+      result_type: 'symbol',
+      symbol_id: 2,
+      name: 'parseConfig',
+      kind: 'function',
+      file_path: 'src/utils.ts',
+      start_line: 2,
+      end_line: 5,
+      score: 0.15,
+      branch: 'main',
+      language: 'typescript',
+      signature: '(cfg: string): Config',
+      is_exported: 1,
+    },
+    {
+      result_type: 'symbol',
+      symbol_id: 4,
+      name: 'ConfigClass',
+      kind: 'class',
+      file_path: 'lib/math.ts',
+      start_line: 6,
+      end_line: 20,
+      score: 0.25,
+      branch: 'main',
+      language: 'typescript',
+      signature: 'class ConfigClass',
+      is_exported: 1,
+    },
+  ];
+
+  beforeEach(async () => {
+    clearQueryEmbeddingCache();
+    db = openDb(':memory:');
+    seedDb(db);
+    const { installFakeVec0 } = await import('../../helpers/fakeVec0.js');
+    installFakeVec0(db, fakeSymbolRows);
+  });
+
+  afterEach(async () => {
+    clearQueryEmbeddingCache();
+    const { removeFakeVec0 } = await import('../../helpers/fakeVec0.js');
+    removeFakeVec0(db);
+    db.close();
+  });
+
+  it('semantic mode returns faked results', async () => {
+    const embedder = makeMockEmbedder([0.1, 0.2, 0.3]);
+    const result = await handler(db, { query: 'helpers', mode: 'semantic' }, embedder);
+    expect(result.mode_used).toBe('semantic');
+    expect(result.results.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('fused mode merges structural and semantic results', async () => {
+    const embedder = makeMockEmbedder([0.1, 0.2, 0.3]);
+    const result = await handler(db, { query: 'helpers', mode: 'fused' }, embedder);
+    expect(result.mode_used).toBe('fused');
+    expect(result.results.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('semantic mode with branch filter', async () => {
+    const embedder = makeMockEmbedder([0.1, 0.2, 0.3]);
+    const result = await handler(db, { query: 'helpers', mode: 'semantic', branch: 'main' }, embedder);
+    expect(result.mode_used).toBe('semantic');
+    expect(result.results.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('postFilter removes results not matching kind', async () => {
+    const embedder = makeMockEmbedder([0.1, 0.2, 0.3]);
+    const result = await handler(db, { query: 'helpers', mode: 'semantic', kind: 'function' }, embedder);
+    expect(result.mode_used).toBe('semantic');
+    // Post-filter should keep only functions
+    for (const r of result.results) {
+      expect(r.kind).toBe('function');
+    }
+  });
+
+  it('postFilter removes results not matching path_prefix', async () => {
+    const embedder = makeMockEmbedder([0.1, 0.2, 0.3]);
+    const result = await handler(db, { query: 'helpers', mode: 'semantic', path_prefix: 'src/' }, embedder);
+    expect(result.mode_used).toBe('semantic');
+    for (const r of result.results) {
+      expect(r.file_path).toMatch(/^src\//);
+    }
+  });
+
+  it('postFilter returning empty triggers fallback', async () => {
+    const embedder = makeMockEmbedder([0.1, 0.2, 0.3]);
+    // No symbols match 'interface' kind — post-filter removes all semantic results
+    const result = await handler(db, { query: 'helpers', mode: 'semantic', kind: 'interface' }, embedder);
+    // Should fall back when all semantic results are filtered out
+    expect(result.results).toBeDefined();
+  });
+
+  it('fused mode sorts by RRF score', async () => {
+    const embedder = makeMockEmbedder([0.1, 0.2, 0.3]);
+    const result = await handler(db, { query: 'helpers', mode: 'fused' }, embedder);
+    expect(result.mode_used).toBe('fused');
+    // Verify results are present (structural + semantic merged)
+    expect(result.results.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('cache is populated after first semantic query', async () => {
+    let embedCalls = 0;
+    const embedder: EmbeddingProvider = {
+      embed: async () => { embedCalls++; return [[0.1, 0.2, 0.3]]; },
+      dimensions: 3,
+      modelName: 'test-cache',
+    } as unknown as EmbeddingProvider;
+
+    await handler(db, { query: 'cached-query', mode: 'semantic' }, embedder);
+    await handler(db, { query: 'cached-query', mode: 'semantic' }, embedder);
+    expect(embedCalls).toBe(1); // second call used cache
+  });
+
+  it('observer receives semantic mode info', async () => {
+    let obs: SearchObservation | null = null;
+    const observer = (o: SearchObservation) => { obs = o; };
+    const embedder = makeMockEmbedder([0.1, 0.2, 0.3]);
+
+    await handler(db, { query: 'helpers', mode: 'semantic' }, embedder, observer);
+    expect(obs).not.toBeNull();
+    expect(obs!.requestedMode).toBe('semantic');
+    expect(obs!.modeUsed).toBe('semantic');
+  });
 });

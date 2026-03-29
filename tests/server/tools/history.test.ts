@@ -126,5 +126,38 @@ describe('lore_history handler', () => {
     const commit = result.results[0] as any;
     expect(commit.files).toBeDefined();
     expect(commit.refs).toBeDefined();
+    // Files should contain the seeded commit_files data
+    expect(commit.files.length).toBeGreaterThanOrEqual(1);
+    expect(commit.files[0].file_path).toBe('src/auth.ts');
+    // Refs should contain the seeded commit_refs data
+    expect(commit.refs.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('semantic mode falls back with empty query', async () => {
+    const result = await handler(db, { mode: 'semantic', query: '' });
+    expect(result.mode).toBe('semantic');
+    expect(result.results.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('semantic mode falls back when embedder returns empty vector', async () => {
+    const embedder = {
+      embed: async () => [[]],
+      dimensions: 0,
+      modelName: 'test-empty',
+    } as any;
+    const result = await handler(db, { mode: 'semantic', query: 'user auth' }, embedder);
+    expect(result.mode).toBe('semantic');
+    expect(result.results.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('semantic mode falls back when embedder throws', async () => {
+    const embedder = {
+      embed: async () => { throw new Error('embed failed'); },
+      dimensions: 3,
+      modelName: 'test-broken',
+    } as any;
+    const result = await handler(db, { mode: 'semantic', query: 'user auth' }, embedder);
+    expect(result.mode).toBe('semantic');
+    expect(result.results.length).toBeGreaterThanOrEqual(1);
   });
 });

@@ -2,6 +2,15 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { FilePoller, diffMtimeSnapshot, type PollerOptions, type MtimeEntry } from '../../src/discovery/poller.js';
 import type { WalkerConfig } from '../../src/discovery/walker.js';
 
+// Mock walkFiles so poll() can be tested without filesystem
+vi.mock('../../src/discovery/walker.js', async (importOriginal) => {
+  const mod = await importOriginal<typeof import('../../src/discovery/walker.js')>();
+  return {
+    ...mod,
+    walkFiles: vi.fn().mockResolvedValue([]),
+  };
+});
+
 const DB_PATH = ':memory:';
 const walkerConfig: WalkerConfig = { rootDir: '/tmp/test-poller-root' };
 
@@ -290,5 +299,195 @@ describe('FilePoller poll behavior', () => {
     });
     expect((poller as any).onUpdateCb).toBe(onUpdate);
     poller.stop();
+  });
+});
+
+// ─── poll() internal coverage ─────────────────────────────────────────────────
+
+describe('FilePoller poll() coverage', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.restoreAllMocks();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it('poll runs when interval fires and walkFiles returns empty', async () => {
+    const { walkFiles } = await import('../../src/discovery/walker.js');
+    vi.mocked(walkFiles).mockResolvedValue([]);
+
+    const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+
+    const poller = new FilePoller(DB_PATH, walkerConfig, { intervalMs: 100 });
+    poller.start();
+
+    await vi.advanceTimersByTimeAsync(150);
+
+    // poll() completed and logged a cycle
+    expect(stderrSpy).toHaveBeenCalledWith(
+      expect.stringContaining('poll cycle complete'),
+    );
+
+    poller.stop();
+    stderrSpy.mockRestore();
+  });
+
+  it('poll handles walkFiles error gracefully', async () => {
+    const { walkFiles } = await import('../../src/discovery/walker.js');
+    vi.mocked(walkFiles).mockRejectedValue(new Error('walk failed'));
+
+    const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+
+    const poller = new FilePoller(DB_PATH, walkerConfig, { intervalMs: 100 });
+    poller.start();
+
+    await vi.advanceTimersByTimeAsync(150);
+
+    expect(stderrSpy).toHaveBeenCalledWith(
+      expect.stringContaining('walk failed'),
+    );
+
+    poller.stop();
+    stderrSpy.mockRestore();
+  });
+
+  it('poll calls onUpdate callback when files change', async () => {
+    const { walkFiles } = await import('../../src/discovery/walker.js');
+    const fs = await import('node:fs');
+
+    vi.mocked(walkFiles).mockResolvedValue([{ path: '/tmp/test/a.ts' }] as any);
+    vi.spyOn(fs.promises, 'stat').mockResolvedValue({ mtimeMs: 1000 } as any);
+
+    const onUpdate = vi.fn().mockResolvedValue(undefined);
+    const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+
+    const poller = new FilePoller(DB_PATH, walkerConfig, {
+      intervalMs: 100,
+      onUpdate,
+    });
+    poller.start();
+
+    // First poll: new file detected => changed
+    await vi.advanceTimersByTimeAsync(150);
+    expect(onUpdate).toHaveBeenCalledWith(['/tmp/test/a.ts']);
+
+    poller.stop();
+    stderrSpy.mockRestore();
+  });
+
+  it('poll handles onUpdate error gracefully', async () => {
+    const { walkFiles } = await import('../../src/discovery/walker.js');
+    const fs = await import('node:fs');
+
+    vi.mocked(walkFiles).mockResolvedValue([{ path: '/tmp/test/a.ts' }] as any);
+    vi.spyOn(fs.promises, 'stat').mockResolvedValue({ mtimeMs: 2000 } as any);
+
+    const onUpdate = vi.fn().mockRejectedValue(new Error('update failed'));
+    const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+
+    const poller = new FilePoller(DB_PATH, walkerConfig, {
+      intervalMs: 100,
+      onUpdate,
+    });
+    poller.start();
+
+    await vi.advanceTimersByTimeAsync(150);
+
+    // Error should be logged but not thrown
+    expect(stderrSpy).toHaveBeenCalledWith(
+      expect.stringContaining('update failed'),
+    );
+    expect(stderrSpy).toHaveBeenCalledWith(
+      expect.stringContaining('poll cycle complete'),
+    );
+
+    poller.stop();
+    stderrSpy.mockRestore();
+  });
+
+  it('poll skips when pollRunning is true (re-entrancy guard)', async () => {
+    const { walkFiles } = await import('../../src/discovery/walker.js');
+
+    // Make walkFiles hang so pollRunning stays true
+    let resolveWalk: () => void;
+    vi.mocked(walkFiles).mockImplementation(
+      () => new Promise<any[]>((resolve) => { resolveWalk = () => resolve([]); }),
+    );
+
+    const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    const callCountBefore = vi.mocked(walkFiles).mock.calls.length;
+
+    const poller = new FilePoller(DB_PATH, walkerConfig, { intervalMs: 50 });
+    poller.start();
+
+    // First poll starts (hangs in walkFiles)
+    await vi.advanceTimersByTimeAsync(60);
+    expect(vi.mocked(walkFiles).mock.calls.length - callCountBefore).toBe(1);
+
+    // Second poll should be skipped (pollRunning still true)
+    await vi.advanceTimersByTimeAsync(60);
+    expect(vi.mocked(walkFiles).mock.calls.length - callCountBefore).toBe(1);
+
+    // Resolve the hanging walk
+    resolveWalk!();
+    await vi.advanceTimersByTimeAsync(1);
+
+    poller.stop();
+    stderrSpy.mockRestore();
+  });
+
+  it('poll handles stat failure gracefully', async () => {
+    const { walkFiles } = await import('../../src/discovery/walker.js');
+    const fs = await import('node:fs');
+
+    vi.mocked(walkFiles).mockResolvedValue([{ path: '/tmp/test/fail.ts' }] as any);
+    vi.spyOn(fs.promises, 'stat').mockRejectedValue(new Error('ENOENT'));
+
+    const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+
+    const poller = new FilePoller(DB_PATH, walkerConfig, { intervalMs: 100 });
+    poller.start();
+
+    await vi.advanceTimersByTimeAsync(150);
+
+    // Should complete without error (stat failure produces null mtime)
+    expect(stderrSpy).toHaveBeenCalledWith(
+      expect.stringContaining('poll cycle complete'),
+    );
+
+    poller.stop();
+    stderrSpy.mockRestore();
+  });
+
+  it('poll accumulates to scipFlush when files change', async () => {
+    const { walkFiles } = await import('../../src/discovery/walker.js');
+    const fs = await import('node:fs');
+
+    vi.mocked(walkFiles).mockResolvedValue([{ path: '/tmp/test/scip.ts' }] as any);
+    vi.spyOn(fs.promises, 'stat').mockResolvedValue({ mtimeMs: 5000 } as any);
+
+    const onUpdate = vi.fn().mockResolvedValue(undefined);
+    const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+
+    const poller = new FilePoller(DB_PATH, walkerConfig, {
+      intervalMs: 100,
+      onUpdate,
+      scip: { enabled: true, timeoutMs: 120_000, indexers: {}, indexDir: null },
+      scipQuietPeriodMs: 5000,
+    });
+    poller.start();
+
+    await vi.advanceTimersByTimeAsync(150);
+
+    // scipFlush should have accumulated paths
+    const flush = (poller as any).scipFlush;
+    expect(flush).not.toBeNull();
+    expect((flush as any).pathsSinceLastScip.size).toBeGreaterThanOrEqual(1);
+
+    poller.stop();
+    stderrSpy.mockRestore();
   });
 });

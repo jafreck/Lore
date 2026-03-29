@@ -1382,5 +1382,106 @@ describe('queries/semantic', () => {
     it('returns empty with branch filter and no embeddings', () => {
       expect(semanticSearchSymbols(db, { queryVector: [1, 2, 3], branch: 'main' })).toEqual([]);
     });
+
+    it('returns results with working embeddings table', () => {
+      // Create vec0 table — skip if not available
+      try {
+        db.prepare('CREATE VIRTUAL TABLE symbol_embeddings USING vec0(embedding float[3])').run();
+      } catch {
+        return; // vec0 not available
+      }
+
+      // Seed a file and symbol
+      db.prepare(
+        "INSERT INTO files (id, path, branch, language, source) VALUES (1, 'src/a.ts', 'main', 'typescript', '')",
+      ).run();
+      db.prepare(
+        "INSERT INTO symbols (id, file_id, name, kind, start_line, end_line) VALUES (1, 1, 'foo', 'function', 1, 5)",
+      ).run();
+      db.prepare(
+        'INSERT INTO symbol_embeddings (rowid, embedding) VALUES (1, ?)',
+      ).run(JSON.stringify([0.1, 0.2, 0.3]));
+
+      const results = semanticSearchSymbols(db, { queryVector: [0.1, 0.2, 0.3] });
+      expect(results.length).toBeGreaterThanOrEqual(1);
+      expect(results[0]!.name).toBe('foo');
+      expect(results[0]!.file_path).toBe('src/a.ts');
+    });
+
+    it('filters by branch with working embeddings', () => {
+      try {
+        db.prepare('CREATE VIRTUAL TABLE symbol_embeddings USING vec0(embedding float[3])').run();
+      } catch {
+        return;
+      }
+
+      db.prepare(
+        "INSERT INTO files (id, path, branch, language, source) VALUES (1, 'src/a.ts', 'main', 'typescript', '')",
+      ).run();
+      db.prepare(
+        "INSERT INTO files (id, path, branch, language, source) VALUES (2, 'src/b.ts', 'dev', 'typescript', '')",
+      ).run();
+      db.prepare(
+        "INSERT INTO symbols (id, file_id, name, kind, start_line, end_line) VALUES (1, 1, 'mainFn', 'function', 1, 5)",
+      ).run();
+      db.prepare(
+        "INSERT INTO symbols (id, file_id, name, kind, start_line, end_line) VALUES (2, 2, 'devFn', 'function', 1, 5)",
+      ).run();
+      db.prepare('INSERT INTO symbol_embeddings (rowid, embedding) VALUES (1, ?)').run(JSON.stringify([0.1, 0.2, 0.3]));
+      db.prepare('INSERT INTO symbol_embeddings (rowid, embedding) VALUES (2, ?)').run(JSON.stringify([0.1, 0.2, 0.3]));
+
+      const mainResults = semanticSearchSymbols(db, { queryVector: [0.1, 0.2, 0.3], branch: 'main' });
+      expect(mainResults.every(r => r.file_branch === 'main')).toBe(true);
+    });
+
+    it('returns results using fakeVec0 when sqlite-vec unavailable', async () => {
+      const { installFakeVec0, removeFakeVec0 } = await import('../helpers/fakeVec0.js');
+
+      db.prepare(
+        "INSERT INTO files (id, path, branch, language, source) VALUES (1, 'src/a.ts', 'main', 'typescript', '')",
+      ).run();
+      db.prepare(
+        "INSERT INTO symbols (id, file_id, name, kind, start_line, end_line) VALUES (1, 1, 'foo', 'function', 1, 5)",
+      ).run();
+
+      installFakeVec0(db, [{
+        symbol_id: 1,
+        name: 'foo',
+        kind: 'function',
+        file_path: 'src/a.ts',
+        start_line: 1,
+        end_line: 5,
+        score: 0.05,
+        file_branch: 'main',
+      }]);
+
+      const results = semanticSearchSymbols(db, { queryVector: [0.1, 0.2, 0.3] });
+      expect(results.length).toBe(1);
+      expect(results[0]!.name).toBe('foo');
+      expect(results[0]!.file_path).toBe('src/a.ts');
+
+      removeFakeVec0(db);
+    });
+
+    it('returns branch-filtered results using fakeVec0', async () => {
+      const { installFakeVec0, removeFakeVec0 } = await import('../helpers/fakeVec0.js');
+
+      installFakeVec0(db, [{
+        symbol_id: 1,
+        name: 'mainFn',
+        kind: 'function',
+        file_path: 'src/a.ts',
+        start_line: 1,
+        end_line: 5,
+        score: 0.05,
+        file_branch: 'main',
+      }]);
+
+      const results = semanticSearchSymbols(db, { queryVector: [0.1, 0.2, 0.3], branch: 'main' });
+      expect(results.length).toBe(1);
+      expect(results[0]!.file_branch).toBe('main');
+
+      removeFakeVec0(db);
+    });
   });
 });
