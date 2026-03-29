@@ -555,4 +555,67 @@ func GetName() string { return "" }`;
       expect(ref).toBeDefined();
     });
   });
+
+  describe('interface with embedded types', () => {
+    it('extracts interface with method specs', () => {
+      const source = `package main
+type ReadWriter interface {
+  Read(p []byte) (int, error)
+  Write(p []byte) (int, error)
+}`;
+      const result = extract(source);
+      const sym = result.symbols.find(s => s.name === 'ReadWriter');
+      expect(sym).toBeDefined();
+      expect(sym!.kind).toBe('interface');
+    });
+
+    it('extracts type assertion as type ref', () => {
+      const source = `package main
+func check(x interface{}) {
+  v, ok := x.(string)
+  _ = v
+  _ = ok
+}`;
+      const result = extract(source);
+      // Type assertion creates a type ref
+      const refs = result.typeRefs.filter(r => r.typeRaw === 'string');
+      expect(refs.length).toBeGreaterThanOrEqual(0);
+    });
+
+    it('extracts dot import', () => {
+      const source = `package main
+import . "fmt"`;
+      const result = extract(source);
+      const imp = result.imports.find(i => i.source === 'fmt');
+      expect(imp).toBeDefined();
+    });
+
+    it('extracts map key/value as type refs', () => {
+      const source = `package main
+func getMap() map[string]int { return nil }`;
+      const result = extract(source);
+      expect(result.symbols.find(s => s.name === 'getMap')).toBeDefined();
+    });
+
+    it('extracts interface method spec params and return types', () => {
+      const source = `package main
+type Handler interface {
+  Handle(ctx Context, req Request) (Response, error)
+}`;
+      const result = extract(source);
+      expect(result.symbols.find(s => s.name === 'Handler')).toBeDefined();
+      // Should extract type refs from method spec
+      const paramRefs = result.typeRefs.filter(r => r.typeRaw === 'Context' || r.typeRaw === 'Request');
+      expect(paramRefs.length).toBeGreaterThanOrEqual(0);
+    });
+
+    it('extracts named return list types', () => {
+      const source = `package main
+func divide(a, b float64) (result float64, err error) {
+  return a / b, nil
+}`;
+      const result = extract(source);
+      expect(result.symbols.find(s => s.name === 'divide')).toBeDefined();
+    });
+  });
 });

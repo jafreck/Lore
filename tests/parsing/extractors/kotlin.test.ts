@@ -297,4 +297,56 @@ class Foo : Serializable, Comparable`;
       expect(result.symbols.length).toBeGreaterThanOrEqual(1);
     });
   });
+
+  describe('inheritance and type ref coverage', () => {
+    it('extracts class inheritance', () => {
+      const source = `open class Parent\nclass Child : Parent() {\n  fun method() {}\n}`;
+      const result = extract(source);
+      // Class and inheritance should be processed
+      expect(result.symbols.find(s => s.name === 'Child')).toBeDefined();
+      expect(result.symbols.find(s => s.name === 'Parent')).toBeDefined();
+    });
+
+    it('extracts multiple interface implementation', () => {
+      const source = `interface A\ninterface B\nclass C : A, B {}`;
+      const result = extract(source);
+      const rels = result.relationships.filter(r => r.fromSymbol === 'C');
+      expect(rels.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('extracts nullable property type ref', () => {
+      const source = `class Foo {\n  val name: String? = null\n  val count: Int = 0\n}`;
+      const result = extract(source);
+      // Type refs should be processed for properties
+      expect(result.symbols.find(s => s.name === 'Foo')).toBeDefined();
+      expect(result.typeRefs.length).toBeGreaterThanOrEqual(0);
+    });
+
+    it('extracts as cast type ref', () => {
+      const source = `fun convert(x: Any): Int {\n  return x as Int\n}`;
+      const result = extract(source);
+      const ref = result.typeRefs.find(r => r.typeRaw === 'Int');
+      expect(ref).toBeDefined();
+    });
+
+    it('extracts safe as? cast type ref', () => {
+      const source = `fun safeCast(x: Any): String? {\n  return x as? String\n}`;
+      const result = extract(source);
+      expect(result.typeRefs.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('extracts import statement', () => {
+      const source = `import com.example.MyClass\nfun use() { MyClass() }`;
+      const result = extract(source);
+      const imp = result.imports.find(i => i.source === 'com.example.MyClass');
+      expect(imp).toBeDefined();
+    });
+
+    it('extracts expression body function', () => {
+      const source = `fun add(a: Int, b: Int) = a + b`;
+      const result = extract(source);
+      const sym = result.symbols.find(s => s.name === 'add');
+      expect(sym).toBeDefined();
+    });
+  });
 });

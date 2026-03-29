@@ -157,4 +157,43 @@ def func():
       expect(inner.parentName).toBe('outer');
     });
   });
+
+  describe('import edge cases', () => {
+    it('extracts relative import without module', () => {
+      const source = `from . import os`;
+      const result = extract(source);
+      const imp = result.imports.find(i => i.source === '.' || i.source === '');
+      expect(imp).toBeDefined();
+    });
+
+    it('extracts wildcard import', () => {
+      const source = `from os import *`;
+      const result = extract(source);
+      const imp = result.imports.find(i => i.source === 'os');
+      expect(imp).toBeDefined();
+    });
+
+    it('extracts aliased import', () => {
+      const source = `from typing import Dict as D, List as L`;
+      const result = extract(source);
+      const imp = result.imports.find(i => i.source === 'typing');
+      expect(imp).toBeDefined();
+    });
+
+    it('extracts double-dot relative import', () => {
+      const source = `from .. import utils`;
+      const result = extract(source);
+      expect(result.imports.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('extracts call ref inside method', () => {
+      const source = `class MyClass:
+    def method(self):
+        helper()
+        self.other()`;
+      const result = extract(source);
+      const refs = result.callRefs;
+      expect(refs.length).toBeGreaterThanOrEqual(1);
+    });
+  });
 });
