@@ -8,6 +8,8 @@
  * 2. Extract call graph via `callHierarchy/outgoingCalls`
  * 3. Resolve type signatures via `textDocument/hover`
  * 4. Resolve cross-file definitions via `textDocument/definition`
+ * 5. Enrich symbols + refs with hover/definition metadata (merged
+ *    from `LspEnrichmentStage` for overlay mode)
  *
  * ## Symbol Identity
  *
@@ -22,6 +24,7 @@
 import { pathToFileURL } from 'node:url';
 import type { PipelineContext, PipelineStage } from '../pipeline.js';
 import { LspEnrichmentCoordinator } from '../../lsp/enrichment.js';
+import { enrichProjectRefs } from './lsp-enrichment.js';
 import type { DocumentSymbol, CallHierarchyOutgoingCall } from '../../lsp/client.js';
 import { extractReturnType } from '../../enrichment-types.js';
 
@@ -109,6 +112,8 @@ export class LspExtractionStage implements PipelineStage {
 
     let symbolsInserted = 0;
     let callRefsInserted = 0;
+    const processedFiles: Array<{ path: string; language: string }> = [];
+    let extractionError: unknown = null;
 
     try {
       for (const absPath of changedFiles) {
@@ -174,6 +179,8 @@ export class LspExtractionStage implements PipelineStage {
         db.transaction(() => {
           flattenAndInsert(docSymbols, [], null);
         })();
+
+        processedFiles.push({ path: absPath, language });
 
         // Step 2: Call graph via callHierarchy/outgoingCalls
         // For each function/method symbol, get outgoing calls
@@ -261,9 +268,28 @@ export class LspExtractionStage implements PipelineStage {
           })();
         }
       }
-    } finally {
-      await coordinator.dispose();
+    } catch (err) {
+      extractionError = err;
     }
+
+    // ── Overlay enrichment pass ──────────────────────────────────────────
+    // After extracting symbols and call refs, enrich them with hover +
+    // definition metadata using the same LSP coordinator (one open/close
+    // per file instead of two separate passes).
+    if (processedFiles.length > 0) {
+      try {
+        await enrichProjectRefs(db, branch, processedFiles, coordinator, context.sourceCache);
+        log.indexing('lsp-extraction: overlay enrichment complete', {
+          filesEnriched: processedFiles.length,
+        });
+      } catch (enrichErr) {
+        log.indexing('lsp-extraction: overlay enrichment failed', { error: String(enrichErr) });
+      }
+    }
+
+    await coordinator.dispose();
+
+    if (extractionError) throw extractionError;
 
     if (symbolsInserted > 0 || callRefsInserted > 0) {
       log.indexing('lsp-extraction: overlay extraction complete', {

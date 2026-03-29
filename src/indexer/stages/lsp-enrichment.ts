@@ -78,54 +78,34 @@ export class LspEnrichmentStage implements PipelineStage {
       return;
     }
 
+    // In overlay mode, enrichment for non-SCIP files is already performed
+    // by LspExtractionStage (merged for single-pass efficiency).
+    // Only run targeted enrichment for SCIP-sourced files with unresolved refs.
     const scipSourced = context.scipSourcedLanguages;
     const scipCovered = context.scipCoveredLanguages;
 
-    // Split files into two groups:
-    // 1. Non-SCIP files: full enrichment (all symbols, refs, type_refs)
-    // 2. SCIP-sourced files: targeted enrichment (only unresolved refs)
-    const fullEnrichFiles: Array<{ path: string; language: string }> = [];
-    const scipFiles: Array<{ path: string; language: string }> = [];
+    const scipFiles = context.files.filter(f =>
+      scipSourced?.has(f.language) || scipCovered?.has(f.language),
+    );
 
-    for (const f of context.files) {
-      if (scipSourced?.has(f.language) || scipCovered?.has(f.language)) {
-        scipFiles.push(f);
-      } else {
-        fullEnrichFiles.push(f);
-      }
-    }
-
-    if (fullEnrichFiles.length === 0 && scipFiles.length === 0) {
-      context.log.indexing('lsp-enrichment: no files to enrich');
+    if (scipFiles.length === 0) {
+      context.log.indexing('lsp-enrichment: no SCIP files to enrich in overlay mode');
       context.sourceCache.clear();
       return;
     }
 
-    // Start language servers for all languages that need enrichment.
-    const languages = new Set([
-      ...fullEnrichFiles.map(f => f.language),
-      ...scipFiles.map(f => f.language),
-    ]);
+    const languages = new Set(scipFiles.map(f => f.language));
     if (context.indexDependencies) languages.add('typescript');
 
     this.coordinator = new LspEnrichmentCoordinator(context.lsp, context.walkerConfig.rootDir);
     await this.coordinator.start(languages);
 
-    // Pre-populate sourceCache with async I/O for all files that will be enriched.
-    await preCacheFiles([...fullEnrichFiles, ...scipFiles], context.sourceCache);
+    await preCacheFiles(scipFiles, context.sourceCache);
 
-    // Full enrichment for non-SCIP files (all targets).
-    if (fullEnrichFiles.length > 0) {
-      await enrichProjectRefs(context.db, context.branch, fullEnrichFiles, this.coordinator, context.sourceCache);
-    }
-
-    // Targeted enrichment for SCIP-sourced files (only unresolved refs).
-    if (scipFiles.length > 0) {
-      context.log.indexing('lsp-enrichment: enriching unresolved SCIP refs', {
-        files: scipFiles.length,
-      });
-      await enrichUnresolvedScipRefs(context.db, context.branch, scipFiles, this.coordinator, context.sourceCache);
-    }
+    context.log.indexing('lsp-enrichment: enriching unresolved SCIP refs', {
+      files: scipFiles.length,
+    });
+    await enrichUnresolvedScipRefs(context.db, context.branch, scipFiles, this.coordinator, context.sourceCache);
 
     // sourceCache is no longer needed — release memory.
     // Later stages (Resolution, TestMap, History, Embedding) are DB-only.

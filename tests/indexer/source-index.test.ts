@@ -1,12 +1,12 @@
 /**
- * Tests for SourceIndexStage — the file-walker-only stage after tree-sitter removal.
+ * Tests for FileDiscoveryStage — the file-walker-only stage.
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import { openDb, type Database, getLoreMeta, LORE_META_INDEX_CHECKPOINT } from '../../src/db/schema.js';
-import { SourceIndexStage } from '../../src/indexer/stages/source-index.js';
+import { FileDiscoveryStage } from '../../src/indexer/stages/source-index.js';
 import type { PipelineContext } from '../../src/indexer/pipeline.js';
 import { initLogger, LogLevel, resetLogger } from '../../src/logger.js';
 
@@ -61,13 +61,13 @@ afterEach(() => {
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
-describe('SourceIndexStage', () => {
+describe('FileDiscoveryStage', () => {
   describe('build mode', () => {
     it('walks files and inserts file rows', async () => {
       fs.writeFileSync(path.join(tmpDir, 'hello.ts'), 'const x = 1;');
       fs.writeFileSync(path.join(tmpDir, 'util.ts'), 'export function add() {}');
 
-      const stage = new SourceIndexStage();
+      const stage = new FileDiscoveryStage();
       const ctx = makeContext();
       await stage.execute(ctx, 'build');
 
@@ -84,7 +84,7 @@ describe('SourceIndexStage', () => {
       fs.writeFileSync(path.join(tmpDir, 'main.ts'), content);
 
       const ctx = makeContext();
-      await new SourceIndexStage().execute(ctx, 'build');
+      await new FileDiscoveryStage().execute(ctx, 'build');
 
       const absPath = path.resolve(tmpDir, 'main.ts');
       expect(ctx.sourceCache.get(absPath)).toBe(content);
@@ -98,7 +98,7 @@ describe('SourceIndexStage', () => {
     it('saves index checkpoint in lore_meta', async () => {
       fs.writeFileSync(path.join(tmpDir, 'a.ts'), '1');
 
-      await new SourceIndexStage().execute(makeContext(), 'build');
+      await new FileDiscoveryStage().execute(makeContext(), 'build');
 
       const cp = getLoreMeta(db, LORE_META_INDEX_CHECKPOINT);
       expect(cp).toBeDefined();
@@ -112,7 +112,7 @@ describe('SourceIndexStage', () => {
 
       const absA = path.resolve(tmpDir, 'a.ts');
       const ctx = makeContext({ scipSourcedFiles: new Set([absA]) });
-      await new SourceIndexStage().execute(ctx, 'build');
+      await new FileDiscoveryStage().execute(ctx, 'build');
 
       const files = db.prepare('SELECT path FROM files').all() as Array<{ path: string }>;
       expect(files.length).toBe(1);
@@ -124,7 +124,7 @@ describe('SourceIndexStage', () => {
       fs.writeFileSync(path.join(tmpDir, 'b.py'), '2');
 
       const ctx = makeContext({ scipSourcedLanguages: new Set(['typescript']) });
-      await new SourceIndexStage().execute(ctx, 'build');
+      await new FileDiscoveryStage().execute(ctx, 'build');
 
       const files = db.prepare('SELECT language FROM files').all() as Array<{ language: string }>;
       expect(files.length).toBe(1);
@@ -134,7 +134,7 @@ describe('SourceIndexStage', () => {
     it('skips files with unknown extensions', async () => {
       fs.writeFileSync(path.join(tmpDir, 'readme.txt'), 'hi');
 
-      await new SourceIndexStage().execute(makeContext(), 'build');
+      await new FileDiscoveryStage().execute(makeContext(), 'build');
 
       const files = db.prepare('SELECT * FROM files').all();
       expect(files.length).toBe(0);
@@ -147,7 +147,7 @@ describe('SourceIndexStage', () => {
       fs.symlinkSync('/nonexistent/path', badPath);
 
       const ctx = makeContext();
-      await new SourceIndexStage().execute(ctx, 'build');
+      await new FileDiscoveryStage().execute(ctx, 'build');
 
       // Only the readable file should be indexed
       expect(ctx.files.length).toBe(1);
@@ -165,7 +165,7 @@ describe('SourceIndexStage', () => {
         generation: 0,
         changedFiles: [filePath],
       });
-      await new SourceIndexStage().execute(ctx, 'update');
+      await new FileDiscoveryStage().execute(ctx, 'update');
 
       const files = db.prepare('SELECT path FROM files').all() as Array<{ path: string }>;
       expect(files.length).toBe(1);
@@ -182,7 +182,7 @@ describe('SourceIndexStage', () => {
         generation: 0,
         changedFiles: [filePath],
       });
-      await new SourceIndexStage().execute(ctx, 'update');
+      await new FileDiscoveryStage().execute(ctx, 'update');
 
       const dirty = db.prepare('SELECT path, branch FROM dirty_files').all() as Array<{ path: string; branch: string }>;
       expect(dirty.length).toBe(1);
@@ -196,13 +196,13 @@ describe('SourceIndexStage', () => {
       fs.writeFileSync(filePath, 'const z = 3;');
 
       const ctx1 = makeContext({ layer: 'overlay', generation: 0, changedFiles: [filePath] });
-      await new SourceIndexStage().execute(ctx1, 'update');
+      await new FileDiscoveryStage().execute(ctx1, 'update');
       expect(db.prepare('SELECT COUNT(*) as cnt FROM files').get()).toEqual({ cnt: 1 });
 
       // Now delete the file and re-run
       fs.unlinkSync(filePath);
       const ctx2 = makeContext({ layer: 'overlay', generation: 0, changedFiles: [filePath], files: [] });
-      await new SourceIndexStage().execute(ctx2, 'update');
+      await new FileDiscoveryStage().execute(ctx2, 'update');
 
       // File row should be cleaned up, dirty_files sentinel inserted
       expect(db.prepare('SELECT COUNT(*) as cnt FROM files').get()).toEqual({ cnt: 0 });
@@ -222,7 +222,7 @@ describe('SourceIndexStage', () => {
         changedFiles: [filePath],
         scipSourcedFiles: new Set([filePath]),
       });
-      await new SourceIndexStage().execute(ctx, 'update');
+      await new FileDiscoveryStage().execute(ctx, 'update');
 
       expect(ctx.files.length).toBe(0);
     });
@@ -236,7 +236,7 @@ describe('SourceIndexStage', () => {
         generation: 0,
         changedFiles: [filePath],
       });
-      await new SourceIndexStage().execute(ctx, 'update');
+      await new FileDiscoveryStage().execute(ctx, 'update');
 
       expect(ctx.files.length).toBe(0);
     });
@@ -244,7 +244,7 @@ describe('SourceIndexStage', () => {
 
   describe('dispose', () => {
     it('is a no-op', async () => {
-      const stage = new SourceIndexStage();
+      const stage = new FileDiscoveryStage();
       await expect(stage.dispose()).resolves.toBeUndefined();
     });
   });

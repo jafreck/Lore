@@ -7,8 +7,8 @@
  * ## Stage ordering (data-dependency chain)
  *
  * ```
- * ScipIndexerStage → SourceIndexStage
- *   → ImportResolutionStage → DependencyApiStage
+ * ScipIndexerStage → FileDiscoveryStage
+ *   → ImportResolutionStage
  *   → LspEnrichmentStage → ResolutionStage
  *   → HistoryStage → EmbeddingStage
  * ```
@@ -16,8 +16,8 @@
  * `ScipIndexerStage` runs first for SCIP-covered languages, populating
  * symbols AND refs directly with pre-resolved edges and enrichment
  * metadata (type signatures, definition locations) in a single pass.
- * `SourceIndexStage` then adds tree-sitter metrics (complexity, nesting)
- * to SCIP-sourced files and handles remaining languages.
+ * `FileDiscoveryStage` then walks remaining files and populates the
+ * source cache.
  *
  * LSP enrichment is optional (enriches non-SCIP refs with definition data).
  *
@@ -58,7 +58,7 @@ export interface PipelineContext {
   log: LoreLogger;
 
   /**
-   * File list populated by SourceIndexStage.
+   * File list populated by FileDiscoveryStage.
    * In build mode: all walked files.
    * In update mode: only the changed files that were (re-)indexed.
    * Later stages (enrichment, resolution, embedding) iterate over this.
@@ -80,13 +80,13 @@ export interface PipelineContext {
 
   /**
    * Symbol IDs whose embeddings should be removed (stale from deleted /
-   * re-processed files).  Accumulated by SourceIndexStage in update mode.
+   * re-processed files).  Accumulated by FileDiscoveryStage in update mode.
    */
   staleSymbolIds: number[];
 
   /**
    * Paths of changed source files — used to look up new file IDs for
-   * scoped embedding.  Accumulated by SourceIndexStage in update mode.
+   * scoped embedding.  Accumulated by FileDiscoveryStage in update mode.
    */
   changedSourcePaths: string[];
 
@@ -100,20 +100,20 @@ export interface PipelineContext {
 
   /**
    * Languages fully sourced from SCIP (symbols + refs).
-   * Set by `ScipIndexerStage`; read by `SourceIndexStage` to skip
-   * tree-sitter extraction for these languages, and by `LspEnrichmentStage`.
+   * Set by `ScipIndexerStage`; read by `FileDiscoveryStage` to skip
+   * those languages, and by `LspEnrichmentStage`.
    */
   scipSourcedLanguages?: ReadonlySet<string>;
 
   /**
    * Absolute file paths sourced from SCIP.
-   * Set by `ScipIndexerStage`; read by `SourceIndexStage` to skip files.
+   * Set by `ScipIndexerStage`; read by `FileDiscoveryStage` to skip files.
    */
   scipSourcedFiles?: ReadonlySet<string>;
 
   /**
    * In-memory cache of source file contents (path → source text).
-   * Populated by SourceIndexStage / ScipIndexerStage during parsing.
+   * Populated by FileDiscoveryStage / ScipIndexerStage during parsing.
    * Later stages (LSP enrichment) read from here to
    * avoid redundant `readFileSync` calls.
    */
@@ -124,7 +124,7 @@ export interface PipelineContext {
   /**
    * The layer that stages should write to:
    *  - `'baseline'` for full SCIP builds.
-   *  - `'overlay'` for tree-sitter + LSP incremental updates.
+   *  - `'overlay'` for LSP incremental updates.
    */
   layer: 'baseline' | 'overlay';
 
@@ -140,29 +140,6 @@ export interface PipelineContext {
    * If undefined, defaults to `availableParallelism() - 1`.
    */
   maxWorkers?: number;
-
-  /**
-   * SCIP ref data stashed by `ScipIndexerStage` for deferred processing.
-   *
-   * The SCIP stage inserts symbols (Pass 1) but defers ref insertion
-   * until after `SourceIndexStage` patches symbol `end_line` values
-   * with accurate tree-sitter spans.  `ScipRefStage` then reads this
-   * data (Pass 2+3+4) to build the containment index and insert refs.
-   */
-  scipRefData?: {
-    /** SCIP symbol → Lore DB symbol ID */
-    scipToLoreId: Map<string, number>;
-    /** SCIP symbol → definition location */
-    symbolDefinitions: Map<string, { filePath: string; line: number; character: number }>;
-    /** SCIP symbol → SymbolInformation (docs, display name) */
-    symbolInfoMap: Map<string, unknown>;
-    /** Absolute path → file_id */
-    fileIdMap: Map<string, number>;
-    /** Raw SCIP documents (occurrences + symbols), as a lazy iterable */
-    documents: Iterable<unknown>;
-    /** Internal package prefixes for external-symbol detection */
-    isExternalSymbol: (sym: string) => boolean;
-  };
 }
 
 /**
@@ -213,7 +190,7 @@ export type PipelineEntry = PipelineStage | PipelineStage[];
  * ```ts
  * const pipeline = new IndexPipeline([
  *   new ScipIndexerStage(),
- *   new SourceIndexStage(),
+ *   new FileDiscoveryStage(),
  *   new ImportResolutionStage(),
  *   new EmbeddingStage(),
  * ]);

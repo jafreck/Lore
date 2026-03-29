@@ -1,5 +1,5 @@
 /**
- * @module indexer/stages/source-index
+ * @module indexer/stages/file-discovery
  *
  * Pipeline stage: walk files and populate `context.files` and `context.sourceCache`.
  *
@@ -12,7 +12,7 @@
  * 4. Handle file deletion in overlay (incremental update) mode.
  *
  * Full extraction is handled by:
- * - `ScipIndexerStage` + `ScipRefStage` (baseline builds)
+ * - `ScipIndexerStage` (baseline builds)
  * - `LspExtractionStage` (overlay/incremental updates)
  */
 
@@ -29,8 +29,8 @@ import { walkFiles, detectLanguageForPath } from '../../discovery/walker.js';
 
 // ─── Stage implementation ────────────────────────────────────────────────────
 
-export class SourceIndexStage implements PipelineStage {
-  readonly name = 'source-index';
+export class FileDiscoveryStage implements PipelineStage {
+  readonly name = 'file-discovery';
 
   async execute(context: PipelineContext, mode: 'build' | 'update'): Promise<void> {
     const log = context.log;
@@ -108,7 +108,7 @@ export class SourceIndexStage implements PipelineStage {
         context.changedSourcePaths.push(absPath);
       }
 
-      log.indexing('source-index: overlay files processed', {
+      log.indexing('file-discovery: overlay files processed', {
         files: context.files.length,
       });
     } else {
@@ -186,7 +186,7 @@ export class SourceIndexStage implements PipelineStage {
       // Save checkpoint
       setLoreMeta(db, LORE_META_INDEX_CHECKPOINT, new Date().toISOString());
 
-      log.indexing('source-index: build complete', {
+      log.indexing('file-discovery: build complete', {
         filesProcessed,
         filesSkippedScip,
       });

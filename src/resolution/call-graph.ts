@@ -100,6 +100,19 @@ export function resolveSymbolEdges(db: Database.Database, options?: { overlayOnl
   const overlayFilterTr = options?.overlayOnly ? " AND tr.layer = 'overlay'" : '';
   const overlayFilterRel = options?.overlayOnly ? " AND sr.layer = 'overlay'" : '';
 
+  // Early-exit: skip resolution when there are zero unresolved refs.
+  // With SCIP and LSP both producing pre-resolved refs, this is common
+  // for projects fully covered by those indexers.
+  const layerFilter = options?.overlayOnly ? " AND layer = 'overlay'" : '';
+  const unresolvedCount = (db.prepare(
+    `SELECT
+       (SELECT COUNT(*) FROM symbol_refs WHERE callee_id IS NULL AND resolution_method = 'unresolved'${layerFilter}) +
+       (SELECT COUNT(*) FROM type_refs WHERE type_id IS NULL AND resolution_method = 'unresolved'${layerFilter}) +
+       (SELECT COUNT(*) FROM symbol_relationships WHERE target_symbol_id IS NULL AND resolution_method = 'unresolved'${layerFilter})
+     AS total`,
+  ).get() as { total: number }).total;
+  if (unresolvedCount === 0) return;
+
   const runInTransaction = db.transaction(() => {
     // Pass 1: LSP containment mapping (highest confidence)
     resolveByContainment(db, 'symbol_refs', 'callee_id', 'definition_path', 'definition_line', options?.overlayOnly, options?.branch);

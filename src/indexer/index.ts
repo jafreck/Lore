@@ -7,17 +7,16 @@
  * For full builds, `build()` delegates entirely to the pipeline which
  * enforces the data-dependency chain:
  * ```
- * ScipIndexerStage → SourceIndexStage
- *   → ImportResolutionStage → DependencyApiStage
+ * ScipIndexerStage → FileDiscoveryStage
+ *   → ImportResolutionStage
  *   → LspEnrichmentStage → ResolutionStage
  *   → HistoryStage → EmbeddingStage
  * ```
  *
- * `ScipIndexerStage` now populates both structural data (symbols, refs)
- * and enrichment metadata (type signatures, definition locations) in a
- * single pass.  `SourceIndexStage` then adds tree-sitter metrics
- * (complexity, nesting depth) to SCIP-sourced files and handles
- * remaining languages.
+ * `ScipIndexerStage` populates structural data (symbols, refs) and
+ * enrichment metadata (type signatures, definition locations) in a
+ * single pass.  `FileDiscoveryStage` then walks remaining files and
+ * populates the source cache.
  *
  * The enrichment → resolution ordering is **load-bearing** and enforced
  * structurally by the pipeline rather than by call-site discipline.
@@ -50,11 +49,9 @@ import type { PipelineContext, PipelineStage } from './pipeline.js';
 import { ByteBudgetLRU } from './byte-budget-lru.js';
 import {
   ScipIndexerStage,
-  ScipRefStage,
-  SourceIndexStage,
+  FileDiscoveryStage,
   LspExtractionStage,
   ImportResolutionStage,
-  DependencyApiStage,
   LspEnrichmentStage,
   EmbeddingStage,
   ReverseDepsStage,
@@ -208,11 +205,9 @@ export class IndexBuilder {
     // Rebuild omits ReverseDepsStage and appends OverlayCleanupStage.
     const stages: (PipelineStage | PipelineStage[])[] = [
       new ScipIndexerStage(),
-      new SourceIndexStage(),
-      new ScipRefStage(),
+      new FileDiscoveryStage(),
       new LspExtractionStage(),
       new ImportResolutionStage(),
-      new DependencyApiStage(),
       [new LspEnrichmentStage(), historyStage()],
       ftsRefreshStage(),
       resolutionStage(),
