@@ -1419,3 +1419,266 @@ describe('ScipIndexerStage - inline ref additional branches', () => {
     ctx.db.close();
   });
 });
+
+// ── Forward-declaration → definition directionality ─────────────────────────
+
+describe('ScipIndexerStage - forward declaration directionality', () => {
+  it('header forward declaration definition_path points to implementation file', async () => {
+    const stage = new ScipIndexerStage();
+    const sourceCache = new Map<string, string>();
+
+    // Header with a forward declaration
+    const headerSource = [
+      '/* Public API */',
+      'int buffer_create(int capacity);',
+    ].join('\n');
+    writeSource('lib/buffer.h', headerSource, sourceCache);
+
+    // Implementation file with the real definition
+    const implSource = [
+      '#include "buffer.h"',
+      'int buffer_create(int capacity) {',
+      '  return capacity > 0 ? 1 : 0;',
+      '}',
+    ].join('\n');
+    writeSource('lib/buffer.c', implSource, sourceCache);
+
+    // Caller that references buffer_create
+    const callerSource = [
+      '#include "buffer.h"',
+      'void run() {',
+      '  buffer_create(42);',
+      '}',
+    ].join('\n');
+    writeSource('src/main.c', callerSource, sourceCache);
+
+    const funcSymbol = 'scip-clang pkg lib/buffer.h/buffer_create().';
+    const runSymbol = 'scip-clang pkg src/main.c/run().';
+
+    // SCIP index: header has ForwardDefinition, impl has Definition
+    const buf = buildScipIndexBuffer([
+      {
+        relativePath: 'lib/buffer.h',
+        language: 'c',
+        occurrences: [
+          {
+            range: [1, 4, 17],
+            symbol: funcSymbol,
+            symbolRoles: SymbolRole.Definition | SymbolRole.ForwardDefinition,
+            enclosingRange: [1, 0, 1, 31],
+          },
+        ],
+        symbols: [
+          {
+            symbol: funcSymbol,
+            documentation: ['int buffer_create(int capacity)'],
+            displayName: 'buffer_create',
+          },
+        ],
+      },
+      {
+        relativePath: 'lib/buffer.c',
+        language: 'c',
+        occurrences: [
+          {
+            range: [1, 4, 17],
+            symbol: funcSymbol,
+            symbolRoles: SymbolRole.Definition,
+            enclosingRange: [1, 0, 3, 1],
+          },
+        ],
+        symbols: [
+          {
+            symbol: funcSymbol,
+            documentation: ['int buffer_create(int capacity)'],
+            displayName: 'buffer_create',
+          },
+        ],
+      },
+      {
+        relativePath: 'src/main.c',
+        language: 'c',
+        occurrences: [
+          {
+            range: [1, 5, 8],
+            symbol: runSymbol,
+            symbolRoles: SymbolRole.Definition,
+            enclosingRange: [1, 0, 3, 1],
+          },
+          {
+            range: [2, 2, 15],
+            symbol: funcSymbol,
+            symbolRoles: 0, // reference
+          },
+        ],
+        symbols: [
+          {
+            symbol: runSymbol,
+            documentation: ['void run()'],
+            displayName: 'run',
+          },
+        ],
+      },
+    ]);
+
+    loadScipIndexesMock.mockResolvedValue([buf]);
+    const ctx = makeMinimalContext({
+      scip: { enabled: true } as any,
+      sourceCache,
+    });
+    await stage.execute(ctx, 'build');
+
+    const implAbsPath = path.resolve(tmpDir, 'lib/buffer.c');
+    const headerAbsPath = path.resolve(tmpDir, 'lib/buffer.h');
+
+    // Both header and implementation get symbol rows
+    const symbols = ctx.db.prepare(
+      "SELECT s.name, s.definition_path, f.path as file_path FROM symbols s JOIN files f ON f.id = s.file_id WHERE s.name = 'buffer_create' ORDER BY f.path",
+    ).all() as any[];
+    expect(symbols.length).toBe(2);
+
+    // Header declaration's definition_path should point to the IMPLEMENTATION
+    const headerSym = symbols.find((s: any) => s.file_path === headerAbsPath);
+    expect(headerSym).toBeDefined();
+    expect(headerSym.definition_path).toBe(implAbsPath);
+
+    // Implementation's definition_path should point to itself
+    const implSym = symbols.find((s: any) => s.file_path === implAbsPath);
+    expect(implSym).toBeDefined();
+    expect(implSym.definition_path).toBe(implAbsPath);
+
+    // Refs to buffer_create should resolve to the implementation, not the header
+    const refs = ctx.db.prepare(
+      "SELECT definition_path FROM symbol_refs WHERE callee_name = 'buffer_create'",
+    ).all() as any[];
+    expect(refs.length).toBeGreaterThanOrEqual(1);
+    for (const ref of refs) {
+      expect(ref.definition_path).toBe(implAbsPath);
+    }
+
+    ctx.db.close();
+  });
+
+  it('works regardless of document order (impl processed before header)', async () => {
+    const stage = new ScipIndexerStage();
+    const sourceCache = new Map<string, string>();
+
+    const headerSource = 'void decompress(void* dst, const void* src);';
+    writeSource('include/codec.h', headerSource, sourceCache);
+
+    const implSource = [
+      'void decompress(void* dst, const void* src) {',
+      '  /* implementation */',
+      '}',
+    ].join('\n');
+    writeSource('src/codec.c', implSource, sourceCache);
+
+    const funcSymbol = 'scip-clang pkg include/codec.h/decompress().';
+
+    // SCIP index: implementation FIRST, then header — tests that
+    // buildSymbolDefinitionMap correctly picks the real definition
+    // even when the forward declaration comes second.
+    const buf = buildScipIndexBuffer([
+      {
+        relativePath: 'src/codec.c',
+        language: 'c',
+        occurrences: [{
+          range: [0, 5, 15],
+          symbol: funcSymbol,
+          symbolRoles: SymbolRole.Definition,
+          enclosingRange: [0, 0, 2, 1],
+        }],
+        symbols: [{
+          symbol: funcSymbol,
+          documentation: ['void decompress(void* dst, const void* src)'],
+          displayName: 'decompress',
+        }],
+      },
+      {
+        relativePath: 'include/codec.h',
+        language: 'c',
+        occurrences: [{
+          range: [0, 5, 15],
+          symbol: funcSymbol,
+          symbolRoles: SymbolRole.Definition | SymbolRole.ForwardDefinition,
+          enclosingRange: [0, 0, 0, 45],
+        }],
+        symbols: [{
+          symbol: funcSymbol,
+          documentation: ['void decompress(void* dst, const void* src)'],
+          displayName: 'decompress',
+        }],
+      },
+    ]);
+
+    loadScipIndexesMock.mockResolvedValue([buf]);
+    const ctx = makeMinimalContext({
+      scip: { enabled: true } as any,
+      sourceCache,
+    });
+    await stage.execute(ctx, 'build');
+
+    const implAbsPath = path.resolve(tmpDir, 'src/codec.c');
+    const headerAbsPath = path.resolve(tmpDir, 'include/codec.h');
+
+    const symbols = ctx.db.prepare(
+      "SELECT s.definition_path, f.path as file_path FROM symbols s JOIN files f ON f.id = s.file_id WHERE s.name = 'decompress'",
+    ).all() as any[];
+    expect(symbols.length).toBe(2);
+
+    const headerSym = symbols.find((s: any) => s.file_path === headerAbsPath);
+    expect(headerSym).toBeDefined();
+    expect(headerSym.definition_path).toBe(implAbsPath);
+
+    const implSym = symbols.find((s: any) => s.file_path === implAbsPath);
+    expect(implSym).toBeDefined();
+    expect(implSym.definition_path).toBe(implAbsPath);
+
+    ctx.db.close();
+  });
+
+  it('forward declaration without matching implementation retains self-referential definition_path', async () => {
+    const stage = new ScipIndexerStage();
+    const sourceCache = new Map<string, string>();
+
+    const headerSource = 'void unimplemented_func(void);';
+    writeSource('include/api.h', headerSource, sourceCache);
+
+    const funcSymbol = 'scip-clang pkg include/api.h/unimplemented_func().';
+
+    // Only a forward declaration, no implementation in the index
+    const buf = buildScipIndexBuffer([{
+      relativePath: 'include/api.h',
+      language: 'c',
+      occurrences: [{
+        range: [0, 5, 24],
+        symbol: funcSymbol,
+        symbolRoles: SymbolRole.Definition | SymbolRole.ForwardDefinition,
+        enclosingRange: [0, 0, 0, 30],
+      }],
+      symbols: [{
+        symbol: funcSymbol,
+        documentation: ['void unimplemented_func(void)'],
+        displayName: 'unimplemented_func',
+      }],
+    }]);
+
+    loadScipIndexesMock.mockResolvedValue([buf]);
+    const ctx = makeMinimalContext({
+      scip: { enabled: true } as any,
+      sourceCache,
+    });
+    await stage.execute(ctx, 'build');
+
+    const headerAbsPath = path.resolve(tmpDir, 'include/api.h');
+
+    const symbols = ctx.db.prepare(
+      "SELECT s.definition_path, f.path as file_path FROM symbols s JOIN files f ON f.id = s.file_id WHERE s.name = 'unimplemented_func'",
+    ).all() as any[];
+    expect(symbols.length).toBe(1);
+    // No implementation exists, so definition_path stays self-referential
+    expect(symbols[0].definition_path).toBe(headerAbsPath);
+
+    ctx.db.close();
+  });
+});

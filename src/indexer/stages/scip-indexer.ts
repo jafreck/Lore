@@ -249,21 +249,21 @@ export class ScipIndexerStage implements PipelineStage {
 
         // Collect definition occurrences for this document
         // Build symbol spans: SCIP symbol → { startLine, endLine }
-        const docDefs = new Map<string, { line: number; character: number; startLine: number; endLine: number }>();
+        const docDefs = new Map<string, { line: number; character: number; startLine: number; endLine: number; symbolRoles: number }>();
 
         // First collect all definition lines so we can order them for fallback
-        const defOccs: Array<{ symbol: string; line: number; character: number; enclosingRange: number[] }> = [];
+        const defOccs: Array<{ symbol: string; line: number; character: number; enclosingRange: number[]; symbolRoles: number }> = [];
         for (const occ of doc.occurrences) {
           if ((occ.symbolRoles & SymbolRole.Definition) === 0) continue;
           if (!occ.symbol || occ.symbol.startsWith('local ')) continue;
-          defOccs.push({ symbol: occ.symbol, line: occ.range[0] ?? 0, character: occ.range[1] ?? 0, enclosingRange: [...occ.enclosingRange] });
+          defOccs.push({ symbol: occ.symbol, line: occ.range[0] ?? 0, character: occ.range[1] ?? 0, enclosingRange: [...occ.enclosingRange], symbolRoles: occ.symbolRoles });
         }
         // Sort by line so we know the "next definition" for span estimation
         defOccs.sort((a, b) => a.line - b.line);
 
         for (let di = 0; di < defOccs.length; di++) {
           const occ = defOccs[di]!;
-          const { symbol, line, character, enclosingRange } = occ;
+          const { symbol, line, character, enclosingRange, symbolRoles: occRoles } = occ;
 
           // Use enclosing_range for span; fall back to definition line.
           let startLine = line;
@@ -281,7 +281,7 @@ export class ScipIndexerStage implements PipelineStage {
 
           // Keep the first definition per symbol in this file
           if (!docDefs.has(symbol)) {
-            docDefs.set(symbol, { line, character, startLine, endLine });
+            docDefs.set(symbol, { line, character, startLine, endLine, symbolRoles: occRoles });
           }
         }
 
@@ -311,7 +311,20 @@ export class ScipIndexerStage implements PipelineStage {
           // Compute enrichment data inline (definition + type signature)
           const resolvedTypeSig = signature || null;
           const resolvedReturnType = extractReturnType(resolvedTypeSig);
-          const definitionUri = pathToFileURL(absPath).toString();
+
+          // For forward declarations (e.g. C header prototypes), point
+          // definition_path/definition_uri to the real implementation when
+          // one exists, so downstream consumers get authoritative
+          // declaration-to-definition directionality.
+          const isForwardDef = (defLoc.symbolRoles & SymbolRole.ForwardDefinition) !== 0;
+          let defPath = absPath;
+          if (isForwardDef) {
+            const canonicalDef = symbolDefinitions.get(symInfo.symbol);
+            if (canonicalDef && canonicalDef.filePath !== absPath) {
+              defPath = canonicalDef.filePath;
+            }
+          }
+          const definitionUri = pathToFileURL(defPath).toString();
 
           // Resolve parent_symbol_id.
           // Prefer SCIP's `enclosingSymbol` (authoritative) when populated;
@@ -339,7 +352,7 @@ export class ScipIndexerStage implements PipelineStage {
             fileId, name, kind,
             defLoc.startLine, defLoc.endLine,
             signature || null, docComment,
-            resolvedTypeSig, resolvedReturnType, definitionUri, absPath,
+            resolvedTypeSig, resolvedReturnType, definitionUri, defPath,
             parentLoreId,
             layer, generation,
           ) as { lastInsertRowid: number | bigint };
@@ -656,24 +669,42 @@ export function isExternalSymbol(scipSymbol: string, internalPrefixes: Set<strin
 
 /**
  * Build a global SCIP symbol → definition location map from parsed indexes.
- * First definition wins when a symbol is defined in multiple documents.
+ *
+ * When a symbol has both a forward declaration (`ForwardDefinition` role,
+ * e.g. a C header prototype) and a real definition (implementation in a
+ * `.c` file), the real definition wins regardless of document order.
+ * Among definitions of the same kind, the first one encountered wins.
  */
 export function buildSymbolDefinitionMap(
   parsedIndexes: ReadonlyArray<{ documents: ReadonlyArray<{ relativePath: string; occurrences: ReadonlyArray<{ symbolRoles: number; symbol: string; range: number[] }> }> }>,
   rootDir: string,
 ): Map<string, { filePath: string; line: number; character: number }> {
   const symbolDefinitions = new Map<string, { filePath: string; line: number; character: number }>();
+  // Track which entries came from forward declarations so real definitions can override them.
+  const forwardDefs = new Set<string>();
   for (const idx of parsedIndexes) {
     for (const doc of idx.documents) {
       const absPath = resolve(rootDir, doc.relativePath);
       for (const occ of doc.occurrences) {
         if ((occ.symbolRoles & SymbolRole.Definition) !== 0 && occ.symbol && !occ.symbol.startsWith('local ')) {
-          if (!symbolDefinitions.has(occ.symbol)) {
+          const isForward = (occ.symbolRoles & SymbolRole.ForwardDefinition) !== 0;
+          const existing = symbolDefinitions.has(occ.symbol);
+
+          if (!existing) {
             symbolDefinitions.set(occ.symbol, {
               filePath: absPath,
               line: occ.range[0] ?? 0,
               character: occ.range[1] ?? 0,
             });
+            if (isForward) forwardDefs.add(occ.symbol);
+          } else if (!isForward && forwardDefs.has(occ.symbol)) {
+            // Real definition overrides a previous forward declaration
+            symbolDefinitions.set(occ.symbol, {
+              filePath: absPath,
+              line: occ.range[0] ?? 0,
+              character: occ.range[1] ?? 0,
+            });
+            forwardDefs.delete(occ.symbol);
           }
         }
       }
