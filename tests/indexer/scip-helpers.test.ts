@@ -219,13 +219,12 @@ describe('extractNameFromScipSymbol', () => {
     )).toBe('MyClass');
   });
 
-  it('strips backtick escaping', () => {
-    // The function splits by descriptor chars (., #, /, :) then strips backticks
-    // 'src/`my-file.ts`/' splits by '/' → last segment after strip is 'ts'
-    // because '.' inside the filename is treated as a descriptor split
+  it('extracts backtick-quoted names as atomic segments', () => {
+    // Backtick-quoted content is treated as an atomic name per SCIP spec,
+    // not split on internal delimiters like '.' or ':'
     expect(extractNameFromScipSymbol(
       'scip-typescript npm pkg 1.0 src/`my-file.ts`/',
-    )).toBe('ts');
+    )).toBe('my-file.ts');
   });
 
   it('handles disambiguated methods', () => {

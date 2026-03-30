@@ -192,6 +192,9 @@ export function inferKindFromScipSymbol(
   // Meta: ends with :
   if (scipSymbol.endsWith(':')) return 'property';
 
+  // Macro: ends with ! (scip-clang preprocessor macros)
+  if (scipSymbol.endsWith('!')) return 'constant';
+
   // Parameter
   if (scipSymbol.endsWith(')') && !scipSymbol.endsWith(').')) return 'parameter';
 
@@ -328,10 +331,16 @@ export function descriptorDepth(scipSymbol: string): number {
  *
  * E.g. `scip-typescript npm pkg 1.0 src/\`file.ts\`/MyClass#myMethod().`
  * → `myMethod`
+ *
+ * Backtick-quoted descriptor segments are treated as atomic names per the
+ * SCIP spec (backticks quote names containing characters outside
+ * [A-Za-z0-9_]).  The quoted content is never split on internal
+ * delimiters.
  */
 export function extractNameFromScipSymbol(scipSymbol: string): string {
-  // Strip trailing descriptor suffix (., #, /, :, etc.)
-  let cleaned = scipSymbol.replace(/[.#/:]$/, '');
+  // Strip trailing descriptor suffix (., #, /, :, !)
+  // '!' denotes a macro/meta descriptor in SCIP (e.g. scip-clang preprocessor macros).
+  let cleaned = scipSymbol.replace(/[.#/:!]$/, '');
 
   // For methods, strip the disambiguator: `name(+1).` → `name`
   cleaned = cleaned.replace(/\(\+?\d*\)$/, '');
@@ -339,6 +348,18 @@ export function extractNameFromScipSymbol(scipSymbol: string): string {
   // scip-clang uses ` $ name(hash)` for C/C++ symbols — strip the hash.
   // E.g., ` $ parse_analyze_fixedparams(39d222e79bbfb7c0)` → `parse_analyze_fixedparams`
   cleaned = cleaned.replace(/\([0-9a-f]{8,}\)$/, '');
+
+  // Extract the last backtick-quoted segment as an atomic name.
+  // SCIP backtick-quotes any descriptor whose name contains characters
+  // outside [A-Za-z0-9_] (e.g. filenames, module paths, location-based
+  // identifiers).  Internal delimiters like . / : must not be split.
+  const backtickMatch = cleaned.match(/`([^`]*(?:``[^`]*)*)`\s*$/);
+  if (backtickMatch) {
+    // Unescape doubled backticks (`` → `) per the SCIP spec
+    let name = backtickMatch[1]!.replace(/``/g, '`');
+    name = name.replace(/^\s*\$\s*/, '');
+    return name || scipSymbol;
+  }
 
   // Get the last descriptor's name
   // Descriptors are separated by ., #, /, :, or ()

@@ -141,6 +141,66 @@ describe('buildSymbolDefinitionMap', () => {
     expect(map.get('sym1')!.line).toBe(1); // First one wins
   });
 
+  it('prefers real definition over forward declaration (header first)', () => {
+    const indexes = [{
+      documents: [
+        {
+          relativePath: 'include/api.h',
+          occurrences: [
+            { symbolRoles: SymbolRole.Definition | SymbolRole.ForwardDefinition, symbol: 'sym1', range: [5, 0] },
+          ],
+        },
+        {
+          relativePath: 'src/api.c',
+          occurrences: [
+            { symbolRoles: SymbolRole.Definition, symbol: 'sym1', range: [10, 0] },
+          ],
+        },
+      ],
+    }];
+    const map = buildSymbolDefinitionMap(indexes, '/root');
+    expect(map.get('sym1')!.line).toBe(10);
+    expect(map.get('sym1')!.filePath).toContain('src/api.c');
+  });
+
+  it('prefers real definition over forward declaration (impl first)', () => {
+    const indexes = [{
+      documents: [
+        {
+          relativePath: 'src/api.c',
+          occurrences: [
+            { symbolRoles: SymbolRole.Definition, symbol: 'sym1', range: [10, 0] },
+          ],
+        },
+        {
+          relativePath: 'include/api.h',
+          occurrences: [
+            { symbolRoles: SymbolRole.Definition | SymbolRole.ForwardDefinition, symbol: 'sym1', range: [5, 0] },
+          ],
+        },
+      ],
+    }];
+    const map = buildSymbolDefinitionMap(indexes, '/root');
+    expect(map.get('sym1')!.line).toBe(10);
+    expect(map.get('sym1')!.filePath).toContain('src/api.c');
+  });
+
+  it('keeps forward declaration when no real definition exists', () => {
+    const indexes = [{
+      documents: [
+        {
+          relativePath: 'include/api.h',
+          occurrences: [
+            { symbolRoles: SymbolRole.Definition | SymbolRole.ForwardDefinition, symbol: 'sym1', range: [5, 0] },
+          ],
+        },
+      ],
+    }];
+    const map = buildSymbolDefinitionMap(indexes, '/root');
+    expect(map.get('sym1')!.line).toBe(5);
+    expect(map.get('sym1')!.filePath).toContain('include/api.h');
+  });
+
   it('handles empty indexes', () => {
     const map = buildSymbolDefinitionMap([], '/root');
     expect(map.size).toBe(0);
