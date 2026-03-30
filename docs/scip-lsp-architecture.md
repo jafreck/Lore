@@ -1,5 +1,7 @@
 # Architecture Migration: SCIP + LSP (Drop Tree-Sitter Extractors)
 
+> **Note:** This document was written as a migration proposal. The migration described here has been completed as of v0.4.0. The sections below describe the rationale and design that guided the migration.
+
 ## Motivation
 
 Lore currently has three data sources: SCIP indexers, tree-sitter extractors, and LSP enrichment. This creates a system where correctness depends on hand-written per-language heuristics in the tree-sitter extractors — ~5,700 lines of code reimplementing (approximately) what language compilers already do.
