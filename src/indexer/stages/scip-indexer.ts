@@ -249,21 +249,23 @@ export class ScipIndexerStage implements PipelineStage {
 
         // Collect definition occurrences for this document
         // Build symbol spans: SCIP symbol → { startLine, endLine }
-        const docDefs = new Map<string, { line: number; character: number; startLine: number; endLine: number; symbolRoles: number }>();
+        const docDefs = new Map<string, { line: number; character: number; endCharacter: number; startLine: number; endLine: number; symbolRoles: number }>();
 
         // First collect all definition lines so we can order them for fallback
-        const defOccs: Array<{ symbol: string; line: number; character: number; enclosingRange: number[]; symbolRoles: number }> = [];
+        const defOccs: Array<{ symbol: string; line: number; character: number; endCharacter: number; enclosingRange: number[]; symbolRoles: number }> = [];
         for (const occ of doc.occurrences) {
           if ((occ.symbolRoles & SymbolRole.Definition) === 0) continue;
           if (!occ.symbol || occ.symbol.startsWith('local ')) continue;
-          defOccs.push({ symbol: occ.symbol, line: occ.range[0] ?? 0, character: occ.range[1] ?? 0, enclosingRange: [...occ.enclosingRange], symbolRoles: occ.symbolRoles });
+          // SCIP range: [line, startCol, endCol] (3) or [startLine, startCol, endLine, endCol] (4)
+          const endChar = occ.range.length === 4 ? (occ.range[3] ?? 0) : (occ.range[2] ?? 0);
+          defOccs.push({ symbol: occ.symbol, line: occ.range[0] ?? 0, character: occ.range[1] ?? 0, endCharacter: endChar, enclosingRange: [...occ.enclosingRange], symbolRoles: occ.symbolRoles });
         }
         // Sort by line so we know the "next definition" for span estimation
         defOccs.sort((a, b) => a.line - b.line);
 
         for (let di = 0; di < defOccs.length; di++) {
           const occ = defOccs[di]!;
-          const { symbol, line, character, enclosingRange, symbolRoles: occRoles } = occ;
+          const { symbol, line, character, endCharacter, enclosingRange, symbolRoles: occRoles } = occ;
 
           // Use enclosing_range for span; fall back to definition line.
           let startLine = line;
@@ -281,7 +283,7 @@ export class ScipIndexerStage implements PipelineStage {
 
           // Keep the first definition per symbol in this file
           if (!docDefs.has(symbol)) {
-            docDefs.set(symbol, { line, character, startLine, endLine, symbolRoles: occRoles });
+            docDefs.set(symbol, { line, character, endCharacter, startLine, endLine, symbolRoles: occRoles });
           }
         }
 
@@ -297,12 +299,23 @@ export class ScipIndexerStage implements PipelineStage {
         for (const symInfo of insertableSymbols) {
           const defLoc = docDefs.get(symInfo.symbol)!;
 
-          const name = symInfo.displayName || extractNameFromScipSymbol(symInfo.symbol);
+          let name = symInfo.displayName || extractNameFromScipSymbol(symInfo.symbol);
           const firstDoc = symInfo.documentation[0] ?? '';
           const docHint = firstDoc.toLowerCase();
           const kind = inferKindFromScipSymbol(symInfo.symbol, docHint, symInfo.kind);
 
-          // Skip parameters, type parameters, and module-level namespace symbols
+          // For macro/constant symbols with location-based names, extract the
+          // real identifier from source using the SCIP occurrence range, which
+          // points directly at the macro name token.
+          if (kind === 'constant' && /:\d+$/.test(name)) {
+            const srcLine = source.split('\n')[defLoc.line];
+            if (srcLine) {
+              const token = srcLine.slice(defLoc.character, defLoc.endCharacter);
+              if (token) name = token;
+            }
+          }
+
+          // Skip parameters, type parameters, and module-level namespace symbols.
           if (kind === 'parameter' || kind === 'module') continue;
 
           const signature = extractSignatureFromDoc(firstDoc);

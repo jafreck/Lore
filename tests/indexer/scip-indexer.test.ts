@@ -1682,3 +1682,71 @@ describe('ScipIndexerStage - forward declaration directionality', () => {
     ctx.db.close();
   });
 });
+
+// ── Macro name recovery ─────────────────────────────────────────────────────
+
+describe('ScipIndexerStage - macro name recovery', () => {
+  it('recovers real macro name from source #define directive', async () => {
+    const stage = new ScipIndexerStage();
+    const sourceCache = new Map<string, string>();
+
+    const headerSource = [
+      '#ifndef MY_HEADER_H',
+      '#define MY_HEADER_H',
+      '',
+      '#define MAX_BUFFER_SIZE 1024',
+      '#define VERSION_MAJOR   2',
+      '#define SQUARE(x) ((x) * (x))',
+      '',
+      '#endif',
+    ].join('\n');
+    writeSource('include/config.h', headerSource, sourceCache);
+
+    // scip-clang emits location-based identifiers for macros
+    const guardSymbol = 'cxx . . $ `include/config.h:2:9`!';
+    const maxBufSymbol = 'cxx . . $ `include/config.h:4:9`!';
+    const versionSymbol = 'cxx . . $ `include/config.h:5:9`!';
+    const squareSymbol = 'cxx . . $ `include/config.h:6:9`!';
+
+    const buf = buildScipIndexBuffer([{
+      relativePath: 'include/config.h',
+      language: 'c',
+      occurrences: [
+        { range: [1, 8, 19], symbol: guardSymbol, symbolRoles: SymbolRole.Definition },
+        { range: [3, 8, 23], symbol: maxBufSymbol, symbolRoles: SymbolRole.Definition },
+        { range: [4, 8, 21], symbol: versionSymbol, symbolRoles: SymbolRole.Definition },
+        { range: [5, 8, 14], symbol: squareSymbol, symbolRoles: SymbolRole.Definition },
+      ],
+      symbols: [
+        { symbol: guardSymbol, documentation: ['No documentation available.'] },
+        { symbol: maxBufSymbol, documentation: ['No documentation available.'] },
+        { symbol: versionSymbol, documentation: ['No documentation available.'] },
+        { symbol: squareSymbol, documentation: ['No documentation available.'] },
+      ],
+    }]);
+
+    loadScipIndexesMock.mockResolvedValue([buf]);
+    const ctx = makeMinimalContext({
+      scip: { enabled: true } as any,
+      sourceCache,
+    });
+    await stage.execute(ctx, 'build');
+
+    const symbols = ctx.db.prepare(
+      "SELECT name, kind FROM symbols WHERE kind = 'constant' ORDER BY start_line",
+    ).all() as any[];
+
+    const names = symbols.map((s: any) => s.name);
+    expect(names).toContain('MY_HEADER_H');
+    expect(names).toContain('MAX_BUFFER_SIZE');
+    expect(names).toContain('VERSION_MAJOR');
+    expect(names).toContain('SQUARE');
+
+    // All should be constant kind
+    for (const s of symbols) {
+      expect(s.kind).toBe('constant');
+    }
+
+    ctx.db.close();
+  });
+});
