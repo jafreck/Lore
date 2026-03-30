@@ -15,11 +15,11 @@
 
 Lore holds the structural knowledge over the codebase in memory so your agent doesn't have to. Lore indexes your code into a structured knowledge base that agents query through MCP. It fully maps symbols, imports, call relationships, type relationships, annotations, docs, and all git data — with optional embeddings for semantic search — so agents can reason about your codebase without re-reading it from scratch.
 
-Lore-enabled agents achieve up to **+10pp higher correctness**, up to **84% fewer tokens**, and up to **62% faster wall-clock time** compared to a baseline agent with grep and file reads alone. See the [full benchmark results](docs/benchmark-results.md) for details.
+Lore-enabled agents achieve **+5.6pp higher success rate**, **+3.5pp higher correctness**, **+40.0pp first-pass accuracy**, **40.2% fewer tool calls**, **30.9% fewer tokens**, and **7.8% faster wall-clock time** compared to a baseline agent with grep and file reads alone. See the [full benchmark results](docs/benchmark-results.md) for details.
 
 ## What Lore does
 
-- Indexes source files using SCIP indexers by default for pre-resolved symbols and edges, with tree-sitter parsing as a fallback for languages without a SCIP indexer
+- Indexes source files using SCIP-first indexing with LSP enrichment for pre-resolved symbols and edges
 - Extracts symbols, imports, call refs, type refs, and annotations across all 23 supported languages
 - Resolves internal vs external imports and builds call/import/module/inheritance/type-dependency graph edges using a 3-tier resolution strategy (SCIP/LSP containment, same-file name match, unique name match)
 - Discovers and indexes documentation (`.md`, `.rst`, `.adoc`, `.txt`) with inferred kinds/titles
@@ -91,7 +91,7 @@ flowchart LR
     LOOKUP & SEARCH & GRAPH & DEPENDENTS & TRACE & DIFF & COHESION & STRUCTURE & SNIPPET & BLAME & HISTORY & METRICS <--> MCP_CLIENTS
 ```
 
-Lore sits between your codebase and any LLM-powered tool. The indexer uses a SCIP-first strategy with tree-sitter fallback to extract symbols, imports, and relationships, then persists everything to a normalized SQL database. The MCP server auto-discovers tool modules and exposes the database to any MCP-compatible client. The index stays fresh via git hooks, watch mode, or poll mode — each refresh only re-processes files whose content hash has changed.
+Lore sits between your codebase and any LLM-powered tool. The indexer uses SCIP-first indexing with LSP enrichment to extract symbols, imports, and relationships, then persists everything to a normalized SQL database. The MCP server auto-discovers tool modules and exposes the database to any MCP-compatible client. The index stays fresh via git hooks, watch mode, or poll mode — each refresh only re-processes files whose content hash has changed.
 
 See [docs/architecture.md](docs/architecture.md) for the full schema and
 pipeline breakdown.
@@ -111,8 +111,8 @@ Lore currently supports extractors for:
 npm install @jafreck/lore
 ```
 
-Note: Lore uses native add-ons (`tree-sitter`, `better-sqlite3`). A working
-C/C++ toolchain is required the first time dependencies are built.
+Note: Lore uses native add-ons (`better-sqlite3`). A working C/C++ toolchain
+is required the first time dependencies are built.
 
 ## Quick start (CLI)
 
@@ -235,11 +235,11 @@ has its own ingestion pipeline and can be enabled independently.
 
 ### Source code
 
-The indexer uses a SCIP-first strategy: for languages with a SCIP indexer it
-produces symbols and pre-resolved edges directly, then falls back to tree-sitter
-parsing for remaining languages. Optional LSP enrichment can augment symbols
-from either path. The import resolver classifies each import as internal or
-external, and a call-graph builder creates edges between symbols.
+The indexer uses SCIP-first indexing with LSP enrichment: SCIP indexers produce
+symbols and pre-resolved edges directly, and LSP enrichment augments symbols
+with resolved type signatures and definitions. The import resolver classifies
+each import as internal or external, and a call-graph builder creates edges
+between symbols.
 
 Programmatic example:
 
@@ -461,7 +461,7 @@ npm run build
 Environment expectations:
 
 - Node.js `>=22.0.0`
-- Native build toolchain for `tree-sitter` and `better-sqlite3`
+- Native build toolchain for `better-sqlite3`
 
 Common local workflow:
 

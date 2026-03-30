@@ -8,14 +8,15 @@ Detailed view of Lore's indexing pipeline, storage schema, and MCP tool surface.
 LoreRuntime              ← lifecycle owner (DB, embedder, LSP, watcher/poller)
   └─ IndexBuilder        ← façade over IndexPipeline
        └─ IndexPipeline  ← ordered, composable stage chain
-            ├─ ScipSourceStage        (default source)
-            ├─ SourceIndexStage       (tree-sitter fallback)
+            ├─ ScipIndexerStage
+            ├─ FileDiscoveryStage
+            ├─ LspExtractionStage
             ├─ ImportResolutionStage
-            ├─ DependencyApiStage
-            ├─ ScipEnrichmentStage
             ├─ LspEnrichmentStage
+            ├─ FtsRefreshStage        (inline)
             ├─ ResolutionStage        (inline)
             ├─ HistoryStage           (inline)
+            ├─ ReverseDepsStage
             └─ EmbeddingStage
   └─ GraphAnalysis       ← SCC, connected components, clustering, summary
   └─ MCP Server
@@ -44,14 +45,12 @@ flowchart LR
     end
 
     subgraph Lore Indexer
-        SCIPSRC[SCIP Source<br/>pre-resolved symbols + refs]
-        WALK[Walker<br/>fast-glob · extension map]
-        PARSE[ParserPool<br/>tree-sitter 0.25 grammars]
-        EXTRACT[Extractors<br/>symbols · imports · call refs<br/>type refs · annotations]
+        SCIPIDX[SCIP Indexer<br/>pre-resolved symbols + refs]
+        FILEDISCO[File Discovery<br/>fast-glob · extension map]
+        LSPEXTRACT[LSP Extraction<br/>symbols · imports · call refs<br/>type refs · annotations]
         RESOLVE[ImportResolver<br/>internal ↔ external]
         DEPAPI[Dependency API Indexer<br/>direct deps · TS/Py/Go/Rust declarations]
         CALLGRAPH[Relationship Resolver<br/>3-tier resolution · topo sort]
-        SCIPENRICH[SCIP Enrichment<br/>definition + type metadata from SCIP]
         LSP[LSP Enrichment<br/>batch-pipelined hover + definition<br/>persisted metadata]
         EMBED[Embedder<br/>Transformers.js ONNX<br/>async init · overlapped batches]
         GITHIST[Git History Ingest<br/>commits · diffs · refs]
@@ -99,23 +98,19 @@ flowchart LR
         VSCODE ~~~ CURSOR ~~~ CHAT ~~~ ORCH
     end
 
-    SRC --> SCIPSRC --> FILES & SYM & REFS & TYPES
-    SRC --> WALK --> PARSE --> EXTRACT
-    EXTRACT --> RESOLVE --> IMP
+    SRC --> SCIPIDX --> FILES & SYM & REFS & TYPES
+    SRC --> FILEDISCO --> LSPEXTRACT
+    LSPEXTRACT --> RESOLVE --> IMP
     RESOLVE --> DEPAPI --> EXT
-    EXTRACT --> CALLGRAPH --> REFS
-    EXTRACT --> CALLGRAPH --> TYPES
-    EXTRACT --> ANN
-    EXTRACT --> SCIPENRICH
-    SCIPENRICH --> SYM
-    SCIPENRICH --> REFS
-    SCIPENRICH --> TYPES
-    EXTRACT --> LSP
+    LSPEXTRACT --> CALLGRAPH --> REFS
+    LSPEXTRACT --> CALLGRAPH --> TYPES
+    LSPEXTRACT --> ANN
+    LSPEXTRACT --> LSP
     LSP --> SYM
     LSP --> REFS
     LSP --> TYPES
     LSP --> EXT
-    EXTRACT --> FILES & SYM
+    LSPEXTRACT --> FILES & SYM
     EMBED -.->|optional| VEC
     GIT --> GITHIST --> HIST
 
@@ -133,31 +128,31 @@ orchestrated by `IndexPipeline` (`pipeline.ts`). The stage ordering enforces
 data dependencies structurally rather than by call-site discipline:
 
 ```
-ScipSource → SourceIndex → DocsIndex → ImportResolution → DependencyApi
-  → ScipEnrichment → LspEnrichment → Resolution → TestMap → History → Embedding
+ScipIndexer → FileDiscovery → LspExtraction → ImportResolution
+  → LspEnrichment → FtsRefresh → Resolution → ReverseDeps → History → Embedding
 ```
 
-SCIP is the default source stage. `ScipSourceStage` runs first for languages
-that have a SCIP indexer, populating symbols and pre-resolved edges directly.
-`SourceIndexStage` then handles remaining languages via tree-sitter as a
-fallback. LSP enrichment is optional for either path.
+SCIP is the primary indexing strategy. `ScipIndexerStage` runs first,
+producing symbols and pre-resolved edges directly from SCIP indexers.
+`FileDiscoveryStage` discovers source files, and `LspExtractionStage`
+extracts symbols, imports, and relationships via LSP. There is no tree-sitter
+fallback — the pipeline is fully SCIP+LSP.
 
 The **enrichment → resolution** ordering is load-bearing: `resolveSymbolEdges`
 reads `definition_path` / `definition_line` columns that are only populated
-during enrichment stages (SCIP enrichment and/or LSP enrichment).
+during the LSP enrichment stage.
 
 | Stage | Module | What it does |
 |-------|--------|--------------|
-| ScipSource | `stages/scip-source.ts` | Run SCIP indexers (or read pre-computed `.scip` files) for covered languages; populates symbols + refs with pre-resolved edges; enabled by default |
-| SourceIndex | `stages/source-index.ts` | Tree-sitter fallback for non-SCIP languages; walk + parse + extract + insert; handles both full-build and incremental-update (changed-file diff, stale-symbol tracking) |
-| DocsIndex | `stages/docs-index.ts` | Documentation walk + chunk + note seeding; update mode processes only changed docs |
+| ScipIndexer | `stages/scip-indexer.ts` | Run SCIP indexers (or read pre-computed `.scip` files) for covered languages; populates symbols + refs with pre-resolved edges |
+| FileDiscovery | `stages/file-discovery.ts` | Discover source files via `fast-glob`, map extensions to languages |
+| LspExtraction | `stages/lsp-extraction.ts` | Extract symbols, imports, call refs, type refs, and annotations via LSP |
 | ImportResolution | `stages/import-resolution.ts` | Resolve raw imports to file IDs using a bulk `Map<path, fileId>` lookup |
-| DependencyApi | `stages/dependency-api.ts` | Optional (`--index-deps`) declaration-only indexing from direct deps across npm (`.d.ts`), Python (`.pyi` / `py.typed`), Go (`go.mod`), Rust (`Cargo.toml`); excludes transitive deps |
-| ScipEnrichment | `stages/scip-enrichment.ts` | Enrich symbols, refs, and relationships with SCIP-derived definition locations and type metadata; runs before LSP so the LSP stage skips SCIP-covered languages |
-| LspEnrichment | `stages/lsp-enrichment.ts` | Batch-pipelined LSP hover + definition lookups (parallel per position, concurrent batches of 30); persists resolved type signature/return/definition metadata; skips languages already covered by SCIP enrichment |
-| Resolution | inline in `IndexBuilder` | 3-tier resolution via `call-graph.ts`: LSP containment → same-file name match → unique name match |
-| TestMap | inline in `IndexBuilder` | Refresh test-to-source mappings |
-| History | inline in `IndexBuilder` | Git history ingestion via `simple-git` |
+| LspEnrichment | `stages/lsp-enrichment.ts` | Batch-pipelined LSP hover + definition lookups (parallel per position, concurrent batches of 30); persists resolved type signature/return/definition metadata |
+| FtsRefresh | inline | Refresh FTS5 full-text search indexes |
+| Resolution | inline | 3-tier resolution via `call-graph.ts`: LSP containment → same-file name match → unique name match |
+| ReverseDeps | `stages/reverse-deps.ts` | Build reverse dependency edges for blast-radius queries |
+| History | inline | Git history ingestion via `simple-git` |
 | Embedding | `stages/embedding.ts` | Overlapped batch embedding — fires next `embed()` while writing current batch to DB; handles scoped re-embedding in update mode |
 
 ### Supporting modules
@@ -165,8 +160,6 @@ during enrichment stages (SCIP enrichment and/or LSP enrichment).
 | Module | What it does |
 |--------|--------------|
 | `discovery/walker.ts` | Discovers source files via `fast-glob`, maps extensions to languages |
-| `parsing/parser.ts` | Lazily creates one tree-sitter 0.25 `Parser` per language, caches for reuse |
-| `parsing/extractors/*` | Language-specific AST visitors for symbols, imports, call refs, type refs, and annotations; all 23 supported languages extract call references |
 | `resolution/resolver.ts` | Classifies each raw import as internal (resolved to a file ID) or external (third-party / stdlib) |
 | `resolution/call-graph.ts` | 3-tier symbol resolution with SCIP/LSP-first ref resolution and name-based fallback; supports topo sort and cycle detection |
 | `resolution/graph-analysis.ts` | Higher-level graph primitives: Tarjan SCC on symbol adjacency, union-find connected components, SCC-contracted bounded clustering, and condensed codebase summary |
