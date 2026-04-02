@@ -54,8 +54,6 @@ const REPOS: Record<string, {
   buildCommands?: BuildCommand[];
   /** Override SCIP per-indexer timeout in ms (default: 120_000). */
   scipTimeoutMs?: number;
-  /** Pre-computed SCIP index directory (relative to repo root). */
-  scipIndexDir?: string;
   /** A well-known symbol name to look up. */
   knownSymbol: string;
   /** Optional symbol_kind filter for the known symbol. */
@@ -78,10 +76,10 @@ const REPOS: Record<string, {
       structure: 'sdk',
     },
     buildCommands: [
-      { command: 'mkdir', args: ['-p', '.scip-indexes'] },
-      { command: 'scip-java', args: ['index', '--output', '.scip-indexes/index.scip'], timeoutMs: 600_000 },
+      { command: 'chmod', args: ['+x', './mvnw'] },
+      { command: './mvnw', args: ['compile', '-DskipTests', '-q', '-B'], timeoutMs: 600_000 },
     ],
-    scipIndexDir: '.scip-indexes',
+    scipTimeoutMs: 600_000,
     knownSymbol: 'reportInputMismatch',
     knownFile: 'src/main/java/com/fasterxml/jackson/databind/DeserializationContext.java',
     searchQuery: 'deserialize',
@@ -134,10 +132,7 @@ const REPOS: Record<string, {
     },
     buildCommands: [
       { command: 'cmake', args: ['-B', 'build', '-DCMAKE_EXPORT_COMPILE_COMMANDS=ON'], timeoutMs: 120_000 },
-      { command: 'mkdir', args: ['-p', '.scip-indexes'] },
-      { command: 'scip-clang', args: ['--compdb-path=build/compile_commands.json', '--index-output-path=.scip-indexes/index.scip'], timeoutMs: 600_000 },
     ],
-    scipIndexDir: '.scip-indexes',
     knownSymbol: 'cJSON_Parse',
     knownFile: 'cJSON.c',
     searchQuery: 'cJSON_Parse',
@@ -225,11 +220,7 @@ const REPOS: Record<string, {
       size: 'medium',
       structure: 'sdk',
     },
-    buildCommands: [
-      { command: 'mkdir', args: ['-p', '.scip-indexes'] },
-      { command: 'scip-java', args: ['index', '--output', '.scip-indexes/index.scip'], timeoutMs: 600_000 },
-    ],
-    scipIndexDir: '.scip-indexes',
+    scipTimeoutMs: 600_000,
     knownSymbol: 'fromJson',
     knownFile: 'moshi/src/main/java/com/squareup/moshi/JsonAdapter.kt',
     searchQuery: 'fromJson',
@@ -246,10 +237,9 @@ const REPOS: Record<string, {
       structure: 'sdk',
     },
     buildCommands: [
-      { command: 'mkdir', args: ['-p', '.scip-indexes'] },
-      { command: 'scip-java', args: ['index', '--output', '.scip-indexes/index.scip'], timeoutMs: 900_000 },
+      { command: 'sbt', args: ['compile'], timeoutMs: 900_000 },
     ],
-    scipIndexDir: '.scip-indexes',
+    scipTimeoutMs: 600_000,
     knownSymbol: 'Action',
     knownFile: 'core/play/src/main/scala/play/api/mvc/Action.scala',
     searchQuery: 'Action',
@@ -268,7 +258,7 @@ for (const [language, config] of Object.entries(REPOS)) {
     let hasSymbols = false;
 
     beforeAll(async () => {
-      repo = await prepareRepo(config.spec, 'scip', config.buildCommands, config.scipTimeoutMs, config.scipIndexDir);
+      repo = await prepareRepo(config.spec, 'scip', config.buildCommands, config.scipTimeoutMs);
       const stats = getIndexStats(repo.db);
       hasSymbols = stats.symbolCount > 0;
     }, 900_000); // 15 min timeout for clone + build + index
