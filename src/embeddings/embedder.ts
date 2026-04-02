@@ -109,8 +109,8 @@ export function tokenAwareBatch<T>(items: T[], getText: (item: T) => string): T[
 
 /** Lazy-imported pipeline factory type from @huggingface/transformers. */
 type PipelineFn = typeof import('@huggingface/transformers').pipeline;
-/** The feature-extraction pipeline returned by `pipeline(...)`. */
-type FeatureExtractionPipeline = Awaited<ReturnType<PipelineFn>>;
+/** The feature-extraction pipeline returned by `pipeline('feature-extraction', ...)`. */
+type FeatureExtractionPipeline = import('@huggingface/transformers').FeatureExtractionPipeline;
 
 /** ONNX quantization level for model loading. */
 export type OnnxDtype = 'fp32' | 'fp16' | 'q8' | 'q4';
