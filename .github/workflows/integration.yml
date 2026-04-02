@@ -48,21 +48,18 @@ jobs:
     name: integration / scip-${{ matrix.language }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    continue-on-error: ${{ matrix.allow-failure || false }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - language: java
             toolchain: java
-            allow-failure: true   # scip-java Maven builds may exceed SCIP timeout in CI
           - language: go
             toolchain: go
           - language: rust
             toolchain: rust
           - language: c
             toolchain: c-cpp
-            allow-failure: true   # scip-clang compdb generation may fail without full build deps
           - language: cpp
             toolchain: c-cpp
           - language: csharp
@@ -71,13 +68,10 @@ jobs:
             toolchain: ruby
           - language: php
             toolchain: php
-            allow-failure: true   # scip-php does not emit call refs
           - language: kotlin
             toolchain: java
-            allow-failure: true   # scip-java Gradle integration is fragile
           - language: scala
             toolchain: scala
-            allow-failure: true   # scip-java sbt builds may exceed SCIP timeout
     steps:
       - uses: actions/checkout@v6
 
@@ -91,12 +85,14 @@ jobs:
 
       # ── Language toolchains ─────────────────────────────────────────────
 
-      - name: Set up Java 21
+      - name: Set up Java 17 + 21
         if: contains(fromJSON('["java","scala"]'), matrix.toolchain)
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: |
+            17
+            21
 
       - name: Install Coursier
         if: contains(fromJSON('["java","scala"]'), matrix.toolchain)

@@ -52,6 +52,8 @@ const REPOS: Record<string, {
   spec: RepoSpec;
   /** Commands to compile/build the project before SCIP indexing. */
   buildCommands?: BuildCommand[];
+  /** Override SCIP per-indexer timeout in ms (default: 120_000). */
+  scipTimeoutMs?: number;
   /** A well-known symbol name to look up. */
   knownSymbol: string;
   /** Optional symbol_kind filter for the known symbol. */
@@ -60,6 +62,8 @@ const REPOS: Record<string, {
   knownFile: string;
   /** A search query that should return results. */
   searchQuery: string;
+  /** Set to false for indexers that don't emit call references (e.g., scip-php). */
+  expectCallRefs?: boolean;
 }> = {
   // ── Java (scip-java via coursier) ───────────────────────────────────────
   java: {
@@ -75,6 +79,7 @@ const REPOS: Record<string, {
       { command: 'chmod', args: ['+x', './mvnw'] },
       { command: './mvnw', args: ['compile', '-DskipTests', '-q', '-B'], timeoutMs: 600_000 },
     ],
+    scipTimeoutMs: 600_000,
     knownSymbol: 'reportInputMismatch',
     knownFile: 'src/main/java/com/fasterxml/jackson/databind/DeserializationContext.java',
     searchQuery: 'deserialize',
@@ -115,7 +120,7 @@ const REPOS: Record<string, {
   },
 
   // ── C (scip-clang + CMake compdb) ─────────────────────────────────────
-  // Lore auto-generates compile_commands.json via cmake for this project.
+  // Explicit cmake build generates compile_commands.json for scip-clang.
   c: {
     spec: {
       name: 'cjson',
@@ -125,6 +130,9 @@ const REPOS: Record<string, {
       size: 'small',
       structure: 'sdk',
     },
+    buildCommands: [
+      { command: 'cmake', args: ['-B', 'build', '-DCMAKE_EXPORT_COMPILE_COMMANDS=ON'], timeoutMs: 120_000 },
+    ],
     knownSymbol: 'cJSON_Parse',
     knownFile: 'cJSON.c',
     searchQuery: 'cJSON_Parse',
@@ -199,6 +207,7 @@ const REPOS: Record<string, {
     knownSymbol: 'send',
     knownFile: 'src/PHPMailer.php',
     searchQuery: 'mail',
+    expectCallRefs: false, // scip-php emits definitions but not call references
   },
 
   // ── Kotlin (scip-java via Gradle wrapper) ─────────────────────────────
@@ -229,6 +238,7 @@ const REPOS: Record<string, {
     buildCommands: [
       { command: 'sbt', args: ['compile'], timeoutMs: 900_000 },
     ],
+    scipTimeoutMs: 600_000,
     knownSymbol: 'Action',
     knownFile: 'core/play/src/main/scala/play/api/mvc/Action.scala',
     searchQuery: 'Action',
@@ -247,7 +257,7 @@ for (const [language, config] of Object.entries(REPOS)) {
     let hasSymbols = false;
 
     beforeAll(async () => {
-      repo = await prepareRepo(config.spec, 'scip', config.buildCommands);
+      repo = await prepareRepo(config.spec, 'scip', config.buildCommands, config.scipTimeoutMs);
       const stats = getIndexStats(repo.db);
       hasSymbols = stats.symbolCount > 0;
     }, 900_000); // 15 min timeout for clone + build + index
@@ -266,6 +276,7 @@ for (const [language, config] of Object.entries(REPOS)) {
       });
 
       it('SCIP indexer produced call refs', () => {
+        if (config.expectCallRefs === false) return; // indexer doesn't emit refs
         const stats = getIndexStats(repo.db);
         expect(stats.refCount).toBeGreaterThan(0);
       });

@@ -102,6 +102,7 @@ export async function prepareRepo(
   spec: RepoSpec,
   mode: IndexMode = 'scip',
   buildCommands?: BuildCommand[],
+  scipTimeoutMs?: number,
 ): Promise<IndexedRepo> {
   const mgr = getManager();
   let instance = await mgr.prepare(spec);
@@ -113,6 +114,7 @@ export async function prepareRepo(
   instance = await indexRepo(instance, {
     mode,
     historyDepth: 50,
+    scipTimeoutMs,
   });
 
   const db = openReadOnly(instance.dbPath!);
