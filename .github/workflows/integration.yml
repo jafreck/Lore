@@ -51,7 +51,6 @@ jobs:
     name: integration / scip-${{ matrix.language }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    continue-on-error: ${{ matrix.allow-failure || false }}
     strategy:
       fail-fast: false
       matrix:
@@ -60,6 +59,8 @@ jobs:
             toolchain: go
           - language: rust
             toolchain: rust
+          - language: c
+            toolchain: c-cpp
           - language: cpp
             toolchain: c-cpp
           - language: csharp
@@ -68,22 +69,12 @@ jobs:
             toolchain: ruby
           - language: php
             toolchain: php
-          # ── Build-system-dependent (run but allow failure) ───────────
-          # These indexers wrap Maven/Gradle/sbt/cmake internally and need
-          # project-specific build toolchains. They pass locally but are
-          # fragile in CI without full build caches.
           - language: java
             toolchain: java
-            allow-failure: true
-          - language: c
-            toolchain: c-cpp
-            allow-failure: true
           - language: kotlin
             toolchain: java
-            allow-failure: true
           - language: scala
             toolchain: scala
-            allow-failure: true
     steps:
       - uses: actions/checkout@v6
 
@@ -143,59 +134,13 @@ jobs:
           php-version: '8.3'
           tools: composer
 
-      # Ruby is pre-installed on ubuntu-latest; no extra setup needed.
-
-      # ── Install SCIP indexers ───────────────────────────────────────────
-
-      - name: Install scip-java (Java/Kotlin/Scala)
-        if: contains(fromJSON('["java","scala"]'), matrix.toolchain)
-        run: |
-          mkdir -p ~/.lore/bin
-          coursier bootstrap --main com.sourcegraph.scip_java -o ~/.lore/bin/scip-java "com.sourcegraph:scip-java_2.13:0.12.1" 2>&1 || \
-            cs bootstrap --main com.sourcegraph.scip_java -o ~/.lore/bin/scip-java "com.sourcegraph:scip-java_2.13:0.12.1" 2>&1
-          chmod +x ~/.lore/bin/scip-java
-          echo "scip-java version: $(~/.lore/bin/scip-java --version 2>&1)"
-
-      - name: Install scip-go
-        if: matrix.toolchain == 'go'
-        run: go install github.com/sourcegraph/scip-go/cmd/scip-go@latest
-
-      - name: Install scip-clang
-        if: matrix.toolchain == 'c-cpp'
-        run: |
-          mkdir -p ~/.lore/bin
-          curl -sL "https://github.com/sourcegraph/scip-clang/releases/latest/download/scip-clang-x86_64-linux" -o ~/.lore/bin/scip-clang
-          chmod +x ~/.lore/bin/scip-clang
-
-      - name: Install scip-dotnet
-        if: matrix.toolchain == 'dotnet'
-        run: dotnet tool install --global scip-dotnet || true
-
-      - name: Install scip-ruby
-        if: matrix.toolchain == 'ruby'
-        run: |
-          mkdir -p ~/.lore/bin
-          TAG=$(curl -sL https://api.github.com/repos/sourcegraph/scip-ruby/releases/latest | jq -r '.tag_name')
-          curl -sL "https://github.com/sourcegraph/scip-ruby/releases/download/${TAG}/scip-ruby-x86_64-linux" -o ~/.lore/bin/scip-ruby
-          chmod +x ~/.lore/bin/scip-ruby
-
-      - name: Install scip-php
-        if: matrix.toolchain == 'php'
-        run: |
-          mkdir -p ~/.lore/lib/scip-php ~/.lore/bin
-          git clone --depth 1 https://github.com/davidrjenni/scip-php.git /tmp/scip-php
-          cd /tmp/scip-php && composer install --no-dev --no-interaction -q
-          cp -r /tmp/scip-php/* ~/.lore/lib/scip-php/
-          printf '#!/bin/bash\nexec php ~/.lore/lib/scip-php/bin/scip-php "$@"\n' > ~/.lore/bin/scip-php
-          chmod +x ~/.lore/bin/scip-php
-
-      # ── Caches ──────────────────────────────────────────────────────────
+      # ── Caches (before installs so binaries are reused) ─────────────────
 
       - name: Cache SCIP indexers
         uses: actions/cache@v4
         with:
-          path: ~/.lore/bin
-          key: scip-bin-${{ matrix.language }}-${{ runner.os }}
+          path: ~/.lore
+          key: scip-bin-${{ matrix.language }}-${{ runner.os }}-v2
 
       - name: Cache integration repos
         uses: actions/cache@v4
@@ -203,10 +148,70 @@ jobs:
           path: .integration-repos
           key: integration-scip-${{ matrix.language }}-${{ runner.os }}
 
-      - name: Clear stale indexes (force re-index)
-        run: rm -f .integration-repos/*/.lore.db
+      # ── Install SCIP indexers (skip if cached) ──────────────────────────
+
+      - name: Install scip-java
+        if: contains(fromJSON('["java","scala"]'), matrix.toolchain)
+        run: |
+          if [ -x "$HOME/.lore/bin/scip-java" ]; then
+            echo "scip-java cached"
+          else
+            mkdir -p ~/.lore/bin
+            # coursier launch wrapper — delegates JDK resolution to coursier at runtime
+            printf '#!/bin/bash\nexec coursier launch "com.sourcegraph:scip-java_2.13:0.12.1" -- "$@"\n' > ~/.lore/bin/scip-java
+            chmod +x ~/.lore/bin/scip-java
+          fi
+          echo "scip-java version: $($HOME/.lore/bin/scip-java --version 2>&1 || echo FAILED)"
+
+      - name: Install scip-go
+        if: matrix.toolchain == 'go'
+        run: command -v scip-go &>/dev/null || go install github.com/sourcegraph/scip-go/cmd/scip-go@latest
+
+      - name: Install scip-clang
+        if: matrix.toolchain == 'c-cpp'
+        run: |
+          if [ -x "$HOME/.lore/bin/scip-clang" ]; then
+            echo "scip-clang cached"
+          else
+            mkdir -p ~/.lore/bin
+            curl -sL "https://github.com/sourcegraph/scip-clang/releases/latest/download/scip-clang-x86_64-linux" -o ~/.lore/bin/scip-clang
+            chmod +x ~/.lore/bin/scip-clang
+          fi
+
+      - name: Install scip-dotnet
+        if: matrix.toolchain == 'dotnet'
+        run: dotnet tool install --global scip-dotnet 2>/dev/null || true
+
+      - name: Install scip-ruby
+        if: matrix.toolchain == 'ruby'
+        run: |
+          if [ -x "$HOME/.lore/bin/scip-ruby" ]; then
+            echo "scip-ruby cached"
+          else
+            mkdir -p ~/.lore/bin
+            TAG=$(curl -sL https://api.github.com/repos/sourcegraph/scip-ruby/releases/latest | jq -r '.tag_name')
+            curl -sL "https://github.com/sourcegraph/scip-ruby/releases/download/${TAG}/scip-ruby-x86_64-linux" -o ~/.lore/bin/scip-ruby
+            chmod +x ~/.lore/bin/scip-ruby
+          fi
+
+      - name: Install scip-php
+        if: matrix.toolchain == 'php'
+        run: |
+          if [ -x "$HOME/.lore/bin/scip-php" ]; then
+            echo "scip-php cached"
+          else
+            mkdir -p ~/.lore/lib/scip-php ~/.lore/bin
+            git clone --depth 1 https://github.com/davidrjenni/scip-php.git /tmp/scip-php
+            cd /tmp/scip-php && composer install --no-dev --no-interaction -q
+            cp -r /tmp/scip-php/* ~/.lore/lib/scip-php/
+            printf '#!/bin/bash\nexec php "$HOME/.lore/lib/scip-php/bin/scip-php" "$@"\n' > ~/.lore/bin/scip-php
+            chmod +x ~/.lore/bin/scip-php
+          fi
 
       # ── Run ─────────────────────────────────────────────────────────────
+
+      - name: Clear stale indexes
+        run: rm -f .integration-repos/*/.lore.db
 
       - name: Run scip-languages test (${{ matrix.language }})
         env:
