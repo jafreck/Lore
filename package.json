@@ -76,7 +76,7 @@
     "@types/node": "^25",
     "@vitest/coverage-v8": "^4.0",
     "pyright": "^1.1.406",
-    "typescript": "^5.9",
+    "typescript": "^6.0",
     "typescript-language-server": "^5.0.1",
     "vitest": "^4.0"
   },
