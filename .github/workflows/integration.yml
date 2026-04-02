@@ -140,7 +140,12 @@ jobs:
 
       - name: Install scip-java (Java/Kotlin/Scala)
         if: contains(fromJSON('["java","scala"]'), matrix.toolchain)
-        run: coursier bootstrap --main com.sourcegraph.scip_java --output ~/.lore/bin/scip-java "com.sourcegraph:scip-java_2.13:0.12.1" && chmod +x ~/.lore/bin/scip-java
+        run: |
+          mkdir -p ~/.lore/bin
+          coursier bootstrap --main com.sourcegraph.scip_java -o ~/.lore/bin/scip-java "com.sourcegraph:scip-java_2.13:0.12.1" 2>&1 || \
+            cs bootstrap --main com.sourcegraph.scip_java -o ~/.lore/bin/scip-java "com.sourcegraph:scip-java_2.13:0.12.1" 2>&1
+          chmod +x ~/.lore/bin/scip-java
+          echo "scip-java version: $(~/.lore/bin/scip-java --version 2>&1)"
 
       - name: Install scip-go
         if: matrix.toolchain == 'go'
@@ -199,4 +204,9 @@ jobs:
           INTEGRATION: '1'
         run: |
           export PATH="$HOME/.lore/bin:$HOME/go/bin:$HOME/.dotnet/tools:$PATH"
+          echo "=== Verifying SCIP indexers ==="
+          for cmd in scip-typescript scip-python scip-java scip-go scip-clang scip-dotnet scip-ruby scip-php rust-analyzer; do
+            printf "  %-20s %s\n" "$cmd:" "$(which $cmd 2>/dev/null || echo 'NOT FOUND')"
+          done
+          echo "==="
           npx vitest run tests/integration/scip-languages.test.ts -t "${{ matrix.language }}"
