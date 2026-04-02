@@ -55,6 +55,7 @@ jobs:
         include:
           - language: java
             toolchain: java
+            allow-failure: true   # scip-java Maven builds may exceed SCIP timeout in CI
           - language: go
             toolchain: go
           - language: rust
