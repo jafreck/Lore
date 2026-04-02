@@ -62,6 +62,7 @@ jobs:
             toolchain: rust
           - language: c
             toolchain: c-cpp
+            allow-failure: true   # scip-clang compdb generation may fail without full build deps
           - language: cpp
             toolchain: c-cpp
           - language: csharp
