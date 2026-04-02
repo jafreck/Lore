@@ -140,13 +140,13 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.lore
-          key: scip-bin-${{ matrix.language }}-${{ runner.os }}-v2
+          key: scip-bin-${{ matrix.language }}-${{ runner.os }}-v3
 
       - name: Cache integration repos
         uses: actions/cache@v4
         with:
           path: .integration-repos
-          key: integration-scip-${{ matrix.language }}-${{ runner.os }}
+          key: integration-scip-${{ matrix.language }}-${{ runner.os }}-v2
 
       # ── Install SCIP indexers (skip if cached) ──────────────────────────
 
