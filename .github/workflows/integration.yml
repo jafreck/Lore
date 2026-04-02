@@ -158,7 +158,7 @@ jobs:
           else
             mkdir -p ~/.lore/bin
             # coursier launch wrapper — delegates JDK resolution to coursier at runtime
-            printf '#!/bin/bash\nexec coursier launch "com.sourcegraph:scip-java_2.13:0.12.1" -- "$@"\n' > ~/.lore/bin/scip-java
+            printf '#!/bin/bash\nexec cs launch "com.sourcegraph:scip-java_2.13:0.12.1" -- "$@"\n' > ~/.lore/bin/scip-java
             chmod +x ~/.lore/bin/scip-java
           fi
           echo "scip-java version: $($HOME/.lore/bin/scip-java --version 2>&1 || echo FAILED)"

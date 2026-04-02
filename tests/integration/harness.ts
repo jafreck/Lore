@@ -84,7 +84,9 @@ async function buildRepo(
 ): Promise<void> {
   const loreBin = join(homedir(), '.lore', 'bin');
   const goBin = join(homedir(), 'go', 'bin');
-  const augmentedPath = `${loreBin}:${goBin}:${process.env.PATH ?? ''}`;
+  const csBin = join(homedir(), '.local', 'share', 'coursier', 'bin');
+  const dotnetTools = join(homedir(), '.dotnet', 'tools');
+  const augmentedPath = [loreBin, goBin, csBin, dotnetTools, process.env.PATH ?? ''].join(':');
 
   for (const cmd of commands) {
     await execFileAsync(cmd.command, cmd.args ?? [], {
