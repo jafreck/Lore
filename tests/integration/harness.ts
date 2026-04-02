@@ -15,6 +15,7 @@
 import { join } from 'node:path';
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { promisify } from 'node:util';
 import { RepoManager } from '../benchmark/util/repo-manager.js';
 import { indexRepo } from '../benchmark/util/indexer.js';
@@ -81,11 +82,15 @@ async function buildRepo(
   repoPath: string,
   commands: BuildCommand[],
 ): Promise<void> {
+  const loreBin = join(homedir(), '.lore', 'bin');
+  const goBin = join(homedir(), 'go', 'bin');
+  const augmentedPath = `${loreBin}:${goBin}:${process.env.PATH ?? ''}`;
+
   for (const cmd of commands) {
     await execFileAsync(cmd.command, cmd.args ?? [], {
       cwd: repoPath,
       timeout: cmd.timeoutMs ?? 300_000,
-      env: { ...process.env, ...cmd.env },
+      env: { ...process.env, PATH: augmentedPath, ...cmd.env },
       maxBuffer: 50 * 1024 * 1024,
     });
   }
@@ -100,6 +105,7 @@ export async function prepareRepo(
   mode: IndexMode = 'scip',
   buildCommands?: BuildCommand[],
   scipTimeoutMs?: number,
+  scipIndexDir?: string,
 ): Promise<IndexedRepo> {
   const mgr = getManager();
   let instance = await mgr.prepare(spec);
@@ -112,6 +118,7 @@ export async function prepareRepo(
     mode,
     historyDepth: 50,
     scipTimeoutMs,
+    scipIndexDir,
   });
 
   const db = openReadOnly(instance.dbPath!);
