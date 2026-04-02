@@ -44,3 +44,5 @@ index.scip
 .github/agents/
 .autoresearch/
 
+jackson-lore-check/
+postgres-check/
