@@ -6,6 +6,7 @@ import {
   detectProjectLanguages,
   createLoreScipTsconfig,
   loadScipIndexes,
+  findDotnetProject,
   type ScipProcessIO,
 } from '../../src/indexer/stages/scip-helpers/process.js';
 import type { EffectiveScipSettings } from '../../src/scip/config.js';
@@ -419,5 +420,184 @@ describe('loadScipIndexes', () => {
     const settings = baseSettings({ indexDir: '.scip' });
     const result = await loadScipIndexes(settings, '/fake/root', null, io);
     expect(result).toHaveLength(2);
+  });
+
+  it('replaces {project} placeholder for csharp when .sln exists', async () => {
+    const indexData = new Uint8Array([5, 6, 7]);
+    const execCalls: { cmd: string; args: string[] }[] = [];
+    const dir = makeTempDir();
+    dirs.push(dir);
+    // Create a subdirectory with a .sln file
+    const srcDir = path.join(dir, 'src');
+    fs.mkdirSync(srcDir);
+    fs.writeFileSync(path.join(srcDir, 'App.sln'), '');
+    // Create a .cs file so csharp is detected
+    fs.writeFileSync(path.join(srcDir, 'Program.cs'), '');
+
+    const io = mockIO({
+      existsSync: (p) => {
+        if (p.endsWith('.lore-scip-csharp.scip')) return true;
+        return false;
+      },
+      readFileSync: () => indexData,
+      execFile: async (cmd, args) => { execCalls.push({ cmd, args: args as string[] }); },
+    });
+    // Point scip-dotnet command to /bin/echo so it resolves as "available"
+    const settings = baseSettings({
+      indexers: { csharp: { command: '/bin/echo', args: ['index', '{project}', '--output', '{output}'] } },
+    });
+    const result = await loadScipIndexes(settings, dir, new Set(['csharp']), io);
+    expect(result).toHaveLength(1);
+    // Verify the {project} placeholder was replaced with the discovered .sln path
+    const call = execCalls[0];
+    expect(call).toBeDefined();
+    expect(call.args.some(a => a.includes('App.sln'))).toBe(true);
+    expect(call.args.every(a => !a.includes('{project}'))).toBe(true);
+  });
+
+  it('skips csharp when {project} placeholder present but no .sln/.csproj found', async () => {
+    const dir = makeTempDir();
+    dirs.push(dir);
+    // Create a .cs file so csharp is detected but no .sln or .csproj
+    fs.writeFileSync(path.join(dir, 'Program.cs'), '');
+
+    const io = mockIO({
+      execFile: async () => { throw new Error('should not be called'); },
+    });
+    const settings = baseSettings({
+      indexers: { csharp: { command: '/bin/echo', args: ['index', '{project}', '--output', '{output}'] } },
+    });
+    const result = await loadScipIndexes(settings, dir, new Set(['csharp']), io);
+    expect(result).toEqual([]);
+  });
+
+  it('recovers index.scip when indexer exits with non-zero code', async () => {
+    const indexData = new Uint8Array([42, 43, 44]);
+    const dir = makeTempDir();
+    dirs.push(dir);
+    // Create a .rb file so ruby is detected
+    fs.writeFileSync(path.join(dir, 'app.rb'), '');
+
+    const io = mockIO({
+      existsSync: (p) => {
+        if (p.endsWith('index.scip')) return true;
+        return false;
+      },
+      readFileSync: () => indexData,
+      execFile: async () => { throw new Error('Command failed with exit code 100'); },
+    });
+    // Point scip-ruby to /bin/echo so it resolves as available
+    const settings = baseSettings({
+      indexers: { ruby: { command: '/bin/echo', args: ['.'] } },
+    });
+    const result = await loadScipIndexes(settings, dir, new Set(['ruby']), io);
+    expect(result).toHaveLength(1);
+    expect(result[0]).toEqual(indexData);
+  });
+
+  it('returns empty when indexer fails and no index.scip written', async () => {
+    const dir = makeTempDir();
+    dirs.push(dir);
+    fs.writeFileSync(path.join(dir, 'app.rb'), '');
+
+    const io = mockIO({
+      existsSync: () => false,
+      execFile: async () => { throw new Error('indexer crashed'); },
+    });
+    const settings = baseSettings({
+      indexers: { ruby: { command: '/bin/echo', args: ['.'] } },
+    });
+    const result = await loadScipIndexes(settings, dir, new Set(['ruby']), io);
+    expect(result).toEqual([]);
+  });
+});
+
+// ─── findDotnetProject ──────────────────────────────────────────────────────
+
+describe('findDotnetProject', () => {
+  it('finds .sln at root', () => {
+    const dir = makeTempDir();
+    dirs.push(dir);
+    fs.writeFileSync(path.join(dir, 'MyApp.sln'), '');
+    const result = findDotnetProject(dir);
+    expect(result).toBe(path.join(dir, 'MyApp.sln'));
+  });
+
+  it('finds .sln one level deep', () => {
+    const dir = makeTempDir();
+    dirs.push(dir);
+    const srcDir = path.join(dir, 'src');
+    fs.mkdirSync(srcDir);
+    fs.writeFileSync(path.join(srcDir, 'App.sln'), '');
+    const result = findDotnetProject(dir);
+    expect(result).toBe(path.join(dir, 'src', 'App.sln'));
+  });
+
+  it('prefers .sln over .csproj', () => {
+    const dir = makeTempDir();
+    dirs.push(dir);
+    fs.writeFileSync(path.join(dir, 'App.csproj'), '');
+    fs.writeFileSync(path.join(dir, 'App.sln'), '');
+    const result = findDotnetProject(dir);
+    expect(result).toBe(path.join(dir, 'App.sln'));
+  });
+
+  it('falls back to .csproj at root when no .sln found', () => {
+    const dir = makeTempDir();
+    dirs.push(dir);
+    fs.writeFileSync(path.join(dir, 'MyLib.csproj'), '');
+    const result = findDotnetProject(dir);
+    expect(result).toBe(path.join(dir, 'MyLib.csproj'));
+  });
+
+  it('returns null when no .sln or .csproj found', () => {
+    const dir = makeTempDir();
+    dirs.push(dir);
+    fs.writeFileSync(path.join(dir, 'README.md'), '');
+    expect(findDotnetProject(dir)).toBeNull();
+  });
+
+  it('returns null for non-existent directory', () => {
+    expect(findDotnetProject('/tmp/no-such-dir-xyz')).toBeNull();
+  });
+});
+
+// ─── detectProjectLanguages (csharp extensions) ─────────────────────────────
+
+describe('detectProjectLanguages (csharp)', () => {
+  it('detects csharp from .sln in subdirectory', () => {
+    const dir = makeTempDir();
+    dirs.push(dir);
+    const srcDir = path.join(dir, 'src');
+    fs.mkdirSync(srcDir);
+    fs.writeFileSync(path.join(srcDir, 'App.sln'), '');
+    const langs = detectProjectLanguages(dir);
+    expect(langs.has('csharp')).toBe(true);
+  });
+
+  it('detects csharp from .csproj in subdirectory', () => {
+    const dir = makeTempDir();
+    dirs.push(dir);
+    const srcDir = path.join(dir, 'src');
+    fs.mkdirSync(srcDir);
+    fs.writeFileSync(path.join(srcDir, 'MyLib.csproj'), '');
+    const langs = detectProjectLanguages(dir);
+    expect(langs.has('csharp')).toBe(true);
+  });
+
+  it('detects csharp from .sln at root level', () => {
+    const dir = makeTempDir();
+    dirs.push(dir);
+    fs.writeFileSync(path.join(dir, 'App.sln'), '');
+    const langs = detectProjectLanguages(dir);
+    expect(langs.has('csharp')).toBe(true);
+  });
+
+  it('detects csharp from .cs file extension', () => {
+    const dir = makeTempDir();
+    dirs.push(dir);
+    fs.writeFileSync(path.join(dir, 'Program.cs'), '');
+    const langs = detectProjectLanguages(dir);
+    expect(langs.has('csharp')).toBe(true);
   });
 });

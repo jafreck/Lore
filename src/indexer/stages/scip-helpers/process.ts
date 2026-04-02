@@ -172,7 +172,8 @@ export function detectProjectLanguages(rootDir: string): Set<string> {
  * Auto-discover a .sln or .csproj file for scip-dotnet.
  * Searches root first, then one level deep.
  */
-function findDotnetProject(rootDir: string): string | null {
+/** @internal Exported for testing. */
+export function findDotnetProject(rootDir: string): string | null {
   try {
     const entries = readdirSync(rootDir);
     const rootSln = entries.find(e => e.endsWith('.sln'));

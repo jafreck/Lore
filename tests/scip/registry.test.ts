@@ -140,3 +140,25 @@ describe('resolveScipIndexerRegistry', () => {
     expect(resolved.kotlin?.available).toBe(javaAvail);
   });
 });
+
+describe('DEFAULT_SCIP_INDEXER_REGISTRY (indexer-specific args)', () => {
+  it('ruby uses bare path arg (no --output)', () => {
+    const entry = DEFAULT_SCIP_INDEXER_REGISTRY.ruby!;
+    expect(entry.command).toBe('scip-ruby');
+    expect(entry.args).toEqual(['.']);
+    expect(entry.args).not.toContain('--output');
+  });
+
+  it('php uses empty args (writes index.scip in cwd)', () => {
+    const entry = DEFAULT_SCIP_INDEXER_REGISTRY.php!;
+    expect(entry.command).toBe('scip-php');
+    expect(entry.args).toEqual([]);
+  });
+
+  it('csharp uses {project} placeholder', () => {
+    const entry = DEFAULT_SCIP_INDEXER_REGISTRY.csharp!;
+    expect(entry.command).toBe('scip-dotnet');
+    expect(entry.args).toContain('{project}');
+    expect(entry.args).toContain('{output}');
+  });
+});
