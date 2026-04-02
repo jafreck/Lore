@@ -36,6 +36,9 @@ index.scip
 .benchmark/
 /.benchmark-results/
 
+# Integration test repo cache
+.integration-repos/
+
 # Tool / agent working directories
 .cadre/
 .github/agents/

@@ -1,0 +1,153 @@
+name: Integration Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # ── Core integration suites ───────────────────────────────────────────────
+  # TypeScript and Python repos — only need npm-bundled SCIP indexers.
+  core:
+    name: integration / ${{ matrix.suite }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [fastapi, zod, lore-self]
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - run: npm install --legacy-peer-deps
+      - run: npm run build
+
+      - name: Cache integration repos
+        uses: actions/cache@v4
+        with:
+          path: .integration-repos
+          key: integration-${{ matrix.suite }}-${{ runner.os }}
+
+      - name: Run ${{ matrix.suite }} integration tests
+        env:
+          INTEGRATION: '1'
+        run: npx vitest run tests/integration/${{ matrix.suite }}.test.ts
+
+  # ── SCIP language coverage ────────────────────────────────────────────────
+  # One job per language with its required toolchain.
+  scip-languages:
+    name: integration / scip-${{ matrix.language }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: java
+            toolchain: java
+          - language: go
+            toolchain: go
+          - language: rust
+            toolchain: rust
+          - language: c
+            toolchain: c-cpp
+          - language: cpp
+            toolchain: c-cpp
+          - language: csharp
+            toolchain: dotnet
+          - language: ruby
+            toolchain: ruby
+          - language: php
+            toolchain: php
+          - language: kotlin
+            toolchain: java
+          - language: scala
+            toolchain: scala
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - run: npm install --legacy-peer-deps
+      - run: npm run build
+
+      # ── Language toolchains ─────────────────────────────────────────────
+
+      - name: Set up Java 21
+        if: contains(fromJSON('["java","scala"]'), matrix.toolchain)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install Coursier
+        if: contains(fromJSON('["java","scala"]'), matrix.toolchain)
+        uses: coursier/setup-action@v1
+
+      - name: Install sbt
+        if: matrix.toolchain == 'scala'
+        uses: sbt/setup-sbt@v1
+
+      - name: Set up Go
+        if: matrix.toolchain == 'go'
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: Set up Rust
+        if: matrix.toolchain == 'rust'
+        run: |
+          rustup update stable
+          rustup component add rust-analyzer
+
+      - name: Set up C/C++ build tools
+        if: matrix.toolchain == 'c-cpp'
+        run: sudo apt-get update && sudo apt-get install -y cmake
+
+      - name: Set up .NET SDK
+        if: matrix.toolchain == 'dotnet'
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Set up PHP + Composer
+        if: matrix.toolchain == 'php'
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          tools: composer
+
+      # Ruby is pre-installed on ubuntu-latest; no extra setup needed.
+
+      # ── Caches ──────────────────────────────────────────────────────────
+
+      - name: Cache SCIP indexers
+        uses: actions/cache@v4
+        with:
+          path: ~/.lore/bin
+          key: scip-bin-${{ matrix.language }}-${{ runner.os }}
+
+      - name: Cache integration repos
+        uses: actions/cache@v4
+        with:
+          path: .integration-repos
+          key: integration-scip-${{ matrix.language }}-${{ runner.os }}
+
+      # ── Run ─────────────────────────────────────────────────────────────
+
+      - name: Run scip-languages test (${{ matrix.language }})
+        env:
+          INTEGRATION: '1'
+        run: npx vitest run tests/integration/scip-languages.test.ts -t "${{ matrix.language }}"
