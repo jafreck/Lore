@@ -72,6 +72,7 @@ const REPOS: Record<string, {
       structure: 'sdk',
     },
     buildCommands: [
+      { command: 'chmod', args: ['+x', './mvnw'] },
       { command: './mvnw', args: ['compile', '-DskipTests', '-q', '-B'], timeoutMs: 600_000 },
     ],
     knownSymbol: 'reportInputMismatch',
