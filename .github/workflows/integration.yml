@@ -37,6 +37,9 @@ jobs:
           path: .integration-repos
           key: integration-${{ matrix.suite }}-${{ runner.os }}
 
+      - name: Clear stale indexes
+        run: rm -f .integration-repos/*/.lore.db
+
       - name: Run ${{ matrix.suite }} integration tests
         env:
           INTEGRATION: '1'
@@ -185,6 +188,9 @@ jobs:
         with:
           path: .integration-repos
           key: integration-scip-${{ matrix.language }}-${{ runner.os }}
+
+      - name: Clear stale indexes (force re-index)
+        run: rm -f .integration-repos/*/.lore.db
 
       # ── Run ─────────────────────────────────────────────────────────────
 

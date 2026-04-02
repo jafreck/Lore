@@ -81,9 +81,6 @@ async function buildRepo(
   repoPath: string,
   commands: BuildCommand[],
 ): Promise<void> {
-  // Skip builds when a cached index already exists
-  if (existsSync(join(repoPath, '.lore.db'))) return;
-
   for (const cmd of commands) {
     await execFileAsync(cmd.command, cmd.args ?? [], {
       cwd: repoPath,
