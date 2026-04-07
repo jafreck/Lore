@@ -61,7 +61,7 @@
   },
   "dependencies": {
     "@bufbuild/protobuf": "^2.11.0",
-    "@huggingface/transformers": "^3.8.1",
+    "@huggingface/transformers": "^4.0.0",
     "@modelcontextprotocol/sdk": "^1.27.1",
     "@sourcegraph/scip-python": "^0.6.6",
     "@sourcegraph/scip-typescript": "^0.4.0",
@@ -74,9 +74,9 @@
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^25",
-    "@vitest/coverage-v8": "^4.0",
+    "@vitest/coverage-v8": "^4.1.2",
     "pyright": "^1.1.406",
-    "typescript": "^5.9",
+    "typescript": "^6.0",
     "typescript-language-server": "^5.0.1",
     "vitest": "^4.0"
   },
