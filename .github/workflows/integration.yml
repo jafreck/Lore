@@ -1,0 +1,221 @@
+name: Integration Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # ── Core integration suites ───────────────────────────────────────────────
+  # TypeScript and Python repos — only need npm-bundled SCIP indexers.
+  core:
+    name: integration / ${{ matrix.suite }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [fastapi, zod, lore-self]
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - run: npm install --legacy-peer-deps
+      - run: npm run build
+
+      - name: Cache integration repos
+        uses: actions/cache@v4
+        with:
+          path: .integration-repos
+          key: integration-${{ matrix.suite }}-${{ runner.os }}
+
+      - name: Clear stale indexes
+        run: rm -f .integration-repos/*/.lore.db
+
+      - name: Run ${{ matrix.suite }} integration tests
+        env:
+          INTEGRATION: '1'
+        run: npx vitest run tests/integration/${{ matrix.suite }}.test.ts
+
+  # ── SCIP language coverage ────────────────────────────────────────────────
+  # One job per language with its required toolchain.
+  scip-languages:
+    name: integration / scip-${{ matrix.language }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: go
+            toolchain: go
+          - language: rust
+            toolchain: rust
+          - language: c
+            toolchain: c-cpp
+          - language: cpp
+            toolchain: c-cpp
+          - language: csharp
+            toolchain: dotnet
+          - language: ruby
+            toolchain: ruby
+          - language: php
+            toolchain: php
+          - language: java
+            toolchain: java
+          - language: kotlin
+            toolchain: java
+          - language: scala
+            toolchain: scala
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - run: npm install --legacy-peer-deps
+      - run: npm run build
+
+      # ── Language toolchains ─────────────────────────────────────────────
+
+      - name: Set up Java 17 + 21
+        if: contains(fromJSON('["java","scala"]'), matrix.toolchain)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: |
+            17
+            21
+
+      - name: Install Coursier
+        if: contains(fromJSON('["java","scala"]'), matrix.toolchain)
+        uses: coursier/setup-action@v1
+
+      - name: Install sbt
+        if: matrix.toolchain == 'scala'
+        uses: sbt/setup-sbt@v1
+
+      - name: Set up Go
+        if: matrix.toolchain == 'go'
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: Set up Rust
+        if: matrix.toolchain == 'rust'
+        run: |
+          rustup update stable
+          rustup component add rust-analyzer
+
+      - name: Set up C/C++ build tools
+        if: matrix.toolchain == 'c-cpp'
+        run: sudo apt-get update && sudo apt-get install -y cmake
+
+      - name: Set up .NET SDK
+        if: matrix.toolchain == 'dotnet'
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Set up PHP + Composer
+        if: matrix.toolchain == 'php'
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          tools: composer
+
+      # ── Caches (before installs so binaries are reused) ─────────────────
+
+      - name: Cache SCIP indexers
+        uses: actions/cache@v4
+        with:
+          path: ~/.lore
+          key: scip-bin-${{ matrix.language }}-${{ runner.os }}-v3
+
+      - name: Cache integration repos
+        uses: actions/cache@v4
+        with:
+          path: .integration-repos
+          key: integration-scip-${{ matrix.language }}-${{ runner.os }}-v2
+
+      # ── Install SCIP indexers (skip if cached) ──────────────────────────
+
+      - name: Install scip-java
+        if: contains(fromJSON('["java","scala"]'), matrix.toolchain)
+        run: |
+          if [ -x "$HOME/.lore/bin/scip-java" ]; then
+            echo "scip-java cached"
+          else
+            mkdir -p ~/.lore/bin
+            # coursier launch wrapper — delegates JDK resolution to coursier at runtime
+            printf '#!/bin/bash\nexec cs launch "com.sourcegraph:scip-java_2.13:0.12.1" -- "$@"\n' > ~/.lore/bin/scip-java
+            chmod +x ~/.lore/bin/scip-java
+          fi
+          echo "scip-java version: $($HOME/.lore/bin/scip-java --version 2>&1 || echo FAILED)"
+
+      - name: Install scip-go
+        if: matrix.toolchain == 'go'
+        run: command -v scip-go &>/dev/null || go install github.com/sourcegraph/scip-go/cmd/scip-go@latest
+
+      - name: Install scip-clang
+        if: matrix.toolchain == 'c-cpp'
+        run: |
+          if [ -x "$HOME/.lore/bin/scip-clang" ]; then
+            echo "scip-clang cached"
+          else
+            mkdir -p ~/.lore/bin
+            curl -sL "https://github.com/sourcegraph/scip-clang/releases/latest/download/scip-clang-x86_64-linux" -o ~/.lore/bin/scip-clang
+            chmod +x ~/.lore/bin/scip-clang
+          fi
+
+      - name: Install scip-dotnet
+        if: matrix.toolchain == 'dotnet'
+        run: dotnet tool install --global scip-dotnet 2>/dev/null || true
+
+      - name: Install scip-ruby
+        if: matrix.toolchain == 'ruby'
+        run: |
+          if [ -x "$HOME/.lore/bin/scip-ruby" ]; then
+            echo "scip-ruby cached"
+          else
+            mkdir -p ~/.lore/bin
+            TAG=$(curl -sL https://api.github.com/repos/sourcegraph/scip-ruby/releases/latest | jq -r '.tag_name')
+            curl -sL "https://github.com/sourcegraph/scip-ruby/releases/download/${TAG}/scip-ruby-x86_64-linux" -o ~/.lore/bin/scip-ruby
+            chmod +x ~/.lore/bin/scip-ruby
+          fi
+
+      - name: Install scip-php
+        if: matrix.toolchain == 'php'
+        run: |
+          if [ -x "$HOME/.lore/bin/scip-php" ]; then
+            echo "scip-php cached"
+          else
+            mkdir -p ~/.lore/lib/scip-php ~/.lore/bin
+            git clone --depth 1 https://github.com/davidrjenni/scip-php.git /tmp/scip-php
+            cd /tmp/scip-php && composer install --no-dev --no-interaction -q
+            cp -r /tmp/scip-php/* ~/.lore/lib/scip-php/
+            printf '#!/bin/bash\nexec php "$HOME/.lore/lib/scip-php/bin/scip-php" "$@"\n' > ~/.lore/bin/scip-php
+            chmod +x ~/.lore/bin/scip-php
+          fi
+
+      # ── Run ─────────────────────────────────────────────────────────────
+
+      - name: Clear stale indexes
+        run: rm -f .integration-repos/*/.lore.db
+
+      - name: Run scip-languages test (${{ matrix.language }})
+        env:
+          INTEGRATION: '1'
+        run: |
+          export PATH="$HOME/.lore/bin:$HOME/go/bin:$HOME/.dotnet/tools:$PATH"
+          npx vitest run tests/integration/scip-languages.test.ts -t "${{ matrix.language }}"

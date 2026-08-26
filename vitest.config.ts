@@ -6,12 +6,14 @@ export default defineConfig({
       "**/node_modules/**",
       "**/dist/**",
       ".benchmark/**",
+      ".integration-repos/**",
     ],
     coverage: {
       provider: "v8",
       reporter: ["text", "json", "json-summary"],
       exclude: [
         "tests/benchmark/util/**",
+        "tests/integration/harness.ts",
         "tests/helpers/**",
         "src/indexer/stages/parse-worker.ts",
       ],

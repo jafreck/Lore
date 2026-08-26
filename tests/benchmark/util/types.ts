@@ -104,6 +104,8 @@ export interface IndexOptions {
    * If set, Lore reads `<dir>/<language>.scip` instead of running indexers.
    */
   scipIndexDir?: string;
+  /** Override the per-indexer SCIP timeout in ms (default: 120_000). */
+  scipTimeoutMs?: number;
 }
 
 // ─── Comparison arms ──────────────────────────────────────────────────────────

@@ -261,12 +261,19 @@ describe('installScipIndexer', () => {
       languages: ['java'],
       method: 'coursier',
     };
+    const fs = await import('node:fs');
+    const os = await import('node:os');
+    const binDir = fs.mkdtempSync(os.tmpdir() + '/lore-test-cs-');
     const io = mockIO({
       isCommandAvailable: (cmd) => cmd === 'cs',
+      existsSync: (p) => fs.existsSync(p),
+      getLoreBinDir: () => binDir,
     });
 
     const result = await installScipIndexer(spec, io);
     expect(result.installed).toBe(true);
+    expect(result.path).toContain('scip-java');
+    try { fs.rmSync(binDir, { recursive: true }); } catch {}
   });
 
   it('installs via pip', async () => {
@@ -584,12 +591,20 @@ describe('installScipIndexer edge cases', () => {
       languages: ['java'],
       method: 'coursier',
     };
+    const fs = await import('node:fs');
+    const os = await import('node:os');
+    const binDir = fs.mkdtempSync(os.tmpdir() + '/lore-test-cs-');
     const io = mockIO({
       isCommandAvailable: (cmd) => cmd === 'coursier',
+      existsSync: (p) => fs.existsSync(p),
+      getLoreBinDir: () => binDir,
     });
 
     const result = await installScipIndexer(spec, io);
     expect(result.installed).toBe(true);
+    const content = fs.readFileSync(result.path!, 'utf8');
+    expect(content).toContain('coursier launch');
+    try { fs.rmSync(binDir, { recursive: true }); } catch {}
   });
 
   it('handles coursier when not available', async () => {
@@ -605,7 +620,7 @@ describe('installScipIndexer edge cases', () => {
     expect(result.error).toContain('Coursier not found');
   });
 
-  it('handles coursier with install error', async () => {
+  it('handles coursier with write error', async () => {
     const spec: ScipInstallSpec = {
       command: 'scip-java',
       languages: ['java'],
@@ -613,12 +628,13 @@ describe('installScipIndexer edge cases', () => {
     };
     const io = mockIO({
       isCommandAvailable: (cmd) => cmd === 'cs',
-      execFileAsync: async () => { throw new Error('coursier crash'); },
+      existsSync: () => false,
+      getLoreBinDir: () => '/nonexistent/path/that/does/not/exist',
     });
 
     const result = await installScipIndexer(spec, io);
     expect(result.installed).toBe(false);
-    expect(result.error).toContain('coursier crash');
+    expect(result.error).toBeDefined();
   });
 
   it('handles npm-bundled with findNpmBinPath throwing', async () => {

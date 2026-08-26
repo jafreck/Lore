@@ -8,7 +8,7 @@ import * as fs from 'node:fs';
 import * as crypto from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -141,6 +141,8 @@ export function detectProjectLanguages(rootDir: string): Set<string> {
         const ext = entry.name.slice(entry.name.lastIndexOf('.')).toLowerCase();
         const lang = EXT_TO_LANG[ext];
         if (lang && SCIP_SUPPORTED_LANGUAGES.has(lang)) found.add(lang);
+        // Also detect C# by .sln/.csproj extensions at root
+        if (ext === '.sln' || ext === '.csproj') found.add('csharp');
       } else if (entry.isDirectory() && entry.name !== 'node_modules' && !entry.name.startsWith('.')) {
         // One level deep
         try {
@@ -150,6 +152,7 @@ export function detectProjectLanguages(rootDir: string): Set<string> {
               const ext = sub.name.slice(sub.name.lastIndexOf('.')).toLowerCase();
               const lang = EXT_TO_LANG[ext];
               if (lang && SCIP_SUPPORTED_LANGUAGES.has(lang)) found.add(lang);
+              if (ext === '.sln' || ext === '.csproj') found.add('csharp');
             }
           }
         } catch { /* ignore permission errors */ }
@@ -165,6 +168,31 @@ export function detectProjectLanguages(rootDir: string): Set<string> {
 /**
  * Load SCIP index buffers by running indexers or reading pre-computed files.
  */
+/**
+ * Auto-discover a .sln or .csproj file for scip-dotnet.
+ * Searches root first, then one level deep.
+ */
+/** @internal Exported for testing. */
+export function findDotnetProject(rootDir: string): string | null {
+  try {
+    const entries = readdirSync(rootDir);
+    const rootSln = entries.find(e => e.endsWith('.sln'));
+    if (rootSln) return join(rootDir, rootSln);
+
+    for (const entry of entries) {
+      try {
+        const subEntries = readdirSync(join(rootDir, entry));
+        const sln = subEntries.find(e => e.endsWith('.sln'));
+        if (sln) return join(rootDir, entry, sln);
+      } catch { /* not a directory */ }
+    }
+
+    const rootCsproj = entries.find(e => e.endsWith('.csproj'));
+    if (rootCsproj) return join(rootDir, rootCsproj);
+  } catch { /* ignore read errors */ }
+  return null;
+}
+
 export async function loadScipIndexes(
   settings: EffectiveScipSettings,
   rootDir: string,
@@ -243,8 +271,8 @@ export async function loadScipIndexes(
     // Don't run the same command twice (e.g., scip-clang for both c and cpp)
     if (commandsRun.has(indexer.command)) continue;
     commandsRun.add(indexer.command);
+    const outputPath = resolve(rootDir, `.lore-scip-${lang}.scip`);
     try {
-      const outputPath = resolve(rootDir, `.lore-scip-${lang}.scip`);
       let args = indexer.args.map(a => a.replace(/\{output\}/g, outputPath));
       const cwd = resolve(rootDir);
 
@@ -256,6 +284,16 @@ export async function loadScipIndexes(
           continue;
         }
         args = args.map(a => a.replace(/\{compdb\}/g, compdb.path!));
+      }
+
+      // For C#: auto-discover .sln/.csproj and replace {project} placeholder
+      if (args.some(a => a.includes('{project}'))) {
+        const project = findDotnetProject(cwd);
+        if (!project) {
+          log.indexing(`scip-indexer: no .sln or .csproj found for ${lang}, skipping`);
+          continue;
+        }
+        args = args.map(a => a.replace(/\{project\}/g, project));
       }
 
       // For TypeScript: generate a broad tsconfig so scip-typescript
@@ -298,6 +336,20 @@ export async function loadScipIndexes(
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       log.indexing(`scip-indexer: indexer failed for ${lang}: ${msg}`);
+
+      // Some indexers (e.g., scip-ruby) exit with a non-zero code but still
+      // produce a valid index.scip.  Check for output before giving up.
+      for (const candidate of [outputPath, resolve(rootDir, 'index.scip')]) {
+        if (io.existsSync(candidate)) {
+          try {
+            const data = io.readFileSync(candidate);
+            io.unlinkSync(candidate);
+            indexBuffers.push(data);
+          } catch { /* best-effort read */ }
+          break;
+        }
+      }
+
       continue;
     }
   }
