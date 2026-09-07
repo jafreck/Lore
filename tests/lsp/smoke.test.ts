@@ -134,7 +134,7 @@ const smokeCases: SmokeCase[] = [
   },
 ];
 
-describe.runIf(RUN_LSP_SMOKE).sequential('LSP smoke tests', () => {
+describe.runIf(RUN_LSP_SMOKE)('LSP smoke tests', { sequential: true }, () => {
   for (const smokeCase of smokeCases) {
     it.skipIf(!commandExists(smokeCase.command))(
       `starts ${smokeCase.name} and resolves hover/definition metadata`,
