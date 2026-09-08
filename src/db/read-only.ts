@@ -10,6 +10,7 @@
 
 import Database from 'better-sqlite3';
 import { createRequire } from 'node:module';
+import { assertLoreSchemaCompatible } from './schema-info.js';
 
 const esmRequire = createRequire(import.meta.url);
 
@@ -87,24 +88,41 @@ export { semanticSearchSymbols } from './queries/semantic.js';
 
 // ─── Connection helpers ───────────────────────────────────────────────────────
 
+export interface OpenReadOnlyOptions {
+  /** Allow schema inspection of an incompatible database without accepting it for queries. */
+  allowIncompatibleSchema?: boolean;
+  /** Consumer name included in compatibility errors. */
+  consumer?: string;
+}
+
 /**
- * Opens the knowledge-base database at `path` in read-only mode.
- * Foreign-key enforcement is enabled for consistency.
+ * Opens the knowledge-base database at `path` in read-only mode and rejects an
+ * incompatible schema before returning it to a query consumer.
  */
-export function openReadOnly(path: string): Database.Database {
+export function openReadOnly(
+  path: string,
+  options: OpenReadOnlyOptions = {},
+): Database.Database {
   const db = new Database(path, { readonly: true });
-  db.pragma('foreign_keys = ON');
-
-  // Load sqlite-vec extension so vec0 virtual tables (symbol_embeddings) can
-  // be queried for semantic / fused search.
   try {
-    const sqliteVec = esmRequire('sqlite-vec') as { load(db: Database.Database): void };
-    sqliteVec.load(db);
-  } catch {
-    // sqlite-vec not available — vec0 tables won't be queryable.
-  }
+    if (!options.allowIncompatibleSchema) {
+      assertLoreSchemaCompatible(db, options.consumer ?? 'Lore read-only consumer');
+    }
+    db.pragma('foreign_keys = ON');
 
-  return db;
+    // Load sqlite-vec extension so vec0 virtual tables (symbol_embeddings) can
+    // be queried for semantic / fused search.
+    try {
+      const sqliteVec = esmRequire('sqlite-vec') as { load(db: Database.Database): void };
+      sqliteVec.load(db);
+    } catch {
+      // sqlite-vec not available — vec0 tables won't be queryable.
+    }
+    return db;
+  } catch (error) {
+    db.close();
+    throw error;
+  }
 }
 
 // ─── Freshness metadata ───────────────────────────────────────────────────────

@@ -83,6 +83,8 @@ export interface PollerOptions {
   scip?: EffectiveScipSettings;
   /** Host-trusted execution capabilities forwarded to builders. */
   execution?: IndexExecutionOptions;
+  /** Explicit embedding policy forwarded to internally-created builders. */
+  embeddings?: boolean;
   /**
    * Quiet-period in milliseconds before running a background baseline rebuild.
    * After each change, overlay updates run immediately.  A full SCIP baseline
@@ -137,12 +139,15 @@ export class FilePoller {
   private readonly lsp: EffectiveLspSettings | undefined;
   private readonly scip: EffectiveScipSettings | undefined;
   private readonly execution: IndexExecutionOptions | undefined;
+  private readonly embeddings: boolean | undefined;
   private readonly scipQuietPeriodMs: number;
   private readonly embedder: EmbeddingProvider | undefined;
   private readonly onUpdateCb: ((changedFiles: string[]) => Promise<void>) | undefined;
 
   /** Maps absolute path → last seen mtime (ms since epoch). */
   private snapshot: Map<string, number> = new Map();
+  /** Paths from a failed update, retried even when their mtimes stop changing. */
+  private retryPaths: Set<string> = new Set();
   private snapshotInitialized = false;
   private timer: ReturnType<typeof setInterval> | null = null;
   private pollRunning = false;
@@ -158,8 +163,9 @@ export class FilePoller {
     this.history = options.history ?? false;
     this.indexDependencies = options.indexDependencies ?? false;
     this.lsp = options.lsp;
-    this.scip = options.scip;
+    this.scip = options.scip?.enabled ? options.scip : undefined;
     this.execution = options.execution;
+    this.embeddings = options.embeddings;
     this.scipQuietPeriodMs = options.scipQuietPeriodMs ?? 10_000;
     this.embedder = options.embedder;
     this.onUpdateCb = options.onUpdate;
@@ -174,6 +180,7 @@ export class FilePoller {
         lsp: this.lsp,
         scip: this.scip,
         execution: this.execution,
+        embeddings: this.embeddings,
         scipQuietPeriodMs: this.scipQuietPeriodMs,
         source: 'FilePoller',
         onBaselineRebuild: options.onBaselineRebuild,
@@ -249,6 +256,7 @@ export class FilePoller {
       }
       this.snapshotInitialized = true;
       this.snapshot = newSnapshot;
+      changed = [...new Set([...this.retryPaths, ...changed])];
 
       if (changed.length > 0) {
         // Overlay update: file discovery + LSP only, no SCIP.
@@ -259,14 +267,17 @@ export class FilePoller {
             const builder = new IndexBuilder(this.dbPath, this.walkerConfig, this.embedder, {
               history: this.history,
               ...(this.indexDependencies && { indexDependencies: true }),
+              ...(this.embeddings !== undefined && { embeddings: this.embeddings }),
               lsp: this.lsp ?? false,
               scip: false,
               execution: this.execution,
             });
             await builder.update(changed);
           }
+          for (const updatedPath of changed) this.retryPaths.delete(updatedPath);
         } catch (err) {
           errorCount++;
+          for (const failedPath of changed) this.retryPaths.add(failedPath);
           process.stderr.write(
             JSON.stringify({ level: 'error', source: 'FilePoller', message: String(err) }) + '\n',
           );

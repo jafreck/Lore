@@ -4,25 +4,23 @@
  * The `IndexBuilder` class is a **façade** over the composable
  * `IndexPipeline` and its stage objects.
  *
- * For full builds, `build()` delegates entirely to the pipeline which
- * enforces the data-dependency chain:
+ * Every build, rebuild, and overlay update uses this stage order:
  * ```
- * ScipIndexerStage → FileDiscoveryStage
- *   → OverlayCleanupStage (baseline promotion only)
- *   → LspExtractionStage → ImportResolutionStage
- *   → [LspEnrichmentStage + HistoryStage]
- *   → ResolutionStage → ReverseDepsStage
+ * ScipIndexerStage → FileDiscoveryStage → LspExtractionStage
+ *   → ImportResolutionStage
+ *   → [LspEnrichmentStage + git-history]
+ *   → symbol-resolution → ReverseDepsStage
  *   → EmbeddingStage → FtsRefreshStage
  * ```
  *
- * `ScipIndexerStage` populates baseline structural data (symbols, refs) and
- * enrichment metadata (type signatures, definition locations) in a
- * single pass. `FileDiscoveryStage` walks remaining files and populates the
- * source cache; `LspExtractionStage` handles overlay structural extraction.
+ * Individual stages branch on the current layer. `ScipIndexerStage` writes
+ * baseline structural data only. `LspExtractionStage` performs bounded
+ * baseline supplementation and changed-file overlay extraction. Baseline
+ * validation and atomic generation promotion happen after the pipeline;
+ * promotion is not a pipeline stage.
  *
- * Promotion → enrichment → resolution → reverse-dependency ordering is
- * **load-bearing** and enforced structurally by the pipeline rather than by
- * call-site discipline.
+ * Extraction → enrichment → resolution → reverse-dependency → derived-index
+ * ordering is load-bearing and enforced structurally by the pipeline.
  */
 
 import * as fs from 'node:fs';
@@ -41,7 +39,7 @@ import {
 import type { Database } from '../db/schema.js';
 import type { WalkerConfig } from '../discovery/walker.js';
 import type { EmbeddingProvider } from '../embeddings/embedder.js';
-import { LazyEmbeddingProvider } from '../embeddings/embedder.js';
+import { DEFAULT_EMBEDDING_MODEL, LazyEmbeddingProvider } from '../embeddings/embedder.js';
 import {
   loadLspSettingsFromLoreConfig,
   resolveEffectiveLspSettings,
@@ -104,6 +102,8 @@ import type { ResponseFileLimits } from '../scip/compdb.js';
 
 export interface IndexBuilderOptions {
   history?: boolean | { depth?: number; all?: boolean };
+  /** Explicit embedding policy. `false` also disables persisted model reuse. */
+  embeddings?: boolean;
   embeddingModel?: string;
   indexDependencies?: boolean;
   /** `false` disables LSP; an object is merged over repository/default settings. */
@@ -136,8 +136,7 @@ export interface ResolvedIndexBuilderConfiguration {
 /**
  * Façade over the composable `IndexPipeline`.
  *
- * Preserves backward-compatible public API while internally delegating to
- * pipeline stages for the actual work.
+ * Exposes indexing operations while delegating their work to pipeline stages.
  *
  * @example
  * ```ts
@@ -151,6 +150,7 @@ export class IndexBuilder {
   private readonly embedder: EmbeddingProvider | null;
   private readonly history: boolean | { depth?: number; all?: boolean };
   private readonly indexDependencies: boolean;
+  private readonly embeddings: boolean | undefined;
   private readonly embeddingModel: string | null;
   private readonly options: IndexBuilderOptions;
   private readonly maxWorkers: number | undefined;
@@ -184,6 +184,7 @@ export class IndexBuilder {
 
     this.history = opts.history ?? false;
     this.indexDependencies = opts.indexDependencies ?? false;
+    this.embeddings = opts.embeddings;
     this.maxWorkers = opts.maxWorkers;
     this.signal = opts.signal;
     this.pipelineTimeoutMs = opts.pipelineTimeoutMs !== undefined
@@ -669,8 +670,11 @@ export class IndexBuilder {
     provider: EmbeddingProvider | null;
     owned: boolean;
   } {
+    if (this.embeddings === false) return { provider: null, owned: false };
     if (this.embedder) return { provider: this.embedder, owned: false };
-    const model = this.embeddingModel ?? getLoreMeta(db, 'embedding_model');
+    const model = this.embeddingModel
+      ?? getLoreMeta(db, 'embedding_model')
+      ?? (this.embeddings === true ? DEFAULT_EMBEDDING_MODEL : undefined);
     return model
       ? { provider: new LazyEmbeddingProvider(model), owned: true }
       : { provider: null, owned: false };

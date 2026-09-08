@@ -24,7 +24,7 @@ describe('MCP schema compatibility gate', () => {
     raw.pragma(`user_version = ${CURRENT_LORE_SCHEMA_VERSION + 1}`);
     raw.close();
 
-    const db = openReadOnly(dbPath);
+    const db = openReadOnly(dbPath, { allowIncompatibleSchema: true });
     try {
       await expect(createLoreMcpServer(db, dbPath)).rejects.toThrow(
         /MCP server cannot use this database.*newer than supported/u,

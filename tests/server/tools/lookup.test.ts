@@ -404,6 +404,38 @@ describe('lore_lookup semantic/fused with vec0', () => {
     expect(result.results.length).toBeGreaterThanOrEqual(1);
   });
 
+  it.each(['semantic', 'fused'] as const)(
+    '%s mode honors symbol kind, path, and language filters',
+    async function (mode) {
+      if (!hasVecSupport()) return;
+      setupEmbeddingsTable();
+
+      const embedder: EmbeddingProvider = {
+        embed: async () => [[0.1, 0.2, 0.3]],
+        dimensions: 3,
+        modelName: 'test',
+      } as unknown as EmbeddingProvider;
+
+      const result = await handler(db, {
+        kind: 'symbol',
+        query: 'conceptual operation',
+        mode,
+        symbol_kind: 'function',
+        path_prefix: 'src/app',
+        language: 'python',
+      }, embedder);
+
+      expect(result.mode_used).toBe(mode);
+      expect(result.results).toHaveLength(1);
+      expect(result.results[0]).toMatchObject({
+        name: 'baz',
+        kind: 'function',
+        file_path: 'src/app.py',
+        file_language: 'python',
+      });
+    },
+  );
+
   it('semantic mode merges exact + semantic (semantic-preferred order)', async function () {
     if (!hasVecSupport()) return;
     setupEmbeddingsTable();
@@ -503,6 +535,57 @@ describe('lore_lookup semantic paths via fakeVec0', () => {
     const result = await handler(db, { kind: 'symbol', query: 'foo', mode: 'semantic' }, embedder);
     expect(result.mode_used).toBe('semantic');
     expect(result.results.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('over-fetches past closer out-of-scope vectors and keeps the semantic limit', async () => {
+    const { installFakeVec0, removeFakeVec0 } = await import('../../helpers/fakeVec0.js');
+    removeFakeVec0(db);
+    const makeRow = (id: number, filePath: string, score: number) => ({
+      id,
+      symbol_id: id,
+      file_id: id,
+      name: `semanticTarget${id}`,
+      kind: 'function',
+      file_path: filePath,
+      file_branch: 'main',
+      file_language: 'typescript',
+      language: 'typescript',
+      start_line: 0,
+      start_character: null,
+      end_line: 0,
+      end_character: null,
+      selection_line: null,
+      selection_character: null,
+      signature: null,
+      doc_comment: null,
+      score,
+      branch: 'main',
+    });
+    const outOfScope = Array.from(
+      { length: 25 },
+      (_, index) => makeRow(100 + index, 'vendor/closer.ts', index / 1000),
+    );
+    const matching = Array.from(
+      { length: 25 },
+      (_, index) => makeRow(200 + index, `target/match-${index}.ts`, 1 + index / 1000),
+    );
+    installFakeVec0(db, [...outOfScope, ...matching]);
+
+    const embedder: EmbeddingProvider = {
+      embed: async () => [[1, 0, 0]],
+      dimensions: 3,
+      modelName: 'test-overfetch',
+    } as unknown as EmbeddingProvider;
+    const result = await handler(db, {
+      kind: 'symbol',
+      query: 'semantic-only target',
+      mode: 'semantic',
+      path_prefix: 'target/',
+    }, embedder);
+
+    expect(result.mode_used).toBe('semantic');
+    expect(result.results).toHaveLength(20);
+    expect(result.results.every((row: any) => row.file_path.startsWith('target/'))).toBe(true);
   });
 
   it('fused mode merges exact + semantic without real vec0', async () => {

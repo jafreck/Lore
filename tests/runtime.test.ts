@@ -42,6 +42,7 @@ vi.mock('../src/indexer/index.js', () => ({
 }));
 
 vi.mock('../src/embeddings/embedder.js', () => ({
+  DEFAULT_EMBEDDING_MODEL: 'default-test-model',
   LazyEmbeddingProvider: vi.fn().mockImplementation(function (this: any) {
     this.dispose = mocks.embedderDispose;
   }),
@@ -223,6 +224,24 @@ describe('LoreRuntime', () => {
         fs.rmSync(directory, { recursive: true, force: true });
       }
     });
+
+    it('does not load a persisted embedding model when explicitly disabled', async () => {
+      const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'lore-runtime-no-embedding-'));
+      const dbPath = path.join(directory, 'lore.db');
+      const db = openDb(dbPath);
+      db.prepare("INSERT INTO lore_meta (key, value) VALUES ('embedding_model', 'persisted-model')").run();
+      db.close();
+      try {
+        const { LazyEmbeddingProvider } = await import('../src/embeddings/embedder.js');
+        const runtime = new LoreRuntime(makeConfig({ dbPath, embeddings: false }));
+        await runtime.start();
+        expect(LazyEmbeddingProvider).not.toHaveBeenCalled();
+        expect(runtime.embedder).toBeUndefined();
+        await runtime.shutdown();
+      } finally {
+        fs.rmSync(directory, { recursive: true, force: true });
+      }
+    });
   });
 
   describe('double shutdown', () => {
@@ -263,13 +282,30 @@ describe('LoreRuntime', () => {
 
       const runtime = new LoreRuntime(makeConfig({
         refreshMode: 'watch',
-        scip: { indexerPath: 'scip-typescript', args: [] } as any,
+        scip: { enabled: true, indexerPath: 'scip-typescript', args: [] } as any,
       }));
       await runtime.start();
 
       const ctorCalls = vi.mocked(FileWatcher).mock.calls;
       const lastCall = ctorCalls[ctorCalls.length - 1];
       expect(lastCall?.[2]?.onBaselineRebuild).toBeTypeOf('function');
+
+      await runtime.shutdown();
+      stderrSpy.mockRestore();
+    });
+
+    it('omits onBaselineRebuild when SCIP is disabled', async () => {
+      const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+      const { FileWatcher } = await import('../src/discovery/watcher.js');
+      const runtime = new LoreRuntime(makeConfig({
+        refreshMode: 'watch',
+        scip: { enabled: false } as any,
+      }));
+
+      await runtime.start();
+      const lastCall = vi.mocked(FileWatcher).mock.calls.at(-1);
+      expect(lastCall?.[2]).not.toHaveProperty('scip');
+      expect(lastCall?.[2]?.onBaselineRebuild).toBeUndefined();
 
       await runtime.shutdown();
       stderrSpy.mockRestore();
@@ -303,13 +339,30 @@ describe('LoreRuntime', () => {
 
       const runtime = new LoreRuntime(makeConfig({
         refreshMode: 'poll',
-        scip: { indexerPath: 'scip-typescript', args: [] } as any,
+        scip: { enabled: true, indexerPath: 'scip-typescript', args: [] } as any,
       }));
       await runtime.start();
 
       const ctorCalls = vi.mocked(FilePoller).mock.calls;
       const lastCall = ctorCalls[ctorCalls.length - 1];
       expect(lastCall?.[2]?.onBaselineRebuild).toBeTypeOf('function');
+
+      await runtime.shutdown();
+      stderrSpy.mockRestore();
+    });
+
+    it('omits onBaselineRebuild when SCIP is disabled', async () => {
+      const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+      const { FilePoller } = await import('../src/discovery/poller.js');
+      const runtime = new LoreRuntime(makeConfig({
+        refreshMode: 'poll',
+        scip: { enabled: false } as any,
+      }));
+
+      await runtime.start();
+      const lastCall = vi.mocked(FilePoller).mock.calls.at(-1);
+      expect(lastCall?.[2]).not.toHaveProperty('scip');
+      expect(lastCall?.[2]?.onBaselineRebuild).toBeUndefined();
 
       await runtime.shutdown();
       stderrSpy.mockRestore();

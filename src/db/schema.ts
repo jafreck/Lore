@@ -12,6 +12,7 @@ import { resetEffectiveViewsCache } from './read-only.js';
 import {
   assertLoreSchemaCompatible,
   CURRENT_LORE_SCHEMA_VERSION,
+  inspectLoreSchema,
   LORE_META_SCHEMA_VERSION,
   LoreSchemaCompatibilityError,
   readLoreSchemaVersionMarkers,
@@ -503,9 +504,17 @@ export function openDb(path: string): Database.Database {
     }
     if (markers.loreMeta !== null && markers.userVersion !== null
       && markers.loreMeta !== markers.userVersion) {
-      throw new Error(
-        `Lore database has inconsistent schema markers: lore_meta=${markers.loreMeta}, user_version=${markers.userVersion}`,
-      );
+      throw new LoreSchemaCompatibilityError(inspectLoreSchema(db));
+    }
+    // A database claiming the current version is not a migration candidate.
+    // Require the complete schema and both agreeing markers before any pragma
+    // can alter its on-disk state. Older versions continue through the ordered
+    // migration chain, whose version writes restore both markers atomically.
+    if (markers.effective === CURRENT_LORE_SCHEMA_VERSION) {
+      const inspection = inspectLoreSchema(db);
+      if (inspection.status !== 'current') {
+        throw new LoreSchemaCompatibilityError(inspection);
+      }
     }
 
     // WAL mode: readers don't block writers, writers don't block readers.

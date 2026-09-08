@@ -13,8 +13,8 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-/** Minimal import type — compatible with the former RawImport from extractors. */
-interface RawImport {
+/** Import candidate supplied to language-specific path resolution. */
+interface ImportCandidate {
   source: string;
   resolvedPath?: string;
   importedNames: string[];
@@ -42,18 +42,18 @@ export class ImportResolver {
   /**
    * Resolve a single raw import extracted from `fromFile`.
    *
-   * @param rawImport   The import object produced by a SymbolExtractor.
+  * @param importCandidate Import text and any already-resolved path hint.
    * @param fromFile    Absolute path of the file that contains the import.
    * @param rootDir     Absolute path to the project root directory.
    * @param language    Language identifier (e.g. `'typescript'`, `'go'`).
    */
   resolve(
-    rawImport: RawImport,
+    importCandidate: ImportCandidate,
     fromFile: string,
     rootDir: string,
     language: string,
   ): ResolvedImport {
-    const source = rawImport.source;
+    const source = importCandidate.source;
 
     switch (language) {
       case 'typescript':

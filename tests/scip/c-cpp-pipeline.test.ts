@@ -65,6 +65,7 @@ async function buildFixture(language: FixtureLanguage): Promise<BuiltFixture> {
       indexers: {},
       indexDir: path.relative(rootDir, indexDirectory),
     },
+    execution: { allowedCwdRoots: [indexDirectory] },
     lsp: resolveEffectiveLspSettings({}, { enabled: false }),
     maxWorkers: 0,
     validation: false,

@@ -72,6 +72,7 @@ describe('IndexBuilder default settings', () => {
     const calls = { indexer: 0, install: 0, build: 0 };
     const io: ScipProcessIO = {
       existsSync: () => false,
+      realpathSync: (value) => value,
       readFileSync: () => new Uint8Array(),
       unlinkSync: () => {},
       execFile: async () => { calls.indexer++; },

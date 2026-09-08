@@ -3,13 +3,11 @@
  *
  * Builds a Lore index for a benchmark repo using the IndexBuilder API.
  *
- * Indexing mode controls SCIP/LSP settings. The labels predate tree-sitter's
- * removal and are retained by the benchmark API:
+ * Indexing mode controls SCIP/LSP settings:
  *
- * - `tree-sitter`: No SCIP and no default LSP; currently stores discovered
- *                  file snapshots only.
- * - `scip`:        Enables SCIP baseline indexing; no default LSP.
- * - `full`:        Enables SCIP baseline indexing and LSP enrichment.
+ * - `snapshots`: No SCIP and no default LSP; stores discovered file snapshots.
+ * - `scip`:      Enables SCIP baseline indexing; no default LSP.
+ * - `full`:      Enables SCIP baseline indexing and LSP enrichment.
  *
  * Embeddings are controlled independently via `embeddingModel`:
  * pass a model name (e.g. 'onnx-community/Qwen3-Embedding-0.6B-ONNX') to enable,
@@ -18,7 +16,7 @@
 
 import { execFile } from 'node:child_process';
 import { existsSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { IndexBuilder } from '../../../src/indexer/index.js';
 import { openDb } from '../../../src/db/schema.js';
@@ -43,7 +41,7 @@ export async function indexRepo(
   instance: RepoInstance,
   options?: IndexOptions,
 ): Promise<RepoInstance> {
-  const mode: IndexMode = options?.mode ?? 'tree-sitter';
+  const mode: IndexMode = options?.mode ?? 'snapshots';
   const historyDepth = options?.historyDepth ?? 100;
   const embeddingModel = options?.embeddingModel;
   const enableLsp = options?.lsp ?? (mode === 'full');
@@ -82,6 +80,9 @@ export async function indexRepo(
       execution: {
         allowSubprocessExecution: true,
         allowAutoInstall: true,
+        ...(options?.scipIndexDir && {
+          allowedCwdRoots: [resolve(instance.localPath, options.scipIndexDir)],
+        }),
       },
     });
 

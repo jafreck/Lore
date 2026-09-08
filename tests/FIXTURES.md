@@ -1,8 +1,8 @@
 # Test Fixtures
 
-This document describes the fixture directories that exist after the v0.4.0
-SCIP+LSP migration. Lore no longer has tree-sitter language extractors or
-extractor snapshot tests.
+This document describes the fixture directories used by the current SCIP/LSP
+test suite. Lore has no tree-sitter language extractors or extractor snapshot
+tests.
 
 ## Directory Layout
 
@@ -20,8 +20,7 @@ tests/
 └── helpers/
   ├── scipFixture.ts            # generated in-memory SCIP test data
   ├── fakeLspClient.ts
-  ├── fakeVec0.ts
-  └── extractorHelper.ts        # obsolete tree-sitter helper; not imported
+   └── fakeVec0.ts
 ```
 
 ## Active fixture coverage
@@ -57,9 +56,6 @@ runtime rather than reading the textual language corpus.
 The 23 `tests/fixtures/<language>/` directories are retained syntax samples from
 the removed tree-sitter extractor suite. No current first-party test imports
 them. They do not prove production support or current index coverage.
-
-`tests/helpers/extractorHelper.ts` also belongs to that removed suite. It imports
-the deleted parser API and must not be used by new tests.
 
 ## Running Tests
 

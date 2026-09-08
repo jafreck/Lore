@@ -195,6 +195,7 @@ export {
   listSymbolRelationships,
 } from './db/read-only.js';
 export type {
+  OpenReadOnlyOptions,
   SymbolRow,
   FileRow,
   ResolvedEdge,

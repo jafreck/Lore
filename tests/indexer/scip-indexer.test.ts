@@ -1239,10 +1239,10 @@ describe('ScipIndexerStage - additional branches', () => {
     ctx.db.close();
   });
 
-  it('import tree-sitter parse fallback uses SCIP package descriptor', async () => {
+  it('uses the SCIP package descriptor when source text has no import syntax', async () => {
     const stage = new ScipIndexerStage();
     const sourceCache = new Map<string, string>();
-    // Source that has no recognizable import statement for tree-sitter
+    // Source has no recognizable import statement; SCIP still marks an import.
     writeSource('src/noimport.ts', 'console.log("no imports");\n', sourceCache);
 
     const buf = buildScipIndexBuffer([{
@@ -1264,7 +1264,7 @@ describe('ScipIndexerStage - additional branches', () => {
 
     const imports = ctx.db.prepare('SELECT raw_import FROM file_imports').all() as any[];
     expect(imports.length).toBeGreaterThanOrEqual(1);
-    // Falls back to SCIP package descriptor since tree-sitter extraction fails
+    // SCIP package metadata supplies the persisted import name.
     expect(imports[0].raw_import).toBeTruthy();
 
     ctx.db.close();

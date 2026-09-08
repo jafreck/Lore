@@ -65,9 +65,13 @@ export async function runRefreshCommand(args: string[], log: LoreLogger): Promis
     : false;
 
   const embeddingModel = parsedArgs.value('--embedding-model');
+  const embeddingPreference = parsedArgs.has('--no-embeddings')
+    ? false
+    : (parsedArgs.has('--embeddings') || embeddingModel !== undefined ? true : undefined);
   const walkerConfig = walkerConfigFromArgs(parsedArgs, rootDir);
   const refreshOptions = {
     indexDependencies,
+    ...(embeddingPreference !== undefined && { embeddings: embeddingPreference }),
     execution: executionOptionsFromArgs(parsedArgs),
     ...(embeddingModel && { embeddingModel }),
     ...(lspEnabled !== undefined && { lsp: lspEnabled }),
@@ -91,6 +95,7 @@ export async function runRefreshCommand(args: string[], log: LoreLogger): Promis
       execution: refreshOptions.execution,
       history: shouldEnableHistory ? historyOption : false,
       indexDependencies,
+      ...(embeddingPreference !== undefined && { embeddings: embeddingPreference }),
       embeddingModel: embeddingModel ?? undefined,
       refreshMode: watchMode ? 'watch' : 'poll',
     }, log);

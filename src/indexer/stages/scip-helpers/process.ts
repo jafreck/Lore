@@ -7,7 +7,7 @@
 import * as fs from 'node:fs';
 import * as crypto from 'node:crypto';
 import { tmpdir } from 'node:os';
-import { basename, join, resolve } from 'node:path';
+import { basename, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { readFileSync, existsSync } from 'node:fs';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -72,6 +72,7 @@ export interface ScipIndexerLoadDiagnostic {
 
 export interface ScipProcessIO {
   existsSync(path: string): boolean;
+  realpathSync(path: string): string;
   readFileSync(path: string): Uint8Array;
   unlinkSync(path: string): void;
   execFile(cmd: string, args: string[], opts: { cwd: string; timeout: number; signal?: AbortSignal }): Promise<void>;
@@ -90,6 +91,7 @@ export function createDefaultScipProcessIO(): ScipProcessIO {
   const execFileAsync = promisify(execFile);
   return {
     existsSync: (p) => existsSync(p),
+    realpathSync: (p) => fs.realpathSync.native(p),
     readFileSync: (p) => readFileSync(p),
     unlinkSync: (p) => { try { fs.unlinkSync(p); } catch { /* best effort */ } },
     execFile: async (cmd, args, opts) => { await execFileAsync(cmd, args, opts); },
@@ -231,6 +233,46 @@ export function detectProjectLanguages(
 
 // ─── SCIP index loading ─────────────────────────────────────────────────────
 
+function isContainedPath(root: string, candidate: string): boolean {
+  const rel = relative(root, candidate);
+  return rel === '' || (rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel));
+}
+
+function resolvePrecomputedIndexRoot(
+  rootDir: string,
+  indexDir: string,
+  approvedExternalRoots: readonly string[],
+): {
+  approvedRoots: string[];
+  indexRoot: string;
+} {
+  const projectRoot = resolve(rootDir);
+  const indexRoot = resolve(projectRoot, indexDir);
+  const approvedRoots = [projectRoot, ...approvedExternalRoots.map((root) => resolve(root))];
+  if (!approvedRoots.some((root) => isContainedPath(root, indexRoot))) {
+    throw new Error(
+      `Precomputed SCIP indexDir must remain inside the project root or a host-approved root: ${indexDir}`,
+    );
+  }
+  return { approvedRoots, indexRoot };
+}
+
+function resolveContainedPrecomputedFile(
+  approvedRoots: readonly string[],
+  candidate: string,
+  io: ScipProcessIO,
+): string | null {
+  if (!io.existsSync(candidate)) return null;
+  const canonicalRoots = approvedRoots.map((root) => io.realpathSync(root));
+  const canonicalCandidate = io.realpathSync(candidate);
+  if (!canonicalRoots.some((root) => isContainedPath(root, canonicalCandidate))) {
+    throw new Error(
+      `Precomputed SCIP file resolves outside the project root and host-approved roots: ${candidate}`,
+    );
+  }
+  return canonicalCandidate;
+}
+
 /**
  * Load SCIP index buffers by running indexers or reading pre-computed files.
  */
@@ -250,12 +292,20 @@ export async function loadScipIndexes(
   // Try pre-computed index directory first
   if (settings.indexDir) {
     const precomputed: Uint8Array[] = [];
+    const { approvedRoots, indexRoot } = resolvePrecomputedIndexRoot(
+      rootDir,
+      settings.indexDir,
+      settings.allowedCwdRoots,
+    );
+    const findPrecomputed = (fileName: string): string | null => (
+      resolveContainedPrecomputedFile(approvedRoots, join(indexRoot, fileName), io)
+    );
     // When staleLanguages is set, prefer per-language index files so
     // we only load the languages that actually need re-processing.
     if (staleLanguages) {
       for (const lang of staleLanguages) {
-        const candidate = join(rootDir, settings.indexDir, `${lang}.scip`);
-        if (io.existsSync(candidate)) {
+        const candidate = findPrecomputed(`${lang}.scip`);
+        if (candidate) {
           const data = io.readFileSync(candidate);
           const bufferIndex = precomputed.push(data) - 1;
           indexerDiagnostics?.push({
@@ -278,13 +328,14 @@ export async function loadScipIndexes(
         ...Object.keys(settings.indexers),
       ]);
       const candidates = [
-        join(rootDir, settings.indexDir, 'index.scip'),
+        'index.scip',
         ...[...precomputedLanguages].sort().map(
-          lang => join(rootDir, settings.indexDir!, `${lang}.scip`),
+          lang => `${lang}.scip`,
         ),
       ];
-      for (const candidate of candidates) {
-        if (io.existsSync(candidate)) {
+      for (const file of candidates) {
+        const candidate = findPrecomputed(file);
+        if (candidate) {
           const data = io.readFileSync(candidate);
           const fileName = basename(candidate);
           const language = fileName === 'index.scip' ? [] : [fileName.slice(0, -'.scip'.length)];

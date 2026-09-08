@@ -36,6 +36,8 @@ export interface RuntimeConfig {
   branch?: string;
   /** Embedding model identifier (default resolved internally). */
   embeddingModel?: string;
+  /** Explicit embedding policy. `false` prevents persisted model reuse. */
+  embeddings?: boolean;
   /** LSP enrichment policy. `null` = disabled. */
   lsp: EffectiveLspSettings | null;
   /** SCIP enrichment policy. `null` = disabled. */
@@ -114,7 +116,14 @@ export class LoreRuntime {
     this._started = true;
 
     // ── Embedder ─────────────────────────────────────────────────────────────
-    const embeddingModel = this.config.embeddingModel ?? await this.readPersistedEmbeddingModel();
+    let embeddingModel: string | undefined;
+    if (this.config.embeddings !== false) {
+      embeddingModel = this.config.embeddingModel ?? await this.readPersistedEmbeddingModel();
+      if (!embeddingModel && this.config.embeddings === true) {
+        const { DEFAULT_EMBEDDING_MODEL } = await import('./embeddings/embedder.js');
+        embeddingModel = DEFAULT_EMBEDDING_MODEL;
+      }
+    }
     if (embeddingModel) {
       try {
         const { LazyEmbeddingProvider } = await import('./embeddings/embedder.js');
@@ -146,6 +155,7 @@ export class LoreRuntime {
         {
           history: cfg.history,
           ...(cfg.indexDependencies && { indexDependencies: true }),
+          ...(cfg.embeddings !== undefined && { embeddings: cfg.embeddings }),
           lsp: cfg.lsp ?? false,
           scip: cfg.scip ?? false,
           execution: cfg.execution,
@@ -173,17 +183,19 @@ export class LoreRuntime {
       const { IndexBuilder } = await import('./indexer/index.js');
       const cfg = this.config;
       const embedder = this._embedder ?? undefined;
+      const scip = cfg.scip?.enabled ? cfg.scip : undefined;
       const watcher = new FileWatcher(cfg.dbPath, cfg.walkerConfig, {
         history: cfg.history,
         indexDependencies: cfg.indexDependencies,
         lsp: cfg.lsp ?? undefined,
-        scip: cfg.scip ?? undefined,
         execution: cfg.execution,
+        ...(cfg.embeddings !== undefined && { embeddings: cfg.embeddings }),
         embedder,
         onUpdate: async (changedFiles) => {
           const builder = new IndexBuilder(cfg.dbPath, cfg.walkerConfig, embedder, {
             history: cfg.history,
             ...(cfg.indexDependencies && { indexDependencies: true }),
+            ...(cfg.embeddings !== undefined && { embeddings: cfg.embeddings }),
             lsp: cfg.lsp ?? false,
             scip: false,
             execution: cfg.execution,
@@ -191,13 +203,15 @@ export class LoreRuntime {
           });
           await builder.update(changedFiles);
         },
-        ...(cfg.scip && {
+        ...(scip && {
+          scip,
           onBaselineRebuild: async () => {
             const builder = new IndexBuilder(cfg.dbPath, cfg.walkerConfig, embedder, {
               history: cfg.history,
               ...(cfg.indexDependencies && { indexDependencies: true }),
+              ...(cfg.embeddings !== undefined && { embeddings: cfg.embeddings }),
               ...(cfg.lsp && { lsp: cfg.lsp }),
-              ...(cfg.scip && { scip: cfg.scip }),
+              scip,
               execution: cfg.execution,
               responseFileLimits: cfg.responseFileLimits,
             });
@@ -219,17 +233,19 @@ export class LoreRuntime {
       const { IndexBuilder } = await import('./indexer/index.js');
       const cfg = this.config;
       const embedder = this._embedder ?? undefined;
+      const scip = cfg.scip?.enabled ? cfg.scip : undefined;
       const poller = new FilePoller(cfg.dbPath, cfg.walkerConfig, {
         history: cfg.history,
         indexDependencies: cfg.indexDependencies,
         lsp: cfg.lsp ?? undefined,
-        scip: cfg.scip ?? undefined,
         execution: cfg.execution,
+        ...(cfg.embeddings !== undefined && { embeddings: cfg.embeddings }),
         embedder,
         onUpdate: async (changedFiles) => {
           const builder = new IndexBuilder(cfg.dbPath, cfg.walkerConfig, embedder, {
             history: cfg.history,
             ...(cfg.indexDependencies && { indexDependencies: true }),
+            ...(cfg.embeddings !== undefined && { embeddings: cfg.embeddings }),
             lsp: cfg.lsp ?? false,
             scip: false,
             execution: cfg.execution,
@@ -237,13 +253,15 @@ export class LoreRuntime {
           });
           await builder.update(changedFiles);
         },
-        ...(cfg.scip && {
+        ...(scip && {
+          scip,
           onBaselineRebuild: async () => {
             const builder = new IndexBuilder(cfg.dbPath, cfg.walkerConfig, embedder, {
               history: cfg.history,
               ...(cfg.indexDependencies && { indexDependencies: true }),
+              ...(cfg.embeddings !== undefined && { embeddings: cfg.embeddings }),
               ...(cfg.lsp && { lsp: cfg.lsp }),
-              ...(cfg.scip && { scip: cfg.scip }),
+              scip,
               execution: cfg.execution,
               responseFileLimits: cfg.responseFileLimits,
             });

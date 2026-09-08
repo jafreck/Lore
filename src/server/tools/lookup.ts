@@ -138,14 +138,23 @@ async function semanticLookup(
   db: Database.Database,
   query: string,
   branch: string | undefined,
+  filters: Pick<LookupArgs, 'symbol_kind' | 'path_prefix' | 'language'>,
   embedder: EmbeddingProvider,
 ): Promise<SemanticSymbolRow[] | null> {
+  const searchArgs = (queryVector: number[]) => ({
+    queryVector,
+    branch,
+    kind: filters.symbol_kind,
+    pathPrefix: filters.path_prefix,
+    language: filters.language,
+    limit: SYMBOL_LIMIT,
+  });
   try {
     const cacheKey = query;
     const now = Date.now();
     const cached = queryEmbeddingCache.get(cacheKey);
     if (cached && now - cached.ts < CACHE_TTL_MS) {
-      return semanticSearchSymbols(db, { queryVector: cached.vector, branch, limit: SYMBOL_LIMIT });
+      return semanticSearchSymbols(db, searchArgs(cached.vector));
     }
     const [queryVector] = await embedder.embed([query]);
     if (!queryVector || queryVector.length === 0) {
@@ -157,10 +166,22 @@ async function semanticLookup(
       if (oldestKey !== undefined) queryEmbeddingCache.delete(oldestKey);
     }
     queryEmbeddingCache.set(cacheKey, { vector: queryVector, ts: now });
-    return semanticSearchSymbols(db, { queryVector, branch, limit: SYMBOL_LIMIT });
+    return semanticSearchSymbols(db, searchArgs(queryVector));
   } catch {
     return null;
   }
+}
+
+function semanticRowMatchesFilters(
+  row: SemanticSymbolRow,
+  args: Pick<LookupArgs, 'symbol_kind' | 'path_prefix' | 'language'>,
+): boolean {
+  if (args.symbol_kind !== undefined && row.kind !== args.symbol_kind) return false;
+  if (args.path_prefix !== undefined && !row.file_path.startsWith(args.path_prefix)) return false;
+  const rowLanguage = row.file_language
+    ?? (row as SemanticSymbolRow & { language?: string }).language;
+  if (args.language !== undefined && rowLanguage !== args.language) return false;
+  return true;
 }
 
 /** Resolve a lookup request against the open read-only database. */
@@ -217,23 +238,24 @@ export async function handler(
       };
     }
 
-    const semanticRows = await semanticLookup(db, query, args.branch, embedder);
+    const semanticRows = await semanticLookup(db, query, args.branch, args, embedder);
     if (!semanticRows) {
       return {
         results: exactRows,
         mode_used: 'exact (fallback: no embeddings)',
       };
     }
+    const filteredSemanticRows = semanticRows.filter((row) => semanticRowMatchesFilters(row, args));
 
     if (mode === 'semantic') {
       return {
-        results: [...mergeSemanticPreferred(exactInternalRows, semanticRows), ...externalRows],
+        results: [...mergeSemanticPreferred(exactInternalRows, filteredSemanticRows), ...externalRows],
         mode_used: 'semantic',
       };
     }
 
     return {
-      results: [...mergeFused(exactInternalRows, semanticRows), ...externalRows],
+      results: [...mergeFused(exactInternalRows, filteredSemanticRows), ...externalRows],
       mode_used: 'fused',
     };
   }

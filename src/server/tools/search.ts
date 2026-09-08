@@ -125,6 +125,7 @@ export interface SearchSymbolResult {
   name: string;
   kind: string;
   file_path: string;
+  language: string;
   start_line: number;
   start_character: number | null;
   end_line: number;
@@ -184,6 +185,21 @@ interface SymbolSearchFilters {
   kind?: string;
 }
 
+/** Bound the extra KNN work used to recover rows hidden by join-time filters. */
+const MAX_FILTERED_SEMANTIC_CANDIDATES = 4096;
+
+function matchesSemanticFilters(
+  row: SearchResultItem,
+  branch?: string,
+  filters?: SymbolSearchFilters,
+): boolean {
+  if (branch !== undefined && row.branch !== branch) return false;
+  if (filters?.path_prefix && !row.file_path.startsWith(filters.path_prefix)) return false;
+  if (filters?.language && row.language !== filters.language) return false;
+  if (filters?.kind && row.kind !== filters.kind) return false;
+  return true;
+}
+
 /** Run a structural BM25 FTS5 search and return ranked rows. */
 function structuralSearch(
   db: Database.Database,
@@ -203,7 +219,7 @@ function structuralSearch(
   const enrichmentProjection = symbolEnrichmentProjection(db);
   try {
     const sql = `SELECT 'symbol' AS result_type,
-                s.id AS symbol_id, s.name, s.kind, f.path AS file_path,
+                s.id AS symbol_id, s.name, s.kind, f.path AS file_path, f.language,
                 s.start_line, s.start_character, s.end_line, s.end_character,
                 s.selection_line, s.selection_character,
                 ${enrichmentProjection},
@@ -222,7 +238,7 @@ function structuralSearch(
     // FTS5 parse error — fall back to LIKE-based prefix search.
     const likeQuery = `${escapeLikeWildcards(query)}%`;
     const sql = `SELECT 'symbol' AS result_type,
-                s.id AS symbol_id, s.name, s.kind, f.path AS file_path,
+                s.id AS symbol_id, s.name, s.kind, f.path AS file_path, f.language,
                 s.start_line, s.start_character, s.end_line, s.end_character,
                 s.selection_line, s.selection_character,
                 ${enrichmentProjection},
@@ -268,7 +284,7 @@ function semanticSymbolSearch(
 
   const enrichment = symbolEnrichmentProjection(db);
   const sql = `SELECT 'symbol' AS result_type,
-              s.id AS symbol_id, s.name, s.kind, f.path AS file_path,
+              s.id AS symbol_id, s.name, s.kind, f.path AS file_path, f.language,
               s.start_line, s.start_character, s.end_line, s.end_character,
               s.selection_line, s.selection_character,
               ${enrichment},
@@ -281,11 +297,34 @@ function semanticSymbolSearch(
           AND k = ?${extraSql}
         ORDER BY distance
         LIMIT ?`;
-  const params = [JSON.stringify(queryVector), limit, ...extraParams, limit];
-
   try {
-    const rows = db.prepare(sql).all(...params) as SearchSymbolResult[];
-    return rows.map(presentSearchSymbol);
+    const statement = db.prepare(sql);
+    const filtered = branch !== undefined
+      || !!filters?.path_prefix
+      || !!filters?.language
+      || !!filters?.kind;
+    const candidateCap = filtered
+      ? Math.max(limit, MAX_FILTERED_SEMANTIC_CANDIDATES)
+      : limit;
+    let candidateLimit = limit;
+
+    while (true) {
+      const candidateRows = statement.all(
+        JSON.stringify(queryVector),
+        candidateLimit,
+        ...extraParams,
+        limit,
+      ) as SearchSymbolResult[];
+      const rows = candidateRows
+        .filter((row) => matchesSemanticFilters(row, branch, filters))
+        .slice(0, limit);
+
+      if (!filtered || rows.length >= limit || candidateLimit >= candidateCap) {
+        return rows.map(presentSearchSymbol);
+      }
+
+      candidateLimit = Math.min(candidateCap, candidateLimit * 2);
+    }
   } catch {
     return [];
   }
@@ -309,14 +348,11 @@ function presentSearchSymbol(row: SearchSymbolResult): SearchSymbolResult {
  */
 function postFilterSemanticResults(
   results: SearchResultItem[] | null,
+  branch?: string,
   filters?: SymbolSearchFilters,
 ): SearchResultItem[] | null {
   if (!results || !filters) return results;
-  const filtered = results.filter((r) => {
-    if (filters.path_prefix && !r.file_path.startsWith(filters.path_prefix)) return false;
-    if (filters.kind && r.kind !== filters.kind) return false;
-    return true;
-  });
+  const filtered = results.filter((row) => matchesSemanticFilters(row, branch, filters));
   return filtered.length > 0 ? filtered : null;
 }
 
@@ -426,7 +462,7 @@ export async function handler(
   } else {
     let semantic = await semanticSearch(db, args.query, limit, embedder, args.branch, filters);
     // Defense-in-depth: vec0 KNN may return candidates outside the requested scope.
-    semantic = postFilterSemanticResults(semantic, filters);
+    semantic = postFilterSemanticResults(semantic, args.branch, filters);
 
     if (mode === 'semantic') {
       result = semantic

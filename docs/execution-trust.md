@@ -1,55 +1,127 @@
-# Repository configuration and execution trust
+# Execution trust
 
-Lore treats every checked-out `.lore.config` file as untrusted repository data.
-Configuration can request indexing behavior, but it cannot grant the host an
-execution capability.
+Lore indexes checkouts that may be untrusted. A checked-in `.lore.config` can
+request indexing work, but only the process owner can grant permission to run
+code. Provider enablement and execution authority are separate decisions.
 
-## Default behavior
+For example, `{"lsp":{"enabled":true}}` asks Lore to use LSP. It does not
+authorize a language-server process. Likewise, repository values such as
+`scip.allowBuildExecution: true`, `scip.autoInstall: true`, custom
+`scip.indexers`, and custom `lsp.servers` do not create host permissions.
 
-Without host trust options, Lore can:
+## Behavior without host grants
 
-- walk and snapshot recognized source files;
-- read and ingest valid precomputed SCIP files selected by `scip.indexDir`;
-- discover, validate, and use an existing `compile_commands.json` for include
-  resolution; and
-- perform database-only resolution and validation stages.
+Lore may:
 
-Without host trust options, Lore does not:
+- walk recognized files and store source snapshots;
+- read precomputed SCIP files selected by `scip.indexDir` when their canonical
+  targets remain inside the indexed root or a host-approved root;
+- discover, parse, validate, and use an existing `compile_commands.json`;
+- perform SQLite-only import, edge, FTS, validation, and promotion work; and
+- read Git data when the process owner explicitly selected history ingestion.
 
-- start a SCIP indexer or LSP server;
-- run CMake, Meson, configure, Bear, or Make;
-- honor repository-provided command, argument, or cwd overrides; or
-- automatically download or install a SCIP indexer.
+Lore does not:
 
-Stage enablement is separate from execution permission. For example,
-`{"lsp":{"enabled":true}}` requests LSP work, but no server starts unless the
-host grants the appropriate capability.
+- start a SCIP indexer or language server;
+- run CMake, Meson, `configure`, Bear, or Make;
+- apply repository-provided command, argument, or cwd overrides; or
+- download or install a missing SCIP indexer as an indexing side effect.
 
-## Host capabilities
+An enabled provider that cannot run is skipped and recorded in index-run
+provenance. Source discovery still proceeds, so provider enablement alone does
+not guarantee structural symbols.
 
-| Capability | CLI | `IndexBuilderOptions.execution` |
-|------------|-----|---------------------------------|
-| Built-in SCIP/LSP processes | `--allow-subprocess-execution` | `allowSubprocessExecution: true` |
-| Custom SCIP command/args/cwd | `--allow-custom-indexer-commands` | `allowCustomIndexerCommands: true` |
-| Custom LSP command/args/cwd | `--allow-custom-lsp-commands` | `allowCustomLspCommands: true` |
-| Compilation-database build | `--allow-build-execution` | `allowBuildExecution: true` |
-| SCIP auto-install/download | `--allow-auto-install` | `allowAutoInstall: true` |
-| Additional command cwd root | `--allow-command-cwd <dir>` | `allowedCwdRoots: [dir]` |
+## Host grants
 
-The broad subprocess option allows only built-in registry entries. It does not
-trust custom repository commands, build execution, or auto-installation.
-Specific custom/build/install permissions allow the subprocesses required by
-that category, without granting unrelated categories.
+| Capability | CLI grant | `IndexBuilderOptions.execution` |
+|---|---|---|
+| Built-in SCIP indexers and LSP servers | `--allow-subprocess-execution` | `allowSubprocessExecution: true` |
+| Custom SCIP command, arguments, or cwd | `--allow-custom-indexer-commands` | `allowCustomIndexerCommands: true` |
+| Custom LSP command, arguments, or cwd | `--allow-custom-lsp-commands` | `allowCustomLspCommands: true` |
+| C/C++ compilation-database generation | `--allow-build-execution` | `allowBuildExecution: true` |
+| Automatic SCIP installation | `--allow-auto-install` | `allowAutoInstall: true` |
+| Additional approved command cwd | `--allow-command-cwd <dir>` | `allowedCwdRoots: [dir]` |
+| Out-of-tree compdb source/cwd root | `--allow-external-build-root <dir>` | `allowedCwdRoots: [dir]` |
 
-Repository `scip.allowBuildExecution` and `scip.autoInstall` values are requests:
-`false` can suppress an operation the host otherwise permits, but `true` cannot
-turn permission on. The same rule applies to custom `scip.indexers` and
-`lsp.servers`: they are ignored unless the host explicitly trusts that category.
+`--allow-subprocess-execution` applies only to built-in registries. It does not
+authorize custom commands, builds, or installation. A category-specific grant
+also enables the process needed by that category: build, custom-indexer, and
+auto-install grants permit SCIP indexer execution; a custom-LSP grant permits
+LSP execution. None grants an unrelated category.
 
-## Programmatic use
+Repository booleans can narrow a host grant. For example,
+`scip.allowBuildExecution: false` suppresses generation even when the host used
+`--allow-build-execution`. A repository value of `true` cannot widen host
+authority. Custom registry entries are ignored unless their corresponding
+custom-command grant is present.
 
-The fourth `IndexBuilder` constructor argument accepts booleans or partial
-settings, so callers do not need to construct effective registry objects:
+Both cwd-related CLI options currently feed the same programmatic
+`allowedCwdRoots` list. Consequently, either option approves that directory for
+custom command cwd containment and for compilation-database source/working-
+directory validation. Use the more descriptive flag for operator clarity, but
+do not assume it is a narrower technical capability.
+
+## Working-directory and path containment
+
+The indexed project root is always an approved command cwd. A relative custom
+cwd is resolved from that root. A requested cwd must exist and be a directory;
+only additional roots that resolve to existing directories become approved.
+Lore compares canonical real paths, so `..` and symlinks cannot escape the
+approved roots.
+
+`scip.indexDir` is repository-selected data input: the directory must be
+lexically inside the project root or a host-approved root, and every existing
+`.scip` candidate is canonicalized before reading. An unapproved out-of-root
+directory or a symlink whose target leaves all approved roots is rejected.
+Because both cwd-related CLI flags feed `allowedCwdRoots`, either one can widen
+this precomputed-input boundary; keep those grants narrow.
+
+Compilation-database entries are accepted only when both their translation unit
+and working directory are inside the project root or a host-approved external
+root. A database with any well-formed entry outside those roots is classified
+as relocated and is not passed to `scip-clang`. Missing files/directories and
+unexpanded response files produce partial or stale diagnostics; response-file
+budgets retain the original `@file` argument instead of silently discarding
+compiler flags.
+
+Keep approved roots narrow. Approving a mutable parent directory, a home
+directory, or a shared temporary directory gives repository-controlled commands
+more places from which they may run and broadens accepted compdb paths.
+
+## Output and build rules
+
+Generated SCIP output never falls back to a path in the checkout. Every indexer
+argument template must contain `{output}`. Lore replaces it with a random file
+inside a private mode-`0700` temporary directory, rejects symlinks and multiply
+linked output files, opens with no-follow semantics when available, verifies
+the inode after opening, reads the bytes, and removes the directory.
+
+These controls are capability checks, not a universal Git, network, or
+filesystem-read sandbox. Lore still reads in-scope source, configuration, Git,
+database, compilation-database, and contained SCIP data needed for the selected
+operation. An explicit install action may use the network, and any authorized
+indexer, language server, or build process retains the operating-system user's
+network and filesystem permissions. The output checks protect the file Lore
+ingests; they do not sandbox that process. Treat custom-command grants as
+code-execution grants and use an external OS/container sandbox when the
+checkout, executable, or ambient credentials are not trusted.
+
+Precomputed `.scip` files are data inputs and require no process grant. Their
+contents are parsed, but they are not executed.
+
+Compilation-database generation is different: build-system configuration can
+execute arbitrary repository-controlled build logic. Lore invokes programs
+without a shell and directs generated compdb output to
+`<root>/.lore-compdb/compile_commands.json`, but CMake, Meson, `configure`, and
+Make can still perform any action available to the operating-system user.
+Grant `--allow-build-execution` only for a trusted checkout or inside an
+appropriate sandbox. `--allow-external-build-root` validates out-of-tree paths;
+it does not relocate Lore's generated `.lore-compdb` directory.
+
+## Programmatic hosts
+
+The fourth `IndexBuilder` constructor argument accepts provider requests and a
+separate host-owned execution object:
 
 ```ts
 import { IndexBuilder } from '@jafreck/lore';
@@ -57,12 +129,13 @@ import { IndexBuilder } from '@jafreck/lore';
 const builder = new IndexBuilder('lore.db', { rootDir: checkout }, undefined, {
   scip: { indexDir: '.ci/scip', timeoutMs: 120_000 },
   lsp: false,
+  execution: {},
 });
 
-await builder.build(); // reads precomputed SCIP; starts no process
+await builder.build(); // reads precomputed data and starts no provider process
 ```
 
-A host that has established trust can opt into narrowly scoped execution:
+A trusted host can grant only what it needs:
 
 ```ts
 const builder = new IndexBuilder('lore.db', { rootDir: checkout }, undefined, {
@@ -70,32 +143,21 @@ const builder = new IndexBuilder('lore.db', { rootDir: checkout }, undefined, {
   lsp: true,
   execution: {
     allowSubprocessExecution: true,
-    allowAutoInstall: false,
     allowBuildExecution: false,
+    allowAutoInstall: false,
+    allowedCwdRoots: ['/opt/trusted-build'],
   },
 });
 
 await builder.build();
 ```
 
-The constructor stores values only. It does not read or parse repository config.
-Call `await builder.resolveConfiguration()` to validate and inspect the effective
-settings without opening the database, or let `build()`, `refresh()`, or
-`baselineRebuild()` resolve them on first use.
+Constructing `IndexBuilder` does not parse repository configuration or open the
+database. `resolveConfiguration()` validates and returns effective settings;
+`build()`, `refresh()`, and `baselineRebuild()` resolve them on first use.
 
-## Working-directory containment
+## Installer command
 
-The indexed root is always an approved command cwd. Relative cwd values resolve
-from that root. Absolute paths and `..` traversal are allowed only when the final
-real path remains inside an approved root. Symlinks are resolved before the
-containment check.
-
-Additional cwd roots are host-only inputs. A repository cannot add one to its
-own allowlist. Keep allowlists narrow and avoid approving a mutable parent such
-as `/tmp` or a user home directory.
-
-## Explicit installer command
-
-`lore install-scip` is itself an explicit host action and does not consult
-`.lore.config`. The `--allow-auto-install` policy controls only installation
-triggered as a side effect of indexing.
+Running `lore install-scip` is itself an explicit operator action and does not
+consult `.lore.config`. `--allow-auto-install` controls only installation
+triggered while indexing.

@@ -29,7 +29,7 @@ export const toolDef = {
   description:
     'Use this tool FIRST for any reverse-dependency question: who calls X, what breaks if I delete X, ' +
     'what is the blast radius of changing X, which other files call X, or can X be safely inlined. ' +
-    'Returns callers, importers, subclasses, and type references in one call — including transitive dependents up to 5 hops. ' +
+    'Returns callers, importers, subclasses, and type references in one call. Callers, importers, and subclasses are transitive up to 5 hops; type references are direct references to the target only. ' +
     'Finds both same-file wrappers AND cross-file callers; if the question asks about "other files", call this first then filter results. ' +
     'Every caller returned is verified — do NOT re-verify results by reading source files. ' +
     'For kind="symbol", resolves the query by name and returns all reverse edges. ' +

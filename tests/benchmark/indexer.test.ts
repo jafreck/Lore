@@ -38,7 +38,7 @@ describe('benchmark indexer', () => {
     };
 
     const instance: RepoInstance = { spec, localPath: repoPath, indexed: false };
-    const indexed = await indexRepo(instance, { mode: 'tree-sitter', historyDepth: 10 });
+    const indexed = await indexRepo(instance, { mode: 'snapshots', historyDepth: 10 });
     const db = openReadOnly(indexed.dbPath!);
     try {
       const commits = db.prepare('SELECT COUNT(*) AS n FROM commits').get() as { n: number };

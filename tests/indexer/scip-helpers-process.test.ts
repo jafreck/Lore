@@ -362,6 +362,7 @@ describe('createLoreScipTsconfig', () => {
 function mockIO(overrides: Partial<ScipProcessIO> = {}): ScipProcessIO {
   return {
     existsSync: () => false,
+    realpathSync: (value) => value,
     readFileSync: () => new Uint8Array(),
     unlinkSync: () => {},
     execFile: async () => {},
@@ -412,6 +413,24 @@ describe('loadScipIndexes', () => {
     const settings = baseSettings({ indexDir: '.scip' });
     const result = await loadScipIndexes(settings, '/fake/root', new Set(['typescript']), io);
     expect(result).toEqual([tsData]);
+  });
+
+  it('rejects a precomputed index directory outside the project root', async () => {
+    const settings = baseSettings({ indexDir: '../outside' });
+    await expect(loadScipIndexes(settings, '/fake/root', null, mockIO()))
+      .rejects.toThrow(/indexDir must remain inside the project root or a host-approved root/u);
+  });
+
+  it('rejects a precomputed SCIP symlink target outside the project root', async () => {
+    const io = mockIO({
+      existsSync: (value) => value.endsWith('index.scip'),
+      realpathSync: (value) => value.endsWith('index.scip')
+        ? '/private/outside/index.scip'
+        : value,
+    });
+    const settings = baseSettings({ indexDir: '.scip' });
+    await expect(loadScipIndexes(settings, '/fake/root', null, io))
+      .rejects.toThrow(/resolves outside the project root and host-approved roots/u);
   });
 
   it('falls through to indexer when indexDir has no files', async () => {

@@ -321,7 +321,7 @@ export function validateIndex(
   options: ValidateIndexOptions = {},
 ): IndexHealthReport {
   const owned = typeof target === 'string';
-  const db = owned ? openReadOnly(target) : target;
+  const db = owned ? openReadOnly(target, { allowIncompatibleSchema: true }) : target;
   try {
     return validateOpenDatabase(db, options);
   } finally {
@@ -335,7 +335,7 @@ export function readRecordedIndexRoot(
   branch?: string,
 ): string | undefined {
   const owned = typeof target === 'string';
-  const db = owned ? openReadOnly(target) : target;
+  const db = owned ? openReadOnly(target, { allowIncompatibleSchema: true }) : target;
   try {
     if (!tableHasColumns(
       db,

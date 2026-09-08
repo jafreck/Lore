@@ -85,7 +85,13 @@ export function installFakeVec0(
     // Intercept symbol_embeddings MATCH queries
     if (lower.includes('embedding match') && lower.includes('symbol_embeddings')) {
       return {
-        all(..._args: unknown[]) { return symbolRows; },
+        all(...args: unknown[]) {
+          const requested = args[1];
+          const limit = typeof requested === 'number' && Number.isFinite(requested)
+            ? Math.max(0, Math.floor(requested))
+            : symbolRows.length;
+          return symbolRows.slice(0, limit);
+        },
         get(..._args: unknown[]) { return symbolRows[0] ?? undefined; },
         run(..._args: unknown[]) { return { changes: 0, lastInsertRowid: 0 }; },
         bind() { return this; },

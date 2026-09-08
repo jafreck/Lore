@@ -24,6 +24,22 @@ afterEach(() => {
 });
 
 describe('IndexBuilder', () => {
+  it('does not reuse persisted embedding configuration when explicitly disabled', () => {
+    const db = openDb(dbPath);
+    try {
+      db.prepare("INSERT INTO lore_meta (key, value) VALUES ('embedding_model', 'persisted-model')").run();
+      const builder = new IndexBuilder(dbPath, { rootDir: tmpDir }, undefined, {
+        embeddings: false,
+      });
+      expect((builder as any).resolveRunEmbedder(db)).toEqual({
+        provider: null,
+        owned: false,
+      });
+    } finally {
+      db.close();
+    }
+  });
+
   it('builds a baseline of source snapshots without pretending fallback symbols exist', async () => {
     // Create source files
     const srcDir = path.join(tmpDir, 'src');
@@ -214,10 +230,12 @@ describe('IndexBuilder', () => {
 
   it('keeps a candidate baseline hidden without holding a write transaction during embedding', async () => {
     const fixtureRoot = path.resolve('tests/fixtures/scip-projects/typescript');
+    const fixtureIndexRoot = path.resolve('tests/fixtures/scip-projects/scip-indexes');
     const walker = { rootDir: fixtureRoot, branch: 'atomic-test' };
     const options = {
       lsp: false,
       scip: { enabled: true, indexDir: '../scip-indexes' },
+      execution: { allowedCwdRoots: [fixtureIndexRoot] },
       validation: false as const,
     };
     await new IndexBuilder(dbPath, walker, undefined, options).build();

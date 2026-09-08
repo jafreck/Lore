@@ -14,6 +14,8 @@ export interface InstallGitHooksOptions {
   rootDir: string;
   dbPath: string;
   includeHistory?: boolean;
+  historyDepth?: number;
+  historyAll?: boolean;
   lspEnabled?: boolean;
   scipEnabled?: boolean;
   /** Host trust flags to persist in the generated refresh command. */
@@ -32,6 +34,8 @@ function makeHookScript(
   rootDir: string,
   dbPath: string,
   includeHistory: boolean,
+  historyDepth: number | undefined,
+  historyAll: boolean,
   lspEnabled: boolean | undefined,
   scipEnabled: boolean | undefined,
   execution: IndexExecutionOptions | undefined,
@@ -39,6 +43,9 @@ function makeHookScript(
 ): string {
   if (loreCommand.length === 0 || loreCommand.some((token) => token.length === 0)) {
     throw new Error('A non-empty pinned Lore command is required for git hooks');
+  }
+  if (historyDepth !== undefined && (!Number.isInteger(historyDepth) || historyDepth <= 0)) {
+    throw new Error('Git hook historyDepth must be a positive integer');
   }
   const cmd = [
     ...loreCommand.map(shellEscapeSingle),
@@ -48,6 +55,8 @@ function makeHookScript(
     '--db',
     shellEscapeSingle(dbPath),
     ...(includeHistory ? ['--history'] : []),
+    ...(historyDepth !== undefined ? ['--history-depth', String(historyDepth)] : []),
+    ...(historyAll ? ['--history-all'] : []),
     ...(lspEnabled === true ? ['--lsp'] : lspEnabled === false ? ['--no-lsp'] : []),
     ...(scipEnabled === true ? ['--scip'] : scipEnabled === false ? ['--no-scip'] : []),
     ...(execution?.allowSubprocessExecution === true ? ['--allow-subprocess-execution'] : []),
@@ -109,6 +118,8 @@ export function installGitHooks(options: InstallGitHooksOptions): { installed: s
       options.rootDir,
       options.dbPath,
       options.includeHistory ?? false,
+      options.historyDepth,
+      options.historyAll ?? false,
       options.lspEnabled,
       options.scipEnabled,
       options.execution,
