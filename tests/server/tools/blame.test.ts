@@ -3,7 +3,8 @@ import { execSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { openDb, type Database } from '../../../src/db/schema.js';
+import type { Database } from '../../../src/db/schema.js';
+import { openPromotedTestDb as openDb } from '../../helpers/promotedDb.js';
 import {
   handler,
   toolDef,
@@ -697,7 +698,7 @@ describe('lore_blame handler with git fixture', () => {
     const result = await handler(db, { path: filePath, start_line: 1, end_line: 1, mode: 'history' });
     if ('risk' in result) {
       expect(result.risk).toBeDefined();
-      expect(result.risk.overall).toBeDefined();
+      expect(result.risk?.overall).toBeDefined();
     }
   });
 

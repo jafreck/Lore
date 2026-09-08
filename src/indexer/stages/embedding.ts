@@ -1,27 +1,30 @@
 /**
  * @module indexer/stages/embedding
  *
- * Pipeline stage: embed symbol signatures, documentation sections, and
- * commit messages into vec0 virtual tables for semantic search.
+ * Pipeline stage: embed symbol signature/type text and commit messages into
+ * vec0 virtual tables for semantic search.
  *
  * Optimisations:
- *   - **Streaming batching**: symbols and doc sections are processed
- *     incrementally; only one batch of text is held in memory at a time,
- *     capping peak memory usage regardless of corpus size.
+ *   - **Streaming batching**: symbols are processed incrementally; only one
+ *     batch of text is held in memory at a time.
  *   - **Skip-unchanged**: in update mode, symbols whose embedding input text
  *     has not changed (by SHA-256 hash) are skipped entirely.
  *   - **Double-buffered I/O**: the next `embed()` call fires while the
  *     current batch's vectors are written to SQLite.
  */
 
-import type { PipelineContext, PipelineStage } from '../pipeline.js';
+import {
+  setPipelineLoreMeta,
+  type PipelineContext,
+  type PipelineStage,
+} from '../pipeline.js';
 import type { Database } from '../../db/schema.js';
 import type { EmbeddingProvider } from '../../embeddings/embedder.js';
-import { setLoreMeta, createVec0Tables } from '../../db/schema.js';
+import { createVec0Tables, getLoreMeta } from '../../db/schema.js';
 import { buildStructuralEmbeddingText, hashEmbeddingText, tokenAwareBatch, estimateTokens, MAX_BATCH_TOKENS, MAX_BATCH_ITEMS } from '../../embeddings/embedder.js';
 
 /**
- * Embed symbol signatures, documentation sections, and commit messages.
+ * Embed symbol signature/type text and commit messages.
  *
  * Skips entirely when no `EmbeddingProvider` is configured in the context.
  */
@@ -29,18 +32,22 @@ export class EmbeddingStage implements PipelineStage {
   readonly name = 'embedding';
 
   async execute(context: PipelineContext, mode: 'build' | 'update'): Promise<void> {
+    // Without the configured provider Lore cannot recreate replacement
+    // vectors. Keep old, now-inert rowids instead of silently destroying the
+    // persisted embedding index; searches join through effective_symbols.
     if (!context.embedder) return;
 
     const { db, embedder } = context;
     context.log.indexing('embedding started', { model: embedder.modelName });
 
     await embedder.init();
+    assertCompatibleEmbeddingMetadata(db, embedder);
+    if (mode === 'update') {
+      deleteSymbolEmbeddings(context.db, context.staleSymbolIds);
+    }
 
     if (mode === 'update') {
-      // Clean up orphaned symbol embeddings for symbols that were deleted/replaced.
-      deleteSymbolEmbeddings(db, context.staleSymbolIds);
-
-      // Resolve scoped file/doc IDs for incremental embedding.
+      // Resolve scoped file IDs for incremental symbol embedding.
       const changedFileIds = resolveFileIds(db, context.changedSourcePaths, context.branch);
 
       await embedStructural(db, embedder, changedFileIds, /* skipUnchanged */ true);
@@ -52,7 +59,30 @@ export class EmbeddingStage implements PipelineStage {
       await embedCommitMessages(db, embedder);
     }
 
+    // Publish metadata only after every requested vector batch succeeded.
+    // A failed refresh therefore continues to describe the prior vectors.
+    setPipelineLoreMeta(context, 'embedding_model', embedder.modelName);
+    setPipelineLoreMeta(context, 'embedding_dims', String(embedder.dims));
+
     context.log.indexing('embedding complete');
+  }
+}
+
+function assertCompatibleEmbeddingMetadata(
+  db: Database.Database,
+  embedder: EmbeddingProvider,
+): void {
+  const persistedModel = getLoreMeta(db, 'embedding_model');
+  const persistedDims = getLoreMeta(db, 'embedding_dims');
+  if (persistedModel && persistedModel !== embedder.modelName) {
+    throw new Error(
+      `Embedding model mismatch: database uses "${persistedModel}" but refresh requested "${embedder.modelName}"; rebuild into a new database to change models`,
+    );
+  }
+  if (persistedDims !== undefined && Number.parseInt(persistedDims, 10) !== embedder.dims) {
+    throw new Error(
+      `Embedding dimension mismatch: database uses ${persistedDims} dimensions but provider returned ${embedder.dims}`,
+    );
   }
 }
 
@@ -72,8 +102,6 @@ async function embedStructural(
   fileIds?: number[],
   skipUnchanged = false,
 ): Promise<void> {
-  setLoreMeta(db, 'embedding_model', embedder.modelName);
-  setLoreMeta(db, 'embedding_dims', String(embedder.dims));
   createVec0Tables(db, embedder.dims);
 
   // Ensure the hash tracking column exists (idempotent).
@@ -81,7 +109,7 @@ async function embedStructural(
 
   const baseQuery =
     `SELECT id, name, signature, resolved_type_signature, resolved_return_type
-     FROM symbols
+     FROM effective_symbols
      WHERE (signature IS NOT NULL
         OR resolved_type_signature IS NOT NULL
         OR resolved_return_type IS NOT NULL)`;
@@ -284,24 +312,30 @@ function loadExistingHashes(db: Database.Database, tableName: string, ids: numbe
 
 function deleteSymbolEmbeddings(db: Database.Database, symbolIds: number[]): void {
   if (symbolIds.length === 0) return;
-  const hasTable = db.prepare(
-    "SELECT 1 AS present FROM sqlite_master WHERE type IN ('table', 'virtual table') AND name = 'symbol_embeddings'",
-  ).get() as { present: number } | undefined;
-  if (!hasTable) return;
   // Chunk to stay within SQLite's SQLITE_MAX_VARIABLE_NUMBER limit (default 999).
   const CHUNK = 900;
-  for (let i = 0; i < symbolIds.length; i += CHUNK) {
-    const chunk = symbolIds.slice(i, i + CHUNK);
-    db.prepare(
-      `DELETE FROM symbol_embeddings WHERE rowid IN (${chunk.map(() => '?').join(', ')})`,
-    ).run(...chunk);
+  for (const table of [
+    'symbol_embeddings',
+    'symbol_semantic_embeddings',
+    'symbol_embeddings_hashes',
+  ]) {
+    const hasTable = db.prepare(
+      "SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = ?",
+    ).get(table) as { present: number } | undefined;
+    if (!hasTable) continue;
+    for (let i = 0; i < symbolIds.length; i += CHUNK) {
+      const chunk = symbolIds.slice(i, i + CHUNK);
+      db.prepare(
+        `DELETE FROM ${table} WHERE rowid IN (${chunk.map(() => '?').join(', ')})`,
+      ).run(...chunk);
+    }
   }
 }
 
 function resolveFileIds(db: Database.Database, paths: string[], branch: string): number[] {
   const ids: number[] = [];
   for (const p of paths) {
-    const row = db.prepare('SELECT id FROM files WHERE path = ? AND branch = ?').get(p, branch) as { id: number } | undefined;
+    const row = db.prepare('SELECT id FROM effective_files WHERE path = ? AND branch = ?').get(p, branch) as { id: number } | undefined;
     if (row) ids.push(row.id);
   }
   return ids;

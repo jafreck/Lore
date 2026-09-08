@@ -10,7 +10,10 @@
 import { pathToFileURL } from 'node:url';
 import type { Database } from '../../../db/schema.js';
 import { getLogger } from '../../../logger.js';
-import { EXT_TO_LANG } from '../../../discovery/walker.js';
+import {
+  detectLanguageForPath,
+  type CFamilyLanguageEvidence,
+} from '../../../discovery/walker.js';
 import type { SymbolInformation as ScipSymbolInformation } from '../../../scip/scip_pb.js';
 import {
   extractNameFromScipSymbol,
@@ -48,21 +51,25 @@ const SCIP_LANG_MAP: Record<string, string> = {
  * Many SCIP indexers (including scip-typescript) leave the `language` field
  * blank.  When that happens, infer from the file extension.
  */
-export function inferLoreLanguage(scipLanguage: string, relativePath: string): string | null {
-  // Try explicit language first
+export function inferLoreLanguage(
+  scipLanguage: string,
+  relativePath: string,
+  cFamilyEvidence?: CFamilyLanguageEvidence,
+): string | null {
   if (scipLanguage) {
     const mapped = SCIP_LANG_MAP[scipLanguage.toLowerCase()];
+    if (mapped === 'c' || mapped === 'cpp') {
+      // `.c`, `.cc`, `.cpp`, `.hpp`, etc. are authoritative. Plain `.h` is
+      // ambiguous and uses SCIP plus nearest project evidence instead.
+      return detectLanguageForPath(relativePath, undefined, {
+        scipLanguage: mapped,
+        cFamilyEvidence,
+      }) ?? mapped;
+    }
     if (mapped) return mapped;
   }
 
-  // Infer from file extension
-  const dotIdx = relativePath.lastIndexOf('.');
-  if (dotIdx >= 0) {
-    const ext = relativePath.slice(dotIdx).toLowerCase();
-    return EXT_TO_LANG[ext] ?? null;
-  }
-
-  return null;
+  return detectLanguageForPath(relativePath, undefined, { cFamilyEvidence }) ?? null;
 }
 
 // ─── Virtual dispatch materialization ─────────────────────────────────────────

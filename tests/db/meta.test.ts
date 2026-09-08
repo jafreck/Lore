@@ -7,10 +7,16 @@ import {
   deleteLoreMeta,
   getGeneration,
   incrementGeneration,
+  assertWriterGeneration,
+  claimWriterGeneration,
+  getWriterGeneration,
+  reserveBaselineGeneration,
   LORE_META_INDEX_CHECKPOINT,
   LORE_META_LAST_HEAD_SHA,
   LORE_META_GENERATION,
   LORE_META_GENERATION_PENDING,
+  LORE_META_GENERATION_SEQUENCE,
+  LORE_META_WRITER_GENERATION,
   LORE_META_OVERLAY_DIRTY_FILES,
   LORE_META_BASELINE_HEAD_SHA,
   LORE_META_OVERLAY_HEAD_SHA,
@@ -33,6 +39,8 @@ describe('meta', () => {
       expect(LORE_META_LAST_HEAD_SHA).toBe('last_known_head_sha');
       expect(LORE_META_GENERATION).toBe('generation');
       expect(LORE_META_GENERATION_PENDING).toBe('generation_pending');
+      expect(LORE_META_GENERATION_SEQUENCE).toBe('generation_sequence');
+      expect(LORE_META_WRITER_GENERATION).toBe('writer_generation');
       expect(LORE_META_OVERLAY_DIRTY_FILES).toBe('overlay_dirty_files');
       expect(LORE_META_BASELINE_HEAD_SHA).toBe('baseline_head_sha');
       expect(LORE_META_OVERLAY_HEAD_SHA).toBe('overlay_head_sha');
@@ -132,6 +140,30 @@ describe('meta', () => {
       incrementGeneration(db);
       incrementGeneration(db);
       expect(getLoreMeta(db, LORE_META_GENERATION)).toBe('2');
+    });
+  });
+
+  describe('writer and baseline generation sequences', () => {
+    it('fences every superseded database writer generation', () => {
+      const first = claimWriterGeneration(db);
+      const second = claimWriterGeneration(db);
+
+      expect(first).toBe(1);
+      expect(second).toBe(2);
+      expect(getWriterGeneration(db)).toBe(second);
+      expect(() => assertWriterGeneration(db, first)).toThrow(/fenced by generation 2/u);
+      expect(() => assertWriterGeneration(db, second)).not.toThrow();
+    });
+
+    it('allocates baseline generations monotonically across branches', () => {
+      const main = reserveBaselineGeneration(db, 'main');
+      db.prepare(
+        'INSERT INTO baseline_generations (branch, generation) VALUES (?, ?)',
+      ).run('main', main);
+      const feature = reserveBaselineGeneration(db, 'feature');
+
+      expect(main).toBe(1);
+      expect(feature).toBe(2);
     });
   });
 

@@ -25,6 +25,9 @@ describe('resolveEffectiveScipSettings', () => {
     const settings = resolveEffectiveScipSettings();
     expect(settings.enabled).toBe(DEFAULT_SCIP_ENABLED);
     expect(settings.timeoutMs).toBe(DEFAULT_SCIP_TIMEOUT_MS);
+    expect(settings.allowIndexerExecution).toBe(false);
+    expect(settings.allowBuildExecution).toBe(false);
+    expect(settings.allowAutoInstall).toBe(false);
     expect(settings.indexDir).toBeNull();
     expect(typeof settings.indexers).toBe('object');
   });
@@ -37,11 +40,23 @@ describe('resolveEffectiveScipSettings', () => {
 
   it('explicit overrides take precedence over config', () => {
     const settings = resolveEffectiveScipSettings(
-      { enabled: false, timeoutMs: 60_000 },
-      { enabled: true, timeoutMs: 30_000 },
+      { enabled: false, timeoutMs: 60_000, allowBuildExecution: false },
+      { enabled: true, timeoutMs: 30_000, allowBuildExecution: true },
+      { allowBuildExecution: true },
     );
     expect(settings.enabled).toBe(true);
     expect(settings.timeoutMs).toBe(30_000);
+    expect(settings.allowBuildExecution).toBe(true);
+  });
+
+  it('does not treat repository or settings overrides as execution authority', () => {
+    const settings = resolveEffectiveScipSettings(
+      { allowBuildExecution: true, autoInstall: true },
+      { allowBuildExecution: true, autoInstall: true },
+    );
+    expect(settings.allowIndexerExecution).toBe(false);
+    expect(settings.allowBuildExecution).toBe(false);
+    expect(settings.allowAutoInstall).toBe(false);
   });
 
   it('merges indexer overrides from both layers', () => {
@@ -52,7 +67,11 @@ describe('resolveEffectiveScipSettings', () => {
       indexers: { python: { command: 'custom-py', args: ['index'] } },
     };
 
-    const settings = resolveEffectiveScipSettings(config, explicit);
+    const settings = resolveEffectiveScipSettings(
+      config,
+      explicit,
+      { allowCustomIndexerCommands: true },
+    );
     expect(settings.indexers.typescript?.command).toBe('custom-ts');
     expect(settings.indexers.python?.command).toBe('custom-py');
   });
@@ -65,13 +84,25 @@ describe('resolveEffectiveScipSettings', () => {
       indexers: { typescript: { command: 'from-explicit' } },
     };
 
-    const settings = resolveEffectiveScipSettings(config, explicit);
+    const settings = resolveEffectiveScipSettings(
+      config,
+      explicit,
+      { allowCustomIndexerCommands: true },
+    );
     expect(settings.indexers.typescript?.command).toBe('from-explicit');
   });
 
   it('sets indexDir from explicit overrides', () => {
     const settings = resolveEffectiveScipSettings({}, { indexDir: '/custom/dir' });
     expect(settings.indexDir).toBe('/custom/dir');
+  });
+
+  it('ignores custom repository indexers unless the host trusts them', () => {
+    const settings = resolveEffectiveScipSettings({
+      indexers: { typescript: { command: 'malicious-indexer', args: ['--pwn'] } },
+    });
+    expect(settings.indexers.typescript?.command).toBe('scip-typescript');
+    expect(settings.indexers.typescript?.args).not.toContain('--pwn');
   });
 });
 
@@ -94,6 +125,8 @@ describe('loadScipSettingsFromLoreConfig', () => {
         scip: {
           enabled: false,
           timeoutMs: 30000,
+          allowBuildExecution: true,
+          autoInstall: true,
         },
       }),
     );
@@ -101,6 +134,8 @@ describe('loadScipSettingsFromLoreConfig', () => {
     const result = loadScipSettingsFromLoreConfig(tmpDir);
     expect(result.enabled).toBe(false);
     expect(result.timeoutMs).toBe(30000);
+    expect(result.allowBuildExecution).toBe(true);
+    expect(result.autoInstall).toBe(true);
   });
 
   it('throws on invalid JSON', () => {
@@ -116,6 +151,14 @@ describe('loadScipSettingsFromLoreConfig', () => {
     expect(() => loadScipSettingsFromLoreConfig(tmpDir)).toThrow('Invalid .lore.config scip settings');
   });
 
+  it('rejects a non-boolean build-execution policy', () => {
+    fs.writeFileSync(
+      path.join(tmpDir, '.lore.config'),
+      JSON.stringify({ scip: { allowBuildExecution: 'yes' } }),
+    );
+    expect(() => loadScipSettingsFromLoreConfig(tmpDir)).toThrow('allowBuildExecution');
+  });
+
   it('throws when root is not an object', () => {
     fs.writeFileSync(path.join(tmpDir, '.lore.config'), JSON.stringify('string'));
     expect(() => loadScipSettingsFromLoreConfig(tmpDir)).toThrow('root must be a JSON object');
@@ -127,7 +170,7 @@ describe('loadScipSettingsFromLoreConfig', () => {
       JSON.stringify({
         scip: {
           indexers: {
-            typescript: { command: 'my-ts-indexer' },
+            typescript: { command: 'my-ts-indexer', cwd: 'tools/scip' },
           },
         },
       }),
@@ -136,6 +179,7 @@ describe('loadScipSettingsFromLoreConfig', () => {
     const result = loadScipSettingsFromLoreConfig(tmpDir);
     expect(result.indexers).toBeDefined();
     expect(result.indexers!['typescript']?.command).toBe('my-ts-indexer');
+    expect(result.indexers!['typescript']?.cwd).toBe('tools/scip');
   });
 
   it('parses indexDir setting', () => {

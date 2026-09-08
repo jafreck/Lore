@@ -4,10 +4,11 @@
  * Builds tool sets for each benchmark arm:
  * - Control:          file read, grep, directory listing
  * - Semantic baseline: control + generic embedding search
- * - Lore-enabled:     control + all Lore MCP tools
+ * - Lore-enabled:     control + a legacy in-process Lore tool set
  *
- * Stub Lore tools are injected into control/semantic arms so the agent
- * sees the same tool names across all arms (equalized prompting).
+ * This provider predates the production registry and directly imports tool
+ * modules, including historical/unregistered entries. The current Copilot
+ * benchmark uses the real MCP server instead.
  */
 
 import { readFileSync, readdirSync, statSync } from 'node:fs';
@@ -172,14 +173,13 @@ async function buildLoreTools(dbPath: string, embedder?: EmbeddingProvider): Pro
   // Import each tool module individually to preserve type information
   const [
     lookup, search, graph,
-    testMap, snippet, blame, metrics,
+    snippet, blame, metrics,
     history, dependents, trace, structure,
     cohesion, diff,
   ] = await Promise.all([
     import('../../../src/server/tools/lookup.js'),
     import('../../../src/server/tools/search.js'),
     import('../../../src/server/tools/graph.js'),
-    import('../../../src/server/tools/test-map.js'),
     import('../../../src/server/tools/snippet.js'),
     import('../../../src/server/tools/blame.js'),
     import('../../../src/server/tools/metrics.js'),
@@ -195,7 +195,6 @@ async function buildLoreTools(dbPath: string, embedder?: EmbeddingProvider): Pro
     wrapTool(lookup.toolDef.name, lookup.toolDef.description, (args) => lookup.handler(db, args as any, embedder)),
     wrapTool(search.toolDef.name, search.toolDef.description, (args) => search.handler(db, args as any, embedder)),
     wrapTool(graph.toolDef.name, graph.toolDef.description, (args) => graph.handler(db, args as any)),
-    wrapTool(testMap.toolDef.name, testMap.toolDef.description, (args) => testMap.handler(db, args as any)),
     wrapTool(snippet.toolDef.name, snippet.toolDef.description, (args) => snippet.handler(db, args as any)),
     wrapTool(blame.toolDef.name, blame.toolDef.description, (args) => blame.handler(db, args as any)),
     wrapTool(metrics.toolDef.name, metrics.toolDef.description, (args) => metrics.handler(db, args as any)),

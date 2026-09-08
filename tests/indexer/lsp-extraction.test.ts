@@ -6,17 +6,25 @@ import { openDb, type Database } from '../../src/db/schema.js';
 import {
   mapLspSymbolKind,
   buildSyntheticId,
+  extractPreprocessorMacros,
 } from '../../src/indexer/stages/lsp-extraction.js';
 import type { PipelineContext } from '../../src/indexer/pipeline.js';
 import { initLogger, LogLevel, resetLogger } from '../../src/logger.js';
+import { effectiveLspSettings } from '../helpers/effective-settings.js';
+import {
+  dropStagingEffectiveViews,
+  installStagingEffectiveViews,
+} from '../../src/indexer/staging-views.js';
 
 // ── Mock LspEnrichmentCoordinator and enrichProjectRefs before importing the stage ──
 const mockDocumentSymbol = vi.fn().mockResolvedValue([]);
 const mockOutgoingCalls = vi.fn().mockResolvedValue([]);
+const mockStart = vi.fn().mockResolvedValue(undefined);
 const mockDispose = vi.fn().mockResolvedValue(undefined);
 
 vi.mock('../../src/lsp/enrichment.js', () => ({
   LspEnrichmentCoordinator: class MockCoordinator {
+    start = mockStart;
     documentSymbol = mockDocumentSymbol;
     outgoingCalls = mockOutgoingCalls;
     dispose = mockDispose;
@@ -34,9 +42,9 @@ function makeContext(db: Database.Database, overrides: Partial<PipelineContext> 
   return {
     db,
     dbPath: ':memory:',
-    walkerConfig: { rootDir: '/tmp', extensions: ['.ts'], include: ['**/*'], exclude: [] },
+    walkerConfig: { rootDir: '/tmp', extensions: ['.ts'], includeGlobs: ['**/*'], excludeGlobs: [] },
     branch: 'main',
-    lsp: { enabled: true, requestTimeoutMs: 1000, servers: {} },
+    lsp: effectiveLspSettings(),
     scip: null,
     embedder: null,
     log: {
@@ -66,6 +74,9 @@ describe('LspExtractionStage', () => {
     resetLogger();
     initLogger({ level: LogLevel.SILENT });
     db = openDb(':memory:');
+    db.prepare(
+      "INSERT INTO baseline_generations (branch, generation) VALUES ('main', 1)",
+    ).run();
   });
 
   afterEach(() => {
@@ -92,7 +103,7 @@ describe('LspExtractionStage', () => {
   it('skips execution when LSP enabled is false', async () => {
     const stage = new LspExtractionStage();
     const ctx = makeContext(db, {
-      lsp: { enabled: false, requestTimeoutMs: 1000, servers: {} },
+      lsp: effectiveLspSettings({ enabled: false }),
     });
     await stage.execute(ctx, 'update');
     const count = (db.prepare('SELECT COUNT(*) as cnt FROM symbols').get() as { cnt: number }).cnt;
@@ -205,6 +216,44 @@ describe('buildSyntheticId', () => {
     expect(fnId).toContain('(12)');
     expect(varId).toContain('(13)');
   });
+
+  it('disambiguates same-kind overloads by source position and signature', () => {
+    const first = buildSyntheticId('/src/app.cpp', [], 'add', 12, {
+      line: 4, character: 5, signature: 'int add(int)',
+    });
+    const second = buildSyntheticId('/src/app.cpp', [], 'add', 12, {
+      line: 5, character: 5, signature: 'double add(double)',
+    });
+    expect(first).not.toBe(second);
+  });
+});
+
+describe('extractPreprocessorMacros', () => {
+  it('extracts object-like, function-like, and continued definitions', () => {
+    const source = [
+      '#define VERSION 7',
+      '#define SQUARE(x) ((x) * (x))',
+      '#define CHECK(x) \\',
+      '  do { consume(x); } while (0)',
+      '/* #define COMMENTED_OUT 1 */',
+      '// #define ALSO_COMMENTED_OUT 1',
+    ].join('\n');
+
+    expect(extractPreprocessorMacros(source)).toEqual([
+      expect.objectContaining({
+        name: 'VERSION', startLine: 0, endLine: 0,
+        signature: '#define VERSION 7', conditional: false, heuristic: false,
+      }),
+      expect.objectContaining({
+        name: 'SQUARE', startLine: 1, endLine: 1,
+        signature: '#define SQUARE(x) ((x) * (x))', conditional: false, heuristic: false,
+      }),
+      expect.objectContaining({
+        name: 'CHECK', startLine: 2, endLine: 3,
+        signature: '#define CHECK(x) \\\n  do { consume(x); } while (0)', conditional: false, heuristic: false,
+      }),
+    ]);
+  });
 });
 
 // ─── LspExtractionStage.execute with mocked coordinator ──────────────────────
@@ -216,14 +265,253 @@ describe('LspExtractionStage.execute with mocked coordinator', () => {
     resetLogger();
     initLogger({ level: LogLevel.SILENT });
     db = openDb(':memory:');
+    db.prepare(
+      "INSERT INTO baseline_generations (branch, generation) VALUES ('main', 1)",
+    ).run();
     // Reset mocks between tests
     mockDocumentSymbol.mockReset().mockResolvedValue([]);
     mockOutgoingCalls.mockReset().mockResolvedValue([]);
+    mockStart.mockReset().mockResolvedValue(undefined);
     mockDispose.mockReset().mockResolvedValue(undefined);
   });
 
   afterEach(() => {
     db.close();
+  });
+
+  it('extracts baseline symbols from files that SCIP did not source', async () => {
+    db.prepare(
+      "INSERT INTO files (id, path, branch, language, source, layer, generation) VALUES (1, '/tmp/fallback.c', 'main', 'c', 'int fallback(void) { return 1; }', 'baseline', 1)",
+    ).run();
+    mockDocumentSymbol.mockResolvedValue([{
+      name: 'fallback',
+      kind: 12,
+      range: { start: { line: 0, character: 0 }, end: { line: 0, character: 32 } },
+      selectionRange: { start: { line: 0, character: 4 }, end: { line: 0, character: 12 } },
+      children: [],
+    }]);
+
+    const stage = new LspExtractionStage();
+    const ctx = makeContext(db, {
+      layer: 'baseline',
+      generation: 1,
+      walkerConfig: { rootDir: '/tmp' },
+      files: [{ path: '/tmp/fallback.c', language: 'c' }],
+      sourceCache: new Map([['/tmp/fallback.c', 'int fallback(void) { return 1; }']]),
+      scipSourcedFiles: new Set(),
+    });
+
+    await stage.execute(ctx, 'build');
+
+    const symbol = db.prepare("SELECT name, kind, layer FROM symbols WHERE name = 'fallback'").get();
+    expect(symbol).toMatchObject({ name: 'fallback', kind: 'function', layer: 'baseline' });
+  });
+
+  it('targets the exact hidden baseline generation when an older path coexists', async () => {
+    db.prepare(
+      `INSERT INTO files (id, path, branch, language, source, layer, generation)
+       VALUES (1, '/tmp/fallback.c', 'main', 'c', 'old', 'baseline', 1),
+              (2, '/tmp/fallback.c', 'main', 'c', 'int candidate;', 'baseline', 2)`,
+    ).run();
+    db.prepare(
+      "INSERT OR REPLACE INTO baseline_generations (branch, generation) VALUES ('main', 1)",
+    ).run();
+    installStagingEffectiveViews(db, 'main', 2);
+    mockDocumentSymbol.mockResolvedValue([{
+      name: 'candidate',
+      kind: 13,
+      range: { start: { line: 0, character: 0 }, end: { line: 0, character: 14 } },
+      selectionRange: { start: { line: 0, character: 4 }, end: { line: 0, character: 13 } },
+      children: [],
+    }]);
+
+    try {
+      await new LspExtractionStage().execute(makeContext(db, {
+        layer: 'baseline',
+        generation: 2,
+        walkerConfig: { rootDir: '/tmp' },
+        files: [{ path: '/tmp/fallback.c', language: 'c' }],
+        sourceCache: new Map([['/tmp/fallback.c', 'int candidate;']]),
+        scipSourcedFiles: new Set(),
+      }), 'build');
+      expect(db.prepare("SELECT file_id FROM symbols WHERE name = 'candidate'").get())
+        .toEqual({ file_id: 2 });
+      expect(db.prepare('SELECT COUNT(*) AS count FROM symbols WHERE file_id = 1').get())
+        .toEqual({ count: 0 });
+    } finally {
+      dropStagingEffectiveViews(db);
+    }
+  });
+
+  it('refines spans without duplicating baseline files already sourced by SCIP', async () => {
+    db.prepare(
+      "INSERT INTO files (id, path, branch, language, source, layer, generation) VALUES (1, '/tmp/covered.c', 'main', 'c', 'int covered(void) { return 1; }', 'baseline', 1)",
+    ).run();
+    db.prepare(
+      "INSERT INTO symbols (file_id, name, kind, start_line, end_line, layer, generation) VALUES (1, 'covered', 'function', 0, 0, 'baseline', 1)",
+    ).run();
+    mockDocumentSymbol.mockResolvedValue([{
+      name: 'covered',
+      kind: 12,
+      range: { start: { line: 0, character: 0 }, end: { line: 2, character: 1 } },
+      selectionRange: { start: { line: 0, character: 4 }, end: { line: 0, character: 11 } },
+      children: [],
+    }]);
+
+    const stage = new LspExtractionStage();
+    const ctx = makeContext(db, {
+      layer: 'baseline',
+      files: [{ path: '/tmp/covered.c', language: 'c' }],
+      sourceCache: new Map([['/tmp/covered.c', 'int covered(void);']]),
+      scipSourcedFiles: new Set(['/tmp/covered.c']),
+    });
+
+    await stage.execute(ctx, 'build');
+    expect(mockDocumentSymbol).toHaveBeenCalledOnce();
+    const symbols = db.prepare("SELECT name, start_line, end_line FROM symbols WHERE name = 'covered'").all();
+    expect(symbols).toEqual([{ name: 'covered', start_line: 0, end_line: 2 }]);
+  });
+
+  it('does not overwrite a valid SCIP multiline span while repairing another symbol in the file', async () => {
+    db.prepare(
+      "INSERT INTO files (id, path, branch, language, source, layer, generation) VALUES (1, '/tmp/mixed.cpp', 'main', 'cpp', '', 'baseline', 1)",
+    ).run();
+    db.prepare(
+      `INSERT INTO symbols (file_id, name, kind, start_line, start_character, end_line,
+         end_character, selection_line, selection_character, layer, generation)
+       VALUES (1, 'valid', 'function', 0, 0, 5, 1, 0, 4, 'baseline', 1),
+              (1, 'broken', 'function', 10, 0, 10, 20, 10, 4, 'baseline', 1)`,
+    ).run();
+    mockDocumentSymbol.mockResolvedValue([
+      {
+        name: 'valid', kind: 12,
+        range: { start: { line: 0, character: 0 }, end: { line: 8, character: 1 } },
+        selectionRange: { start: { line: 0, character: 4 }, end: { line: 0, character: 9 } },
+        children: [],
+      },
+      {
+        name: 'broken', kind: 12,
+        range: { start: { line: 10, character: 0 }, end: { line: 12, character: 1 } },
+        selectionRange: { start: { line: 10, character: 4 }, end: { line: 10, character: 10 } },
+        children: [],
+      },
+    ]);
+
+    const stage = new LspExtractionStage();
+    await stage.execute(makeContext(db, {
+      layer: 'baseline',
+      generation: 1,
+      files: [{ path: '/tmp/mixed.cpp', language: 'cpp' }],
+      sourceCache: new Map([['/tmp/mixed.cpp', 'source']]),
+      scipSourcedFiles: new Set(['/tmp/mixed.cpp']),
+    }), 'build');
+
+    expect(db.prepare('SELECT name, start_line, end_line FROM symbols ORDER BY id').all()).toEqual([
+      { name: 'valid', start_line: 0, end_line: 5 },
+      { name: 'broken', start_line: 10, end_line: 12 },
+    ]);
+  });
+
+  it('fails strict baseline supplementation instead of silently applying a file cap', async () => {
+    db.prepare(
+      `INSERT INTO files (id, path, branch, language, source, layer, generation)
+       VALUES (1, '/tmp/a.py', 'main', 'python', '', 'baseline', 1),
+              (2, '/tmp/b.py', 'main', 'python', '', 'baseline', 1)`,
+    ).run();
+    const stage = new LspExtractionStage();
+    const ctx = makeContext(db, {
+      layer: 'baseline',
+      files: [
+        { path: '/tmp/a.py', language: 'python' },
+        { path: '/tmp/b.py', language: 'python' },
+      ],
+      sourceCache: new Map([['/tmp/a.py', ''], ['/tmp/b.py', '']]),
+      scipSourcedFiles: new Set(),
+      lsp: effectiveLspSettings({
+        supplementation: { maxFiles: 1, fileConcurrency: 2, strict: true },
+      }),
+    });
+
+    await expect(stage.execute(ctx, 'build')).rejects.toThrow('strict maxFiles cap');
+    expect(mockStart).not.toHaveBeenCalled();
+  });
+
+  it('pipelines baseline document requests within configured file concurrency', async () => {
+    db.prepare(
+      `INSERT INTO files (id, path, branch, language, source, layer, generation)
+       VALUES (1, '/tmp/a.py', 'main', 'python', '', 'baseline', 1),
+              (2, '/tmp/b.py', 'main', 'python', '', 'baseline', 1),
+              (3, '/tmp/c.py', 'main', 'python', '', 'baseline', 1)`,
+    ).run();
+    let active = 0;
+    let maximumActive = 0;
+    mockDocumentSymbol.mockImplementation(async () => {
+      active++;
+      maximumActive = Math.max(maximumActive, active);
+      await Promise.resolve();
+      active--;
+      return [];
+    });
+    const stage = new LspExtractionStage();
+    await stage.execute(makeContext(db, {
+      layer: 'baseline',
+      files: ['/tmp/a.py', '/tmp/b.py', '/tmp/c.py'].map((path) => ({
+        path,
+        language: 'python',
+      })),
+      sourceCache: new Map([
+        ['/tmp/a.py', ''],
+        ['/tmp/b.py', ''],
+        ['/tmp/c.py', ''],
+      ]),
+      scipSourcedFiles: new Set(),
+      lsp: effectiveLspSettings({
+        supplementation: { maxFiles: 10, fileConcurrency: 2, strict: false },
+      }),
+    }), 'build');
+
+    expect(mockDocumentSymbol).toHaveBeenCalledTimes(3);
+    expect(maximumActive).toBe(2);
+  });
+
+  it('falls back when a SCIP-sourced document has no usable symbols', async () => {
+    db.prepare(
+      "INSERT INTO files (id, path, branch, language, source, layer, generation) VALUES (1, '/tmp/empty-scip.h', 'main', 'c', 'int declared(void);', 'baseline', 1)",
+    ).run();
+    mockDocumentSymbol.mockResolvedValue([{
+      name: 'declared',
+      kind: 12,
+      range: { start: { line: 0, character: 0 }, end: { line: 0, character: 19 } },
+      selectionRange: { start: { line: 0, character: 4 }, end: { line: 0, character: 12 } },
+      children: [],
+    }]);
+
+    const stage = new LspExtractionStage();
+    const ctx = makeContext(db, {
+      layer: 'baseline',
+      generation: 1,
+      walkerConfig: { rootDir: '/tmp' },
+      files: [{ path: '/tmp/empty-scip.h', language: 'c' }],
+      sourceCache: new Map([['/tmp/empty-scip.h', 'int declared(void);']]),
+      scipSourcedFiles: new Set(['/tmp/empty-scip.h']),
+    });
+
+    await stage.execute(ctx, 'build');
+    expect(db.prepare("SELECT name, kind FROM symbols WHERE name = 'declared'").get())
+      .toEqual({ name: 'declared', kind: 'function' });
+  });
+
+  it('does not reconcile SCIP-sourced baseline files outside C and C++', async () => {
+    const stage = new LspExtractionStage();
+    const ctx = makeContext(db, {
+      layer: 'baseline',
+      files: [{ path: '/tmp/covered.ts', language: 'typescript' }],
+      sourceCache: new Map([['/tmp/covered.ts', 'export const covered = 1;']]),
+      scipSourcedFiles: new Set(['/tmp/covered.ts']),
+    });
+
+    await stage.execute(ctx, 'build');
+    expect(mockDocumentSymbol).not.toHaveBeenCalled();
   });
 
   it('inserts symbols from documentSymbol results', async () => {
@@ -253,6 +541,31 @@ describe('LspExtractionStage.execute with mocked coordinator', () => {
     const symbols = db.prepare('SELECT name, kind FROM symbols').all() as Array<{ name: string; kind: string }>;
     expect(symbols.length).toBeGreaterThanOrEqual(1);
     expect(symbols.some(s => s.name === 'main' && s.kind === 'function')).toBe(true);
+  });
+
+  it('deduplicates repeated document symbols before insertion', async () => {
+    db.prepare(
+      "INSERT INTO files (id, path, branch, language, source, layer, generation) VALUES (1, '/tmp/duplicate.ts', 'main', 'typescript', '', 'overlay', 0)",
+    ).run();
+    const duplicate = {
+      name: 'same',
+      kind: 12,
+      range: { start: { line: 0, character: 0 }, end: { line: 2, character: 1 } },
+      selectionRange: { start: { line: 0, character: 9 }, end: { line: 0, character: 13 } },
+      detail: 'function same(): void',
+      children: [],
+    };
+    mockDocumentSymbol.mockResolvedValue([duplicate, { ...duplicate }]);
+
+    const stage = new LspExtractionStage();
+    await stage.execute(makeContext(db, {
+      changedFiles: ['/tmp/duplicate.ts'],
+      files: [{ path: '/tmp/duplicate.ts', language: 'typescript' }],
+      sourceCache: new Map([['/tmp/duplicate.ts', 'function same() {}']]),
+    }), 'update');
+
+    expect(db.prepare("SELECT COUNT(*) AS count FROM symbols WHERE name = 'same'").get())
+      .toEqual({ count: 1 });
   });
 
   it('inserts nested symbols with parent_symbol_id', async () => {
@@ -300,6 +613,37 @@ describe('LspExtractionStage.execute with mocked coordinator', () => {
     expect(bar!.parent_symbol_id).not.toBeNull();
   });
 
+  it('traverses namespace children without inserting the namespace', async () => {
+    db.prepare(
+      "INSERT INTO files (id, path, branch, language, source, layer, generation) VALUES (1, '/tmp/namespaced.cpp', 'main', 'cpp', 'namespace codec { void run(); }', 'baseline', 1)",
+    ).run();
+    mockDocumentSymbol.mockResolvedValue([{
+      name: 'codec',
+      kind: 3,
+      range: { start: { line: 0, character: 0 }, end: { line: 0, character: 31 } },
+      selectionRange: { start: { line: 0, character: 10 }, end: { line: 0, character: 15 } },
+      children: [{
+        name: 'run',
+        kind: 12,
+        range: { start: { line: 0, character: 18 }, end: { line: 0, character: 29 } },
+        selectionRange: { start: { line: 0, character: 23 }, end: { line: 0, character: 26 } },
+        children: [],
+      }],
+    }]);
+
+    const stage = new LspExtractionStage();
+    await stage.execute(makeContext(db, {
+      layer: 'baseline',
+      generation: 1,
+      walkerConfig: { rootDir: '/tmp' },
+      files: [{ path: '/tmp/namespaced.cpp', language: 'cpp' }],
+      sourceCache: new Map([['/tmp/namespaced.cpp', 'namespace codec { void run(); }']]),
+    }), 'build');
+
+    expect(db.prepare('SELECT name, kind FROM symbols ORDER BY name').all())
+      .toEqual([{ name: 'run', kind: 'function' }]);
+  });
+
   it('inserts call refs from outgoing calls', async () => {
     db.prepare(
       "INSERT INTO files (id, path, branch, language, source, layer, generation) VALUES (1, '/tmp/caller.ts', 'main', 'typescript', 'function caller() { helper(); }', 'overlay', 0)",
@@ -341,7 +685,7 @@ describe('LspExtractionStage.execute with mocked coordinator', () => {
       resolution_method: string;
     }>;
     expect(refs.length).toBeGreaterThanOrEqual(1);
-    expect(refs.some(r => r.callee_name === 'helper' && r.resolution_method === 'lsp_call_hierarchy')).toBe(true);
+    expect(refs.some(r => r.callee_name === 'helper' && r.resolution_method === 'unresolved')).toBe(true);
   });
 
   it('skips files without file_id in DB', async () => {

@@ -10,6 +10,10 @@
 import type { Database } from '../../db/read-only.js';
 import { semanticSearchSymbols } from '../../db/read-only.js';
 import type { ResolutionMethod } from '../../resolution/resolution-method.js';
+import {
+  nullableStorageCharacterToPresentation,
+  nullableStorageLineToPresentation,
+} from '../../source-coordinates.js';
 
 // ─── Tool definition ──────────────────────────────────────────────────────────
 
@@ -20,7 +24,7 @@ export const toolDef = {
     'Set `kind` to "call", "import", "inheritance", or "type_dependency". ' +
     'Use source_id for outbound edges (what does X call?) and target_id for inbound edges (who calls X?). ' +
     'Automatically follows transitive edges up to 5 hops. ' +
-    'The returned edges are authoritative — do NOT re-read source files to verify them. ' +
+    'Each stored edge includes its resolution provenance when compact=false; use that method to assess confidence. ' +
     'Set compact=true to omit provenance fields (line numbers, resolution details) and reduce token count. ' +
     'Optionally set mode="semantic" with query_vector to retrieve semantically related symbol/module nodes alongside edges.',
   inputSchema: {
@@ -108,7 +112,7 @@ export interface GraphEdge {
   target_name: string;
   target_file_path?: string | null;
   ref_kind?: string;
-  line?: number;
+  line?: number | null;
   character?: number | null;
   resolution_method?: ResolutionMethod;
   definition_path?: string | null;
@@ -163,7 +167,7 @@ function getStructuralEdges(
 ): GraphEdge[] {
   if (args.kind === 'call') {
     // Symbol-level: symbol_refs rows
-    const conditions: string[] = [];
+    const conditions: string[] = ['(sr.callee_id IS NULL OR s_callee.id IS NOT NULL)'];
     const params: Array<string | number> = [];
 
     if (args.source_id !== undefined) {
@@ -193,27 +197,25 @@ function getStructuralEdges(
               sr.callee_name AS target_name,
               sr.definition_path AS target_file_path,
               sr.call_kind  AS call_kind,
-              sr.call_line + 1 AS line,
-              CASE
-                WHEN sr.call_character IS NULL THEN NULL
-                ELSE sr.call_character + 1
-              END AS character,
+              sr.call_line AS line,
+              sr.call_character AS character,
               sr.resolution_method AS resolution_method,
               sr.definition_path AS definition_path,
-              CASE WHEN sr.definition_line IS NULL THEN NULL ELSE sr.definition_line + 1 END AS definition_line,
-              CASE WHEN sr.definition_character IS NULL THEN NULL ELSE sr.definition_character + 1 END AS definition_character
-         FROM symbol_refs sr
-         JOIN symbols s_caller ON s_caller.id = sr.caller_id
-         JOIN files f_caller ON f_caller.id = s_caller.file_id
-         LEFT JOIN symbols sp_caller ON sp_caller.id = s_caller.parent_symbol_id
+              sr.definition_line AS definition_line,
+              sr.definition_character AS definition_character
+         FROM effective_symbol_refs sr
+         JOIN effective_symbols s_caller ON s_caller.id = sr.caller_id
+         JOIN effective_files f_caller ON f_caller.id = s_caller.file_id
+         LEFT JOIN effective_symbols sp_caller ON sp_caller.id = s_caller.parent_symbol_id
+         LEFT JOIN effective_symbols s_callee ON s_callee.id = sr.callee_id
         ${whereClause}
         LIMIT ?`;
 
     const edges = db.prepare(sql).all(...params) as GraphEdge[];
-    return edges;
+    return edges.map(presentGraphEdge);
   } else if (args.kind === 'import') {
     // File-level: file_imports rows
-    const conditions: string[] = [];
+    const conditions: string[] = ['(fi.resolved_id IS NULL OR f_dst.id IS NOT NULL)'];
     const params: Array<string | number> = [];
 
     if (args.source_id !== undefined) {
@@ -238,9 +240,9 @@ function getStructuralEdges(
               f_src.branch AS source_branch,
               fi.resolved_id AS target_id,
               COALESCE(f_dst.path, fi.raw_import) AS target_name
-         FROM file_imports fi
-         JOIN files f_src ON f_src.id = fi.file_id
-         LEFT JOIN files f_dst ON f_dst.id = fi.resolved_id
+         FROM effective_file_imports fi
+         JOIN effective_files f_src ON f_src.id = fi.file_id
+         LEFT JOIN effective_files f_dst ON f_dst.id = fi.resolved_id
         ${whereClause}
         LIMIT ?`;
 
@@ -249,7 +251,10 @@ function getStructuralEdges(
     return edges;
   } else if (args.kind === 'inheritance') {
     // Symbol-level inheritance edges (e.g., class extends, implements)
-    const conditions: string[] = ["rel.relationship_type IN ('extends', 'implements')"];
+    const conditions: string[] = [
+      "rel.relationship_type IN ('extends', 'implements')",
+      '(rel.target_symbol_id IS NULL OR s_dst.id IS NOT NULL)',
+    ];
     const params: Array<string | number> = [];
 
     if (args.source_id !== undefined) {
@@ -276,28 +281,25 @@ function getStructuralEdges(
               rel.target_symbol_id AS target_id,
               COALESCE(s_dst.name, rel.target_symbol_name) AS target_name,
               rel.definition_path AS target_file_path,
-              rel.line + 1 AS line,
-              CASE
-                WHEN rel.character IS NULL THEN NULL
-                ELSE rel.character + 1
-              END AS character,
+              rel.line AS line,
+              rel.character AS character,
               rel.resolution_method AS resolution_method,
               rel.definition_path AS definition_path,
-              CASE WHEN rel.definition_line IS NULL THEN NULL ELSE rel.definition_line + 1 END AS definition_line,
-              CASE WHEN rel.definition_character IS NULL THEN NULL ELSE rel.definition_character + 1 END AS definition_character
-         FROM symbol_relationships rel
-         JOIN symbols s_src ON s_src.id = rel.source_symbol_id
-         JOIN files f_src ON f_src.id = s_src.file_id
-         LEFT JOIN symbols s_dst ON s_dst.id = rel.target_symbol_id
+              rel.definition_line AS definition_line,
+              rel.definition_character AS definition_character
+         FROM effective_symbol_relationships rel
+         JOIN effective_symbols s_src ON s_src.id = rel.source_symbol_id
+         JOIN effective_files f_src ON f_src.id = s_src.file_id
+         LEFT JOIN effective_symbols s_dst ON s_dst.id = rel.target_symbol_id
         ${whereClause}
         LIMIT ?`;
 
     const edges = db.prepare(sql).all(...params) as GraphEdge[];
 
-    return edges;
+    return edges.map(presentGraphEdge);
   } else {
     // type_dependency: symbol → referenced type edges
-    const conditions: string[] = [];
+    const conditions: string[] = ['(tr.type_id IS NULL OR s_dst.id IS NOT NULL)'];
     const params: Array<string | number> = [];
 
     if (args.source_id !== undefined) {
@@ -325,26 +327,40 @@ function getStructuralEdges(
               COALESCE(s_dst.name, tr.type_name) AS target_name,
               tr.definition_path AS target_file_path,
               tr.ref_kind AS ref_kind,
-              tr.ref_line + 1 AS line,
-              CASE
-                WHEN tr.ref_character IS NULL THEN NULL
-                ELSE tr.ref_character + 1
-              END AS character,
+              tr.ref_line AS line,
+              tr.ref_character AS character,
               tr.resolution_method AS resolution_method,
               tr.definition_path AS definition_path,
-              CASE WHEN tr.definition_line IS NULL THEN NULL ELSE tr.definition_line + 1 END AS definition_line,
-              CASE WHEN tr.definition_character IS NULL THEN NULL ELSE tr.definition_character + 1 END AS definition_character
-         FROM type_refs tr
-         JOIN files f_src ON f_src.id = tr.file_id
-         LEFT JOIN symbols s_src ON s_src.id = tr.symbol_id
-         LEFT JOIN symbols s_dst ON s_dst.id = tr.type_id
+              tr.definition_line AS definition_line,
+              tr.definition_character AS definition_character
+         FROM effective_type_refs tr
+         JOIN effective_files f_src ON f_src.id = tr.file_id
+         LEFT JOIN effective_symbols s_src ON s_src.id = tr.symbol_id
+         LEFT JOIN effective_symbols s_dst ON s_dst.id = tr.type_id
         ${whereClause}
         LIMIT ?`;
 
     const edges = db.prepare(sql).all(...params) as GraphEdge[];
 
-    return edges;
+    return edges.map(presentGraphEdge);
   }
+}
+
+function presentGraphEdge(edge: GraphEdge): GraphEdge {
+  const presented = { ...edge };
+  if (edge.line !== undefined) {
+    presented.line = nullableStorageLineToPresentation(edge.line);
+  }
+  if (edge.character !== undefined) {
+    presented.character = nullableStorageCharacterToPresentation(edge.character);
+  }
+  if (edge.definition_line !== undefined) {
+    presented.definition_line = nullableStorageLineToPresentation(edge.definition_line);
+  }
+  if (edge.definition_character !== undefined) {
+    presented.definition_character = nullableStorageCharacterToPresentation(edge.definition_character);
+  }
+  return presented;
 }
 
 function compactEdge(edge: GraphEdge): CompactGraphEdge {

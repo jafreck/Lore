@@ -1,5 +1,12 @@
 # Complex Codebase Questions
 
+> **Status: historical capability brainstorm.** This inventory predates the
+> v0.4.0 SCIP+LSP migration and the current 11-tool MCP registry. In particular,
+> there is no registered `lore_routes` or `lore_metrics` tool; the active
+> pipeline does not populate complexity metrics; `symbols.is_exported` now
+> exists; and branch diff, structure, and cohesion tools have since been added.
+> Statements below are retained as planning history, not current product claims.
+
 20 questions about large-scale codebases that **cannot** be easily answered by
 standard tools (grep, git, wc, etc.) because they require semantic
 understanding — type resolution, call-graph construction, data-flow analysis,

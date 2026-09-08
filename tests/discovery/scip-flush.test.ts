@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ScipFlushManager, type ScipFlushConfig } from '../../src/discovery/scip-flush.js';
+import { effectiveScipSettings } from '../helpers/effective-settings.js';
 
 function makeConfig(overrides?: Partial<ScipFlushConfig>): ScipFlushConfig {
   return {
@@ -9,7 +10,7 @@ function makeConfig(overrides?: Partial<ScipFlushConfig>): ScipFlushConfig {
     history: false,
     indexDependencies: false,
     lsp: undefined,
-    scip: { enabled: true, timeoutMs: 120_000, indexers: {}, indexDir: null },
+    scip: effectiveScipSettings(),
     scipQuietPeriodMs: 500,
     source: 'test',
     ...overrides,

@@ -13,6 +13,7 @@
 
 import type { Database } from '../../db/read-only.js';
 import { getSymbolsByName } from '../../db/read-only.js';
+import { storageLineToPresentation } from '../../source-coordinates.js';
 
 // ─── Tool definition ──────────────────────────────────────────────────────────
 
@@ -146,8 +147,8 @@ function getSymbolsWithSource(
   const sql = `
     SELECT s.id, s.name, s.kind, f.path AS file_path,
            s.start_line, s.end_line, s.signature, f.source
-      FROM symbols s
-      JOIN files f ON f.id = s.file_id
+      FROM effective_symbols s
+      JOIN effective_files f ON f.id = s.file_id
      WHERE s.id IN (${placeholders})`;
 
   const rows = db.prepare(sql).all(...symbolIds) as Array<{
@@ -173,7 +174,8 @@ function getCallees(db: Database.Database, callerId: number): CalleeEdge[] {
   return db
     .prepare(
       `SELECT callee_id, callee_name, call_line, resolution_method
-         FROM symbol_refs
+         FROM effective_symbol_refs edge
+         JOIN effective_symbols target ON target.id = edge.callee_id
         WHERE caller_id = ? AND callee_id IS NOT NULL
         ORDER BY call_line ASC`,
     )
@@ -183,8 +185,8 @@ function getCallees(db: Database.Database, callerId: number): CalleeEdge[] {
 /** Extract source lines for a symbol, applying truncation. */
 function extractSource(sym: SymbolWithSource, maxLines: number): string {
   const allLines = sym.source.split('\n');
-  const start = Math.max(0, sym.start_line - 1);
-  const end = Math.min(allLines.length, sym.end_line);
+  const start = Math.max(0, sym.start_line);
+  const end = Math.min(allLines.length, sym.end_line + 1);
   const lines = allLines.slice(start, end);
 
   if (lines.length <= maxLines) {
@@ -213,8 +215,8 @@ function buildStep(
     name: sym.name,
     kind: sym.kind,
     file_path: sym.file_path,
-    start_line: sym.start_line,
-    end_line: sym.end_line,
+    start_line: storageLineToPresentation(sym.start_line),
+    end_line: storageLineToPresentation(sym.end_line),
     source: extractSource(sym, maxLines),
   };
   if (sym.signature) step.signature = sym.signature;
@@ -266,7 +268,7 @@ function forwardTrace(
           planStack.push({
             symbolId: edge.callee_id,
             depthLevel: frame.depthLevel + 1,
-            callLine: edge.call_line + 1, // 0-indexed → 1-indexed
+            callLine: storageLineToPresentation(edge.call_line),
             resolutionMethod: edge.resolution_method,
           });
         }
@@ -306,7 +308,7 @@ function forwardTrace(
           dfsStack.push({
             symbolId: edge.callee_id,
             depthLevel: frame.depthLevel + 1,
-            callLine: edge.call_line + 1,
+            callLine: storageLineToPresentation(edge.call_line),
             resolutionMethod: edge.resolution_method,
           });
         }
@@ -348,7 +350,7 @@ function pointToPointTrace(
         visited.add(edge.callee_id);
         parentMap.set(edge.callee_id, {
           parentId: id,
-          callLine: edge.call_line + 1,
+          callLine: storageLineToPresentation(edge.call_line),
           resolutionMethod: edge.resolution_method,
         });
         queue.push({ id: edge.callee_id, depth: depth + 1 });

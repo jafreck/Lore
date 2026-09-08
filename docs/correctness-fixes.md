@@ -1,5 +1,11 @@
 # Correctness Fixes
 
+> **Status: historical remediation plan.** Most items below have been applied or
+> superseded. Examples include deterministic symbol ordering, thrown dependent
+> lookup errors, poller/watcher fixes, Git timeouts, LSP write handling, SCIP
+> retry re-queuing, and safe command/path construction. Do not treat this file as
+> an active backlog without re-verifying current source and tests.
+
 Verified audit findings to fix. Each section is a self-contained bug with
 location, root cause, and expected fix.
 

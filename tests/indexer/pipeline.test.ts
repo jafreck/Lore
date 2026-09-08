@@ -102,6 +102,38 @@ describe('IndexPipeline', () => {
     expect(disposeB).toHaveBeenCalled();
   });
 
+  it('waits for parallel peers to settle before disposing after a stage failure', async () => {
+    const events: string[] = [];
+    let releasePeer!: () => void;
+    const peerBlocked = new Promise<void>((resolve) => { releasePeer = resolve; });
+    let peerStarted!: () => void;
+    const peerStartedPromise = new Promise<void>((resolve) => { peerStarted = resolve; });
+
+    const failing = mockStage('failing', {
+      executeFn: async () => { throw new Error('parallel failure'); },
+      disposeFn: async () => { events.push('dispose-failing'); },
+    });
+    const peer = mockStage('peer', {
+      executeFn: async () => {
+        events.push('peer-started');
+        peerStarted();
+        await peerBlocked;
+        events.push('peer-settled');
+      },
+      disposeFn: async () => { events.push('dispose-peer'); },
+    });
+
+    const run = new IndexPipeline([[failing, peer]]).run(ctx, 'build');
+    await peerStartedPromise;
+    await Promise.resolve();
+    expect(events).toEqual(['peer-started']);
+
+    releasePeer();
+    await expect(run).rejects.toThrow('parallel failure');
+    expect(events.indexOf('peer-settled')).toBeLessThan(events.indexOf('dispose-failing'));
+    expect(events.indexOf('peer-settled')).toBeLessThan(events.indexOf('dispose-peer'));
+  });
+
   it('handles stages without dispose()', async () => {
     const stage: PipelineStage = {
       name: 'no-dispose',
@@ -122,6 +154,28 @@ describe('IndexPipeline', () => {
     await pipeline.run(ctx, 'update');
 
     expect(executeFn).toHaveBeenCalledWith(ctx, 'update');
+  });
+
+  it('stops before the next stage when the run signal is already aborted', async () => {
+    const executeFn = vi.fn(async () => {});
+    const disposeFn = vi.fn(async () => {});
+    const controller = new AbortController();
+    controller.abort(new Error('cancelled by test'));
+    ctx.signal = controller.signal;
+
+    const pipeline = new IndexPipeline([mockStage('cancelled', { executeFn, disposeFn })]);
+    await expect(pipeline.run(ctx, 'build')).rejects.toThrow('cancelled by test');
+    expect(executeFn).not.toHaveBeenCalled();
+    expect(disposeFn).toHaveBeenCalledOnce();
+  });
+
+  it('enforces an absolute pipeline deadline without timing-sensitive waits', async () => {
+    const executeFn = vi.fn(async () => {});
+    ctx.deadlineAt = Date.now() - 1;
+
+    const pipeline = new IndexPipeline([mockStage('expired', { executeFn })]);
+    await expect(pipeline.run(ctx, 'build')).rejects.toThrow('deadline exceeded');
+    expect(executeFn).not.toHaveBeenCalled();
   });
 
   describe('stageNames', () => {

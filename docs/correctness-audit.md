@@ -1,5 +1,10 @@
 # Correctness Audit
 
+> **Status: historical point-in-time audit.** These findings describe the code
+> inspected on 2026-03-27. Many were subsequently fixed, and all findings tied
+> to removed tree-sitter parser/extractor files are obsolete. This is not a list
+> of currently reproducible defects; verify each item against current source.
+
 Deep inspection of Lore's source code for correctness issues, conducted 2026-03-27.
 
 ---

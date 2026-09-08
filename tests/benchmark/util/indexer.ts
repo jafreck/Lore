@@ -3,13 +3,13 @@
  *
  * Builds a Lore index for a benchmark repo using the IndexBuilder API.
  *
- * Indexing mode controls parsing stages:
+ * Indexing mode controls SCIP/LSP settings. The labels predate tree-sitter's
+ * removal and are retained by the benchmark API:
  *
- * - `tree-sitter`: Tree-sitter parsing only (fastest, no external tools).
- * - `scip`:        SCIP (primary) + tree-sitter (fallback). Standard
- *                  production indexing with accurate cross-references.
- * - `full`:        SCIP + tree-sitter + LSP enrichment.
- *                  Maximum structural quality: resolved types.
+ * - `tree-sitter`: No SCIP and no default LSP; currently stores discovered
+ *                  file snapshots only.
+ * - `scip`:        Enables SCIP baseline indexing; no default LSP.
+ * - `full`:        Enables SCIP baseline indexing and LSP enrichment.
  *
  * Embeddings are controlled independently via `embeddingModel`:
  * pass a model name (e.g. 'onnx-community/Qwen3-Embedding-0.6B-ONNX') to enable,
@@ -54,15 +54,13 @@ export async function indexRepo(
   };
 
   // ── SCIP settings (for 'scip' and 'full' modes) ──────────────────────
-  const scip = mode === 'scip' || mode === 'full'
-    ? resolveEffectiveScipSettings(
-        {},
-        {
-          enabled: true,
-          ...(options?.scipIndexDir ? { indexDir: options.scipIndexDir } : {}),
-        },
-      )
-    : undefined;
+  const scip = resolveEffectiveScipSettings(
+    {},
+    {
+      enabled: mode === 'scip' || mode === 'full',
+      ...(options?.scipIndexDir ? { indexDir: options.scipIndexDir } : {}),
+    },
+  );
 
   // ── Embedding provider (when a model is specified) ────────────────────
   let embedder: EmbeddingProvider | undefined;
@@ -71,9 +69,7 @@ export async function indexRepo(
   }
 
   // ── LSP settings (when enabled) ───────────────────────────────────────
-  const lsp = enableLsp
-    ? resolveEffectiveLspSettings({}, { enabled: true })
-    : undefined;
+  const lsp = resolveEffectiveLspSettings({}, { enabled: enableLsp });
 
   const start = performance.now();
 
@@ -81,8 +77,12 @@ export async function indexRepo(
     const builder = new IndexBuilder(dbPath, walkerConfig, embedder, {
       history: { depth: historyDepth },
       indexDependencies: false,
-      scip: scip ?? undefined,
-      lsp: lsp ?? undefined,
+      scip,
+      lsp,
+      execution: {
+        allowSubprocessExecution: true,
+        allowAutoInstall: true,
+      },
     });
 
     await builder.build();

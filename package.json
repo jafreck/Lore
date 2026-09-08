@@ -32,10 +32,13 @@
     "build": "tsc",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
+    "typecheck": "npm run lint && npm run typecheck:tests",
+    "typecheck:tests": "tsc -p tsconfig.tests.json",
     "prepare": "npm run build",
     "prepublishOnly": "npm run clean && npm run build",
     "test": "vitest run",
     "test:lsp-smoke": "vitest run tests/lsp/smoke.test.ts",
+    "test:c-cpp:integration": "vitest run tests/scip/c-cpp-integration.test.ts --reporter=verbose",
     "test:benchmark": "vitest run tests/benchmark/",
     "test:benchmark:integration": "vitest run tests/benchmark/integration.test.ts",
     "coverage": "vitest run --coverage"

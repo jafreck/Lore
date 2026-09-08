@@ -1,159 +1,98 @@
 # Lore Architecture
 
-Detailed view of Lore's indexing pipeline, storage schema, and MCP tool surface.
+> **Status: current source-backed reference for v0.4.0.** Historical proposals
+> elsewhere in `docs/` are not authoritative for current behavior.
 
 ## High-level module layout
 
 ```
-LoreRuntime              ← lifecycle owner (DB, embedder, LSP, watcher/poller)
-  └─ IndexBuilder        ← façade over IndexPipeline
-       └─ IndexPipeline  ← ordered, composable stage chain
-            ├─ ScipIndexerStage
-            ├─ FileDiscoveryStage
-            ├─ LspExtractionStage
-            ├─ ImportResolutionStage
-            ├─ LspEnrichmentStage
-            ├─ FtsRefreshStage        (inline)
-            ├─ ResolutionStage        (inline)
-            ├─ HistoryStage           (inline)
-            ├─ ReverseDepsStage
-            └─ EmbeddingStage
-  └─ GraphAnalysis       ← SCC, connected components, clustering, summary
-  └─ MCP Server
-       └─ ToolRegistry   ← auto-registers tools from toolDef exports
+CLI
+    ├─ index / one-shot refresh ──► IndexBuilder ──► IndexPipeline
+    ├─ analyze ───────────────────► graph-analysis functions
+    └─ mcp / watch / poll ────────► LoreRuntime
+
+LoreRuntime
+    ├─ optional lazy embedder
+    ├─ optional watcher or poller
+    └─ lifecycle/signal cleanup
+
+IndexPipeline
+    ├─ ScipIndexerStage
+    ├─ FileDiscoveryStage
+    ├─ LspExtractionStage
+    ├─ ImportResolutionStage
+    ├─ [LspEnrichmentStage + GitHistoryStage]  (parallel)
+    ├─ ResolutionStage                         (inline)
+    ├─ ReverseDepsStage                        (overlay update only)
+    ├─ OverlayCleanupStage                     (baseline build/rebuild only)
+    ├─ EmbeddingStage
+    └─ FtsRefreshStage
+
+MCP server ──► ToolRegistry ──► 11 toolDef/handler modules
 ```
 
-`LoreRuntime` (`runtime.ts`) owns all long-lived resources — database handles,
-embedding providers, LSP coordinators, and file-change refreshers. Both CLI
-sub-commands and the MCP server dispatch through a single runtime instance.
+`IndexBuilder` (`src/indexer/index.ts`) serializes build/update/rebuild calls
+through a process-local promise chain and creates an `IndexPipeline` for each
+run. One-shot `index` and `refresh` commands instantiate it directly.
 
-`IndexBuilder` (`indexer/index.ts`) is now a thin **façade** (~310 lines, down
-from ~1 230) that delegates to `IndexPipeline` for both full builds and
-incremental updates.
+`LoreRuntime` (`src/runtime.ts`) is used by MCP/watch/poll paths. It owns an
+optional lazy embedding provider and watcher/poller. LSP coordinators are owned
+only by the pipeline stages that use them; the formerly disconnected runtime
+coordinator was removed so there is no second lifecycle or policy path.
 
-`ToolRegistry` (`server/tool-registry.ts`) auto-discovers tool modules
-and wires them into the MCP server from each module's exported `toolDef` /
-`handler` — eliminating duplicate Zod schema definitions.
+`ToolRegistry` (`src/server/tool-registry.ts`) imports a fixed list of tool
+modules dynamically and wires each exported `toolDef`/handler into the MCP
+server. This is not filesystem auto-discovery.
 
 ## Full pipeline
 
 ```mermaid
 flowchart LR
-    subgraph Codebase
-        SRC[Source Files]
-        GIT[Git Repo]
-    end
-
-    subgraph Lore Indexer
-        SCIPIDX[SCIP Indexer<br/>pre-resolved symbols + refs]
-        FILEDISCO[File Discovery<br/>fast-glob · extension map]
-        LSPEXTRACT[LSP Extraction<br/>symbols · imports · call refs<br/>type refs · annotations]
-        RESOLVE[ImportResolver<br/>internal ↔ external]
-        DEPAPI[Dependency API Indexer<br/>direct deps · TS/Py/Go/Rust declarations]
-        CALLGRAPH[Relationship Resolver<br/>3-tier resolution · topo sort]
-        LSP[LSP Enrichment<br/>batch-pipelined hover + definition<br/>persisted metadata]
-        EMBED[Embedder<br/>Transformers.js ONNX<br/>async init · overlapped batches]
-        GITHIST[Git History Ingest<br/>commits · diffs · refs]
-    end
-
-    subgraph SQLite Lore
-        FILES[(files)]
-        SYM[(symbols · symbols_fts)]
-        IMP[(file_imports · external_deps)]
-        EXT[(external_symbols)]
-        REFS[(symbol_refs)]
-        TYPES[(symbol_relationships · type_refs)]
-        ANN[(annotations)]
-        VEC[(symbol_embeddings · symbol_semantic_embeddings<br/>commit_embeddings)]
-        HIST[(commits · commit_files<br/>commit_refs)]
-        META[(lore_meta · symbol_summaries)]
-    end
-
-    subgraph MCP Server
-        LOOKUP[lore_lookup]
-        SEARCH[lore_search<br/>BM25 · vector · fused]
-        GRAPH[lore_graph]
-        SNIPPET[lore_snippet]
-        BLAME[lore_blame]
-        HISTORY[lore_history]
-        METRICS[lore_metrics]
-        TRACE[lore_trace]
-        DIFF[lore_diff]
-        COHESION[lore_cohesion]
-        DEPENDENTS[lore_dependents]
-    end
-
-    subgraph LLM_AGENTS[Agents]
-        CLAUDE[Claude]
-        COPILOT[GitHub Copilot]
-        CUSTOM_AGENT[Custom Agents]
-        CLAUDE ~~~ COPILOT ~~~ CUSTOM_AGENT
-    end
-
-    subgraph ENTRY[User Entrypoints]
-        VSCODE[VS Code]
-        CURSOR[Cursor]
-        CHAT[Chat UI]
-        ORCH[Agent Frameworks]
-        VSCODE ~~~ CURSOR ~~~ CHAT ~~~ ORCH
-    end
-
-    SRC --> SCIPIDX --> FILES & SYM & REFS & TYPES
-    SRC --> FILEDISCO --> LSPEXTRACT
-    LSPEXTRACT --> RESOLVE --> IMP
-    RESOLVE --> DEPAPI --> EXT
-    LSPEXTRACT --> CALLGRAPH --> REFS
-    LSPEXTRACT --> CALLGRAPH --> TYPES
-    LSPEXTRACT --> ANN
-    LSPEXTRACT --> LSP
-    LSP --> SYM
-    LSP --> REFS
-    LSP --> TYPES
-    LSP --> EXT
-    LSPEXTRACT --> FILES & SYM
-    EMBED -.->|optional| VEC
-    GIT --> GITHIST --> HIST
-
-    FILES & SYM & IMP & EXT & REFS & TYPES & ANN & VEC & HIST & META --- LOOKUP & SEARCH_TOOL & GRAPH & SNIPPET & BLAME & HISTORY & METRICS & TRACE & DIFF & COHESION & DEPENDENTS
-
-    LOOKUP & SEARCH_TOOL & GRAPH & SNIPPET & BLAME & HISTORY & METRICS & TRACE & DIFF & COHESION & DEPENDENTS <--> LLM_AGENTS
-
-    LLM_AGENTS <--- ENTRY
+    SCIP[ScipIndexerStage<br/>baseline only] --> FILES[FileDiscoveryStage]
+    FILES --> LSPX[LspExtractionStage<br/>overlay only]
+    LSPX --> IMPORTS[ImportResolutionStage]
+    IMPORTS --> PARALLEL[Parallel group]
+    PARALLEL --> LSPE[LspEnrichmentStage]
+    PARALLEL --> HISTORY[Git history<br/>when enabled]
+    LSPE --> RESOLVE[Symbol resolution]
+    HISTORY --> RESOLVE
+    RESOLVE -->|overlay update| REVERSE[ReverseDepsStage]
+    RESOLVE -->|baseline build/rebuild| CLEANUP[OverlayCleanupStage]
+    REVERSE --> EMBED[EmbeddingStage<br/>when configured]
+    CLEANUP --> EMBED
+    EMBED --> FTS[FTS refresh]
 ```
 
 ## Pipeline stages
 
 The indexing pipeline is decomposed into composable `PipelineStage` objects
-orchestrated by `IndexPipeline` (`pipeline.ts`). The stage ordering enforces
-data dependencies structurally rather than by call-site discipline:
+orchestrated by `IndexPipeline` (`src/indexer/pipeline.ts`). Entries execute in
+order; an array entry executes concurrently with `Promise.all`. Every stage's
+`dispose()` hook runs even after a failure.
 
 ```
 ScipIndexer → FileDiscovery → LspExtraction → ImportResolution
-  → LspEnrichment → FtsRefresh → Resolution → ReverseDeps → History → Embedding
+    → [LspEnrichment + GitHistory] → Resolution
+    → (ReverseDeps for overlay | OverlayCleanup for baseline) → Embedding → FtsRefresh
 ```
 
-SCIP is the primary indexing strategy. `ScipIndexerStage` runs first,
-producing symbols and pre-resolved edges directly from SCIP indexers.
-`FileDiscoveryStage` discovers source files, and `LspExtractionStage`
-extracts symbols, imports, and relationships via LSP. There is no tree-sitter
-fallback — the pipeline is fully SCIP+LSP.
-
-The **enrichment → resolution** ordering is load-bearing: `resolveSymbolEdges`
-reads `definition_path` / `definition_line` columns that are only populated
-during the LSP enrichment stage.
+The same stage array is used for build, update, and baseline rebuild. Individual
+stages branch on `context.layer` or pipeline mode. There is no tree-sitter
+fallback.
 
 | Stage | Module | What it does |
 |-------|--------|--------------|
-| ScipIndexer | `stages/scip-indexer.ts` | Run SCIP indexers (or read pre-computed `.scip` files) for covered languages; populates symbols + refs with pre-resolved edges |
-| FileDiscovery | `stages/file-discovery.ts` | Discover source files via `fast-glob`, map extensions to languages |
-| LspExtraction | `stages/lsp-extraction.ts` | Extract symbols, imports, call refs, type refs, and annotations via LSP |
-| ImportResolution | `stages/import-resolution.ts` | Resolve raw imports to file IDs using a bulk `Map<path, fileId>` lookup |
-| LspEnrichment | `stages/lsp-enrichment.ts` | Batch-pipelined LSP hover + definition lookups (parallel per position, concurrent batches of 30); persists resolved type signature/return/definition metadata |
-| FtsRefresh | inline | Refresh FTS5 full-text search indexes |
-| Resolution | inline | 3-tier resolution via `call-graph.ts`: LSP containment → same-file name match → unique name match |
-| ReverseDeps | `stages/reverse-deps.ts` | Build reverse dependency edges for blast-radius queries |
-| History | inline | Git history ingestion via `simple-git` |
-| Embedding | `stages/embedding.ts` | Overlapped batch embedding — fires next `embed()` while writing current batch to DB; handles scoped re-embedding in update mode |
+| ScipIndexer | `src/indexer/stages/scip-indexer.ts` | In baseline mode, load precomputed indexes and/or run available project indexers; insert files, symbols, imports, relationships, type refs, call refs, and materialized virtual-dispatch refs. It returns immediately for overlay updates. |
+| FileDiscovery | `src/indexer/stages/source-index.ts` | Discover recognized files, cache source, insert non-SCIP file snapshots, and handle overlay deletion/dirty sentinels. Despite the filename, it performs no AST extraction. |
+| LspExtraction | `src/indexer/stages/lsp-extraction.ts` | Overlay only: use `documentSymbol` and outgoing call hierarchy to insert symbols/call refs, then run hover/definition enrichment for processed files. It does not insert imports, type refs, or annotations. |
+| ImportResolution | `src/indexer/stages/import-resolution.ts` | Resolve `effective_file_imports` against `effective_files`; update internal targets or insert `external_deps`. |
+| LspEnrichment | `src/indexer/stages/lsp-enrichment.ts` | Baseline: enrich non-SCIP files. Its overlay branch is intended to target unresolved SCIP refs, but normal `IndexBuilder.update()` runs do not carry baseline SCIP coverage markers into the new context, so that branch usually finds no SCIP files; changed-file overlay enrichment happens in `LspExtractionStage`. Files are processed three at a time. |
+| GitHistory | inline in `src/indexer/index.ts` | If enabled, ingest commits, touched-file metadata, and refs concurrently with LSP enrichment. |
+| FtsRefresh | `src/indexer/stages/fts-refresh.ts` | Rebuild `symbols_fts` from `effective_symbols` for baseline runs; for overlays, delete hidden stale IDs and replace only symbols from changed files. |
+| Resolution | inline in `src/indexer/index.ts` | Run `resolveSymbolEdges`, scoped to overlay rows for updates. |
+| ReverseDeps | `src/indexer/stages/reverse-deps.ts` | Update import and symbol reverse dependencies for overlay updates. Baseline cleanup rebuilds reverse deps after promotion. |
+| Embedding | `src/indexer/stages/embedding.ts` | When a provider exists, embed symbol signature/type text and, if history is enabled, commit messages. Update mode scopes symbol work and skips unchanged embedding input hashes. |
+| OverlayCleanup | `src/indexer/stages/overlay-cleanup.ts` | Baseline build/rebuild: promote the new generation, remove superseded baseline/overlay rows and dirty markers, rebuild reverse deps, and clean stale vector rows. |
 
 ### Supporting modules
 
@@ -161,12 +100,14 @@ during the LSP enrichment stage.
 |--------|--------------|
 | `discovery/walker.ts` | Discovers source files via `fast-glob`, maps extensions to languages |
 | `resolution/resolver.ts` | Classifies each raw import as internal (resolved to a file ID) or external (third-party / stdlib) |
-| `resolution/call-graph.ts` | 3-tier symbol resolution with SCIP/LSP-first ref resolution and name-based fallback; supports topo sort and cycle detection |
+| `resolution/call-graph.ts` | Definition-containment and name-based fallback resolution; also provides file topological sorting and cycle detection |
 | `resolution/graph-analysis.ts` | Higher-level graph primitives: Tarjan SCC on symbol adjacency, union-find connected components, SCC-contracted bounded clustering, and condensed codebase summary |
-| `scip/*` | SCIP index reading, enrichment coordinator, indexer config, and protobuf definitions |
-| `embeddings/embedder.ts` | Optional — uses `@huggingface/transformers` (Transformers.js) to run ONNX embedding models natively in Node.js; default model `Qwen/Qwen3-Embedding-0.6B`; supports CoreML/WebGPU hardware acceleration, quantized ONNX dtype (fp32/fp16/q8/q4), skip-unchanged hash-based re-embedding, and lazy on-demand initialization |
+| `scip/*` | SCIP index reading, compilation-database handling, indexer config, and protobuf definitions |
+| `lsp/*` | Language-server registry/config, JSON-RPC client, and enrichment coordinator |
+| `parsing/config-parser.ts` | Parses `.env`, JSON, YAML/YML, and TOML configuration text; it is not part of source symbol extraction |
+| `embeddings/embedder.ts` | Optional Transformers.js ONNX provider; default model `onnx-community/Qwen3-Embedding-0.6B-ONNX`, CPU default, `q8` default dtype, lazy initialization, and hash-based skip-unchanged symbol embeddings |
 | `process-tracker.ts` | Global registry of spawned child processes; `killAllTracked()` ensures cleanup on SIGINT/SIGTERM/exit |
-| `git/history.ts` | Ingests commits, per-file diffs, and branch/tag refs via `simple-git` |
+| `git/history.ts` | Ingests commit metadata, touched-file change types/statistics, and refs via `simple-git` |
 | `resolution/resolution-method.ts` | Authoritative taxonomy for `resolution_method` column values shared by writers and readers |
 
 
@@ -180,78 +121,120 @@ The `resolution_method` column on `symbol_refs`, `type_refs`, and
 
 | Method | Confidence | Description |
 |--------|------------|-------------|
+| `scip_definition` | Highest | SCIP ingestion resolved the target from compiler-produced symbol data |
 | `lsp_definition` | Highest | LSP server returned a precise definition location mapped to the narrowest enclosing indexed symbol |
 | `name_same_file` | High | No LSP data; callee/type name matched exactly one symbol in the same file |
+| `name_single_file` | Medium | Multiple name matches all reside in one target file; the first match is selected |
 | `name_unique` | Medium | No LSP data; callee/type name matched exactly one symbol in the entire index |
 | `external_definition` | — | LSP definition path is outside the indexed file set (e.g. `node_modules`, stdlib) |
 | `ambiguous_definition` | — | LSP definition maps to multiple equally-narrow candidates |
+| `overlay_stale` | — | Reserved for stale overlay references; no current writer sets it |
 | `unresolved` | — | No resolution strategy succeeded; dangling name reference |
 
-`RESOLVED_METHODS` (`lsp_definition`, `name_same_file`, `name_unique`) indicates a successfully resolved target with a non-NULL `target_id`. `UNRESOLVED_METHODS` are references where `target_id` is NULL.
+`RESOLVED_METHODS` contains `scip_definition`, `lsp_definition`,
+`name_same_file`, `name_single_file`, and `name_unique`. The other four values
+are in `UNRESOLVED_METHODS` and normally have a null target.
 
-## Performance optimizations
+One current implementation inconsistency is worth recording: overlay call
+hierarchy insertion writes `lsp_call_hierarchy`, but that string is not present
+in `RESOLUTION_METHODS` or `RESOLVED_METHODS`. Consumers that filter strictly by
+the canonical set therefore do not treat that value as a resolved method.
 
-Key optimizations in the indexing pipeline (v0.3.0):
+## Current performance mechanisms
 
-- **Batch-pipelined LSP requests** — hover + definition fire in parallel per position; all targets within a file are processed in concurrent batches of 30 instead of sequential round-trips
-- **Hoisted prepared statements** — 21 prepared statements created once per build/update via `initPreparedStatements()` instead of re-compiled per file
-- **Stat-based change detection** — `fs.statSync().size` checked against stored `size_bytes` before reading and hashing full file content on re-index
-- **Overlapped embedding batches** — embedding methods (structural symbols and commit messages) fire the next batch `embed()` while writing the current batch to DB
-- **Bulk file ID map** — single `Map<path, fileId>` built from one query instead of N individual `SELECT` lookups per import
-- **Batched containment resolution** — refs grouped by `definition_path`, file + symbols loaded once per path instead of 2 queries per ref
-- **Async embedder initialization** — `EmbedderRef` mutable container lets MCP server start and emit READY immediately while embedding model loads in background (`--blocking-embedder` available for full capability at startup)
+- `FileDiscoveryStage` inserts baseline file snapshots in transactions of 200.
+- Full builds write to a hidden generation selected through connection-local
+    effective views. SCIP subprocesses, LSP requests, and embedding calls run
+    without a run-long SQLite transaction.
+- LSP enrichment processes three files concurrently and commits collected
+    metadata updates in a transaction per batch.
+- Baseline FTS and reverse-dependency rows are staged under new row IDs while
+    the active generation remains queryable. Promotion swaps the generation
+    pointer and metadata in a short transaction; obsolete rows are pruned later
+    in bounded transactions.
+- Logical writers are serialized by both a process-local queue and a
+    filesystem lease with heartbeats and stale-owner recovery.
+- Embedding batches are bounded by both estimated tokens and item count; the
+    next model call is overlapped with writing the prior batch.
+- Update-mode symbol embeddings use companion SHA-256 hash tables to skip
+    unchanged embedding text.
+- The source cache is a byte-budget LRU and is cleared after LSP enrichment.
+- Watch mode batches filesystem events with a 300 ms debounce; poll mode guards
+    against overlapping polls.
+
+The embedding provider is lazy and loads on its first `embed()` or explicit
+`init()` call. There is no `--blocking-embedder` CLI option.
 
 ## SQLite schema groups
 
 | Table group | Tables | Purpose |
 |-------------|--------|---------|
-| Files | `files` | Indexed source files with path, branch, language, hash |
-| Symbols | `symbols`, `symbols_fts` | Named code symbols + FTS5 full-text index; includes optional persisted LSP enrichment (`resolved_type_signature`, `resolved_return_type`, `definition_uri`, `definition_path`) |
+| Files | `files` | Indexed source snapshots with absolute path, branch, language, size, hash, layer, and generation |
+| Symbols | `symbols`, `symbols_fts`, `symbol_summaries` | Named symbols, FTS5 search data, and optional caller-ingested summaries |
 | Imports | `file_imports`, `external_deps` | Import declarations resolved to file IDs or external packages |
-| Dependency APIs | `external_symbols` | Exported/public declarations from direct dependency APIs across npm, Python, Go, and Rust (ecosystem/source/package/version + symbol metadata), stored separately from in-repo symbols; includes optional persisted LSP enrichment metadata |
-| Relationships | `symbol_refs`, `symbol_relationships`, `type_refs` | Call-site edges, inheritance/implements-style relationships, and symbol → referenced-type edges, including optional persisted LSP enrichment metadata |
-| Annotations | `annotations` | Indexed TODO/FIXME/HACK/NOTE-style source annotations with file and line metadata |
-| Embeddings | `symbol_embeddings`, `symbol_semantic_embeddings`, `commit_embeddings` | vec0 virtual tables for semantic symbol retrieval and semantic commit-message history retrieval |
+| Relationships | `symbol_refs`, `symbol_relationships`, `type_refs` | Call sites, inheritance/implementation relationships, and symbol-to-type references with optional definition/type metadata |
 | History | `commits`, `commit_files`, `commit_refs` | Git commit metadata, touched files, and named refs |
-| Metadata | `lore_meta`, `symbol_summaries`, `modules`, `file_modules` | Key-value config, LLM summaries, logical module groupings |
+| Incremental state | `dirty_files`, `reverse_deps` | Branch-scoped overlay selection and file-level reverse dependencies |
+| Metadata/modules | `lore_meta`, `modules`, `file_modules` | Key/value metadata and optional logical module mappings |
+| Retained schema | `annotations`, `symbol_metrics`, `external_symbols` | Legacy/current query surfaces that the active pipeline does not populate |
+| Embeddings | `symbol_embeddings`, `symbol_semantic_embeddings`, `commit_embeddings` | vec0 virtual tables created only after an embedding provider reports dimensions |
+
+`EmbeddingStage` writes `symbol_embeddings` and `commit_embeddings`.
+`symbol_semantic_embeddings` is written only by the programmatic
+`IndexBuilder.ingestSummary()` path.
+
+## Baseline and overlay reads
+
+`files` and child data carry `layer` (`baseline` or `overlay`) and `generation`.
+`dirty_files` uses `(path, branch)` as its primary key. The schema creates
+`effective_files`, `effective_symbols`, `effective_symbol_refs`,
+`effective_type_refs`, `effective_symbol_relationships`,
+`effective_annotations`, and `effective_file_imports` views so an active dirty
+path selects its overlay row and other paths select baseline rows.
+
+This abstraction is not universal in v0.4.0. File/symbol query helpers and some
+indexing stages use effective views, while edge queries, symbol semantic search,
+cohesion/structure queries, and graph-analysis functions still contain raw-table
+reads. Results over mixed baseline/overlay state can therefore vary by tool.
+
+The MCP wrapper adds global freshness metadata to object results when possible:
+`source` is `baseline` when `dirty_files` is empty and `mixed` otherwise,
+accompanied by `baseline_age_s` and `dirty_file_count`.
 
 ## MCP tools
 
 | Tool | Purpose |
 |------|---------|
-| `lore_lookup` | Find symbols by name or files by path (optional branch filter), including external API symbol matches from `external_symbols` and persisted LSP-enrichment metadata when available |
-| `lore_search` | Structural BM25, semantic vector, or fused RRF search; structural results are augmented by external symbol-name matches from `external_symbols`; returns persisted LSP-enrichment metadata fields when available |
-| `lore_graph` | Query call, import, inheritance, or type-dependency edges with automatic transitive traversal (up to 5 hops); supports `source_id` for outbound and `target_id` for inbound/reverse queries; materializes virtual dispatch edges  |
-| `lore_trace` | Trace execution paths between two symbols through the call graph |
-| `lore_diff` | Diff exported API surfaces between branches |
-| `lore_cohesion` | Compute module cohesion metrics for a file or directory |
-| `lore_dependents` | Unified reverse-dependency / blast-radius query with automatic transitive traversal (up to 5 hops) across callers, importers, subclasses, and type refs |
-| `lore_snippet` | Return snippets from indexed DB-backed file snapshots by file path + line range or by symbol name; path/symbol resolution is branch-aware and responses include containing-symbol context metadata when available |
-| `lore_blame` | Query blame (`mode: "blame"`), line-range evolution (`mode: "history"`), or ownership aggregates (`mode: "ownership"`), including symbol-targeted range resolution |
-| `lore_history` | Query history by file, commit, author, ref, recency, or semantic commit-message similarity (with graceful fallback to recent mode when vectors are unavailable) |
-| `lore_metrics` | Return aggregate index metrics |
+| `lore_lookup` | File lookup or exact/semantic/fused symbol lookup, with name/filter/pagination options |
+| `lore_search` | Symbol-only structural BM25, semantic vector, or fused RRF search |
+| `lore_graph` | Stored call/import/inheritance/type-dependency edges; direct or transitive traversal up to five hops |
+| `lore_snippet` | Source snapshots by path/range or symbol, with optional containing-symbol metadata |
+| `lore_blame` | Live Git blame, line history, or ownership analysis with optional symbol targeting |
+| `lore_history` | Indexed commits by file, SHA, author, ref, recency, or semantic message similarity |
+| `lore_trace` | Forward or point-to-point call paths with bounded source snippets |
+| `lore_diff` | Added, removed, and changed exported symbols between indexed branches |
+| `lore_cohesion` | Global directory cohesion/instability ranking by grouping depth |
+| `lore_structure` | Directory import cycles, DFS-based layering violations, and weak-link outliers |
+| `lore_dependents` | Symbol/file blast radius across callers, importers, subclasses, and type references |
 
-`lore_blame` response enrichment:
-- Supports legacy `line`/`start_line`/`end_line` requests and symbol-driven targeting (`symbol` + optional `path`/`branch`), returning `resolved_symbol` when symbol resolution is used.
-- History and ownership modes include enriched commit context (`commits` and per-entry `commit_context`) with commit message details, touched files, and refs/tags.
-- All modes return risk indicators derived from recency, author dispersion, and churn (`risk.recency`, `risk.author_dispersion`, `risk.churn`, `risk.overall`).
+`buildToolModules()` returns exactly these 11 modules. The existing
+`src/server/tools/metrics.ts` module is not imported into this registry, so
+`lore_metrics` is not available through the production MCP server.
 
-`lore_lookup` request schema highlights:
+Every registered handler returns one MCP text item containing serialized JSON.
+The wrapper logs calls and injects freshness into object results. Input JSON
+schemas are converted to Zod at registration time; defaults are applied by each
+handler rather than by the converter.
 
-- `match_mode` (`exact` | `prefix` | `contains`) is available for `kind="symbol"` lookups and defaults to `exact`.
-- `symbol_kind`, `path_prefix`, and `language` are optional symbol filters.
-- `limit` and `offset` are optional pagination inputs for empty-query symbol browsing (defaults: `20` and `0`).
+Important query details:
 
-External symbol retrieval flow:
-1. Dependency API indexing is opt-in and reads declaration surfaces from direct dependencies only:
-   - npm: top-level `package.json` direct deps (`dependencies` / `devDependencies` / `peerDependencies`)
-   - Python: direct requirements from project dependency manifests, indexed via `.pyi` / `py.typed` declaration sources
-   - Go: direct `require` entries from root `go.mod`
-   - Rust: direct dependency entries from root `Cargo.toml`
-2. Exported dependency declarations are persisted to `external_symbols` with package/version metadata.
-3. Transitive dependencies are excluded in all ecosystems; Lore indexes only the direct boundary.
-4. MCP retrieval paths include `external_symbols` for symbol-facing queries so dependency APIs can be returned alongside in-repo symbols in `lore_lookup` and structural `lore_search`.
-
-Query-time behavior:
-- LSP servers are index-time only. MCP/Lore query handlers do not spawn or call language servers.
-- `lore_lookup` and `lore_search` read persisted enrichment fields directly from SQLite.
+- `lore_lookup` exact non-empty symbol lookup can append rows already present in
+    `external_symbols` when no path/language filter is set; `lore_search` does not
+    query that table.
+- `lore_search` only returns symbol results. There are no documentation-result
+    types or doc filters in the current tool.
+- `lore_graph` reads stored edges. Virtual-dispatch refs, when available, were
+    materialized during SCIP ingestion rather than at query time.
+- `lore_cohesion` has no path or branch argument; it ranks directories globally.
+- LSP is index-time only. Registered MCP query handlers do not start language
+    servers.

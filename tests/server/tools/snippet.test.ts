@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { openDb, type Database } from '../../../src/db/schema.js';
+import type { Database } from '../../../src/db/schema.js';
+import { openPromotedTestDb as openDb } from '../../helpers/promotedDb.js';
 import { handler, toolDef } from '../../../src/server/tools/snippet.js';
 
 function seedSnippetData(db: Database.Database) {
@@ -25,10 +26,10 @@ function seedSnippetData(db: Database.Database) {
     `INSERT INTO files (id, path, branch, language, source) VALUES (1, 'src/greet.ts', 'main', 'typescript', ?)`,
   ).run(source);
   db.prepare(
-    `INSERT INTO symbols (id, file_id, name, kind, start_line, end_line) VALUES (1, 1, 'greet', 'function', 3, 5)`,
+    `INSERT INTO symbols (id, file_id, name, kind, start_line, end_line) VALUES (1, 1, 'greet', 'function', 2, 4)`,
   ).run();
   db.prepare(
-    `INSERT INTO symbols (id, file_id, name, kind, start_line, end_line) VALUES (2, 1, 'Greeter', 'class', 7, 15)`,
+    `INSERT INTO symbols (id, file_id, name, kind, start_line, end_line) VALUES (2, 1, 'Greeter', 'class', 6, 14)`,
   ).run();
 }
 

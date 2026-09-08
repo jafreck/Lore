@@ -1,10 +1,17 @@
 /**
  * @module lore-server/tools/metrics
  *
- * MCP tool: return a global ranking of the most complex symbols in the codebase.
+ * Unregistered tool module: return a global ranking of the most complex
+ * symbols. Used directly by tests/benchmark helpers, but not included in the
+ * production MCP registry.
  */
 
 import type { Database } from '../../db/read-only.js';
+import {
+  nullableStorageCharacterToPresentation,
+  nullableStorageLineToPresentation,
+  storageLineToPresentation,
+} from '../../source-coordinates.js';
 
 // ─── Tool definition ──────────────────────────────────────────────────────────
 
@@ -42,7 +49,11 @@ export interface ComplexitySymbolRow {
   name: string;
   kind: string;
   start_line: number;
+  start_character: number | null;
   end_line: number;
+  end_character: number | null;
+  selection_line: number | null;
+  selection_character: number | null;
   signature: string | null;
   doc_comment: string | null;
   line_count: number;
@@ -59,20 +70,30 @@ export interface MetricsResult {
 export function handler(db: Database.Database, args: MetricsArgs): MetricsResult {
   const minCyclomatic = Math.max(0, args.min_cyclomatic ?? 0);
   const limit = Math.min(Math.max(1, args.limit ?? 20), 200);
-  const symbols = db
+  const storedSymbols = db
     .prepare(
       `SELECT s.*,
               sm.line_count,
               sm.param_count,
               sm.cyclomatic,
               sm.max_nesting
-         FROM symbol_metrics sm
-         JOIN symbols s ON s.id = sm.symbol_id
+         FROM effective_symbol_metrics sm
+         JOIN effective_symbols s ON s.id = sm.symbol_id
         WHERE sm.cyclomatic >= ?
         ORDER BY sm.cyclomatic DESC, s.id ASC
         LIMIT ?`,
     )
     .all(minCyclomatic, limit) as ComplexitySymbolRow[];
+
+  const symbols = storedSymbols.map((symbol) => ({
+    ...symbol,
+    start_line: storageLineToPresentation(symbol.start_line),
+    start_character: nullableStorageCharacterToPresentation(symbol.start_character),
+    end_line: storageLineToPresentation(symbol.end_line),
+    end_character: nullableStorageCharacterToPresentation(symbol.end_character),
+    selection_line: nullableStorageLineToPresentation(symbol.selection_line),
+    selection_character: nullableStorageCharacterToPresentation(symbol.selection_character),
+  }));
 
   return { symbols };
 }

@@ -138,7 +138,7 @@ describe('parseConfigFile', () => {
     it('handles comments as descriptions', () => {
       const content = '# Database connection string\nDB_URL=postgres://localhost\n';
       const entries = parseConfigFile('.env', content);
-      expect(entries[0].description).toBe('Database connection string');
+      expect(entries[0]?.description).toBe('Database connection string');
     });
 
     it('handles export prefix', () => {
@@ -155,7 +155,7 @@ describe('parseConfigFile', () => {
       const content = '# first comment\n\nKEY=value\n';
       const entries = parseConfigFile('.env', content);
       // Blank line resets pending description
-      expect(entries[0].description).toBeUndefined();
+      expect(entries[0]?.description).toBeUndefined();
     });
 
     it('throws on invalid env entry', () => {
@@ -225,7 +225,7 @@ describe('parseConfigFile', () => {
 
     it('handles array values', () => {
       const entries = parseConfigFile('config.toml', 'tags = ["a", "b"]\n');
-      expect(entries[0].inferredType).toBe('array');
+      expect(entries[0]?.inferredType).toBe('array');
     });
 
     it('skips comments', () => {

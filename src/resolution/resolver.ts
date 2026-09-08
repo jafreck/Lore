@@ -237,6 +237,10 @@ export class ImportResolver {
         this.resolveRelative('./' + source, fromFile, ['']) ??
         this.resolveRelative('./' + source, path.join(rootDir, 'fake'), ['']);
       if (resolved) return { rawSource: source, resolvedPath: resolved, isExternal: false };
+      // Quoted includes are project/build inputs even when their generated
+      // target is currently absent. Only angle-bracket includes are safely
+      // classifiable as system/external dependencies.
+      return { rawSource: source, isExternal: false };
     }
     return this.markExternal(source);
   }

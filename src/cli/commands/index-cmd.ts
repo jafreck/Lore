@@ -4,20 +4,21 @@
  * Handler for the `lore index` subcommand.
  */
 
-import { flag, flags, usage, explicitLspEnabled, explicitScipEnabled, LANG_TO_EXTS } from '../args.js';
 import {
-  loadLspSettingsFromLoreConfig,
-  resolveEffectiveLspSettings,
-} from '../../lsp/config.js';
-import {
-  loadScipSettingsFromLoreConfig,
-  resolveEffectiveScipSettings,
-} from '../../scip/config.js';
+  parseCliArgs,
+  usage,
+  explicitLspEnabled,
+  explicitScipEnabled,
+  executionOptionsFromArgs,
+  validationPolicyFromArgs,
+  walkerConfigFromArgs,
+} from '../args.js';
 import type { LoreLogger } from '../../logger.js';
 
 export async function runIndexCommand(args: string[], _log: LoreLogger): Promise<void> {
-  const rootDir = flag(args, '--root');
-  const dbPath = flag(args, '--db');
+  const parsedArgs = parseCliArgs(args, 'index');
+  const rootDir = parsedArgs.value('--root');
+  const dbPath = parsedArgs.value('--db');
   if (!rootDir) {
     console.error('Error: --root <dir> is required for the index subcommand.\n');
     usage();
@@ -28,19 +29,14 @@ export async function runIndexCommand(args: string[], _log: LoreLogger): Promise
     usage();
     return;
   }
-  const embeddingModel = flag(args, '--embedding-model');
-  const embeddingsEnabled = embeddingModel !== undefined || args.includes('--embeddings');
-  if (args.includes('--embeddings') && args.includes('--no-embeddings')) {
-    console.error('Error: --embeddings and --no-embeddings cannot be used together.\n');
-    usage();
-    return;
-  }
+  const embeddingModel = parsedArgs.value('--embedding-model');
+  const embeddingsEnabled = embeddingModel !== undefined || parsedArgs.has('--embeddings');
 
-  const indexDependencies = args.includes('--index-deps');
-  const historyEnabled = args.includes('--history');
-  const historyAll = args.includes('--history-all');
-  const historyDepthRaw = flag(args, '--history-depth');
-  const maxWorkersRaw = flag(args, '--max-workers');
+  const indexDependencies = parsedArgs.has('--index-deps');
+  const historyEnabled = parsedArgs.has('--history');
+  const historyAll = parsedArgs.has('--history-all');
+  const historyDepthRaw = parsedArgs.value('--history-depth');
+  const maxWorkersRaw = parsedArgs.value('--max-workers');
 
   let maxWorkers: number | undefined;
   if (maxWorkersRaw !== undefined) {
@@ -67,8 +63,8 @@ export async function runIndexCommand(args: string[], _log: LoreLogger): Promise
   let lspEnabled: boolean | undefined;
   let scipEnabled: boolean | undefined;
   try {
-    lspEnabled = explicitLspEnabled(args);
-    scipEnabled = explicitScipEnabled(args);
+    lspEnabled = explicitLspEnabled(parsedArgs);
+    scipEnabled = explicitScipEnabled(parsedArgs);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error(`Error: ${message}.\n`);
@@ -76,52 +72,17 @@ export async function runIndexCommand(args: string[], _log: LoreLogger): Promise
     return;
   }
 
-  let lspSettings;
+  let validation;
   try {
-    const lspConfig = loadLspSettingsFromLoreConfig(rootDir);
-    lspSettings = resolveEffectiveLspSettings(
-      lspConfig,
-      { ...(lspEnabled !== undefined && { enabled: lspEnabled }) },
-    );
+    validation = validationPolicyFromArgs(parsedArgs, { includeScope: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error(`Error: ${message}\n`);
+    console.error(`Error: ${message}.\n`);
     process.exit(1);
     return;
   }
 
-  let scipSettings;
-  try {
-    const scipConfig = loadScipSettingsFromLoreConfig(rootDir);
-    scipSettings = resolveEffectiveScipSettings(
-      scipConfig,
-      { ...(scipEnabled !== undefined && { enabled: scipEnabled }) },
-    );
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.error(`Error: ${message}\n`);
-    process.exit(1);
-    return;
-  }
-
-  const includeGlobs = flags(args, '--include');
-  const excludeGlobs = flags(args, '--exclude');
-  const languageNames = flags(args, '--language');
-
-  // Resolve --language names to extensions
-  let extensions: string[] | undefined;
-  if (languageNames.length > 0) {
-    extensions = [];
-    for (const lang of languageNames) {
-      const exts = LANG_TO_EXTS[lang];
-      if (!exts) {
-        console.error(`Error: unknown language "${lang}". Known languages: ${Object.keys(LANG_TO_EXTS).sort().join(', ')}\n`);
-        process.exit(1);
-        return;
-      }
-      extensions.push(...exts);
-    }
-  }
+  const walkerConfig = walkerConfigFromArgs(parsedArgs, rootDir);
 
   const { IndexBuilder } = await import('../../indexer/index.js');
 
@@ -135,10 +96,12 @@ export async function runIndexCommand(args: string[], _log: LoreLogger): Promise
   const shouldEnableHistory = historyEnabled || historyAll || historyDepth !== undefined;
   const options = {
     indexDependencies,
-    lsp: lspSettings,
-    scip: scipSettings,
+    execution: executionOptionsFromArgs(parsedArgs),
+    ...(lspEnabled !== undefined && { lsp: lspEnabled }),
+    ...(scipEnabled !== undefined && { scip: scipEnabled }),
     ...(embeddingModel && { embeddingModel }),
     ...(maxWorkers !== undefined && { maxWorkers }),
+    ...(validation && { validation }),
     ...(shouldEnableHistory && {
       history: {
         ...(historyDepth !== undefined && { depth: historyDepth }),
@@ -149,12 +112,7 @@ export async function runIndexCommand(args: string[], _log: LoreLogger): Promise
 
   const builder = new IndexBuilder(
     dbPath,
-    {
-      rootDir,
-      ...(includeGlobs.length > 0 && { includeGlobs }),
-      ...(excludeGlobs.length > 0 && { excludeGlobs }),
-      ...(extensions && { extensions }),
-    },
+    walkerConfig,
     embedder,
     options,
   );

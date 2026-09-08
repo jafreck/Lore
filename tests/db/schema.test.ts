@@ -1,12 +1,25 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { openDb } from '../../src/db/schema.js';
+import RawDatabase from 'better-sqlite3';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
+import {
+  CURRENT_LORE_SCHEMA_VERSION,
+  inspectLoreSchema,
+  LORE_SCHEMA_MIGRATION_VERSIONS,
+  openDb,
+} from '../../src/db/schema.js';
 import type { Database } from '../../src/db/schema.js';
 
 describe('openDb', () => {
   let db: Database.Database;
+  const tempDirs: string[] = [];
 
   afterEach(() => {
-    db?.close();
+    if (db?.open) db.close();
+    for (const directory of tempDirs.splice(0)) {
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
   });
 
   it('creates all core tables in-memory', () => {
@@ -32,11 +45,55 @@ describe('openDb', () => {
     expect(names).toContain('symbol_summaries');
     expect(names).toContain('symbol_metrics');
     expect(names).toContain('lore_meta');
+    expect(names).toContain('baseline_generations');
+    expect(names).toContain('index_runs');
+    expect(names).toContain('indexer_runs');
     expect(names).toContain('commits');
     expect(names).toContain('commit_files');
     expect(names).toContain('commit_refs');
     expect(names).toContain('dirty_files');
     expect(names).toContain('reverse_deps');
+  });
+
+  it('records and reports the current schema version', () => {
+    db = openDb(':memory:');
+    expect(inspectLoreSchema(db)).toMatchObject({
+      status: 'current',
+      version: CURRENT_LORE_SCHEMA_VERSION,
+      requiredVersion: CURRENT_LORE_SCHEMA_VERSION,
+      missing: [],
+    });
+  });
+
+  it('declares a contiguous ordered migration chain', () => {
+    expect(LORE_SCHEMA_MIGRATION_VERSIONS).toEqual(
+      Array.from({ length: CURRENT_LORE_SCHEMA_VERSION }, (_, index) => index + 1),
+    );
+  });
+
+  it('rejects a newer database before changing its journal mode', () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'lore-newer-schema-'));
+    tempDirs.push(directory);
+    const dbPath = path.join(directory, 'newer.db');
+    const raw = new RawDatabase(dbPath);
+    raw.exec('CREATE TABLE sentinel (value TEXT)');
+    raw.pragma(`user_version = ${CURRENT_LORE_SCHEMA_VERSION + 1}`);
+    expect((raw.pragma('journal_mode') as Array<{ journal_mode: string }>)[0]?.journal_mode)
+      .toBe('delete');
+    raw.close();
+
+    expect(() => openDb(dbPath)).toThrow(/newer than supported/u);
+
+    const unchanged = new RawDatabase(dbPath, { readonly: true });
+    try {
+      expect((unchanged.pragma('journal_mode') as Array<{ journal_mode: string }>)[0]?.journal_mode)
+        .toBe('delete');
+      expect(unchanged.prepare("SELECT name FROM sqlite_master WHERE name = 'sentinel'").get())
+        .toBeDefined();
+    } finally {
+      unchanged.close();
+    }
+    expect(fs.existsSync(`${dbPath}-wal`)).toBe(false);
   });
 
   it('creates effective_* views', () => {
@@ -53,6 +110,51 @@ describe('openDb', () => {
     expect(names).toContain('effective_symbol_relationships');
     expect(names).toContain('effective_annotations');
     expect(names).toContain('effective_file_imports');
+    expect(names).toContain('effective_symbol_metrics');
+  });
+
+  it('selects only the promoted baseline generation in effective_files', () => {
+    db = openDb(':memory:');
+    db.prepare(
+      `INSERT INTO files (path, branch, language, source, layer, generation)
+       VALUES ('src/a.ts', 'main', 'typescript', 'generation one', 'baseline', 1)`,
+    ).run();
+    db.prepare(
+      `INSERT INTO files (path, branch, language, source, layer, generation)
+       VALUES ('src/a.ts', 'main', 'typescript', 'generation two', 'baseline', 2)`,
+    ).run();
+    db.prepare(
+      "INSERT INTO baseline_generations (branch, generation) VALUES ('main', 1)",
+    ).run();
+
+    expect(db.prepare(
+      "SELECT source, generation FROM effective_files WHERE branch = 'main'",
+    ).get()).toEqual({ source: 'generation one', generation: 1 });
+
+    db.prepare(
+      "UPDATE baseline_generations SET generation = 2 WHERE branch = 'main'",
+    ).run();
+    expect(db.prepare(
+      "SELECT source, generation FROM effective_files WHERE branch = 'main'",
+    ).get()).toEqual({ source: 'generation two', generation: 2 });
+  });
+
+  it('does not expose an initial candidate generation to an independent reader', () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'lore-hidden-initial-'));
+    tempDirs.push(directory);
+    const dbPath = path.join(directory, 'index.db');
+    db = openDb(dbPath);
+    db.prepare(
+      `INSERT INTO files (path, branch, language, source, layer, generation)
+       VALUES ('src/candidate.ts', 'main', 'typescript', 'candidate', 'baseline', 1)`,
+    ).run();
+
+    const reader = new RawDatabase(dbPath, { readonly: true });
+    try {
+      expect(reader.prepare('SELECT path FROM effective_files').all()).toEqual([]);
+    } finally {
+      reader.close();
+    }
   });
 
   it('creates symbols_fts virtual table', () => {
@@ -63,6 +165,37 @@ describe('openDb', () => {
       )
       .get() as { ok: number } | undefined;
     expect(row?.ok).toBe(1);
+  });
+
+  it('stores precise symbol range and selection coordinates', () => {
+    db = openDb(':memory:');
+    const columns = db.prepare('PRAGMA table_info(symbols)').all() as Array<{ name: string }>;
+    const names = columns.map((column) => column.name);
+    expect(names).toEqual(expect.arrayContaining([
+      'start_character',
+      'end_character',
+      'selection_line',
+      'selection_character',
+    ]));
+  });
+
+  it('stores import resolution provenance and resets it with a deleted target', () => {
+    db = openDb(':memory:');
+    const insertFile = db.prepare(
+      "INSERT INTO files (path, language) VALUES (?, 'c')",
+    );
+    const sourceId = Number(insertFile.run('source.c').lastInsertRowid);
+    const targetId = Number(insertFile.run('target.h').lastInsertRowid);
+    db.prepare(
+      `INSERT INTO file_imports (file_id, raw_import, resolved_id, resolution_method)
+       VALUES (?, 'target.h', ?, 'compilation_database')`,
+    ).run(sourceId, targetId);
+
+    db.prepare('DELETE FROM files WHERE id = ?').run(targetId);
+    const imported = db.prepare(
+      'SELECT resolved_id, resolution_method FROM file_imports WHERE file_id = ?',
+    ).get(sourceId) as { resolved_id: number | null; resolution_method: string };
+    expect(imported).toEqual({ resolved_id: null, resolution_method: 'overlay_stale' });
   });
 
   it('enables WAL journal mode', () => {
@@ -107,6 +240,7 @@ describe('openDb', () => {
     expect(names).toContain('idx_symbols_file_id');
     expect(names).toContain('idx_symbols_name');
     expect(names).toContain('idx_files_layer');
+    expect(names).toContain('idx_file_imports_resolution_method');
     expect(names).toContain('idx_commit_files_file_path');
     expect(names).toContain('idx_commit_refs_ref_name');
     expect(names).toContain('idx_dirty_files_path');

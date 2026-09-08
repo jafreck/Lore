@@ -12,8 +12,35 @@
 
 // ── Indexing API ──────────────────────────────────────────────────────────────
 export { IndexBuilder } from './indexer/index.js';
-export { openDb, setLoreMeta, getLoreMeta, createVec0Tables } from './db/schema.js';
-export type { Database } from './db/schema.js';
+export type {
+  IndexBuilderOptions,
+  ResolvedIndexBuilderConfiguration,
+} from './indexer/index.js';
+export {
+  resolveIndexExecutionPolicy,
+  resolveApprovedCommandCwd,
+} from './execution-policy.js';
+export type {
+  IndexExecutionOptions,
+  ResolvedIndexExecutionPolicy,
+} from './execution-policy.js';
+export {
+  openDb,
+  setLoreMeta,
+  getLoreMeta,
+  createVec0Tables,
+  inspectLoreSchema,
+  assertLoreSchemaCompatible,
+  LoreSchemaCompatibilityError,
+  CURRENT_LORE_SCHEMA_VERSION,
+  LORE_SCHEMA_MIGRATION_VERSIONS,
+} from './db/schema.js';
+export type {
+  Database,
+  LoreSchemaInspection,
+  LoreSchemaStatus,
+  LoreSchemaVersionMarkers,
+} from './db/schema.js';
 export { resolveSymbolEdges, topoSort, detectCycles } from './resolution/call-graph.js';
 export {
   detectSymbolCycles,
@@ -37,8 +64,34 @@ export { ImportResolver } from './resolution/resolver.js';
 
 export { installGitHooks } from './git/hooks.js';
 export type { InstallGitHooksOptions } from './git/hooks.js';
-export type { EffectiveLspSettings, LspSettingsOverrides } from './lsp/config.js';
+export {
+  loadLspSettingsFromLoreConfig,
+  resolveEffectiveLspSettings,
+} from './lsp/config.js';
+export type {
+  EffectiveLspSettings,
+  LspSettingsOverrides,
+  LspSupplementationSettings,
+} from './lsp/config.js';
+export {
+  loadScipSettingsFromLoreConfig,
+  resolveEffectiveScipSettings,
+} from './scip/config.js';
 export type { EffectiveScipSettings, ScipSettingsOverrides } from './scip/config.js';
+export {
+  loadCompilationDatabase,
+  discoverCompilationDatabase,
+  isCompilationDatabaseUsableForScip,
+  DEFAULT_RESPONSE_FILE_LIMITS,
+} from './scip/compdb.js';
+export type {
+  CompdbPathPolicy,
+  CompdbValidation,
+  CompilationCommandEntry,
+  LoadedCompilationDatabase,
+  ResponseFileExpansion,
+  ResponseFileLimits,
+} from './scip/compdb.js';
 export { installAllMissing as installScipIndexers, SCIP_INSTALL_SPECS } from './scip/installer.js';
 export type { ScipInstallResult, ScipInstallSpec } from './scip/installer.js';
 export { TransformersJsProvider, LazyEmbeddingProvider, DEFAULT_EMBEDDING_MODEL, tokenAwareBatch, hashEmbeddingText, buildStructuralEmbeddingText } from './embeddings/embedder.js';
@@ -47,6 +100,58 @@ export type { EmbeddingProvider, OnnxDtype } from './embeddings/embedder.js';
 // ── Resolution method taxonomy (shared constant) ─────────────────────────────
 export { RESOLUTION_METHODS, RESOLVED_METHODS, UNRESOLVED_METHODS } from './resolution/resolution-method.js';
 export type { ResolutionMethod } from './resolution/resolution-method.js';
+
+// ── Source coordinate conventions ────────────────────────────────────────────
+export {
+  storageLineToPresentation,
+  presentationLineToStorage,
+  storageCharacterToPresentation,
+  presentationCharacterToStorage,
+  nullableStorageLineToPresentation,
+  nullableStorageCharacterToPresentation,
+  storagePositionToPresentation,
+  presentationPositionToStorage,
+  storageRangeToPresentation,
+  presentationRangeToStorage,
+} from './source-coordinates.js';
+export type {
+  StoragePosition,
+  PresentationPosition,
+  StorageRange,
+  PresentationRange,
+} from './source-coordinates.js';
+
+// ── Index health / reproducibility validation ────────────────────────────────
+export {
+  validateIndex,
+  formatIndexHealthReport,
+  readRecordedIndexRoot,
+  IndexValidationError,
+} from './validation/index-health.js';
+export type {
+  ValidateIndexOptions,
+  IndexValidationTarget,
+  IndexHealthReport,
+  IndexHealthIssue,
+  CoverageMetrics,
+  ReferenceCoverage,
+  ImportCoverage,
+  IndexRunInfo,
+  IndexerRunInfo,
+  IndexerDiagnosticInfo,
+} from './validation/index-health.js';
+export {
+  VALIDATION_PROFILES,
+  loadValidationPolicyFromLoreConfig,
+  resolveIndexValidationPolicy,
+  parseValidationProfile,
+} from './validation/config.js';
+export type {
+  ValidationProfile,
+  IndexValidationPolicy,
+  ResolvedIndexValidationPolicy,
+  IndexCoverageThresholds,
+} from './validation/config.js';
 
 // ── Pipeline (composable indexing stages) ─────────────────────────────────────
 export { IndexPipeline } from './indexer/pipeline.js';

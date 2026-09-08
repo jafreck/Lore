@@ -11,9 +11,15 @@ import {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function insertFile(db: Database.Database, opts: { path: string; language?: string; branch?: string; layer?: string }): number {
+  const branch = opts.branch ?? '';
+  if ((opts.layer ?? 'baseline') === 'baseline') {
+    db.prepare(
+      'INSERT OR IGNORE INTO baseline_generations (branch, generation) VALUES (?, 0)',
+    ).run(branch);
+  }
   return db.prepare(
     `INSERT INTO files (path, language, branch, layer) VALUES (?, ?, ?, ?)`,
-  ).run(opts.path, opts.language ?? 'typescript', opts.branch ?? '', opts.layer ?? 'baseline').lastInsertRowid as number;
+  ).run(opts.path, opts.language ?? 'typescript', branch, opts.layer ?? 'baseline').lastInsertRowid as number;
 }
 
 function insertSymbol(db: Database.Database, opts: {
@@ -335,6 +341,49 @@ describe('buildCodebaseSummary', () => {
     expect(withDeps).toBeDefined();
     const depTarget = summary.modules.find(m => m.dependedOnBy.length > 0);
     expect(depTarget).toBeDefined();
+  });
+
+  it('uses only effective rows for overlay replacement and deletion', () => {
+    db.prepare(
+      `INSERT INTO files (id, path, branch, language, source, layer, generation)
+       VALUES (1, 'src/replaced.ts', 'main', 'typescript', '', 'baseline', 1),
+              (2, 'src/dependency.ts', 'main', 'typescript', '', 'baseline', 1),
+              (3, 'src/replaced.ts', 'main', 'typescript', '', 'overlay', 0)`,
+    ).run();
+    db.prepare(
+      "INSERT INTO baseline_generations (branch, generation) VALUES ('main', 1)",
+    ).run();
+    db.prepare(
+      `INSERT INTO symbols (id, file_id, name, kind, start_line, end_line, layer, generation)
+       VALUES (1, 1, 'oldA', 'function', 0, 9, 'baseline', 1),
+              (2, 1, 'oldB', 'function', 10, 19, 'baseline', 1),
+              (3, 2, 'dependency', 'function', 0, 9, 'baseline', 1),
+              (4, 3, 'replacement', 'function', 0, 9, 'overlay', 0)`,
+    ).run();
+    insertResolvedSymbolRef(db, { callerId: 1, fileId: 1, calleeId: 2, calleeName: 'oldB' });
+    insertResolvedSymbolRef(db, { callerId: 2, fileId: 1, calleeId: 1, calleeName: 'oldA' });
+    insertFileImport(db, 1, './dependency', 2);
+    db.prepare(
+      "INSERT INTO dirty_files (path, branch, overlay_gen) VALUES ('src/replaced.ts', 'main', 0)",
+    ).run();
+
+    expect(detectSymbolCycles(db, { branch: 'main' })).toEqual([]);
+    expect(findConnectedComponents(db, { branch: 'main', scope: 'symbol' })).toEqual([]);
+    expect(findConnectedComponents(db, { branch: 'main', scope: 'file' })).toEqual([]);
+    expect(clusterSymbols(db, { branch: 'main' }).flatMap((cluster) => cluster.symbolIds).sort())
+      .toEqual([3, 4]);
+    expect(buildCodebaseSummary(db, { branch: 'main' })).toMatchObject({
+      totalFiles: 2,
+      totalSymbols: 2,
+      totalEdges: 0,
+    });
+
+    db.prepare('DELETE FROM files WHERE id = 3').run();
+    expect(buildCodebaseSummary(db, { branch: 'main' })).toMatchObject({
+      totalFiles: 1,
+      totalSymbols: 1,
+      totalEdges: 0,
+    });
   });
 });
 

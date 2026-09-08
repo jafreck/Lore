@@ -5,7 +5,8 @@
  */
 
 import type Database from 'better-sqlite3';
-import { filesTable, symbolsTable } from './helpers.js';
+import { annotationsTable, filesTable, symbolsTable } from './helpers.js';
+import { storageLineToPresentation } from '../../source-coordinates.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -28,7 +29,7 @@ export function listAnnotations(
   limit = 20,
 ): AnnotationRow[] {
   if (path !== undefined) {
-    return db
+    const rows = db
       .prepare(
         `SELECT f.path AS file_path,
                 a.line,
@@ -36,7 +37,7 @@ export function listAnnotations(
                 a.text,
                 s.name AS symbol_name,
                 s.kind AS symbol_kind
-           FROM annotations a
+           FROM ${annotationsTable(db)} a
            JOIN ${filesTable(db)} f ON f.id = a.file_id
       LEFT JOIN ${symbolsTable(db)} s ON s.id = a.symbol_id
           WHERE a.kind = ? AND f.path = ?
@@ -44,9 +45,10 @@ export function listAnnotations(
           LIMIT ?`,
       )
       .all(kind, path, limit) as AnnotationRow[];
+      return rows.map(presentAnnotationRow);
   }
 
-  return db
+      const rows = db
     .prepare(
       `SELECT f.path AS file_path,
               a.line,
@@ -54,7 +56,7 @@ export function listAnnotations(
               a.text,
               s.name AS symbol_name,
               s.kind AS symbol_kind
-         FROM annotations a
+         FROM ${annotationsTable(db)} a
          JOIN ${filesTable(db)} f ON f.id = a.file_id
     LEFT JOIN ${symbolsTable(db)} s ON s.id = a.symbol_id
         WHERE a.kind = ?
@@ -62,4 +64,9 @@ export function listAnnotations(
         LIMIT ?`,
     )
     .all(kind, limit) as AnnotationRow[];
+  return rows.map(presentAnnotationRow);
+}
+
+function presentAnnotationRow(row: AnnotationRow): AnnotationRow {
+  return { ...row, line: storageLineToPresentation(row.line) };
 }

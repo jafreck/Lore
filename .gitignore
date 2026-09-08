@@ -36,6 +36,11 @@ index.scip
 .benchmark/
 /.benchmark-results/
 
+# Local integration repositories and caches
+.integration-repos/
+jackson-lore-check/
+postgres-check/
+
 # Tool / agent working directories
 .cadre/
 .github/agents/

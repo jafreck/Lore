@@ -99,6 +99,8 @@ const smokeCases: SmokeCase[] = [
     settings: {
       enabled: true,
       requestTimeoutMs: 3000,
+      allowServerExecution: true,
+      allowedCwdRoots: [],
       servers: {
         typescript: { command: 'typescript-language-server', args: ['--stdio'] },
       },
@@ -120,6 +122,8 @@ const smokeCases: SmokeCase[] = [
     settings: {
       enabled: true,
       requestTimeoutMs: 3000,
+      allowServerExecution: true,
+      allowedCwdRoots: [],
       servers: {
         python: { command: 'pyright-langserver', args: ['--stdio'] },
       },
@@ -134,7 +138,7 @@ const smokeCases: SmokeCase[] = [
   },
 ];
 
-describe.runIf(RUN_LSP_SMOKE)('LSP smoke tests', { sequential: true }, () => {
+describe.runIf(RUN_LSP_SMOKE)('LSP smoke tests', () => {
   for (const smokeCase of smokeCases) {
     it.skipIf(!commandExists(smokeCase.command))(
       `starts ${smokeCase.name} and resolves hover/definition metadata`,

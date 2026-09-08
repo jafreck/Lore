@@ -11,7 +11,13 @@ import { FakeLspClient } from '../helpers/fakeLspClient.js';
 
 // Helper: create a minimal LSP-settings-like object
 function fakeLspSettings(): EffectiveLspSettings {
-  return { enabled: true, requestTimeoutMs: 1000, servers: { typescript: { command: 'fake-ts', args: [] } } };
+  return {
+    enabled: true,
+    requestTimeoutMs: 1000,
+    allowServerExecution: true,
+    allowedCwdRoots: [],
+    servers: { typescript: { command: 'fake-ts', args: [] } },
+  };
 }
 
 // Helper: create a coordinator with fake client
@@ -38,6 +44,9 @@ describe('enrichProjectRefs', () => {
   beforeEach(() => {
     tmpDir = mkdtempSync(join(tmpdir(), 'lore-enrich-'));
     db = openDb(':memory:');
+    db.prepare(
+      "INSERT INTO baseline_generations (branch, generation) VALUES ('main', 1)",
+    ).run();
     fakeClient = new FakeLspClient();
     coordinator = fakeCoordinator(fakeClient, tmpDir);
   });

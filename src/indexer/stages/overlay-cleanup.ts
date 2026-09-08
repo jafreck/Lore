@@ -1,21 +1,22 @@
 /**
  * @module indexer/stages/overlay-cleanup
  *
- * Pipeline stage: remove stale overlay rows after a baseline promotion.
- * Called after a background baseline rebuild completes and atomically
- * promotes the new generation.
+ * Baseline promotion and post-promotion garbage collection.
  *
  * Steps:
- * 1. Delete old baseline rows (generation < new generation).
- * 2. Clear overlay rows for files that are no longer dirty
- *    (i.e. dirty_since < the rebuild start timestamp).
- * 3. Remove promoted paths from `dirty_files`.
- * 4. Update generation metadata.
- * 5. Rebuild reverse_deps from new baseline.
+ * The visibility switch is intentionally tiny: update the promoted generation,
+ * clear dirty selectors, and publish candidate metadata in one transaction.
+ * Superseded rows are already invisible after that commit and are reclaimed in
+ * bounded transactions so a large repository never turns promotion into a
+ * long-running SQLite write lock.
  */
 
 import type { PipelineContext, PipelineStage } from '../pipeline.js';
 import {
+  assertWriterGeneration,
+  clearPendingBaselineGeneration,
+  deleteLoreMeta,
+  getGeneration,
   setLoreMeta,
   LORE_META_GENERATION,
   LORE_META_BASELINE_HEAD_SHA,
@@ -28,7 +29,11 @@ export interface OverlayCleanupOptions {
   rebuildStartedAt: number;
   /** HEAD SHA of the new baseline. */
   headSha?: string;
+  /** Metadata produced while the generation was hidden. */
+  stagedMetadata?: ReadonlyMap<string, string | null>;
 }
+
+const CLEANUP_BATCH_SIZE = 200;
 
 export class OverlayCleanupStage implements PipelineStage {
   readonly name = 'overlay-cleanup';
@@ -41,51 +46,178 @@ export class OverlayCleanupStage implements PipelineStage {
 
   async execute(context: PipelineContext, _mode: 'build' | 'update'): Promise<void> {
     const { db, branch } = context;
-    const { newGeneration, rebuildStartedAt, headSha } = this.options;
+    const options = {
+      ...this.options,
+      stagedMetadata: this.options.stagedMetadata ?? context.stagedMetadata,
+    };
+    db.transaction(() => applyBaselinePromotion(
+      db,
+      branch,
+      options,
+      context.writerGeneration,
+    )).immediate();
+    cleanupSupersededBaselineRows(
+      db,
+      branch,
+      this.options.newGeneration,
+      context.writerGeneration,
+    );
+  }
+}
+
+/** Apply only the atomic visibility and metadata switch. Caller owns the transaction. */
+export function applyBaselinePromotion(
+  db: PipelineContext['db'],
+  branch: string,
+  options: OverlayCleanupOptions,
+  writerGeneration?: number,
+): void {
+  const { newGeneration, headSha, stagedMetadata } = options;
+  if (!Number.isSafeInteger(newGeneration) || newGeneration <= 0) {
+    throw new Error(`Invalid baseline generation: ${newGeneration}`);
+  }
+  if (writerGeneration !== undefined) assertWriterGeneration(db, writerGeneration);
+  const promotion = db.prepare(
+    `INSERT INTO baseline_generations (branch, generation) VALUES (?, ?)
+     ON CONFLICT(branch) DO UPDATE SET generation = excluded.generation
+       WHERE baseline_generations.generation < excluded.generation`,
+  ).run(branch, newGeneration);
+  if (promotion.changes !== 1) {
+    const current = db.prepare(
+      'SELECT generation FROM baseline_generations WHERE branch = ?',
+    ).get(branch) as { generation: number } | undefined;
+    throw new Error(
+      `Refusing to promote baseline generation ${newGeneration}; branch ${branch} is already at generation ${current?.generation ?? 'unknown'}`,
+    );
+  }
+  const globalGeneration = getGeneration(db);
+  if (!Number.isFinite(globalGeneration) || newGeneration > globalGeneration) {
+    setLoreMeta(db, LORE_META_GENERATION, String(newGeneration));
+  }
+  db.prepare('DELETE FROM dirty_files WHERE branch = ?').run(branch);
+  clearPendingBaselineGeneration(db, newGeneration);
+  if (headSha) setLoreMeta(db, LORE_META_BASELINE_HEAD_SHA, headSha);
+
+  for (const [key, value] of stagedMetadata ?? []) {
+    if (value === null) deleteLoreMeta(db, key);
+    else setLoreMeta(db, key, value);
+  }
+}
+
+/** Reclaim rows made invisible by promotion using short, bounded transactions. */
+export function cleanupSupersededBaselineRows(
+  db: PipelineContext['db'],
+  branch: string,
+  promotedGeneration: number,
+  writerGeneration?: number,
+): void {
+  const selectFiles = db.prepare(
+    `SELECT id FROM files
+      WHERE branch = ?
+        AND (layer = 'overlay' OR (layer = 'baseline' AND generation < ?))
+      ORDER BY id
+      LIMIT ?`,
+  );
+
+  for (;;) {
+    const fileIds = (selectFiles.all(
+      branch,
+      promotedGeneration,
+      CLEANUP_BATCH_SIZE,
+    ) as Array<{ id: number }>).map((row) => row.id);
+    if (fileIds.length === 0) break;
+    const placeholders = fileIds.map(() => '?').join(', ');
+    const symbolIds = (db.prepare(
+      `SELECT id FROM symbols WHERE file_id IN (${placeholders})`,
+    ).all(...fileIds) as Array<{ id: number }>).map((row) => row.id);
 
     db.transaction(() => {
-      // 1. Delete old baseline rows (previous generation).
-      db.prepare(
-        "DELETE FROM files WHERE layer = 'baseline' AND branch = ? AND generation < ?",
-      ).run(branch, newGeneration);
+      if (writerGeneration !== undefined) assertWriterGeneration(db, writerGeneration);
+      assertPromotedGeneration(db, branch, promotedGeneration);
+      deleteDerivedSymbolRows(db, symbolIds);
+      db.prepare(`DELETE FROM files WHERE id IN (${placeholders})`).run(...fileIds);
+    }).immediate();
+  }
+}
 
-      // 2. Clear overlay rows for files whose dirty_since is before the rebuild started
-      //    (they were not edited during the rebuild, so the new baseline covers them).
-      db.prepare(`
-        DELETE FROM files WHERE layer = 'overlay'
-          AND branch = ?
-          AND path IN (SELECT path FROM dirty_files WHERE branch = ? AND dirty_since < ?)
-      `).run(branch, branch, rebuildStartedAt);
+/** Remove all rows belonging to a failed hidden generation, retaining provenance. */
+export function cleanupFailedBaselineGeneration(
+  db: PipelineContext['db'],
+  branch: string,
+  generation: number,
+): void {
+  const promoted = db.prepare(
+    'SELECT generation FROM baseline_generations WHERE branch = ?',
+  ).get(branch) as { generation: number } | undefined;
+  if (promoted?.generation === generation) {
+    throw new Error(`Refusing to clean promoted baseline generation ${generation}`);
+  }
+  const fileIds = (db.prepare(
+    "SELECT id FROM files WHERE branch = ? AND layer = 'baseline' AND generation = ?",
+  ).all(branch, generation) as Array<{ id: number }>).map((row) => row.id);
+  for (let offset = 0; offset < fileIds.length; offset += CLEANUP_BATCH_SIZE) {
+    const batch = fileIds.slice(offset, offset + CLEANUP_BATCH_SIZE);
+    const placeholders = batch.map(() => '?').join(', ');
+    const symbolIds = (db.prepare(
+      `SELECT id FROM symbols WHERE file_id IN (${placeholders})`,
+    ).all(...batch) as Array<{ id: number }>).map((row) => row.id);
+    db.transaction(() => {
+      assertGenerationNotPromoted(db, branch, generation);
+      deleteDerivedSymbolRows(db, symbolIds);
+      db.prepare(`DELETE FROM files WHERE id IN (${placeholders})`).run(...batch);
+    }).immediate();
+  }
+  clearPendingBaselineGeneration(db, generation);
+}
 
-      // 3. Remove promoted paths from dirty_files.
-      db.prepare('DELETE FROM dirty_files WHERE branch = ? AND dirty_since < ?').run(branch, rebuildStartedAt);
+function assertGenerationNotPromoted(
+  db: PipelineContext['db'],
+  branch: string,
+  generation: number,
+): void {
+  const promoted = db.prepare(
+    'SELECT generation FROM baseline_generations WHERE branch = ?',
+  ).get(branch) as { generation: number } | undefined;
+  if (promoted?.generation === generation) {
+    throw new Error(`Refusing to clean promoted baseline generation ${generation}`);
+  }
+}
 
-      // 4. Update generation metadata.
-      setLoreMeta(db, LORE_META_GENERATION, String(newGeneration));
-      if (headSha) {
-        setLoreMeta(db, LORE_META_BASELINE_HEAD_SHA, headSha);
+function assertPromotedGeneration(
+  db: PipelineContext['db'],
+  branch: string,
+  expectedGeneration: number,
+): void {
+  const promoted = db.prepare(
+    'SELECT generation FROM baseline_generations WHERE branch = ?',
+  ).get(branch) as { generation: number } | undefined;
+  if (promoted?.generation !== expectedGeneration) {
+    throw new Error(
+      `Baseline cleanup generation ${expectedGeneration} is no longer promoted for branch ${branch}`,
+    );
+  }
+}
+
+function deleteDerivedSymbolRows(db: PipelineContext['db'], symbolIds: readonly number[]): void {
+  if (symbolIds.length === 0) return;
+  const placeholders = symbolIds.map(() => '?').join(', ');
+  for (const table of [
+    'symbols_fts',
+    'symbol_embeddings',
+    'symbol_semantic_embeddings',
+    'symbol_embeddings_hashes',
+  ]) {
+    const exists = db.prepare(
+      "SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = ?",
+    ).get(table) as { present: number } | undefined;
+    if (exists) {
+      try {
+        db.prepare(`DELETE FROM ${table} WHERE rowid IN (${placeholders})`).run(...symbolIds);
+      } catch {
+        // A connection that did not configure embeddings may not have loaded
+        // sqlite-vec. Orphan vectors are inert because searches join through
+        // effective_symbols; relational generation cleanup must still finish.
       }
-
-      // 5. Rebuild reverse_deps from the new baseline.
-      db.exec('DELETE FROM reverse_deps');
-      db.exec(`
-        INSERT OR IGNORE INTO reverse_deps (file_id, dependent_id, dep_kind)
-        SELECT fi.resolved_id, fi.file_id, 'import'
-        FROM effective_file_imports fi
-        WHERE fi.resolved_id IS NOT NULL
-      `);
-      db.exec(`
-        INSERT OR IGNORE INTO reverse_deps (file_id, dependent_id, dep_kind)
-        SELECT s_callee.file_id, sr.file_id, 'ref'
-        FROM effective_symbol_refs sr
-        JOIN effective_symbols s_callee ON s_callee.id = sr.callee_id
-        WHERE sr.callee_id IS NOT NULL
-          AND sr.file_id IS NOT NULL
-          AND sr.file_id != s_callee.file_id
-      `);
-    })();
-
-    // 6. Reclaim space from deleted rows.
-    db.pragma('incremental_vacuum');
+    }
   }
 }

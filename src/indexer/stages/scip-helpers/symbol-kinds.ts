@@ -106,7 +106,7 @@ function mapScipKindToLore(kind: number): string | null {
 
     // Macro
     case 25: // Macro
-      return 'function';
+      return 'macro';
 
     // Type parameter
     case 58: // TypeParameter
@@ -193,7 +193,7 @@ export function inferKindFromScipSymbol(
   if (scipSymbol.endsWith(':')) return 'property';
 
   // Macro: ends with ! (scip-clang preprocessor macros)
-  if (scipSymbol.endsWith('!')) return 'constant';
+  if (scipSymbol.endsWith('!')) return 'macro';
 
   // Parameter
   if (scipSymbol.endsWith(')') && !scipSymbol.endsWith(').')) return 'parameter';

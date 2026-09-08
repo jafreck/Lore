@@ -2,7 +2,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
-import { openDb } from '../../src/db/schema.js';
+import {
+  LORE_META_SCIP_C_CPP_REPRODUCIBILITY,
+  openDb,
+} from '../../src/db/schema.js';
 import {
   ScipIndexerStage,
   createLoreScipTsconfig,
@@ -15,6 +18,8 @@ import {
 import type { PipelineContext } from '../../src/indexer/pipeline.js';
 import { getLogger } from '../../src/logger.js';
 import { buildScipIndexBuffer, SymbolRole } from '../helpers/scipFixture.js';
+import { PositionEncoding } from '../../src/scip/scip_pb.js';
+import { installStagingEffectiveViews } from '../../src/indexer/staging-views.js';
 
 // ── Mock loadScipIndexes ────────────────────────────────────────────────────
 
@@ -46,9 +51,9 @@ function makeMinimalContext(overrides: Partial<PipelineContext> = {}): PipelineC
     dbPath: ':memory:',
     walkerConfig: {
       rootDir: tmpDir,
-      include: ['**/*'],
-      exclude: [],
-    } as any,
+      includeGlobs: ['**/*'],
+      excludeGlobs: [],
+    },
     branch: 'main',
     lsp: null,
     scip: null,
@@ -138,6 +143,74 @@ describe('ScipIndexerStage', () => {
     await stage.execute(ctx, 'build');
     const count = ctx.db.prepare('SELECT count(*) as c FROM files').get() as any;
     expect(count.c).toBe(0);
+    ctx.db.close();
+  });
+
+  it('records portable C/C++ compilation reproducibility metadata', async () => {
+    const sourceCache = new Map<string, string>();
+    writeSource('src/main.c', 'int main(void) { return 0; }\n', sourceCache);
+    const buffer = buildScipIndexBuffer([{
+      relativePath: 'src/main.c',
+      language: 'c',
+    }]);
+    const validation = {
+      valid: true,
+      status: 'valid' as const,
+      totalEntries: 1,
+      wellFormedEntries: 1,
+      malformedEntries: 0,
+      existingFiles: 1,
+      missingFiles: 0,
+      existingDirectories: 1,
+      missingDirectories: 0,
+      entriesWithinRoot: 1,
+      warnings: [],
+    };
+    loadScipIndexesMock.mockImplementation(async (...args: any[]) => {
+      const diagnostics = args[4];
+      diagnostics.cCpp = {
+        compilationDatabase: {
+          path: path.join(tmpDir, 'build', 'compile_commands.json'),
+          buildSystem: 'cmake',
+          preExisting: true,
+          generationAttempted: false,
+          candidateDiagnostics: [],
+          database: {
+            path: path.join(tmpDir, 'build', 'compile_commands.json'),
+            sha256: 'a'.repeat(64),
+            entries: [],
+            includePaths: { byFile: new Map(), entries: [] },
+            validation,
+          },
+        },
+        indexerCommand: '/opt/tools/scip-clang',
+      };
+      return [buffer];
+    });
+
+    const ctx = makeMinimalContext({ scip: { enabled: true } as any, sourceCache });
+    await new ScipIndexerStage().execute(ctx, 'build');
+
+    const row = ctx.db.prepare('SELECT value FROM lore_meta WHERE key = ?')
+      .get(LORE_META_SCIP_C_CPP_REPRODUCIBILITY) as { value: string };
+    const metadata = JSON.parse(row.value);
+    expect(metadata).toMatchObject({
+      schemaVersion: 1,
+      compilationDatabase: {
+        path: 'build/compile_commands.json',
+        sha256: 'a'.repeat(64),
+        status: 'valid',
+      },
+      indexer: { command: 'scip-clang' },
+      coverage: {
+        compilationEntries: 1,
+        indexedDocuments: 1,
+        indexedFiles: 1,
+      },
+    });
+    expect(row.value).not.toContain(tmpDir);
+    expect(ctx.compilationDatabase?.database?.path)
+      .toBe(path.join(tmpDir, 'build', 'compile_commands.json'));
     ctx.db.close();
   });
 
@@ -352,6 +425,40 @@ describe('ScipIndexerStage', () => {
     ctx.db.close();
   });
 
+  it('merges duplicate documents from different compilation configurations', async () => {
+    const stage = new ScipIndexerStage();
+    const sourceCache = new Map<string, string>();
+    writeSource('src/configured.ts', 'export const ALPHA = 1;\nexport const BETA = 2;\n', sourceCache);
+
+    const alpha = 'scip-typescript npm test-pkg 1.0.0 src/configured.ts/ALPHA.';
+    const beta = 'scip-typescript npm test-pkg 1.0.0 src/configured.ts/BETA.';
+    const buf = buildScipIndexBuffer([
+      {
+        relativePath: 'src/configured.ts',
+        language: 'typescript',
+        occurrences: [{ range: [0, 13, 18], symbol: alpha, symbolRoles: SymbolRole.Definition }],
+        symbols: [{ symbol: alpha, displayName: 'ALPHA' }],
+      },
+      {
+        relativePath: 'src/configured.ts',
+        language: 'typescript',
+        occurrences: [{ range: [1, 13, 17], symbol: beta, symbolRoles: SymbolRole.Definition }],
+        symbols: [{ symbol: beta, displayName: 'BETA' }],
+      },
+    ]);
+
+    loadScipIndexesMock.mockResolvedValue([buf]);
+    const ctx = makeMinimalContext({ scip: { enabled: true } as any, sourceCache });
+    await stage.execute(ctx, 'build');
+
+    const files = ctx.db.prepare('SELECT COUNT(*) AS count FROM files').get() as { count: number };
+    const symbols = ctx.db.prepare('SELECT name FROM symbols ORDER BY name').all() as Array<{ name: string }>;
+    expect(files.count).toBe(1);
+    expect(symbols.map((symbol) => symbol.name)).toEqual(['ALPHA', 'BETA']);
+
+    ctx.db.close();
+  });
+
   it('in update mode skips when no SCIP-supported languages changed', async () => {
     const stage = new ScipIndexerStage();
     const ctx = makeMinimalContext({
@@ -391,8 +498,9 @@ describe('ScipIndexerStage', () => {
     await stage.execute(ctx, 'update');
     expect(loadScipIndexesMock).toHaveBeenCalled();
     const callArgs = loadScipIndexesMock.mock.calls[0];
-    expect(callArgs[2]).toBeInstanceOf(Set);
-    expect(callArgs[2].has('typescript')).toBe(true);
+    const staleLanguages = callArgs?.[2] as Set<string> | null | undefined;
+    expect(staleLanguages).toBeInstanceOf(Set);
+    expect(staleLanguages?.has('typescript')).toBe(true);
 
     ctx.db.close();
   });
@@ -578,6 +686,194 @@ describe('ScipIndexerStage - inline ref insertion', () => {
       expect(callRef.resolution_method).toBeTruthy();
     }
 
+    ctx.db.close();
+  });
+
+  it('recovers C function spans to attribute calls when scip-clang omits enclosingRange', async () => {
+    const stage = new ScipIndexerStage();
+    const sourceCache = new Map<string, string>();
+    const sourceCode = [
+      'int callee(void) {',
+      '  return 42;',
+      '}',
+      '',
+      'int caller(void) {',
+      '  return callee();',
+      '}',
+    ].join('\n');
+    writeSource('src/calls.c', sourceCode, sourceCache);
+
+    const callee = 'cxx . . $ callee(1111111111111111).';
+    const caller = 'cxx . . $ caller(2222222222222222).';
+    const buf = buildScipIndexBuffer([{
+      relativePath: 'src/calls.c',
+      language: 'CPP',
+      occurrences: [
+        { range: [0, 4, 10], symbol: callee, symbolRoles: SymbolRole.Definition },
+        { range: [4, 4, 10], symbol: caller, symbolRoles: SymbolRole.Definition },
+        { range: [5, 9, 15], symbol: callee, symbolRoles: 0 },
+      ],
+      symbols: [
+        { symbol: callee, documentation: ['int callee(void)'] },
+        { symbol: caller, documentation: ['int caller(void)'] },
+      ],
+    }]);
+
+    loadScipIndexesMock.mockResolvedValue([buf]);
+    const ctx = makeMinimalContext({ scip: { enabled: true } as any, sourceCache });
+    await stage.execute(ctx, 'build');
+
+    const callerRow = ctx.db.prepare(
+      "SELECT s.id, s.start_line, s.end_line, f.language FROM symbols s JOIN files f ON f.id = s.file_id WHERE s.name = 'caller'",
+    ).get() as { id: number; start_line: number; end_line: number; language: string };
+    expect(callerRow).toMatchObject({ start_line: 4, end_line: 6, language: 'c' });
+
+    const ref = ctx.db.prepare(
+      "SELECT caller_id, callee_name, resolution_method FROM symbol_refs WHERE callee_name = 'callee'",
+    ).get() as { caller_id: number; callee_name: string; resolution_method: string };
+    expect(ref).toMatchObject({ caller_id: callerRow.id, callee_name: 'callee', resolution_method: 'scip_definition' });
+
+    ctx.db.close();
+  });
+
+  it('recovers a C macro name from a UTF-8 SCIP range containing Unicode prefixes', async () => {
+    const sourceCache = new Map<string, string>();
+    const prefix = '#define /* é🚀 */ ';
+    const source = `${prefix}VALUE 42\n`;
+    writeSource('include/macros.h', source, sourceCache);
+    const symbol = 'cxx . . $ macros.h:1!';
+    const start = Buffer.byteLength(prefix, 'utf8');
+    const buf = buildScipIndexBuffer([{
+      relativePath: 'include/macros.h',
+      language: 'c',
+      positionEncoding: PositionEncoding.UTF8CodeUnitOffsetFromLineStart,
+      occurrences: [{
+        range: [0, start, start + Buffer.byteLength('VALUE', 'utf8')],
+        symbol,
+        symbolRoles: SymbolRole.Definition,
+      }],
+      symbols: [{ symbol, displayName: 'macros.h:1', kind: 25 }],
+    }]);
+
+    loadScipIndexesMock.mockResolvedValue([buf]);
+    const ctx = makeMinimalContext({ scip: { enabled: true } as any, sourceCache });
+    await new ScipIndexerStage().execute(ctx, 'build');
+
+    const macro = ctx.db.prepare('SELECT name, kind FROM symbols').get();
+    expect(macro).toEqual({ name: 'VALUE', kind: 'macro' });
+    ctx.db.close();
+  });
+
+  it('recovers a C++ constructor span across initializer-list expressions', async () => {
+    const sourceCache = new Map<string, string>();
+    const source = [
+      'Widget::Widget()',
+      '  : value_{make_value()},',
+      '    callback_([] { return 2; })',
+      '{',
+      '}',
+      '',
+      'int make_value() { return 1; }',
+    ].join('\n');
+    writeSource('src/widget.cpp', source, sourceCache);
+    const constructor = 'cxx . . $ Widget#Widget(2222222222222222).';
+    const makeValue = 'cxx . . $ make_value(1111111111111111).';
+    const buf = buildScipIndexBuffer([{
+      relativePath: 'src/widget.cpp',
+      language: 'CPP',
+      positionEncoding: PositionEncoding.UTF8CodeUnitOffsetFromLineStart,
+      occurrences: [
+        { range: [0, 8, 14], symbol: constructor, symbolRoles: SymbolRole.Definition },
+        { range: [1, 11, 21], symbol: makeValue, symbolRoles: 0 },
+        { range: [6, 4, 14], symbol: makeValue, symbolRoles: SymbolRole.Definition },
+      ],
+      symbols: [
+        { symbol: constructor, displayName: 'Widget', kind: 9 },
+        { symbol: makeValue, displayName: 'make_value', kind: 17 },
+      ],
+    }]);
+
+    loadScipIndexesMock.mockResolvedValue([buf]);
+    const ctx = makeMinimalContext({ scip: { enabled: true } as any, sourceCache });
+    await new ScipIndexerStage().execute(ctx, 'build');
+
+    const constructorRow = ctx.db.prepare(
+      "SELECT s.id, s.start_line, s.end_line, f.language FROM symbols s JOIN files f ON f.id = s.file_id WHERE s.kind = 'constructor'",
+    ).get() as { id: number; start_line: number; end_line: number; language: string };
+    expect(constructorRow).toMatchObject({ start_line: 0, end_line: 4, language: 'cpp' });
+    expect(ctx.db.prepare("SELECT caller_id FROM symbol_refs WHERE callee_name = 'make_value'").get())
+      .toEqual({ caller_id: constructorRow.id });
+    ctx.db.close();
+  });
+
+  it('uses constant initializers as generic caller containers', async () => {
+    const sourceCache = new Map<string, string>();
+    const source = 'const result = make();\nfunction make() { return 1; }\n';
+    writeSource('src/constant.ts', source, sourceCache);
+    const result = 'scip-typescript npm pkg 1.0.0 src/constant.ts/result.';
+    const make = 'scip-typescript npm pkg 1.0.0 src/constant.ts/make().';
+    const buf = buildScipIndexBuffer([{
+      relativePath: 'src/constant.ts',
+      language: 'typescript',
+      occurrences: [
+        {
+          range: [0, 6, 12],
+          enclosingRange: [0, 0, 22],
+          symbol: result,
+          symbolRoles: SymbolRole.Definition,
+        },
+        { range: [0, 15, 19], symbol: make, symbolRoles: 0 },
+        {
+          range: [1, 9, 13],
+          enclosingRange: [1, 0, 1, 29],
+          symbol: make,
+          symbolRoles: SymbolRole.Definition,
+        },
+      ],
+      symbols: [
+        { symbol: result, displayName: 'result', kind: 8 },
+        { symbol: make, displayName: 'make', kind: 17 },
+      ],
+    }]);
+
+    loadScipIndexesMock.mockResolvedValue([buf]);
+    const ctx = makeMinimalContext({ scip: { enabled: true } as any, sourceCache });
+    await new ScipIndexerStage().execute(ctx, 'build');
+
+    const constant = ctx.db.prepare("SELECT id FROM symbols WHERE kind = 'constant'").get() as { id: number };
+    expect(ctx.db.prepare("SELECT caller_id FROM symbol_refs WHERE callee_name = 'make'").get())
+      .toEqual({ caller_id: constant.id });
+    ctx.db.close();
+  });
+
+  it('prefers a same-file C definition over its forward declaration', async () => {
+    const stage = new ScipIndexerStage();
+    const sourceCache = new Map<string, string>();
+    const source = [
+      'static int helper(void);',
+      '',
+      'static int helper(void) {',
+      '  return 1;',
+      '}',
+    ].join('\n');
+    writeSource('src/forward.c', source, sourceCache);
+    const symbol = 'cxx . . $ helper(1234567890abcdef).';
+    const buf = buildScipIndexBuffer([{
+      relativePath: 'src/forward.c',
+      language: 'CPP',
+      occurrences: [
+        { range: [0, 11, 17], symbol, symbolRoles: SymbolRole.Definition | SymbolRole.ForwardDefinition },
+        { range: [2, 11, 17], symbol, symbolRoles: SymbolRole.Definition },
+      ],
+      symbols: [{ symbol, documentation: ['static int helper(void)'] }],
+    }]);
+
+    loadScipIndexesMock.mockResolvedValue([buf]);
+    const ctx = makeMinimalContext({ scip: { enabled: true } as any, sourceCache });
+    await stage.execute(ctx, 'build');
+
+    const row = ctx.db.prepare("SELECT start_line, end_line FROM symbols WHERE name = 'helper'").get();
+    expect(row).toEqual({ start_line: 2, end_line: 4 });
     ctx.db.close();
   });
 
@@ -808,7 +1104,7 @@ describe('findContainingSymbol', () => {
       { id: 2, startLine: 5, endLine: 8 },
     ]);
     const result = findContainingSymbol(index, 100, 6);
-    expect(result).toBe(1);
+    expect(result).toBe(2);
   });
 
   it('returns null when no span contains the line', () => {
@@ -865,12 +1161,16 @@ describe('ScipIndexerStage - additional branches', () => {
     }]);
 
     loadScipIndexesMock.mockResolvedValue([buf]);
+    installStagingEffectiveViews(ctx1.db, ctx1.branch, ctx1.generation);
     await stage.execute(ctx1, 'build');
 
-    // Old symbol should be gone, new one present
+    // The prior generation remains staged until atomic promotion cleanup, but
+    // only the generation under construction is effective on this connection.
     const syms = ctx1.db.prepare('SELECT name FROM symbols').all() as any[];
     expect(syms.some((s: any) => s.name === 'x')).toBe(true);
-    expect(syms.some((s: any) => s.name === 'oldSym')).toBe(false);
+    expect(syms.some((s: any) => s.name === 'oldSym')).toBe(true);
+    const effective = ctx1.db.prepare('SELECT name FROM effective_symbols').all() as any[];
+    expect(effective.map((symbol: any) => symbol.name)).toEqual(['x']);
 
     ctx1.db.close();
   });
@@ -1555,6 +1855,14 @@ describe('ScipIndexerStage - forward declaration directionality', () => {
     for (const ref of refs) {
       expect(ref.definition_path).toBe(implAbsPath);
     }
+    const resolvedCallee = ctx.db.prepare(
+      `SELECT f.path
+         FROM symbol_refs sr
+         JOIN symbols callee ON callee.id = sr.callee_id
+         JOIN files f ON f.id = callee.file_id
+        WHERE sr.callee_name = 'buffer_create'`,
+    ).get() as { path: string };
+    expect(resolvedCallee.path).toBe(implAbsPath);
 
     ctx.db.close();
   });
@@ -1573,7 +1881,14 @@ describe('ScipIndexerStage - forward declaration directionality', () => {
     ].join('\n');
     writeSource('src/codec.c', implSource, sourceCache);
 
+    const callerSource = [
+      '#include "codec.h"',
+      'void run(void) { decompress(0, 0); }',
+    ].join('\n');
+    writeSource('src/main.c', callerSource, sourceCache);
+
     const funcSymbol = 'scip-clang pkg include/codec.h/decompress().';
+    const runSymbol = 'scip-clang pkg src/main.c/run().';
 
     // SCIP index: implementation FIRST, then header — tests that
     // buildSymbolDefinitionMap correctly picks the real definition
@@ -1609,6 +1924,28 @@ describe('ScipIndexerStage - forward declaration directionality', () => {
           displayName: 'decompress',
         }],
       },
+      {
+        relativePath: 'src/main.c',
+        language: 'c',
+        occurrences: [
+          {
+            range: [1, 5, 8],
+            symbol: runSymbol,
+            symbolRoles: SymbolRole.Definition,
+            enclosingRange: [1, 0, 1, 37],
+          },
+          {
+            range: [1, 17, 27],
+            symbol: funcSymbol,
+            symbolRoles: 0,
+          },
+        ],
+        symbols: [{
+          symbol: runSymbol,
+          documentation: ['void run(void)'],
+          displayName: 'run',
+        }],
+      },
     ]);
 
     loadScipIndexesMock.mockResolvedValue([buf]);
@@ -1633,6 +1970,15 @@ describe('ScipIndexerStage - forward declaration directionality', () => {
     const implSym = symbols.find((s: any) => s.file_path === implAbsPath);
     expect(implSym).toBeDefined();
     expect(implSym.definition_path).toBe(implAbsPath);
+
+    const resolvedCallee = ctx.db.prepare(
+      `SELECT f.path
+         FROM symbol_refs sr
+         JOIN symbols callee ON callee.id = sr.callee_id
+         JOIN files f ON f.id = callee.file_id
+        WHERE sr.callee_name = 'decompress'`,
+    ).get() as { path: string };
+    expect(resolvedCallee.path).toBe(implAbsPath);
 
     ctx.db.close();
   });
@@ -1733,7 +2079,7 @@ describe('ScipIndexerStage - macro name recovery', () => {
     await stage.execute(ctx, 'build');
 
     const symbols = ctx.db.prepare(
-      "SELECT name, kind FROM symbols WHERE kind = 'constant' ORDER BY start_line",
+      "SELECT name, kind FROM symbols WHERE kind = 'macro' ORDER BY start_line",
     ).all() as any[];
 
     const names = symbols.map((s: any) => s.name);
@@ -1742,10 +2088,50 @@ describe('ScipIndexerStage - macro name recovery', () => {
     expect(names).toContain('VERSION_MAJOR');
     expect(names).toContain('SQUARE');
 
-    // All should be constant kind
+    // Preserve their semantic kind for downstream migration planning.
     for (const s of symbols) {
-      expect(s.kind).toBe('constant');
+      expect(s.kind).toBe('macro');
     }
+
+    ctx.db.close();
+  });
+
+  it('uses the recovered macro name on resolved call edges', async () => {
+    const stage = new ScipIndexerStage();
+    const sourceCache = new Map<string, string>();
+    const source = [
+      '#define CHECK(value) ((value) != 0)',
+      'int run(void) {',
+      '  return CHECK(1);',
+      '}',
+    ].join('\n');
+    writeSource('src/check.c', source, sourceCache);
+
+    const macroSymbol = 'cxx . . $ `src/check.c:1:9`!';
+    const runSymbol = 'cxx . . $ run(1234567890abcdef).';
+    const buf = buildScipIndexBuffer([{
+      relativePath: 'src/check.c',
+      language: 'CPP',
+      occurrences: [
+        { range: [0, 8, 13], symbol: macroSymbol, symbolRoles: SymbolRole.Definition },
+        { range: [1, 4, 7], symbol: runSymbol, symbolRoles: SymbolRole.Definition },
+        { range: [2, 9, 14], symbol: macroSymbol, symbolRoles: 0, syntaxKind: 17 },
+      ],
+      symbols: [
+        { symbol: macroSymbol, documentation: ['No documentation available.'] },
+        { symbol: runSymbol, documentation: ['int run(void)'] },
+      ],
+    }]);
+
+    loadScipIndexesMock.mockResolvedValue([buf]);
+    const ctx = makeMinimalContext({ scip: { enabled: true } as any, sourceCache });
+    await stage.execute(ctx, 'build');
+
+    const ref = ctx.db.prepare(
+      "SELECT sr.callee_name, sr.callee_id, s.name AS target_name FROM symbol_refs sr LEFT JOIN symbols s ON s.id = sr.callee_id WHERE sr.callee_name = 'CHECK'",
+    ).get() as { callee_name: string; callee_id: number; target_name: string };
+    expect(ref).toMatchObject({ callee_name: 'CHECK', target_name: 'CHECK' });
+    expect(ref.callee_id).toBeGreaterThan(0);
 
     ctx.db.close();
   });

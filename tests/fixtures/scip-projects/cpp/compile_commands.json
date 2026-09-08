@@ -1,0 +1,27 @@
+[
+  {
+    "directory": ".",
+    "file": "src/model.cpp",
+    "arguments": ["clang++", "-std=c++17", "-Iinclude", "-c", "src/model.cpp"]
+  },
+  {
+    "directory": ".",
+    "file": "src/main.cpp",
+    "arguments": ["clang++", "-std=c++17", "-Iinclude", "-c", "src/main.cpp"]
+  },
+  {
+    "directory": ".",
+    "file": "src/configured.cpp",
+    "arguments": ["clang++", "-std=c++17", "-Iinclude", "-DLORE_CPP_FAST=1", "-c", "src/configured.cpp", "-o", "configured-fast.o"]
+  },
+  {
+    "directory": ".",
+    "file": "src/configured.cpp",
+    "arguments": ["clang++", "-std=c++17", "-Iinclude", "-DLORE_CPP_SAFE=1", "-c", "src/configured.cpp", "-o", "configured-safe.o"]
+  },
+  {
+    "directory": ".",
+    "file": "generated/widget_generated.cpp",
+    "arguments": ["clang++", "-std=c++17", "-Iinclude", "-c", "generated/widget_generated.cpp"]
+  }
+]

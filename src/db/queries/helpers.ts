@@ -56,6 +56,11 @@ export function symbolsTable(db: Database.Database): string {
   return hasEffectiveViews(db) ? 'effective_symbols' : 'symbols';
 }
 
+/** Return the right table/view name for annotation lookups. */
+export function annotationsTable(db: Database.Database): string {
+  return hasEffectiveViews(db) ? 'effective_annotations' : 'annotations';
+}
+
 /**
  * Clamp a caller-supplied limit to the hard ceiling.
  * When no limit is given, `defaultLimit` is used (default: 1 000).

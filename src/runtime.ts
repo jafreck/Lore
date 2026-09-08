@@ -2,8 +2,8 @@
  * @module runtime
  *
  * `LoreRuntime` centralises the lifecycle of all long-lived resources that a
- * Lore session needs: database handles, embedding providers, LSP coordinators,
- * and file-change refreshers (watcher / poller).
+ * Lore session needs: embedding providers and file-change refreshers
+ * (watcher / poller).
  *
  * Both the CLI sub-commands and the MCP server dispatch through a single
  * runtime instance so that startup, shutdown, and resource ownership are
@@ -14,8 +14,9 @@ import * as fs from 'node:fs';
 import type { EmbeddingProvider } from './embeddings/embedder.js';
 import type { EffectiveLspSettings } from './lsp/config.js';
 import type { EffectiveScipSettings } from './scip/config.js';
+import type { IndexExecutionOptions } from './execution-policy.js';
 import type { WalkerConfig } from './discovery/walker.js';
-import { LspEnrichmentCoordinator } from './lsp/enrichment.js';
+import type { ResponseFileLimits } from './scip/compdb.js';
 import { getLogger, type LoreLogger } from './logger.js';
 import { killAllTracked } from './process-tracker.js';
 
@@ -27,7 +28,7 @@ export interface RuntimeConfig {
   dbPath: string;
   /** Root directory of the project being indexed. */
   rootDir: string;
-  /** Walker configuration (globs, extensions, doc filters, etc.). */
+  /** Walker configuration (root, globs, extensions, and optional branch). */
   walkerConfig: WalkerConfig;
 
   // ── Policy flags ───────────────────────────────────────────────────────────
@@ -39,10 +40,14 @@ export interface RuntimeConfig {
   lsp: EffectiveLspSettings | null;
   /** SCIP enrichment policy. `null` = disabled. */
   scip: EffectiveScipSettings | null;
+  /** Host-trusted subprocess/build/custom-command permissions. */
+  execution?: IndexExecutionOptions;
   /** Git history ingestion policy. */
   history: boolean | { depth?: number; all?: boolean };
-  /** Whether to index dependency declarations (.d.ts, etc.). */
+  /** Legacy dependency-indexing option; the active pipeline has no crawler. */
   indexDependencies: boolean;
+  /** Compilation response-file budgets retained across live refresh cycles. */
+  responseFileLimits?: Partial<ResponseFileLimits>;
   /** Refresh mode: `'none'` (one-shot), `'watch'`, or `'poll'`. */
   refreshMode: 'none' | 'watch' | 'poll';
 }
@@ -74,7 +79,6 @@ export class LoreRuntime {
 
   private _embedder: EmbeddingProvider | null = null;
   private _refresher: Refresher | null = null;
-  private _lspCoordinator: LspEnrichmentCoordinator | null = null;
   private _started = false;
 
   constructor(config: RuntimeConfig, logger?: LoreLogger) {
@@ -94,11 +98,6 @@ export class LoreRuntime {
     return this._refresher ?? undefined;
   }
 
-  /** The persistent LSP coordinator, or `undefined` if LSP is disabled. */
-  get lspCoordinator(): LspEnrichmentCoordinator | undefined {
-    return this._lspCoordinator ?? undefined;
-  }
-
   get started(): boolean {
     return this._started;
   }
@@ -115,33 +114,57 @@ export class LoreRuntime {
     this._started = true;
 
     // ── Embedder ─────────────────────────────────────────────────────────────
-    if (this.config.embeddingModel) {
+    const embeddingModel = this.config.embeddingModel ?? await this.readPersistedEmbeddingModel();
+    if (embeddingModel) {
       try {
         const { LazyEmbeddingProvider } = await import('./embeddings/embedder.js');
-        const provider = new LazyEmbeddingProvider(this.config.embeddingModel);
+        const provider = new LazyEmbeddingProvider(embeddingModel);
         this._embedder = provider;
         this.log.startup('embedding model configured (lazy — loads on first use)', {
-          embeddingModel: this.config.embeddingModel,
+          embeddingModel,
           embeddingReady: false,
         });
       } catch {
         this.log.warn(
           'startup',
           'embedding model unavailable, continuing without embeddings',
-          { embeddingModel: this.config.embeddingModel },
+          { embeddingModel },
         );
       }
     }
 
-    // ── LSP Coordinator (persistent) ─────────────────────────────────────────
-    if (this.config.lsp?.enabled) {
-      this._lspCoordinator = new LspEnrichmentCoordinator(
-        this.config.lsp,
-        this.config.rootDir,
+    // A live refresher must never begin by applying overlays to an
+    // uninitialized database. Refresh performs a full hidden-generation build
+    // when no promoted baseline exists and propagates a clear startup failure.
+    if (this.config.refreshMode !== 'none') {
+      const { IndexBuilder } = await import('./indexer/index.js');
+      const cfg = this.config;
+      const initialBuilder = new IndexBuilder(
+        cfg.dbPath,
+        cfg.walkerConfig,
+        this._embedder ?? undefined,
+        {
+          history: cfg.history,
+          ...(cfg.indexDependencies && { indexDependencies: true }),
+          lsp: cfg.lsp ?? false,
+          scip: cfg.scip ?? false,
+          execution: cfg.execution,
+          responseFileLimits: cfg.responseFileLimits,
+        },
       );
-      this.log.startup('LSP coordinator created (persistent)', {
-        enabled: true,
-      });
+      try {
+        await initialBuilder.refresh();
+      } catch (error) {
+        if (this._embedder) {
+          try { await this._embedder.dispose(); } catch { /* best effort */ }
+          this._embedder = null;
+        }
+        this._started = false;
+        const message = error instanceof Error ? error.message : String(error);
+        throw new Error(
+          `Cannot start ${this.config.refreshMode} refresh without a valid baseline: ${message}`,
+        );
+      }
     }
 
     // ── Refresher (watch / poll) ─────────────────────────────────────────────
@@ -155,12 +178,16 @@ export class LoreRuntime {
         indexDependencies: cfg.indexDependencies,
         lsp: cfg.lsp ?? undefined,
         scip: cfg.scip ?? undefined,
+        execution: cfg.execution,
         embedder,
         onUpdate: async (changedFiles) => {
           const builder = new IndexBuilder(cfg.dbPath, cfg.walkerConfig, embedder, {
             history: cfg.history,
             ...(cfg.indexDependencies && { indexDependencies: true }),
-            ...(cfg.lsp && { lsp: cfg.lsp }),
+            lsp: cfg.lsp ?? false,
+            scip: false,
+            execution: cfg.execution,
+            responseFileLimits: cfg.responseFileLimits,
           });
           await builder.update(changedFiles);
         },
@@ -171,6 +198,8 @@ export class LoreRuntime {
               ...(cfg.indexDependencies && { indexDependencies: true }),
               ...(cfg.lsp && { lsp: cfg.lsp }),
               ...(cfg.scip && { scip: cfg.scip }),
+              execution: cfg.execution,
+              responseFileLimits: cfg.responseFileLimits,
             });
             await builder.baselineRebuild();
           },
@@ -195,12 +224,16 @@ export class LoreRuntime {
         indexDependencies: cfg.indexDependencies,
         lsp: cfg.lsp ?? undefined,
         scip: cfg.scip ?? undefined,
+        execution: cfg.execution,
         embedder,
         onUpdate: async (changedFiles) => {
           const builder = new IndexBuilder(cfg.dbPath, cfg.walkerConfig, embedder, {
             history: cfg.history,
             ...(cfg.indexDependencies && { indexDependencies: true }),
-            ...(cfg.lsp && { lsp: cfg.lsp }),
+            lsp: cfg.lsp ?? false,
+            scip: false,
+            execution: cfg.execution,
+            responseFileLimits: cfg.responseFileLimits,
           });
           await builder.update(changedFiles);
         },
@@ -211,6 +244,8 @@ export class LoreRuntime {
               ...(cfg.indexDependencies && { indexDependencies: true }),
               ...(cfg.lsp && { lsp: cfg.lsp }),
               ...(cfg.scip && { scip: cfg.scip }),
+              execution: cfg.execution,
+              responseFileLimits: cfg.responseFileLimits,
             });
             await builder.baselineRebuild();
           },
@@ -251,13 +286,23 @@ export class LoreRuntime {
       this._embedder = null;
     }
 
-    if (this._lspCoordinator) {
+  }
+
+  private async readPersistedEmbeddingModel(): Promise<string | undefined> {
+    if (this.config.dbPath === ':memory:' || !fs.existsSync(this.config.dbPath)) return undefined;
+    try {
+      const { openReadOnly } = await import('./db/read-only.js');
+      const db = openReadOnly(this.config.dbPath);
       try {
-        await this._lspCoordinator.dispose();
-      } catch {
-        /* best-effort */
+        const row = db.prepare(
+          "SELECT value FROM lore_meta WHERE key = 'embedding_model'",
+        ).get() as { value: string } | undefined;
+        return row?.value || undefined;
+      } finally {
+        db.close();
       }
-      this._lspCoordinator = null;
+    } catch {
+      return undefined;
     }
   }
 

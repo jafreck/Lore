@@ -16,6 +16,11 @@ import {
   getSymbolById,
   getFileById,
 } from '../../db/read-only.js';
+import {
+  nullableStorageCharacterToPresentation,
+  nullableStorageLineToPresentation,
+  storageLineToPresentation,
+} from '../../source-coordinates.js';
 
 // ─── Tool definition ──────────────────────────────────────────────────────────
 
@@ -227,12 +232,13 @@ function queryTypeReferences(
               COALESCE(s.kind, '') AS symbol_kind,
               f.path AS file,
               tr.ref_kind,
-              tr.ref_line + 1 AS line,
-              CASE WHEN tr.ref_character IS NULL THEN NULL ELSE tr.ref_character + 1 END AS character,
+              tr.ref_line AS line,
+              tr.ref_character AS character,
               tr.resolution_method
-         FROM type_refs tr
-         JOIN files f ON f.id = tr.file_id
-         LEFT JOIN symbols s ON s.id = tr.symbol_id
+         FROM effective_type_refs tr
+         JOIN effective_files f ON f.id = tr.file_id
+         JOIN effective_symbols target ON target.id = tr.type_id
+         LEFT JOIN effective_symbols s ON s.id = tr.symbol_id
         WHERE ${conditions.join(' AND ')}
         LIMIT ?`,
     )
@@ -257,8 +263,8 @@ function getSymbolIdsInFiles(
   const rows = db
     .prepare(
       `SELECT s.id
-         FROM symbols s
-         JOIN files f ON f.id = s.file_id
+        FROM effective_symbols s
+        JOIN effective_files f ON f.id = s.file_id
         WHERE ${conditions.join(' AND ')}`,
     )
     .all(...params) as Array<{ id: number }>;
@@ -286,13 +292,29 @@ function fullCaller(row: RawCallerRow): CallerEntry {
     caller_name: row.caller_name,
     caller_kind: row.caller_kind,
     caller_file: row.caller_file,
-    line: row.line,
-    character: row.character,
+    line: storageLineToPresentation(row.line),
+    character: nullableStorageCharacterToPresentation(row.character),
     resolution_method: row.resolution_method,
   };
   if (row.caller_parent_symbol_id != null) entry.caller_parent_symbol_id = row.caller_parent_symbol_id;
   if (row.enclosing_name != null) entry.caller_parent_name = row.enclosing_name;
   return entry;
+}
+
+function fullSubclass(row: RawSubclassRow): SubclassEntry {
+  return {
+    ...row,
+    line: nullableStorageLineToPresentation(row.line) ?? undefined,
+    character: nullableStorageCharacterToPresentation(row.character),
+  };
+}
+
+function fullTypeRef(row: RawTypeRefRow): TypeRefEntry {
+  return {
+    ...row,
+    line: storageLineToPresentation(row.line),
+    character: nullableStorageCharacterToPresentation(row.character),
+  };
 }
 
 function compactImporter(row: RawImporterRow): CompactImporterEntry {
@@ -337,7 +359,7 @@ function expandCallers(
   const params: Array<string | number> = [...seedIds];
 
   // Branch filter applied in recursive step (filter callers by their file's branch)
-  const recursiveBranchJoin = branch !== undefined ? 'JOIN files f_r ON f_r.id = s_r.file_id' : '';
+  const recursiveBranchJoin = branch !== undefined ? 'JOIN effective_files f_r ON f_r.id = s_r.file_id' : '';
   const recursiveBranchCond = branch !== undefined ? 'AND f_r.branch = ?' : '';
 
   params.push(depth); // max depth for WHERE r.depth < ? (must come before branch in SQL)
@@ -358,8 +380,8 @@ function expandCallers(
            UNION
            SELECT sr.caller_id, r.depth + 1
              FROM reachable r
-             JOIN symbol_refs sr ON sr.callee_id = r.symbol_id
-             JOIN symbols s_r ON s_r.id = sr.caller_id
+             JOIN effective_symbol_refs sr ON sr.callee_id = r.symbol_id
+             JOIN effective_symbols s_r ON s_r.id = sr.caller_id
              ${recursiveBranchJoin}
             WHERE r.depth < ?
               ${recursiveBranchCond}
@@ -371,14 +393,14 @@ function expandCallers(
          f.path AS caller_file,
          s.parent_symbol_id AS caller_parent_symbol_id,
          sp.name AS enclosing_name,
-         MIN(sr.call_line) + 1 AS line,
-         CASE WHEN MIN(sr.call_character) IS NULL THEN NULL ELSE MIN(sr.call_character) + 1 END AS character,
+         MIN(sr.call_line) AS line,
+         MIN(sr.call_character) AS character,
          MIN(sr.resolution_method) AS resolution_method
        FROM (SELECT symbol_id FROM reachable WHERE depth > 0 GROUP BY symbol_id) e
-       JOIN symbols s ON s.id = e.symbol_id
-       JOIN files f ON f.id = s.file_id
-       LEFT JOIN symbols sp ON sp.id = s.parent_symbol_id
-       JOIN symbol_refs sr ON sr.caller_id = e.symbol_id
+      JOIN effective_symbols s ON s.id = e.symbol_id
+      JOIN effective_files f ON f.id = s.file_id
+      LEFT JOIN effective_symbols sp ON sp.id = s.parent_symbol_id
+      JOIN effective_symbol_refs sr ON sr.caller_id = e.symbol_id
        WHERE 1=1 ${outerBranchCond}
        GROUP BY e.symbol_id, s.name, s.kind, f.path, s.parent_symbol_id, sp.name
        LIMIT ?`,
@@ -419,8 +441,8 @@ function expandImporters(
            UNION
            SELECT fi.file_id, r.depth + 1
              FROM reachable r
-             JOIN file_imports fi ON fi.resolved_id = r.file_id
-             JOIN files f_r ON f_r.id = fi.file_id
+             JOIN effective_file_imports fi ON fi.resolved_id = r.file_id
+             JOIN effective_files f_r ON f_r.id = fi.file_id
             WHERE r.depth < ?
               ${recursiveBranchCond}
          )
@@ -429,8 +451,8 @@ function expandImporters(
          f.path AS file_path,
          MIN(fi.raw_import) AS raw_import
        FROM (SELECT file_id FROM reachable WHERE depth > 0 GROUP BY file_id) e
-       JOIN files f ON f.id = e.file_id
-       JOIN file_imports fi ON fi.file_id = e.file_id
+      JOIN effective_files f ON f.id = e.file_id
+      JOIN effective_file_imports fi ON fi.file_id = e.file_id
        WHERE 1=1 ${outerBranchCond}
        GROUP BY e.file_id, f.path
        LIMIT ?`,
@@ -451,7 +473,7 @@ function expandSubclasses(
   const params: Array<string | number> = [...seedIds];
 
   // Branch filter applied in recursive step (filter subclasses by their file's branch)
-  const recursiveBranchJoin = branch !== undefined ? 'JOIN files f_r ON f_r.id = s_r.file_id' : '';
+  const recursiveBranchJoin = branch !== undefined ? 'JOIN effective_files f_r ON f_r.id = s_r.file_id' : '';
   const recursiveBranchCond = branch !== undefined ? 'AND f_r.branch = ?' : '';
 
   params.push(depth); // max depth for WHERE r.depth < ? (must come before branch in SQL)
@@ -472,8 +494,8 @@ function expandSubclasses(
            UNION
            SELECT rel.source_symbol_id, r.depth + 1
              FROM reachable r
-             JOIN symbol_relationships rel ON rel.target_symbol_id = r.symbol_id
-             JOIN symbols s_r ON s_r.id = rel.source_symbol_id
+             JOIN effective_symbol_relationships rel ON rel.target_symbol_id = r.symbol_id
+             JOIN effective_symbols s_r ON s_r.id = rel.source_symbol_id
              ${recursiveBranchJoin}
             WHERE r.depth < ?
               AND rel.relationship_type IN ('extends', 'implements')
@@ -485,13 +507,13 @@ function expandSubclasses(
          s.kind AS symbol_kind,
          f.path AS file,
          MIN(rel.relationship_type) AS relationship_type,
-         CASE WHEN MIN(rel.line) IS NULL THEN NULL ELSE MIN(rel.line) + 1 END AS line,
-         CASE WHEN MIN(rel.character) IS NULL THEN NULL ELSE MIN(rel.character) + 1 END AS character,
+         MIN(rel.line) AS line,
+         MIN(rel.character) AS character,
          MIN(rel.resolution_method) AS resolution_method
        FROM (SELECT symbol_id FROM reachable WHERE depth > 0 GROUP BY symbol_id) e
-       JOIN symbols s ON s.id = e.symbol_id
-       JOIN files f ON f.id = s.file_id
-       JOIN symbol_relationships rel ON rel.source_symbol_id = e.symbol_id
+      JOIN effective_symbols s ON s.id = e.symbol_id
+      JOIN effective_files f ON f.id = s.file_id
+      JOIN effective_symbol_relationships rel ON rel.source_symbol_id = e.symbol_id
        WHERE rel.relationship_type IN ('extends', 'implements') ${outerBranchCond}
        GROUP BY e.symbol_id, s.name, s.kind, f.path
        LIMIT ?`,
@@ -612,8 +634,8 @@ function buildResult(
 ): DependentsResult {
   const callers = compact ? callerRows.map(compactCaller) : callerRows.map(fullCaller);
   const importers = compact ? importerRows.map(compactImporter) : importerRows;
-  const subclasses = compact ? subclassRows.map(compactSubclass) : subclassRows;
-  const typeRefs = compact ? typeRefRows.map(compactTypeRef) : typeRefRows;
+  const subclasses = compact ? subclassRows.map(compactSubclass) : subclassRows.map(fullSubclass);
+  const typeRefs = compact ? typeRefRows.map(compactTypeRef) : typeRefRows.map(fullTypeRef);
 
   const total = callers.length + importers.length + subclasses.length + typeRefs.length;
   return {

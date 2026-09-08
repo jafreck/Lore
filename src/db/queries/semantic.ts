@@ -5,8 +5,8 @@
  */
 
 import type Database from 'better-sqlite3';
-import type { SymbolRow } from './symbols.js';
-import { hasSymbolEmbeddingsTable } from './helpers.js';
+import { presentSymbolRow, type SymbolRow } from './symbols.js';
+import { filesTable, hasSymbolEmbeddingsTable, symbolsTable } from './helpers.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -41,16 +41,16 @@ export function semanticSearchSymbols(
     params.push(args.branch);
   }
 
-  return db
+  const rows = db
     .prepare(
       `SELECT s.*, sp.name AS parent_name,
               f.path AS file_path,
               f.branch AS file_branch,
               distance AS score
          FROM symbol_embeddings se
-         JOIN symbols s ON s.rowid = se.rowid
-         JOIN files f ON f.id = s.file_id
-         LEFT JOIN symbols sp ON sp.id = s.parent_symbol_id
+         JOIN ${symbolsTable(db)} s ON s.id = se.rowid
+         JOIN ${filesTable(db)} f ON f.id = s.file_id
+         LEFT JOIN ${symbolsTable(db)} sp ON sp.id = s.parent_symbol_id
         WHERE ${where.join(' AND ')}
         ORDER BY distance ASC,
                  f.path ASC,
@@ -62,4 +62,5 @@ export function semanticSearchSymbols(
                  s.id ASC`,
     )
     .all(...params) as SemanticSymbolRow[];
+  return rows.map(presentSymbolRow);
 }

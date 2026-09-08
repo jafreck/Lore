@@ -65,7 +65,7 @@ describe('LoreLogger', () => {
     const lines = content.trim().split('\n');
     expect(lines).toHaveLength(1);
 
-    const parsed = JSON.parse(lines[0]);
+    const parsed = JSON.parse(lines[0]!);
     expect(parsed.level).toBe('info');
     expect(parsed.component).toBe('test');
     expect(parsed.message).toBe('hello world');

@@ -6,6 +6,8 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import type { IndexExecutionOptions } from '../execution-policy.js';
 
 export interface InstallGitHooksOptions {
   repoRoot: string;
@@ -14,6 +16,10 @@ export interface InstallGitHooksOptions {
   includeHistory?: boolean;
   lspEnabled?: boolean;
   scipEnabled?: boolean;
+  /** Host trust flags to persist in the generated refresh command. */
+  execution?: IndexExecutionOptions;
+  /** Pinned command tokens used to invoke this Lore installation. */
+  loreCommand?: readonly string[];
 }
 
 const HOOK_NAMES = ['post-commit', 'post-merge', 'post-checkout', 'post-rewrite'] as const;
@@ -28,18 +34,31 @@ function makeHookScript(
   includeHistory: boolean,
   lspEnabled: boolean | undefined,
   scipEnabled: boolean | undefined,
+  execution: IndexExecutionOptions | undefined,
+  loreCommand: readonly string[],
 ): string {
+  if (loreCommand.length === 0 || loreCommand.some((token) => token.length === 0)) {
+    throw new Error('A non-empty pinned Lore command is required for git hooks');
+  }
   const cmd = [
-    'npx',
-    '@jafreck/lore',
+    ...loreCommand.map(shellEscapeSingle),
     'refresh',
     '--root',
     shellEscapeSingle(rootDir),
     '--db',
     shellEscapeSingle(dbPath),
     ...(includeHistory ? ['--history'] : []),
-    ...(lspEnabled === true ? ['--lsp'] : []),
-    ...(scipEnabled === false ? ['--no-scip'] : []),
+    ...(lspEnabled === true ? ['--lsp'] : lspEnabled === false ? ['--no-lsp'] : []),
+    ...(scipEnabled === true ? ['--scip'] : scipEnabled === false ? ['--no-scip'] : []),
+    ...(execution?.allowSubprocessExecution === true ? ['--allow-subprocess-execution'] : []),
+    ...(execution?.allowBuildExecution === true ? ['--allow-build-execution'] : []),
+    ...(execution?.allowCustomIndexerCommands === true ? ['--allow-custom-indexer-commands'] : []),
+    ...(execution?.allowCustomLspCommands === true ? ['--allow-custom-lsp-commands'] : []),
+    ...(execution?.allowAutoInstall === true ? ['--allow-auto-install'] : []),
+    ...(execution?.allowedCwdRoots ?? []).flatMap((root) => [
+      '--allow-command-cwd',
+      shellEscapeSingle(root),
+    ]),
   ].join(' ');
 
   return [
@@ -92,6 +111,8 @@ export function installGitHooks(options: InstallGitHooksOptions): { installed: s
       options.includeHistory ?? false,
       options.lspEnabled,
       options.scipEnabled,
+      options.execution,
+      options.loreCommand ?? defaultLoreCommand(),
     ).trimEnd(),
     '# --- lore auto-refresh (end) ---',
     '',
@@ -120,4 +141,12 @@ export function installGitHooks(options: InstallGitHooksOptions): { installed: s
   }
 
   return { installed };
+}
+
+function defaultLoreCommand(): readonly string[] {
+  // In a built installation hooks.js and cli.js are siblings under dist/.
+  // Pinning both paths prevents PATH changes and npx network resolution from
+  // changing which Lore/Node version a future Git process executes.
+  const cliPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'cli.js');
+  return [process.execPath, cliPath];
 }

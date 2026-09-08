@@ -23,6 +23,8 @@ import { openDb } from '../../src/db/schema.js';
 import { IndexBuilder } from '../../src/indexer/index.js';
 import { initLogger, LogLevel, resetLogger } from '../../src/logger.js';
 import type { EffectiveScipSettings } from '../../src/scip/config.js';
+import { fromBinary } from '@bufbuild/protobuf';
+import { IndexSchema } from '../../src/scip/scip_pb.js';
 
 const FIXTURES_DIR = path.resolve(__dirname, '../fixtures/scip-projects');
 const SCIP_INDEXES_DIR = path.join(FIXTURES_DIR, 'scip-indexes');
@@ -36,9 +38,23 @@ function makeScipSettings(indexDir: string): EffectiveScipSettings {
   return {
     enabled: true,
     timeoutMs: 5000,
+    allowIndexerExecution: false,
+    allowBuildExecution: false,
+    allowAutoInstall: false,
+    allowedCwdRoots: [],
     indexers: {},		// not needed — we use indexDir
     indexDir,
   };
+}
+
+function isolatedIndexDir(language: string, projectDir: string, tmpDir: string): string {
+  const directory = path.join(tmpDir, `${language}-indexes`);
+  fs.mkdirSync(directory, { recursive: true });
+  fs.copyFileSync(
+    path.join(SCIP_INDEXES_DIR, `${language}.scip`),
+    path.join(directory, `${language}.scip`),
+  );
+  return path.relative(projectDir, directory);
 }
 
 describe('SCIP pipeline smoke', () => {
@@ -55,6 +71,20 @@ describe('SCIP pipeline smoke', () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
+  it('keeps every binary fixture metadata checkout-independent', () => {
+    expect(AVAILABLE_LANGUAGES.length).toBeGreaterThan(0);
+    for (const language of AVAILABLE_LANGUAGES) {
+      const index = fromBinary(
+        IndexSchema,
+        fs.readFileSync(path.join(SCIP_INDEXES_DIR, `${language}.scip`)),
+      );
+      expect(index.metadata, `${language}.scip metadata`).toBeDefined();
+      expect(index.metadata?.projectRoot, `${language}.scip projectRoot`).toBe('.');
+      expect(index.metadata?.toolInfo?.arguments ?? [], `${language}.scip tool arguments`)
+        .toEqual([]);
+    }
+  });
+
   for (const lang of AVAILABLE_LANGUAGES) {
     const projectDir = path.join(FIXTURES_DIR, lang);
 
@@ -67,7 +97,7 @@ describe('SCIP pipeline smoke', () => {
 
         // indexDir is relative to rootDir; ../scip-indexes from the project dir
         const builder = new IndexBuilder(dbPath, { rootDir: projectDir } as any, undefined, {
-          scip: makeScipSettings('../scip-indexes'),
+          scip: makeScipSettings(isolatedIndexDir(lang, projectDir, tmpDir)),
           maxWorkers: 0,
         });
 
@@ -95,7 +125,7 @@ describe('SCIP pipeline smoke', () => {
         const dbPath = path.join(tmpDir, `${lang}-refs.db`);
 
         const builder = new IndexBuilder(dbPath, { rootDir: projectDir } as any, undefined, {
-          scip: makeScipSettings('../scip-indexes'),
+          scip: makeScipSettings(isolatedIndexDir(lang, projectDir, tmpDir)),
           maxWorkers: 0,
         });
 
@@ -119,7 +149,7 @@ describe('SCIP pipeline smoke', () => {
         const dbPath = path.join(tmpDir, `${lang}-types.db`);
 
         const builder = new IndexBuilder(dbPath, { rootDir: projectDir } as any, undefined, {
-          scip: makeScipSettings('../scip-indexes'),
+          scip: makeScipSettings(isolatedIndexDir(lang, projectDir, tmpDir)),
           maxWorkers: 0,
         });
 
@@ -139,7 +169,7 @@ describe('SCIP pipeline smoke', () => {
         const dbPath = path.join(tmpDir, `${lang}-mcp.db`);
 
         const builder = new IndexBuilder(dbPath, { rootDir: projectDir } as any, undefined, {
-          scip: makeScipSettings('../scip-indexes'),
+          scip: makeScipSettings(isolatedIndexDir(lang, projectDir, tmpDir)),
           maxWorkers: 0,
         });
 
@@ -151,12 +181,17 @@ describe('SCIP pipeline smoke', () => {
           const { handler: searchHandler } = await import('../../src/server/tools/search.js');
           const { handler: lookupHandler } = await import('../../src/server/tools/lookup.js');
 
-          // ── lore_search finds symbols (use 'add' which exists in all fixtures) ──
-          const searchResult = await searchHandler(db, { query: 'add' });
+          const candidate = db.prepare(
+            "SELECT name FROM symbols WHERE kind IN ('function', 'method') ORDER BY name LIMIT 1",
+          ).get() as { name: string } | undefined;
+          expect(candidate).toBeDefined();
+
+          // ── lore_search finds a fixture-native symbol ──
+          const searchResult = await searchHandler(db, { query: candidate!.name });
           expect(searchResult.results.length).toBeGreaterThanOrEqual(1);
 
           // ── lore_lookup finds symbols ──
-          const lookupResult = await lookupHandler(db, { kind: 'symbol', query: '' });
+          const lookupResult = await lookupHandler(db, { kind: 'symbol', query: candidate!.name });
           expect(lookupResult.results.length).toBeGreaterThanOrEqual(1);
 
           // ── lore_lookup finds files ──

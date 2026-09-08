@@ -1,6 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { createHash } from 'node:crypto';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { FilePoller, diffMtimeSnapshot, type PollerOptions, type MtimeEntry } from '../../src/discovery/poller.js';
 import type { WalkerConfig } from '../../src/discovery/walker.js';
+import { openDb } from '../../src/db/schema.js';
+import { effectiveScipSettings } from '../helpers/effective-settings.js';
 
 // Mock walkFiles so poll() can be tested without filesystem
 vi.mock('../../src/discovery/walker.js', async (importOriginal) => {
@@ -96,12 +102,7 @@ describe('FilePoller', () => {
 
     it('creates ScipFlushManager when scip options provided', () => {
       const poller = new FilePoller(DB_PATH, walkerConfig, {
-        scip: {
-          enabled: true,
-          timeoutMs: 120_000,
-          indexers: {},
-          indexDir: null,
-        },
+        scip: effectiveScipSettings(),
         scipQuietPeriodMs: 5000,
       });
       expect(poller).toBeDefined();
@@ -110,12 +111,7 @@ describe('FilePoller', () => {
 
     it('no ScipFlushManager when scipQuietPeriodMs is 0', () => {
       const poller = new FilePoller(DB_PATH, walkerConfig, {
-        scip: {
-          enabled: true,
-          timeoutMs: 120_000,
-          indexers: {},
-          indexDir: null,
-        },
+        scip: effectiveScipSettings(),
         scipQuietPeriodMs: 0,
       });
       expect(poller).toBeDefined();
@@ -138,7 +134,7 @@ describe('FilePoller', () => {
   describe('scipQuietPeriodMs configuration', () => {
     it('accepts custom scipQuietPeriodMs with scip', () => {
       const poller = new FilePoller(DB_PATH, walkerConfig, {
-        scip: { enabled: true, timeoutMs: 120_000, indexers: {}, indexDir: null },
+        scip: effectiveScipSettings(),
         scipQuietPeriodMs: 30_000,
       });
       expect(poller).toBeDefined();
@@ -147,7 +143,7 @@ describe('FilePoller', () => {
 
     it('default scipQuietPeriodMs does not crash', () => {
       const poller = new FilePoller(DB_PATH, walkerConfig, {
-        scip: { enabled: true, timeoutMs: 120_000, indexers: {}, indexDir: null },
+        scip: effectiveScipSettings(),
       });
       expect(poller).toBeDefined();
       poller.stop();
@@ -159,7 +155,7 @@ describe('FilePoller', () => {
       vi.useFakeTimers();
       const poller = new FilePoller(DB_PATH, walkerConfig, {
         intervalMs: 1000,
-        scip: { enabled: true, timeoutMs: 120_000, indexers: {}, indexDir: null },
+        scip: effectiveScipSettings(),
         scipQuietPeriodMs: 5000,
       });
       poller.start();
@@ -275,7 +271,7 @@ describe('FilePoller poll behavior', () => {
 
   it('does not create scipFlush when scipQuietPeriodMs is 0', () => {
     const poller = new FilePoller(DB_PATH, walkerConfig, {
-      scip: { enabled: true, timeoutMs: 30000, indexers: {}, indexDir: null },
+      scip: effectiveScipSettings({ timeoutMs: 30_000 }),
       scipQuietPeriodMs: 0,
     });
     expect((poller as any).scipFlush).toBeNull();
@@ -284,7 +280,7 @@ describe('FilePoller poll behavior', () => {
 
   it('creates scipFlush when SCIP is configured with quiet period', () => {
     const poller = new FilePoller(DB_PATH, walkerConfig, {
-      scip: { enabled: true, timeoutMs: 30000, indexers: {}, indexDir: null },
+      scip: effectiveScipSettings({ timeoutMs: 30_000 }),
       scipQuietPeriodMs: 5000,
     });
     expect((poller as any).scipFlush).not.toBeNull();
@@ -299,6 +295,39 @@ describe('FilePoller poll behavior', () => {
     });
     expect((poller as any).onUpdateCb).toBe(onUpdate);
     poller.stop();
+  });
+
+  it('does not overlay every file on the first poll when persisted hashes match', async () => {
+    const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'lore-poller-hash-')));
+    try {
+      const filePath = path.join(root, 'a.ts');
+      const source = 'export const value = 1;\n';
+      fs.writeFileSync(filePath, source);
+      const dbPath = path.join(root, 'lore.db');
+      const db = openDb(dbPath);
+      try {
+        db.prepare(
+          `INSERT INTO files
+             (path, branch, language, source, last_hash, layer, generation)
+           VALUES (?, 'HEAD', 'typescript', ?, ?, 'baseline', 1)`,
+        ).run(filePath, source, createHash('sha256').update(source).digest('hex'));
+        db.prepare(
+          "INSERT INTO baseline_generations (branch, generation) VALUES ('HEAD', 1)",
+        ).run();
+      } finally {
+        db.close();
+      }
+
+      const { walkFiles } = await import('../../src/discovery/walker.js');
+      vi.mocked(walkFiles).mockResolvedValue([{ path: filePath, language: 'typescript' }]);
+      const onUpdate = vi.fn().mockResolvedValue(undefined);
+      const poller = new FilePoller(dbPath, { rootDir: root }, { onUpdate });
+      await (poller as any).poll();
+      expect(onUpdate).not.toHaveBeenCalled();
+      poller.stop();
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
   });
 });
 
@@ -475,7 +504,7 @@ describe('FilePoller poll() coverage', () => {
     const poller = new FilePoller(DB_PATH, walkerConfig, {
       intervalMs: 100,
       onUpdate,
-      scip: { enabled: true, timeoutMs: 120_000, indexers: {}, indexDir: null },
+      scip: effectiveScipSettings(),
       scipQuietPeriodMs: 5000,
     });
     poller.start();

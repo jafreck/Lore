@@ -37,6 +37,8 @@ function makeSettings(overrides: Partial<EffectiveLspSettings> = {}): EffectiveL
   return {
     enabled: true,
     requestTimeoutMs: 1000,
+    allowServerExecution: true,
+    allowedCwdRoots: [],
     servers: { typescript: { command: 'fake-ts-server', args: [] } },
     ...overrides,
   };
@@ -114,6 +116,34 @@ describe('LspEnrichmentCoordinator', () => {
       const coord = createCoordinator({ enabled: false });
       const results = await coord.enrich(makeRequest());
       expect(results).toEqual([null]);
+    });
+
+    it('does not start a server when host execution permission is absent', async () => {
+      const coord = createCoordinator({ allowServerExecution: false });
+      const results = await coord.enrich(makeRequest());
+      expect(results).toEqual([null]);
+      expect(fakeClient.started).toBe(false);
+      expect(coord.getDiagnostics()).toContainEqual(expect.objectContaining({
+        language: 'typescript',
+        attempted: false,
+        message: expect.stringContaining('host policy'),
+      }));
+    });
+
+    it('does not start a server whose cwd escapes approved roots', async () => {
+      const coord = createCoordinator({
+        servers: {
+          typescript: { command: 'fake-ts-server', args: [], cwd: '..' },
+        },
+      });
+      const results = await coord.enrich(makeRequest());
+      expect(results).toEqual([null]);
+      expect(fakeClient.started).toBe(false);
+      expect(coord.getDiagnostics()).toContainEqual(expect.objectContaining({
+        language: 'typescript',
+        status: 'failed',
+        message: expect.stringContaining('outside the approved roots'),
+      }));
     });
 
     it('returns empty array when targets is empty', async () => {
@@ -458,8 +488,8 @@ describe('LspEnrichmentCoordinator', () => {
       await coord.enrich(makeRequest({ targets: [{ line: -1, character: -5 }] }));
 
       const hoverReq = fakeClient.requests.find((r) => r.type === 'hover');
-      expect(hoverReq?.position.line).toBe(0);
-      expect(hoverReq?.position.character).toBe(0);
+      expect(hoverReq?.position?.line).toBe(0);
+      expect(hoverReq?.position?.character).toBe(0);
     });
   });
 
@@ -470,6 +500,9 @@ describe('LspEnrichmentCoordinator', () => {
       const coord = createCoordinator();
       await coord.start(['typescript']);
       expect(fakeClient.started).toBe(true);
+      expect(coord.getDiagnostics()).toContainEqual(expect.objectContaining({
+        language: 'typescript', status: 'succeeded', attempted: true,
+      }));
     });
 
     it('is a no-op when settings.enabled is false', async () => {
@@ -531,6 +564,9 @@ describe('LspEnrichmentCoordinator', () => {
       const coord = new LspEnrichmentCoordinator(makeSettings(), '/tmp', failFactory, processEnv);
       const results = await coord.enrich(makeRequest());
       expect(results).toEqual([null]);
+      expect(coord.getDiagnostics()).toContainEqual(expect.objectContaining({
+        language: 'typescript', status: 'failed', attempted: true, message: 'start failed',
+      }));
     });
   });
 
@@ -549,6 +585,9 @@ describe('LspEnrichmentCoordinator', () => {
       const results = await coord.enrich(makeRequest());
       expect(results).toEqual([null]);
       expect(fakeClient.started).toBe(false);
+      expect(coord.getDiagnostics()).toContainEqual(expect.objectContaining({
+        language: 'typescript', status: 'unavailable', attempted: false,
+      }));
     });
 
     it('returns null for language not in server registry', async () => {
@@ -651,6 +690,42 @@ describe('LspEnrichmentCoordinator', () => {
       const coord = createCoordinator();
       const calls = await coord.outgoingCalls('/tmp/test.ts', 'typescript', 'src', { line: 0, character: 0 });
       expect(calls).toEqual([]);
+    });
+
+    it('keeps one shared document open across concurrent requests for the same URI', async () => {
+      let firstRequestStarted!: () => void;
+      const firstRequestStartedPromise = new Promise<void>((resolve) => {
+        firstRequestStarted = resolve;
+      });
+      let releaseFirst!: () => void;
+      const firstBlocked = new Promise<void>((resolve) => { releaseFirst = resolve; });
+      let requestCount = 0;
+      fakeClient.prepareCallHierarchy = async (document, position) => {
+        fakeClient.requests.push({ type: 'prepareCallHierarchy', uri: document.uri, position });
+        requestCount++;
+        if (requestCount === 1) {
+          firstRequestStarted();
+          await firstBlocked;
+        }
+        return [];
+      };
+      const coord = createCoordinator();
+
+      const first = coord.outgoingCalls(
+        '/tmp/shared.ts', 'typescript', 'const shared = 1;', { line: 0, character: 0 },
+      );
+      await firstRequestStartedPromise;
+      const second = coord.outgoingCalls(
+        '/tmp/shared.ts', 'typescript', 'const shared = 1;', { line: 0, character: 6 },
+      );
+      await second;
+
+      expect(fakeClient.openedDocuments).toHaveLength(1);
+      expect(fakeClient.closedDocuments).toHaveLength(0);
+
+      releaseFirst();
+      await first;
+      expect(fakeClient.closedDocuments).toHaveLength(1);
     });
   });
 

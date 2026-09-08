@@ -12,6 +12,9 @@ describe('read-only', () => {
 
   beforeEach(() => {
     db = openDb(':memory:');
+    db.prepare(
+      "INSERT INTO baseline_generations (branch, generation) VALUES ('', 0)",
+    ).run();
   });
 
   afterEach(() => {

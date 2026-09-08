@@ -14,6 +14,7 @@ import {
 import type { EffectiveLspSettings } from './config.js';
 import { resolveLspServerRegistry, type ResolvedLspServerCommand } from './registry.js';
 import { extractReturnType, type ResolvedTypeMetadata } from '../enrichment-types.js';
+import { resolveApprovedCommandCwd } from '../execution-policy.js';
 
 export type { ResolvedTypeMetadata } from '../enrichment-types.js';
 export type {
@@ -55,6 +56,14 @@ export interface LspClientLike {
 
 export type LspClientFactory = (server: LspServerCommand, options: LspClientOptions) => LspClientLike;
 
+export interface LspServerRunDiagnostic {
+  language: string;
+  command: string;
+  status: 'succeeded' | 'failed' | 'unavailable';
+  attempted: boolean;
+  message?: string;
+}
+
 const defaultClientFactory: LspClientFactory = (server, options) => new LspClient(server, options);
 
 /**
@@ -65,13 +74,24 @@ const defaultClientFactory: LspClientFactory = (server, options) => new LspClien
  */
 const LSP_CONCURRENCY_LIMIT = 30;
 
+interface OpenDocumentState {
+  languageId: string;
+  source: string;
+  references: number;
+  released: Promise<void>;
+  resolveReleased: () => void;
+}
+
 export class LspEnrichmentCoordinator {
   private readonly rootUri: string;
+  private readonly rootDir: string;
   private readonly resolvedServers: Record<string, ResolvedLspServerCommand>;
   private readonly clientFactory: LspClientFactory;
   private readonly processEnv: NodeJS.ProcessEnv;
   private readonly clients = new Map<string, Promise<LspClientLike | null>>();
   private readonly startedClients = new Set<LspClientLike>();
+  private readonly diagnostics = new Map<string, LspServerRunDiagnostic>();
+  private readonly openDocuments = new WeakMap<LspClientLike, Map<string, OpenDocumentState>>();
 
   constructor(
     private readonly settings: EffectiveLspSettings,
@@ -79,6 +99,7 @@ export class LspEnrichmentCoordinator {
     clientFactory: LspClientFactory = defaultClientFactory,
     processEnv: NodeJS.ProcessEnv = process.env,
   ) {
+    this.rootDir = rootDir;
     this.rootUri = pathToFileURL(rootDir).toString();
     this.clientFactory = clientFactory;
     this.processEnv = processEnv;
@@ -100,6 +121,13 @@ export class LspEnrichmentCoordinator {
     this.clients.clear();
   }
 
+  /** Snapshot language-server availability/startup outcomes for provenance. */
+  getDiagnostics(): LspServerRunDiagnostic[] {
+    return [...this.diagnostics.values()]
+      .map((diagnostic) => ({ ...diagnostic }))
+      .sort((left, right) => left.language.localeCompare(right.language));
+  }
+
   async enrich(request: LspEnrichmentRequest): Promise<Array<ResolvedTypeMetadata | null>> {
     const empty = request.targets.map(() => null);
     if (!this.settings.enabled || request.targets.length === 0) {
@@ -112,55 +140,46 @@ export class LspEnrichmentCoordinator {
     }
 
     const uri = pathToFileURL(request.filePath).toString();
-    try {
-      client.didOpen({
-        uri,
-        languageId: request.language,
-        version: 1,
-        text: request.source,
-      });
-    } catch {
-      return empty;
-    }
-
     const document = { uri };
     try {
-      // Batch-pipeline all targets: fire hover+definition for each target
-      // concurrently (up to LSP_CONCURRENCY_LIMIT in-flight requests) to
-      // maximise throughput instead of waiting for each round-trip serially.
-      const enrichOne = async (target: LspEnrichmentTarget): Promise<ResolvedTypeMetadata | null> => {
-        const position = {
-          line: Math.max(0, target.line),
-          character: Math.max(0, target.character),
-        };
-        // Fire hover and definition in parallel for the same position.
-        const [hoverSettled, defSettled] = await Promise.allSettled([
-          client.hover(document, position),
-          client.definition(document, position),
-        ]);
-        const hoverResult = hoverSettled.status === 'fulfilled' ? hoverSettled.value : undefined;
-        const definitionResult = defSettled.status === 'fulfilled' ? defSettled.value : undefined;
-        const metadata = toResolvedTypeMetadata(hoverResult, definitionResult);
-        return hasResolvedTypeMetadata(metadata) ? metadata : null;
-      };
+      return await this.withOpenDocument(
+        client,
+        { uri, languageId: request.language, source: request.source },
+        async () => {
+          // Batch-pipeline all targets: fire hover+definition for each target
+          // concurrently (up to LSP_CONCURRENCY_LIMIT in-flight requests) to
+          // maximise throughput instead of waiting for each round-trip serially.
+          const enrichOne = async (target: LspEnrichmentTarget): Promise<ResolvedTypeMetadata | null> => {
+            const position = {
+              line: Math.max(0, target.line),
+              character: Math.max(0, target.character),
+            };
+            // Fire hover and definition in parallel for the same position.
+            const [hoverSettled, defSettled] = await Promise.allSettled([
+              client.hover(document, position),
+              client.definition(document, position),
+            ]);
+            const hoverResult = hoverSettled.status === 'fulfilled' ? hoverSettled.value : undefined;
+            const definitionResult = defSettled.status === 'fulfilled' ? defSettled.value : undefined;
+            const metadata = toResolvedTypeMetadata(hoverResult, definitionResult);
+            return hasResolvedTypeMetadata(metadata) ? metadata : null;
+          };
 
-      // Process targets in concurrent batches to avoid overwhelming the server.
-      const results: Array<ResolvedTypeMetadata | null> = new Array(request.targets.length).fill(null);
-      for (let start = 0; start < request.targets.length; start += LSP_CONCURRENCY_LIMIT) {
-        const end = Math.min(start + LSP_CONCURRENCY_LIMIT, request.targets.length);
-        const batch = request.targets.slice(start, end);
-        const batchResults = await Promise.all(batch.map(enrichOne));
-        for (let j = 0; j < batchResults.length; j++) {
-          results[start + j] = batchResults[j]!;
-        }
-      }
-      return results;
-    } finally {
-      try {
-        client.didClose(document);
-      } catch {
-        // Ignore didClose transport failures so indexing can continue.
-      }
+          // Process targets in concurrent batches to avoid overwhelming the server.
+          const results: Array<ResolvedTypeMetadata | null> = new Array(request.targets.length).fill(null);
+          for (let start = 0; start < request.targets.length; start += LSP_CONCURRENCY_LIMIT) {
+            const end = Math.min(start + LSP_CONCURRENCY_LIMIT, request.targets.length);
+            const batch = request.targets.slice(start, end);
+            const batchResults = await Promise.all(batch.map(enrichOne));
+            for (let j = 0; j < batchResults.length; j++) {
+              results[start + j] = batchResults[j]!;
+            }
+          }
+          return results;
+        },
+      );
+    } catch {
+      return empty;
     }
   }
 
@@ -171,12 +190,49 @@ export class LspEnrichmentCoordinator {
     }
 
     const server = this.resolvedServers[language];
+    if (this.settings.allowServerExecution !== true) {
+      this.diagnostics.set(language, {
+        language,
+        command: server?.command ?? '(not configured)',
+        status: 'unavailable',
+        attempted: false,
+        message: 'language-server execution is disabled by host policy',
+      });
+      this.clients.set(language, Promise.resolve(null));
+      return null;
+    }
     if (!server || !server.available) {
+      this.diagnostics.set(language, {
+        language,
+        command: server?.command ?? '(not configured)',
+        status: 'unavailable',
+        attempted: false,
+        message: 'language-server executable is unavailable',
+      });
       this.clients.set(language, Promise.resolve(null));
       return null;
     }
 
-    const clientPromise = this.createAndStartClient(server).catch(() => null);
+    const clientPromise = this.createAndStartClient(server)
+      .then((client) => {
+        this.diagnostics.set(language, {
+          language,
+          command: server.command,
+          status: 'succeeded',
+          attempted: true,
+        });
+        return client;
+      })
+      .catch((error: unknown) => {
+        this.diagnostics.set(language, {
+          language,
+          command: server.command,
+          status: 'failed',
+          attempted: true,
+          message: error instanceof Error ? error.message : String(error),
+        });
+        return null;
+      });
     this.clients.set(language, clientPromise);
     return clientPromise;
   }
@@ -196,12 +252,13 @@ export class LspEnrichmentCoordinator {
 
     const uri = pathToFileURL(filePath).toString();
     try {
-      client.didOpen({ uri, languageId: language, version: 1, text: source });
-      return await client.documentSymbol({ uri });
+      return await this.withOpenDocument(
+        client,
+        { uri, languageId: language, source },
+        () => client.documentSymbol!({ uri }),
+      );
     } catch {
       return [];
-    } finally {
-      try { client.didClose({ uri }); } catch { /* ignore */ }
     }
   }
 
@@ -221,15 +278,18 @@ export class LspEnrichmentCoordinator {
 
     const uri = pathToFileURL(filePath).toString();
     try {
-      client.didOpen({ uri, languageId: language, version: 1, text: source });
-      const items = await client.prepareCallHierarchy({ uri }, position);
-      if (items.length === 0) return [];
-      // Get outgoing calls from the first (primary) item
-      return await client.callHierarchyOutgoing(items[0]!);
+      return await this.withOpenDocument(
+        client,
+        { uri, languageId: language, source },
+        async () => {
+          const items = await client.prepareCallHierarchy!({ uri }, position);
+          if (items.length === 0) return [];
+          // Get outgoing calls from the first (primary) item
+          return client.callHierarchyOutgoing!(items[0]!);
+        },
+      );
     } catch {
       return [];
-    } finally {
-      try { client.didClose({ uri }); } catch { /* ignore */ }
     }
   }
 
@@ -247,12 +307,13 @@ export class LspEnrichmentCoordinator {
 
     const uri = pathToFileURL(filePath).toString();
     try {
-      client.didOpen({ uri, languageId: language, version: 1, text: source });
-      return await client.semanticTokensFull({ uri });
+      return await this.withOpenDocument(
+        client,
+        { uri, languageId: language, source },
+        () => client.semanticTokensFull!({ uri }),
+      );
     } catch {
       return null;
-    } finally {
-      try { client.didClose({ uri }); } catch { /* ignore */ }
     }
   }
 
@@ -266,13 +327,19 @@ export class LspEnrichmentCoordinator {
   }
 
   private async createAndStartClient(server: ResolvedLspServerCommand): Promise<LspClientLike> {
+    const processCwd = resolveApprovedCommandCwd(
+      this.rootDir,
+      server.cwd,
+      this.settings.allowedCwdRoots,
+    );
     const client = this.clientFactory(
       {
-        command: server.command,
+        command: server.resolvedPath ?? server.command,
         args: [...server.args],
       },
       {
         rootUri: this.rootUri,
+        processCwd,
         requestTimeoutMs: this.settings.requestTimeoutMs,
         processEnv: this.processEnv,
       },
@@ -280,6 +347,85 @@ export class LspEnrichmentCoordinator {
     await client.start();
     this.startedClients.add(client);
     return client;
+  }
+
+  private async withOpenDocument<T>(
+    client: LspClientLike,
+    document: { uri: string; languageId: string; source: string },
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    const release = await this.acquireDocument(client, document);
+    try {
+      return await operation();
+    } finally {
+      release();
+    }
+  }
+
+  private async acquireDocument(
+    client: LspClientLike,
+    document: { uri: string; languageId: string; source: string },
+  ): Promise<() => void> {
+    let documents = this.openDocuments.get(client);
+    if (!documents) {
+      documents = new Map();
+      this.openDocuments.set(client, documents);
+    }
+
+    while (true) {
+      const existing = documents.get(document.uri);
+      if (!existing) {
+        let resolveReleased!: () => void;
+        const released = new Promise<void>((resolve) => { resolveReleased = resolve; });
+        client.didOpen({
+          uri: document.uri,
+          languageId: document.languageId,
+          version: 1,
+          text: document.source,
+        });
+        const state: OpenDocumentState = {
+          languageId: document.languageId,
+          source: document.source,
+          references: 1,
+          released,
+          resolveReleased,
+        };
+        documents.set(document.uri, state);
+        return this.createDocumentRelease(client, documents, document.uri, state);
+      }
+
+      if (existing.languageId === document.languageId && existing.source === document.source) {
+        existing.references++;
+        return this.createDocumentRelease(client, documents, document.uri, existing);
+      }
+
+      // Different snapshots for one URI must not race. Wait for all users of
+      // the current snapshot to close it, then open the requested snapshot.
+      await existing.released;
+    }
+  }
+
+  private createDocumentRelease(
+    client: LspClientLike,
+    documents: Map<string, OpenDocumentState>,
+    uri: string,
+    state: OpenDocumentState,
+  ): () => void {
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      state.references--;
+      if (state.references > 0) return;
+      try {
+        client.didClose({ uri });
+      } catch {
+        // Ignore didClose transport failures so indexing can continue.
+      } finally {
+        if (documents.get(uri) === state) documents.delete(uri);
+        state.resolveReleased();
+      }
+    };
   }
 }
 

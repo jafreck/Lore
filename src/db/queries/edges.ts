@@ -5,6 +5,12 @@
  */
 
 import type Database from 'better-sqlite3';
+import { hasEffectiveViews } from './helpers.js';
+import {
+  nullableStorageCharacterToPresentation,
+  nullableStorageLineToPresentation,
+  storageLineToPresentation,
+} from '../../source-coordinates.js';
 
 // ─── Resolved call-graph edges ────────────────────────────────────────────────
 
@@ -20,7 +26,9 @@ export interface ResolvedEdge {
   callee_kind: string | null;
   callee_file_id: number | null;
   callee_file_path: string | null;
+  /** One-based source line. */
   call_line: number;
+  /** One-based UTF-16 character, or null when unavailable. */
   call_character: number | null;
   call_kind: string;
   resolution_method: string;
@@ -48,7 +56,11 @@ export function listResolvedEdges(
   db: Database.Database,
   options: ListResolvedEdgesOptions = {},
 ): ResolvedEdge[] {
-  const where: string[] = [];
+  const effective = hasEffectiveViews(db);
+  const refs = effective ? 'effective_symbol_refs' : 'symbol_refs';
+  const symbols = effective ? 'effective_symbols' : 'symbols';
+  const files = effective ? 'effective_files' : 'files';
+  const where: string[] = ['(sr.callee_id IS NULL OR s_callee.id IS NOT NULL)'];
   const params: Array<string | number> = [];
 
   if (options.resolvedOnly) {
@@ -73,7 +85,7 @@ export function listResolvedEdges(
 
   const whereClause = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
 
-  return db
+  const rows = db
     .prepare(
       `SELECT sr.id          AS ref_id,
               sr.caller_id,
@@ -90,16 +102,21 @@ export function listResolvedEdges(
               sr.call_character,
               sr.call_kind,
               sr.resolution_method
-         FROM symbol_refs sr
-         JOIN symbols s_caller  ON s_caller.id = sr.caller_id
-         JOIN files   f_caller  ON f_caller.id = s_caller.file_id
-         LEFT JOIN symbols s_callee ON s_callee.id = sr.callee_id
-         LEFT JOIN files   f_callee ON f_callee.id = s_callee.file_id
+         FROM ${refs} sr
+         JOIN ${symbols} s_caller  ON s_caller.id = sr.caller_id
+         JOIN ${files}   f_caller  ON f_caller.id = s_caller.file_id
+         LEFT JOIN ${symbols} s_callee ON s_callee.id = sr.callee_id
+         LEFT JOIN ${files}   f_callee ON f_callee.id = s_callee.file_id
          ${whereClause}
          ORDER BY sr.caller_id ASC, sr.call_line ASC
          LIMIT ?`,
     )
     .all(...params) as ResolvedEdge[];
+  return rows.map((row) => ({
+    ...row,
+    call_line: storageLineToPresentation(row.call_line),
+    call_character: nullableStorageCharacterToPresentation(row.call_character),
+  }));
 }
 
 // ─── Type-ref edges ───────────────────────────────────────────────────────────
@@ -118,7 +135,9 @@ export interface TypeRefEdge {
   type_file_id: number | null;
   type_file_path: string | null;
   ref_kind: string;
+  /** One-based source line. */
   ref_line: number;
+  /** One-based UTF-16 character, or null when unavailable. */
   ref_character: number | null;
   resolution_method: string;
 }
@@ -144,7 +163,11 @@ export function listTypeRefs(
   db: Database.Database,
   options: ListTypeRefsOptions = {},
 ): TypeRefEdge[] {
-  const where: string[] = [];
+  const effective = hasEffectiveViews(db);
+  const refs = effective ? 'effective_type_refs' : 'type_refs';
+  const symbols = effective ? 'effective_symbols' : 'symbols';
+  const files = effective ? 'effective_files' : 'files';
+  const where: string[] = ['(tr.type_id IS NULL OR s_dst.id IS NOT NULL)'];
   const params: Array<string | number> = [];
 
   if (options.resolvedOnly) {
@@ -169,7 +192,7 @@ export function listTypeRefs(
 
   const whereClause = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
 
-  return db
+  const rows = db
     .prepare(
       `SELECT tr.id           AS ref_id,
               tr.symbol_id,
@@ -187,16 +210,21 @@ export function listTypeRefs(
               tr.ref_line,
               tr.ref_character,
               tr.resolution_method
-         FROM type_refs tr
-         JOIN files f_src ON f_src.id = tr.file_id
-         LEFT JOIN symbols s_src ON s_src.id = tr.symbol_id
-         LEFT JOIN symbols s_dst ON s_dst.id = tr.type_id
-         LEFT JOIN files   f_dst ON f_dst.id = s_dst.file_id
+         FROM ${refs} tr
+         JOIN ${files} f_src ON f_src.id = tr.file_id
+         LEFT JOIN ${symbols} s_src ON s_src.id = tr.symbol_id
+         LEFT JOIN ${symbols} s_dst ON s_dst.id = tr.type_id
+         LEFT JOIN ${files}   f_dst ON f_dst.id = s_dst.file_id
          ${whereClause}
          ORDER BY tr.file_id ASC, tr.ref_line ASC
          LIMIT ?`,
     )
     .all(...params) as TypeRefEdge[];
+  return rows.map((row) => ({
+    ...row,
+    ref_line: storageLineToPresentation(row.ref_line),
+    ref_character: nullableStorageCharacterToPresentation(row.ref_character),
+  }));
 }
 
 // ─── Symbol-relationship edges ────────────────────────────────────────────────
@@ -214,7 +242,9 @@ export interface SymbolRelationshipEdge {
   target_file_id: number | null;
   target_file_path: string | null;
   relationship_type: string;
-  line: number;
+  /** One-based source line, or null when unavailable. */
+  line: number | null;
+  /** One-based UTF-16 character, or null when unavailable. */
   character: number | null;
   resolution_method: string;
 }
@@ -242,7 +272,11 @@ export function listSymbolRelationships(
   db: Database.Database,
   options: ListSymbolRelationshipsOptions = {},
 ): SymbolRelationshipEdge[] {
-  const where: string[] = [];
+  const effective = hasEffectiveViews(db);
+  const relationships = effective ? 'effective_symbol_relationships' : 'symbol_relationships';
+  const symbols = effective ? 'effective_symbols' : 'symbols';
+  const files = effective ? 'effective_files' : 'files';
+  const where: string[] = ['(rel.target_symbol_id IS NULL OR s_dst.id IS NOT NULL)'];
   const params: Array<string | number> = [];
 
   if (options.resolvedOnly) {
@@ -271,7 +305,7 @@ export function listSymbolRelationships(
 
   const whereClause = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
 
-  return db
+  const rows = db
     .prepare(
       `SELECT rel.id               AS ref_id,
               rel.source_symbol_id,
@@ -288,14 +322,19 @@ export function listSymbolRelationships(
               rel.line,
               rel.character,
               rel.resolution_method
-         FROM symbol_relationships rel
-         JOIN files f_src ON f_src.id = rel.file_id
-         LEFT JOIN symbols s_src ON s_src.id = rel.source_symbol_id
-         LEFT JOIN symbols s_dst ON s_dst.id = rel.target_symbol_id
-         LEFT JOIN files   f_dst ON f_dst.id = s_dst.file_id
+         FROM ${relationships} rel
+         JOIN ${files} f_src ON f_src.id = rel.file_id
+         LEFT JOIN ${symbols} s_src ON s_src.id = rel.source_symbol_id
+         LEFT JOIN ${symbols} s_dst ON s_dst.id = rel.target_symbol_id
+         LEFT JOIN ${files}   f_dst ON f_dst.id = s_dst.file_id
          ${whereClause}
          ORDER BY rel.file_id ASC, rel.line ASC
          LIMIT ?`,
     )
     .all(...params) as SymbolRelationshipEdge[];
+  return rows.map((row) => ({
+    ...row,
+    line: nullableStorageLineToPresentation(row.line),
+    character: nullableStorageCharacterToPresentation(row.character),
+  }));
 }

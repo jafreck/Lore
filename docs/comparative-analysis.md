@@ -1,5 +1,12 @@
 # Compiler-Derived Call Graphs vs. AST Heuristics
 
+> **Status: historical comparison.** The benchmark figures are the dated March
+> 2026 snapshot, while descriptions of Lore's tree-sitter fallback and
+> tree-sitter extraction predate v0.4.0 and are no longer current. Lore now uses
+> SCIP baseline ingestion plus LSP overlay extraction/enrichment. This document
+> is preserved as comparison rationale, not as an architecture reference; see
+> `docs/architecture.md` for current behavior.
+
 A comparative analysis of Lore's SCIP-based indexing against tree-sitter-only
 approaches to code intelligence, using
 [codebase-memory-mcp](https://github.com/DeusData/codebase-memory-mcp) as the

@@ -16,6 +16,7 @@
 
 import type { Database } from '../db/schema.js';
 import type { ResolutionMethod } from './resolution-method.js';
+import { reconcileEffectiveTargets } from './effective-targets.js';
 
 // ─── normalizeTypeName ────────────────────────────────────────────────────────
 
@@ -96,41 +97,54 @@ export function extractBareName(raw: string): string {
  *   4. Leave as `unresolved` / `external_definition` otherwise.
  */
 export function resolveSymbolEdges(db: Database.Database, options?: { overlayOnly?: boolean; branch?: string }): void {
-  const overlayFilter = options?.overlayOnly ? " AND sr.layer = 'overlay'" : '';
-  const overlayFilterTr = options?.overlayOnly ? " AND tr.layer = 'overlay'" : '';
-  const overlayFilterRel = options?.overlayOnly ? " AND sr.layer = 'overlay'" : '';
-
-  // Early-exit: skip resolution when there are zero unresolved refs.
-  // With SCIP and LSP both producing pre-resolved refs, this is common
-  // for projects fully covered by those indexers.
-  const layerFilter = options?.overlayOnly ? " AND layer = 'overlay'" : '';
-  const unresolvedCount = (db.prepare(
-    `SELECT
-       (SELECT COUNT(*) FROM symbol_refs WHERE callee_id IS NULL AND resolution_method = 'unresolved'${layerFilter}) +
-       (SELECT COUNT(*) FROM type_refs WHERE type_id IS NULL AND resolution_method = 'unresolved'${layerFilter}) +
-       (SELECT COUNT(*) FROM symbol_relationships WHERE target_symbol_id IS NULL AND resolution_method = 'unresolved'${layerFilter})
-     AS total`,
-  ).get() as { total: number }).total;
-  if (unresolvedCount === 0) return;
-
   const runInTransaction = db.transaction(() => {
+    // Overlay updates can hide a baseline target while the source edge remains
+    // an effective baseline row in an unchanged file. Repair those IDs before
+    // counting unresolved work. The overlayOnly flag therefore scopes the run
+    // to effective current state, not merely rows whose own layer is overlay.
+    reconcileEffectiveTargets(db, options?.branch);
+
+    const branchClause = options?.branch === undefined ? '' : ' AND source_file.branch = ?';
+    const branchParams = options?.branch === undefined ? [] : [options.branch];
+    const unresolvedCount = (db.prepare(
+      `SELECT
+         (SELECT COUNT(*)
+            FROM effective_symbol_refs edge
+            JOIN effective_files source_file ON source_file.id = edge.file_id
+           WHERE edge.callee_id IS NULL AND edge.resolution_method = 'unresolved'${branchClause}) +
+         (SELECT COUNT(*)
+            FROM effective_type_refs edge
+            JOIN effective_files source_file ON source_file.id = edge.file_id
+           WHERE edge.type_id IS NULL AND edge.resolution_method = 'unresolved'${branchClause}) +
+         (SELECT COUNT(*)
+            FROM effective_symbol_relationships edge
+            JOIN effective_files source_file ON source_file.id = edge.file_id
+           WHERE edge.target_symbol_id IS NULL AND edge.resolution_method = 'unresolved'${branchClause})
+       AS total`,
+    ).get(...branchParams, ...branchParams, ...branchParams) as { total: number }).total;
+    if (unresolvedCount === 0) return;
+
     // Pass 1: LSP containment mapping (highest confidence)
-    resolveByContainment(db, 'symbol_refs', 'callee_id', 'definition_path', 'definition_line', options?.overlayOnly, options?.branch);
-    resolveByContainment(db, 'type_refs', 'type_id', 'definition_path', 'definition_line', options?.overlayOnly, options?.branch);
-    resolveByContainment(db, 'symbol_relationships', 'target_symbol_id', 'definition_path', 'definition_line', options?.overlayOnly, options?.branch);
+    resolveByContainment(db, 'symbol_refs', 'callee_id', 'definition_path', 'definition_line', 'definition_character', 'callee_name', extractBareName, options?.branch);
+    resolveByContainment(db, 'type_refs', 'type_id', 'definition_path', 'definition_line', 'definition_character', 'type_name_bare', normalizeTypeName, options?.branch);
+    resolveByContainment(db, 'symbol_relationships', 'target_symbol_id', 'definition_path', 'definition_line', 'definition_character', 'target_symbol_name', normalizeTypeName, options?.branch);
 
     // Pass 2: Name-based fallback for remaining unresolved refs
     const nameMap = buildNameMap(db, options?.branch);
+    const sourceBranchClause = options?.branch === undefined ? '' : ' AND f.branch = ?';
+    const sourceBranchParams = options?.branch === undefined ? [] : [options.branch];
 
     resolveByNameFallback(db, nameMap, {
       tableName: 'symbol_refs',
       targetIdColumn: 'callee_id',
       selectUnresolved: db.prepare(
         `SELECT sr.id, sr.callee_name AS target_name, s.file_id AS source_file_id
-         FROM symbol_refs sr
-         JOIN symbols s ON s.id = sr.caller_id
-         WHERE sr.callee_id IS NULL AND sr.resolution_method = 'unresolved'${overlayFilter}`,
+         FROM effective_symbol_refs sr
+         JOIN effective_symbols s ON s.id = sr.caller_id
+         JOIN effective_files f ON f.id = s.file_id
+         WHERE sr.callee_id IS NULL AND sr.resolution_method = 'unresolved'${sourceBranchClause}`,
       ),
+      selectParams: sourceBranchParams,
     });
 
     // Pass 2b: Bare-name fallback for member-access call refs.
@@ -139,11 +153,13 @@ export function resolveSymbolEdges(db: Database.Database, options?: { overlayOnl
       targetIdColumn: 'callee_id',
       selectUnresolved: db.prepare(
         `SELECT sr.id, sr.callee_name AS target_name, s.file_id AS source_file_id
-         FROM symbol_refs sr
-         JOIN symbols s ON s.id = sr.caller_id
-         WHERE sr.callee_id IS NULL AND sr.resolution_method = 'unresolved'${overlayFilter}
+         FROM effective_symbol_refs sr
+         JOIN effective_symbols s ON s.id = sr.caller_id
+         JOIN effective_files f ON f.id = s.file_id
+         WHERE sr.callee_id IS NULL AND sr.resolution_method = 'unresolved'${sourceBranchClause}
            AND sr.callee_name LIKE '%.%'`,
       ),
+      selectParams: sourceBranchParams,
       normalizeTargetName: extractBareName,
     });
 
@@ -152,9 +168,12 @@ export function resolveSymbolEdges(db: Database.Database, options?: { overlayOnl
       targetIdColumn: 'type_id',
       selectUnresolved: db.prepare(
         `SELECT tr.id, tr.type_name AS target_name, COALESCE(s.file_id, tr.file_id) AS source_file_id
-         FROM type_refs tr LEFT JOIN symbols s ON s.id = tr.symbol_id
-         WHERE tr.type_id IS NULL AND tr.resolution_method = 'unresolved'${overlayFilterTr}`,
+         FROM effective_type_refs tr
+         JOIN effective_files f ON f.id = tr.file_id
+         LEFT JOIN effective_symbols s ON s.id = tr.symbol_id
+         WHERE tr.type_id IS NULL AND tr.resolution_method = 'unresolved'${sourceBranchClause}`,
       ),
+      selectParams: sourceBranchParams,
     });
 
     // type_refs bare-name fallback pass
@@ -163,10 +182,13 @@ export function resolveSymbolEdges(db: Database.Database, options?: { overlayOnl
       targetIdColumn: 'type_id',
       selectUnresolved: db.prepare(
         `SELECT tr.id, tr.type_name_bare AS target_name, COALESCE(s.file_id, tr.file_id) AS source_file_id
-         FROM type_refs tr LEFT JOIN symbols s ON s.id = tr.symbol_id
-         WHERE tr.type_id IS NULL AND tr.resolution_method = 'unresolved'${overlayFilterTr}
+         FROM effective_type_refs tr
+         JOIN effective_files f ON f.id = tr.file_id
+         LEFT JOIN effective_symbols s ON s.id = tr.symbol_id
+         WHERE tr.type_id IS NULL AND tr.resolution_method = 'unresolved'${sourceBranchClause}
            AND tr.type_name_bare != tr.type_name`,
       ),
+      selectParams: sourceBranchParams,
     });
 
     resolveByNameFallback(db, nameMap, {
@@ -174,9 +196,12 @@ export function resolveSymbolEdges(db: Database.Database, options?: { overlayOnl
       targetIdColumn: 'target_symbol_id',
       selectUnresolved: db.prepare(
         `SELECT sr.id, sr.target_symbol_name AS target_name, COALESCE(s.file_id, sr.file_id) AS source_file_id
-         FROM symbol_relationships sr LEFT JOIN symbols s ON s.id = sr.source_symbol_id
-         WHERE sr.target_symbol_id IS NULL AND sr.resolution_method = 'unresolved'${overlayFilterRel}`,
+         FROM effective_symbol_relationships sr
+         JOIN effective_files f ON f.id = sr.file_id
+         LEFT JOIN effective_symbols s ON s.id = sr.source_symbol_id
+         WHERE sr.target_symbol_id IS NULL AND sr.resolution_method = 'unresolved'${sourceBranchClause}`,
       ),
+      selectParams: sourceBranchParams,
       normalizeTargetName: normalizeTypeName,
     });
   });
@@ -190,12 +215,19 @@ interface UnresolvedRefRow {
   id: number;
   definition_path: string;
   definition_line: number;
+  definition_character: number | null;
+  target_name: string;
 }
 
 interface SymbolCandidate {
   id: number;
+  name: string;
   start_line: number;
+  start_character: number | null;
   end_line: number;
+  end_character: number | null;
+  selection_line: number | null;
+  selection_character: number | null;
 }
 
 /**
@@ -211,23 +243,27 @@ function resolveByContainment(
   targetIdColumn: string,
   defPathColumn: string,
   defLineColumn: string,
-  overlayOnly?: boolean,
+  defCharacterColumn: string,
+  targetNameColumn: string,
+  normalizeTargetName: (raw: string) => string,
   branch?: string,
 ): void {
-  const layerFilter = overlayOnly ? ` AND layer = 'overlay'` : '';
+  const branchClause = branch === undefined ? '' : ' AND source_file.branch = ?';
+  const branchParams = branch === undefined ? [] : [branch];
   const unresolvedWithDef = db.prepare(
-    `SELECT id, ${defPathColumn} AS definition_path, ${defLineColumn} AS definition_line
-     FROM ${tableName}
-     WHERE ${targetIdColumn} IS NULL
-       AND ${defPathColumn} IS NOT NULL
-       AND ${defLineColumn} IS NOT NULL${layerFilter}`,
-  ).all() as UnresolvedRefRow[];
+    `SELECT edge.id, edge.${defPathColumn} AS definition_path,
+            edge.${defLineColumn} AS definition_line,
+            edge.${defCharacterColumn} AS definition_character,
+            edge.${targetNameColumn} AS target_name
+       FROM effective_${tableName} edge
+       JOIN effective_files source_file ON source_file.id = edge.file_id
+      WHERE edge.${targetIdColumn} IS NULL
+        AND edge.resolution_method = 'unresolved'
+        AND edge.${defPathColumn} IS NOT NULL
+        AND edge.${defLineColumn} IS NOT NULL${branchClause}`,
+  ).all(...branchParams) as UnresolvedRefRow[];
 
   if (unresolvedWithDef.length === 0) {
-    db.prepare(
-      `UPDATE ${tableName} SET resolution_method = 'unresolved'
-       WHERE ${targetIdColumn} IS NULL AND resolution_method = 'unresolved'${layerFilter}`,
-    ).run();
     return;
   }
 
@@ -236,11 +272,16 @@ function resolveByContainment(
   // layer-resolved file for each path (overlay preferred over baseline).
   const fileRows = branch
     ? db.prepare('SELECT id, path FROM effective_files WHERE branch = ?').all(branch)
-    : db.prepare('SELECT id, path FROM files').all();
+    : db.prepare('SELECT id, path FROM effective_files').all();
   const fileIdByPath = new Map<string, number>(
     (fileRows as Array<{ id: number; path: string }>)
       .map(r => [r.path, r.id]),
   );
+  const dirtyPathRows = (branch === undefined
+    ? db.prepare('SELECT DISTINCT path FROM dirty_files').all()
+    : db.prepare('SELECT path FROM dirty_files WHERE branch = ?').all(branch)
+  ) as Array<{ path: string }>;
+  const dirtyPaths = new Set(dirtyPathRows.map((row) => row.path));
 
   // Group refs by definition_path for batched symbol lookup.
   const refsByPath = new Map<string, UnresolvedRefRow[]>();
@@ -254,7 +295,11 @@ function resolveByContainment(
   }
 
   const findSymbolsByFile = db.prepare(
-    `SELECT id, start_line, end_line FROM symbols WHERE file_id = ? ORDER BY (end_line - start_line) ASC`,
+    `SELECT id, name, start_line, start_character, end_line, end_character,
+            selection_line, selection_character
+      FROM effective_symbols
+      WHERE file_id = ?
+      ORDER BY (end_line - start_line) ASC, start_line DESC, id ASC`,
   );
   const updateResolved = db.prepare(
     `UPDATE ${tableName} SET ${targetIdColumn} = ?, resolution_method = ? WHERE id = ?`,
@@ -267,7 +312,12 @@ function resolveByContainment(
     const fileId = fileIdByPath.get(defPath);
     if (fileId === undefined) {
       for (const ref of refs) {
-        updateMethod.run('external_definition' satisfies ResolutionMethod, ref.id);
+        updateMethod.run(
+          dirtyPaths.has(defPath)
+            ? 'overlay_stale' satisfies ResolutionMethod
+            : 'external_definition' satisfies ResolutionMethod,
+          ref.id,
+        );
       }
       continue;
     }
@@ -276,35 +326,121 @@ function resolveByContainment(
     const symbols = findSymbolsByFile.all(fileId) as SymbolCandidate[];
 
     for (const ref of refs) {
-      const candidates = symbols.filter(
-        s => s.start_line <= ref.definition_line && s.end_line >= ref.definition_line,
+      const normalizedTargetName = normalizeTargetName(ref.target_name);
+      const namedCandidates = symbols.filter(
+        (candidate) => candidate.name === ref.target_name
+          || (normalizedTargetName.length > 0 && candidate.name === normalizedTargetName),
       );
+      const match = selectDefinitionCandidate(namedCandidates, ref);
 
-      if (candidates.length === 0) {
+      if (match.outcome === 'missing') {
         updateMethod.run('unresolved' satisfies ResolutionMethod, ref.id);
         continue;
       }
-
-      const narrowest = candidates[0]!;
-      const narrowestSpan = narrowest.end_line - narrowest.start_line;
-      const equallyNarrow = candidates.filter(
-        c => (c.end_line - c.start_line) === narrowestSpan,
-      );
-
-      if (equallyNarrow.length === 1) {
-        updateResolved.run(narrowest.id, 'lsp_definition' satisfies ResolutionMethod, ref.id);
-      } else {
+      if (match.outcome === 'ambiguous') {
         updateMethod.run('ambiguous_definition' satisfies ResolutionMethod, ref.id);
+        continue;
       }
+      updateResolved.run(match.candidate.id, 'lsp_definition' satisfies ResolutionMethod, ref.id);
     }
   }
 
-  // Mark remaining rows with no definition data as unresolved
-  db.prepare(
-    `UPDATE ${tableName} SET resolution_method = 'unresolved'
-     WHERE ${targetIdColumn} IS NULL AND resolution_method = 'unresolved'
-       AND (${defPathColumn} IS NULL OR ${defLineColumn} IS NULL)${layerFilter}`,
-  ).run();
+}
+
+type DefinitionCandidateMatch =
+  | { outcome: 'resolved'; candidate: SymbolCandidate }
+  | { outcome: 'missing' }
+  | { outcome: 'ambiguous' };
+
+/**
+ * Select a symbol at a stored LSP definition position.
+ *
+ * Exact symbol-name selections are authoritative. Exact range starts and
+ * character-aware containment come next. Line-only containment is retained as
+ * a compatibility fallback for old rows that do not store character data.
+ */
+function selectDefinitionCandidate(
+  candidates: readonly SymbolCandidate[],
+  definition: Pick<UnresolvedRefRow, 'definition_line' | 'definition_character'>,
+): DefinitionCandidateMatch {
+  const character = definition.definition_character;
+  if (character !== null) {
+    const exactSelection = candidates.filter((candidate) =>
+      candidate.selection_line === definition.definition_line
+      && candidate.selection_character === character,
+    );
+    const selectionMatch = uniqueCandidate(exactSelection, true);
+    if (selectionMatch.outcome !== 'missing') return selectionMatch;
+
+    const exactStart = candidates.filter((candidate) =>
+      candidate.start_line === definition.definition_line
+      && candidate.start_character === character,
+    );
+    const startMatch = uniqueCandidate(exactStart, true);
+    if (startMatch.outcome !== 'missing') return startMatch;
+
+    const positionCandidates = candidates.filter((candidate) =>
+      containsStoredPosition(candidate, definition.definition_line, character),
+    );
+    const positionMatch = uniqueCandidate(positionCandidates, true);
+    if (positionMatch.outcome !== 'missing') return positionMatch;
+  }
+
+  return uniqueCandidate(candidates.filter((candidate) =>
+    candidate.start_line <= definition.definition_line
+      && candidate.end_line >= definition.definition_line,
+  ), false);
+}
+
+function containsStoredPosition(candidate: SymbolCandidate, line: number, character: number): boolean {
+  if (line < candidate.start_line || line > candidate.end_line) return false;
+  if (
+    line === candidate.start_line
+    && candidate.start_character !== null
+    && character < candidate.start_character
+  ) return false;
+  if (
+    line === candidate.end_line
+    && candidate.end_character !== null
+    && character > candidate.end_character
+  ) return false;
+  return true;
+}
+
+function uniqueCandidate(
+  candidates: readonly SymbolCandidate[],
+  characterAware: boolean,
+): DefinitionCandidateMatch {
+  if (candidates.length === 0) return { outcome: 'missing' };
+  const ordered = [...candidates].sort((left, right) =>
+    compareCandidateWidth(left, right, characterAware) || left.id - right.id,
+  );
+  const first = ordered[0]!;
+  if (
+    ordered.length > 1
+    && compareCandidateWidth(first, ordered[1]!, characterAware) === 0
+  ) {
+    return { outcome: 'ambiguous' };
+  }
+  return { outcome: 'resolved', candidate: first };
+}
+
+function compareCandidateWidth(
+  left: SymbolCandidate,
+  right: SymbolCandidate,
+  characterAware: boolean,
+): number {
+  const lineWidth = (left.end_line - left.start_line) - (right.end_line - right.start_line);
+  if (lineWidth !== 0 || !characterAware) return lineWidth;
+  const leftCharacterWidth = left.start_line === left.end_line
+    && left.start_character !== null && left.end_character !== null
+    ? left.end_character - left.start_character
+    : Number.MAX_SAFE_INTEGER;
+  const rightCharacterWidth = right.start_line === right.end_line
+    && right.start_character !== null && right.end_character !== null
+    ? right.end_character - right.start_character
+    : Number.MAX_SAFE_INTEGER;
+  return leftCharacterWidth - rightCharacterWidth;
 }
 
 // ─── Name-based fallback resolution ───────────────────────────────────────────
@@ -337,8 +473,8 @@ interface NameMapEntry {
 function buildNameMap(db: Database.Database, branch?: string): Map<string, NameMapEntry[]> {
   const nameToSymbols = new Map<string, NameMapEntry[]>();
   const query = branch
-    ? 'SELECT s.id, s.name, s.file_id, s.kind FROM symbols s JOIN files f ON f.id = s.file_id WHERE f.branch = ?'
-    : 'SELECT id, name, file_id, kind FROM symbols';
+    ? 'SELECT s.id, s.name, s.file_id, s.kind FROM effective_symbols s JOIN effective_files f ON f.id = s.file_id WHERE f.branch = ?'
+    : 'SELECT id, name, file_id, kind FROM effective_symbols';
   const allSymbols = (branch ? db.prepare(query).all(branch) : db.prepare(query).all()) as Array<{ id: number; name: string; file_id: number; kind: string }>;
   for (const row of allSymbols) {
     let list = nameToSymbols.get(row.name);
@@ -355,6 +491,7 @@ interface NameFallbackConfig {
   tableName: string;
   targetIdColumn: string;
   selectUnresolved: Database.Statement;
+  selectParams?: readonly (string | number)[];
   /** Optional normalizer for the target name (e.g. normalizeTypeName). */
   normalizeTargetName?: (raw: string) => string;
 }
@@ -374,7 +511,7 @@ function resolveByNameFallback(
   nameToSymbols: Map<string, NameMapEntry[]>,
   config: NameFallbackConfig,
 ): void {
-  const unresolved = config.selectUnresolved.all() as Array<{
+  const unresolved = config.selectUnresolved.all(...(config.selectParams ?? [])) as Array<{
     id: number;
     target_name: string;
     source_file_id: number;
@@ -449,7 +586,7 @@ export function topoSort(db: Database.Database): string[] {
   // in-degree[user] = number of deps it imports
 
   const allFiles = db
-    .prepare('SELECT id FROM files')
+    .prepare('SELECT id FROM effective_files')
     .all() as Array<{ id: number }>;
 
   const fileIds = allFiles.map(r => String(r.id));
@@ -464,8 +601,9 @@ export function topoSort(db: Database.Database): string[] {
   const edges = db
     .prepare(
       `SELECT fi.file_id AS importer, fi.resolved_id AS dep
-       FROM file_imports fi
-       WHERE fi.resolved_id IS NOT NULL`,
+        FROM effective_file_imports fi
+        JOIN effective_files target ON target.id = fi.resolved_id
+        WHERE fi.resolved_id IS NOT NULL`,
     )
     .all() as Array<{ importer: number; dep: number }>;
 
@@ -515,7 +653,7 @@ export function topoSort(db: Database.Database): string[] {
  */
 export function detectCycles(db: Database.Database): string[][] {
   const allFiles = db
-    .prepare('SELECT id FROM files')
+    .prepare('SELECT id FROM effective_files')
     .all() as Array<{ id: number }>;
 
   // Build adjacency list: importer → [dep, ...]
@@ -527,8 +665,9 @@ export function detectCycles(db: Database.Database): string[][] {
   const edges = db
     .prepare(
       `SELECT fi.file_id AS importer, fi.resolved_id AS dep
-       FROM file_imports fi
-       WHERE fi.resolved_id IS NOT NULL`,
+        FROM effective_file_imports fi
+        JOIN effective_files target ON target.id = fi.resolved_id
+        WHERE fi.resolved_id IS NOT NULL`,
     )
     .all() as Array<{ importer: number; dep: number }>;
 

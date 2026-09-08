@@ -50,6 +50,7 @@ import {
 } from '../../src/db/queries/commits.js';
 import { listAnnotations } from '../../src/db/queries/annotations.js';
 import { semanticSearchSymbols } from '../../src/db/queries/semantic.js';
+import { resolveSymbolEdges } from '../../src/resolution/call-graph.js';
 
 // ─── Helper: seed a baseline file + return its id ────────────────────────────
 
@@ -60,6 +61,11 @@ function insertFile(
   branch = '',
   layer = 'baseline',
 ): number {
+  if (layer === 'baseline') {
+    db.prepare(
+      'INSERT OR IGNORE INTO baseline_generations (branch, generation) VALUES (?, 0)',
+    ).run(branch);
+  }
   return (
     db
       .prepare(
@@ -77,20 +83,37 @@ function insertSymbol(
   kind = 'function',
   startLine = 1,
   endLine = 10,
-  opts: { isExported?: number; signature?: string | null; docComment?: string | null; parentSymbolId?: number | null; layer?: string } = {},
+  opts: {
+    isExported?: number;
+    signature?: string | null;
+    docComment?: string | null;
+    parentSymbolId?: number | null;
+    layer?: string;
+    startCharacter?: number | null;
+    endCharacter?: number | null;
+    selectionLine?: number | null;
+    selectionCharacter?: number | null;
+  } = {},
 ): number {
   return (
     db
       .prepare(
-        `INSERT INTO symbols (file_id, name, kind, start_line, end_line, is_exported, signature, doc_comment, parent_symbol_id, layer)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO symbols (
+           file_id, name, kind, start_line, start_character, end_line, end_character,
+           selection_line, selection_character, is_exported, signature, doc_comment,
+           parent_symbol_id, layer
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         fileId,
         name,
         kind,
         startLine,
+        opts.startCharacter ?? null,
         endLine,
+        opts.endCharacter ?? null,
+        opts.selectionLine ?? null,
+        opts.selectionCharacter ?? null,
         opts.isExported ?? 0,
         opts.signature ?? null,
         opts.docComment ?? null,
@@ -373,6 +396,29 @@ describe('queries/symbols', () => {
       expect(sym!.name).toBe('myFunc');
       expect(sym!.kind).toBe('function');
       expect(sym!.file_path).toBe('main.ts');
+      expect(sym!.start_line).toBe(2);
+      expect(sym!.end_line).toBe(11);
+    });
+
+    it('returns range and selection coordinates entirely one-based', () => {
+      const fid = insertFile(db, 'unicode.ts');
+      const unicodePrefixWidth = 'é🚀 '.length;
+      const sid = insertSymbol(db, fid, 'café', 'function', 2, 4, {
+        startCharacter: unicodePrefixWidth,
+        endCharacter: unicodePrefixWidth + 8,
+        selectionLine: 2,
+        selectionCharacter: unicodePrefixWidth + 2,
+      });
+
+      const symbol = getSymbolById(db, sid)!;
+      expect(symbol).toMatchObject({
+        start_line: 3,
+        start_character: unicodePrefixWidth + 1,
+        end_line: 5,
+        end_character: unicodePrefixWidth + 9,
+        selection_line: 3,
+        selection_character: unicodePrefixWidth + 3,
+      });
     });
 
     it('returns undefined for missing id', () => {
@@ -405,6 +451,7 @@ describe('queries/symbols', () => {
       const results = getSymbolsByName(db, 'MYFUNCTION');
       expect(results.length).toBe(1);
       expect(results[0]!.name).toBe('myFunction');
+      expect(results[0]!.start_line).toBe(2);
     });
 
     it('returns empty for non-matching name', () => {
@@ -496,6 +543,7 @@ describe('queries/symbols', () => {
       insertSymbol(db, fid, 'b');
       const results = listSymbols(db);
       expect(results.length).toBe(2);
+      expect(results[0]!.start_line).toBe(2);
     });
 
     it('respects numeric limit', () => {
@@ -538,8 +586,8 @@ describe('queries/symbols', () => {
       insertSymbol(db, fid, 'foo', 'function', 10, 20);
       const results = listSymbolRangesByName(db, 'foo');
       expect(results.length).toBe(1);
-      expect(results[0]!.start_line).toBe(10);
-      expect(results[0]!.end_line).toBe(20);
+      expect(results[0]!.start_line).toBe(11);
+      expect(results[0]!.end_line).toBe(21);
       expect(results[0]!.file_path).toBe('a.ts');
     });
 
@@ -660,14 +708,15 @@ describe('queries/edges', () => {
 
     it('returns call-graph edges', () => {
       db.prepare(
-        `INSERT INTO symbol_refs (caller_id, file_id, callee_id, callee_name, call_line, resolution_method)
-         VALUES (?, ?, ?, 'callee', 5, 'scip')`,
+        `INSERT INTO symbol_refs (caller_id, file_id, callee_id, callee_name, call_line, call_character, resolution_method)
+         VALUES (?, ?, ?, 'callee', 5, 8, 'scip')`,
       ).run(callerId, fid, calleeId);
       const edges = listResolvedEdges(db);
       expect(edges.length).toBe(1);
       expect(edges[0]!.caller_name).toBe('caller');
       expect(edges[0]!.callee_name).toBe('callee');
-      expect(edges[0]!.call_line).toBe(5);
+      expect(edges[0]!.call_line).toBe(6);
+      expect(edges[0]!.call_character).toBe(9);
     });
 
     it('filters resolvedOnly', () => {
@@ -743,13 +792,15 @@ describe('queries/edges', () => {
 
     it('returns type reference edges', () => {
       db.prepare(
-        `INSERT INTO type_refs (file_id, symbol_id, type_name, type_name_bare, ref_line, resolution_method)
-         VALUES (?, ?, 'Promise<string>', 'Promise', 5, 'scip')`,
+        `INSERT INTO type_refs (file_id, symbol_id, type_name, type_name_bare, ref_line, ref_character, resolution_method)
+         VALUES (?, ?, 'Promise<string>', 'Promise', 5, 7, 'scip')`,
       ).run(fid, callerId);
       const refs = listTypeRefs(db);
       expect(refs.length).toBe(1);
       expect(refs[0]!.type_name).toBe('Promise<string>');
       expect(refs[0]!.type_name_bare).toBe('Promise');
+      expect(refs[0]!.ref_line).toBe(6);
+      expect(refs[0]!.ref_character).toBe(8);
     });
 
     it('filters resolvedOnly', () => {
@@ -824,13 +875,15 @@ describe('queries/edges', () => {
 
     it('returns symbol relationships', () => {
       db.prepare(
-        `INSERT INTO symbol_relationships (file_id, source_symbol_id, target_symbol_name, relationship_type, line, resolution_method)
-         VALUES (?, ?, 'Base', 'extends', 5, 'scip')`,
+        `INSERT INTO symbol_relationships (file_id, source_symbol_id, target_symbol_name, relationship_type, line, character, resolution_method)
+         VALUES (?, ?, 'Base', 'extends', 5, 3, 'scip')`,
       ).run(fid, callerId);
       const rels = listSymbolRelationships(db);
       expect(rels.length).toBe(1);
       expect(rels[0]!.relationship_type).toBe('extends');
       expect(rels[0]!.target_symbol_name).toBe('Base');
+      expect(rels[0]!.line).toBe(6);
+      expect(rels[0]!.character).toBe(4);
     });
 
     it('filters by relationshipType', () => {
@@ -908,6 +961,50 @@ describe('queries/edges', () => {
       ).run(fDev, sDev);
       expect(listSymbolRelationships(db, { branch: 'main' }).length).toBe(1);
     });
+  });
+
+  it('remaps replacement targets and never returns hidden target IDs', () => {
+    const baselineTargetFile = insertFile(db, 'target.ts');
+    const oldCallTarget = insertSymbol(db, baselineTargetFile, 'targetFn');
+    const oldTypeTarget = insertSymbol(db, baselineTargetFile, 'TargetType', 'class');
+    const oldBaseTarget = insertSymbol(db, baselineTargetFile, 'BaseType', 'class');
+    db.prepare(
+      `INSERT INTO symbol_refs
+         (caller_id, file_id, callee_id, callee_name, call_line, definition_path,
+          definition_line, resolution_method)
+       VALUES (?, ?, ?, 'targetFn', 0, 'target.ts', 0, 'scip_definition')`,
+    ).run(callerId, fid, oldCallTarget);
+    db.prepare(
+      `INSERT INTO type_refs
+         (file_id, symbol_id, type_id, type_name, type_name_bare, ref_line,
+          definition_path, definition_line, resolution_method)
+       VALUES (?, ?, ?, 'TargetType', 'TargetType', 0, 'target.ts', 1, 'scip_definition')`,
+    ).run(fid, callerId, oldTypeTarget);
+    db.prepare(
+      `INSERT INTO symbol_relationships
+         (file_id, source_symbol_id, target_symbol_id, target_symbol_name,
+          relationship_type, line, definition_path, definition_line, resolution_method)
+       VALUES (?, ?, ?, 'BaseType', 'extends', 0, 'target.ts', 2, 'scip_definition')`,
+    ).run(fid, callerId, oldBaseTarget);
+
+    const overlayTargetFile = insertFile(db, 'target.ts', 'typescript', '', 'overlay');
+    const newCallTarget = insertSymbol(db, overlayTargetFile, 'targetFn', 'function', 0, 0, { layer: 'overlay' });
+    const newTypeTarget = insertSymbol(db, overlayTargetFile, 'TargetType', 'class', 1, 1, { layer: 'overlay' });
+    const newBaseTarget = insertSymbol(db, overlayTargetFile, 'BaseType', 'class', 2, 2, { layer: 'overlay' });
+    db.prepare(
+      "INSERT INTO dirty_files (path, branch, overlay_gen) VALUES ('target.ts', '', 0)",
+    ).run();
+    resolveSymbolEdges(db, { overlayOnly: true, branch: '' });
+
+    expect(listResolvedEdges(db, { resolvedOnly: true })[0]?.callee_id).toBe(newCallTarget);
+    expect(listTypeRefs(db, { resolvedOnly: true })[0]?.type_id).toBe(newTypeTarget);
+    expect(listSymbolRelationships(db, { resolvedOnly: true })[0]?.target_symbol_id)
+      .toBe(newBaseTarget);
+
+    db.prepare('DELETE FROM files WHERE id = ?').run(overlayTargetFile);
+    expect(listResolvedEdges(db, { resolvedOnly: true })).toEqual([]);
+    expect(listTypeRefs(db, { resolvedOnly: true })).toEqual([]);
+    expect(listSymbolRelationships(db, { resolvedOnly: true })).toEqual([]);
   });
 });
 
@@ -1321,6 +1418,7 @@ describe('queries/annotations', () => {
       expect(results.length).toBe(1);
       expect(results[0]!.text).toBe('fix this');
       expect(results[0]!.file_path).toBe('main.ts');
+      expect(results[0]!.line).toBe(11);
     });
 
     it('filters by path', () => {
@@ -1361,6 +1459,10 @@ describe('queries/semantic', () => {
 
   beforeEach(() => {
     db = openDb(':memory:');
+    const promote = db.prepare(
+      'INSERT INTO baseline_generations (branch, generation) VALUES (?, 0)',
+    );
+    for (const branch of ['', 'main', 'dev']) promote.run(branch);
   });
 
   afterEach(() => {
@@ -1479,6 +1581,48 @@ describe('queries/semantic', () => {
       expect(results[0]!.file_branch).toBe('main');
 
       removeFakeVec0(db);
+    });
+
+    it('joins semantic results through effective replacement rows', () => {
+      db.exec('CREATE TABLE symbol_embeddings (rowid INTEGER PRIMARY KEY, embedding TEXT)');
+      db.prepare(
+        `INSERT INTO files (id, path, branch, language, source, layer, generation)
+         VALUES (1, 'src/semantic.ts', 'main', 'typescript', '', 'baseline', 1),
+                (2, 'src/semantic.ts', 'main', 'typescript', '', 'overlay', 0)`,
+      ).run();
+      db.prepare(
+        `INSERT INTO symbols (id, file_id, name, kind, start_line, end_line, layer, generation)
+         VALUES (1, 1, 'baselineSemantic', 'function', 0, 0, 'baseline', 1),
+                (2, 2, 'overlaySemantic', 'function', 0, 0, 'overlay', 0)`,
+      ).run();
+      db.prepare(
+        "INSERT INTO dirty_files (path, branch, overlay_gen) VALUES ('src/semantic.ts', 'main', 0)",
+      ).run();
+
+      const originalPrepare = db.prepare.bind(db);
+      (db as any).prepare = (sql: string) => {
+        if (!sql.toLowerCase().includes('embedding match')) return originalPrepare(sql);
+        expect(sql).toContain('JOIN effective_symbols');
+        expect(sql).toContain('JOIN effective_files');
+        return {
+          all: () => originalPrepare(
+            `SELECT s.*, NULL AS parent_name, f.path AS file_path,
+                    f.branch AS file_branch, 0.01 AS score
+               FROM effective_symbols s
+               JOIN effective_files f ON f.id = s.file_id`,
+          ).all(),
+        };
+      };
+
+      try {
+        expect(semanticSearchSymbols(db, { queryVector: [0.1] }).map((row) => row.name))
+          .toEqual(['overlaySemantic']);
+        originalPrepare('DELETE FROM files WHERE id = 2').run();
+        expect(semanticSearchSymbols(db, { queryVector: [0.1] })).toEqual([]);
+      } finally {
+        (db as any).prepare = originalPrepare;
+        db.exec('DROP TABLE symbol_embeddings');
+      }
     });
   });
 });

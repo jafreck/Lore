@@ -8,9 +8,11 @@
  *
  * ```
  * ScipIndexerStage → FileDiscoveryStage
- *   → ImportResolutionStage
- *   → LspEnrichmentStage → ResolutionStage
- *   → HistoryStage → EmbeddingStage
+ *   → OverlayCleanupStage (baseline promotion only)
+ *   → LspExtractionStage → ImportResolutionStage
+ *   → [LspEnrichmentStage + HistoryStage]
+ *   → ResolutionStage → ReverseDepsStage
+ *   → EmbeddingStage → FtsRefreshStage
  * ```
  *
  * `ScipIndexerStage` runs first for SCIP-covered languages, populating
@@ -30,8 +32,11 @@ import type { WalkerConfig } from '../discovery/walker.js';
 import type { EmbeddingProvider } from '../embeddings/embedder.js';
 import type { EffectiveLspSettings } from '../lsp/config.js';
 import type { EffectiveScipSettings } from '../scip/config.js';
+import type { CompdbDiscoveryResult } from '../scip/compdb.js';
+import type { ResponseFileLimits } from '../scip/compdb.js';
 import type { LoreLogger } from '../logger.js';
 import { getLogger } from '../logger.js';
+import { deleteLoreMeta, setLoreMeta } from '../db/meta.js';
 
 // ─── Stage interface ──────────────────────────────────────────────────────────
 
@@ -42,6 +47,8 @@ import { getLogger } from '../logger.js';
 export interface PipelineContext {
   /** Read-write database handle. */
   db: Database.Database;
+  /** Persistent index_runs identifier for provenance emitted by stages. */
+  runId?: string;
   /** Path to the SQLite file (needed for stages that re-open connections). */
   dbPath: string;
   /** Walker configuration (root dir, globs, etc.). */
@@ -52,10 +59,44 @@ export interface PipelineContext {
   lsp: EffectiveLspSettings | null;
   /** Effective SCIP settings (null = disabled). */
   scip: EffectiveScipSettings | null;
+  /** Host-approved out-of-tree compilation/build roots. */
+  approvedExternalBuildRoots?: readonly string[];
+  /** Per-compilation-entry response-file budgets. */
+  responseFileLimits?: Partial<ResponseFileLimits>;
   /** Optional embedding provider. */
   embedder: EmbeddingProvider | null;
   /** Logger instance. */
   log: LoreLogger;
+
+  /**
+   * Run-scoped, parsed compilation-database snapshot. `undefined` means it
+   * has not been requested yet; a result with `database: null` is a cached
+   * negative lookup. SCIP setup populates this when it already loaded the
+   * database so later include resolution does not parse it again.
+   */
+  compilationDatabase?: CompdbDiscoveryResult;
+
+  /** Optional cooperative cancellation signal for long-running stages. */
+  signal?: AbortSignal;
+
+  /** Optional absolute wall-clock deadline (milliseconds since epoch). */
+  deadlineAt?: number;
+
+  /** Assert that this process still owns the database-backed writer fence. */
+  assertWriterLease?: () => void;
+
+  /** Monotonic database-backed writer generation used by promotion helpers. */
+  writerGeneration?: number;
+
+  /**
+   * Metadata changes produced by a hidden baseline generation. They are
+   * applied only in the promotion transaction; failed generations discard
+   * them without altering metadata for the previously promoted baseline.
+   */
+  stagedMetadata?: Map<string, string | null>;
+
+  /** Name of the stage that most recently failed, retained for provenance. */
+  failedStage?: string;
 
   /**
    * File list populated by FileDiscoveryStage.
@@ -65,7 +106,7 @@ export interface PipelineContext {
    */
   files: Array<{ path: string; language: string }>;
 
-  /** Whether to index dependency declarations (.d.ts, etc.). */
+  /** Legacy dependency-indexing option; no active dependency crawler consumes it. */
   indexDependencies: boolean;
   /** History ingestion policy. */
   history: boolean | { depth?: number; all?: boolean };
@@ -89,6 +130,12 @@ export interface PipelineContext {
    * scoped embedding.  Accumulated by FileDiscoveryStage in update mode.
    */
   changedSourcePaths: string[];
+
+  /**
+   * Canonical paths whose effective row changed or was deleted. Unlike
+   * `changedSourcePaths`, this also includes deleted/out-of-scope files.
+   */
+  affectedFilePaths?: string[];
 
 
   /**
@@ -119,6 +166,9 @@ export interface PipelineContext {
    */
   sourceCache: Map<string, string>;
 
+  /** Files already enriched by `LspExtractionStage` with its shared coordinator. */
+  lspEnrichedFiles?: Set<string>;
+
   // ── Incremental (baseline + overlay) fields ───────────────────────────────
 
   /**
@@ -135,10 +185,7 @@ export interface PipelineContext {
    */
   generation: number;
 
-  /**
-   * Maximum number of parse worker threads.
-   * If undefined, defaults to `availableParallelism() - 1`.
-   */
+  /** Legacy parse-worker limit retained in context; no active stage consumes it. */
   maxWorkers?: number;
 }
 
@@ -165,6 +212,36 @@ export interface PipelineStage {
    * failure).  Stages can release resources here.
    */
   dispose?(): Promise<void>;
+}
+
+/** Throw between bounded units of work when a pipeline run was cancelled. */
+export function throwIfPipelineCancelled(
+  context: Pick<PipelineContext, 'signal' | 'deadlineAt' | 'assertWriterLease'>,
+): void {
+  context.assertWriterLease?.();
+  if (context.signal?.aborted) {
+    const reason = context.signal.reason;
+    throw reason instanceof Error ? reason : new Error('Indexing cancelled');
+  }
+  if (context.deadlineAt !== undefined && Date.now() >= context.deadlineAt) {
+    throw new Error('Indexing deadline exceeded');
+  }
+}
+
+/** Write metadata immediately for overlays, or defer it for a hidden baseline. */
+export function setPipelineLoreMeta(
+  context: PipelineContext,
+  key: string,
+  value: string,
+): void {
+  if (context.stagedMetadata) context.stagedMetadata.set(key, value);
+  else setLoreMeta(context.db, key, value);
+}
+
+/** Delete metadata immediately for overlays, or defer it for a hidden baseline. */
+export function deletePipelineLoreMeta(context: PipelineContext, key: string): void {
+  if (context.stagedMetadata) context.stagedMetadata.set(key, null);
+  else deleteLoreMeta(context.db, key);
 }
 
 // ─── Pipeline entry ───────────────────────────────────────────────────────────
@@ -214,6 +291,7 @@ export class IndexPipeline {
 
     try {
       for (const entry of this.entries) {
+        throwIfPipelineCancelled(context);
         const stages = Array.isArray(entry) ? entry : [entry];
 
         if (stages.length === 1) {
@@ -221,7 +299,13 @@ export class IndexPipeline {
           const stage = stages[0]!;
           const stageStart = performance.now();
           log.indexing(`stage:${stage.name} started`);
-          await stage.execute(context, mode);
+          try {
+            await stage.execute(context, mode);
+          } catch (error) {
+            context.failedStage = stage.name;
+            throw error;
+          }
+          throwIfPipelineCancelled(context);
           const durationMs = Math.round(performance.now() - stageStart);
           log.indexing(`stage:${stage.name} complete`, { durationMs });
         } else {
@@ -230,15 +314,38 @@ export class IndexPipeline {
           log.indexing(`stage-group started: [${groupNames}]`);
           const groupStart = performance.now();
 
-          await Promise.all(
+          const priorSignal = context.signal;
+          const groupController = new AbortController();
+          context.signal = priorSignal
+            ? AbortSignal.any([priorSignal, groupController.signal])
+            : groupController.signal;
+          let firstError: unknown;
+          const settled = await Promise.allSettled(
             stages.map(async (stage) => {
               const stageStart = performance.now();
               log.indexing(`stage:${stage.name} started`);
-              await stage.execute(context, mode);
-              const durationMs = Math.round(performance.now() - stageStart);
-              log.indexing(`stage:${stage.name} complete`, { durationMs });
+              try {
+                await stage.execute(context, mode);
+                throwIfPipelineCancelled(context);
+                const durationMs = Math.round(performance.now() - stageStart);
+                log.indexing(`stage:${stage.name} complete`, { durationMs });
+              } catch (error) {
+                context.failedStage ??= stage.name;
+                firstError ??= error;
+                if (!groupController.signal.aborted) groupController.abort(error);
+                throw error;
+              }
             }),
           );
+          context.signal = priorSignal;
+
+          // `allSettled` is load-bearing: no stage may still access shared
+          // context/database state when disposal and connection teardown begin.
+          if (firstError !== undefined) throw firstError;
+          const rejected = settled.find(
+            (result): result is PromiseRejectedResult => result.status === 'rejected',
+          );
+          if (rejected) throw rejected.reason;
 
           const groupMs = Math.round(performance.now() - groupStart);
           log.indexing(`stage-group complete: [${groupNames}]`, { durationMs: groupMs });

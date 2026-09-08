@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { openDb, type Database } from '../../../src/db/schema.js';
+import type { Database } from '../../../src/db/schema.js';
+import { openPromotedTestDb as openDb } from '../../helpers/promotedDb.js';
 import { handler, toolDef, type GraphArgs } from '../../../src/server/tools/graph.js';
 
 function seedCallGraph(db: Database.Database) {
@@ -16,8 +17,10 @@ function seedCallGraph(db: Database.Database) {
     `INSERT INTO symbols (id, file_id, name, kind, start_line, end_line) VALUES (2, 2, 'b', 'function', 1, 1)`,
   ).run();
   db.prepare(
-    `INSERT INTO symbol_refs (caller_id, file_id, callee_id, callee_name, call_line, resolution_method)
-     VALUES (1, 1, 2, 'b', 0, 'resolved')`,
+    `INSERT INTO symbol_refs (
+       caller_id, file_id, callee_id, callee_name, call_line, call_character,
+       definition_path, definition_line, definition_character, resolution_method
+     ) VALUES (1, 1, 2, 'b', 0, 4, 'src/b.ts', 1, 6, 'resolved')`,
   ).run();
 }
 
@@ -104,6 +107,9 @@ describe('lore_graph handler — call edges', () => {
     const edge = result.edges[0] as any;
     // call_line=0 in DB → line=1 in response
     expect(edge.line).toBe(1);
+    expect(edge.character).toBe(5);
+    expect(edge.definition_line).toBe(2);
+    expect(edge.definition_character).toBe(7);
   });
 });
 

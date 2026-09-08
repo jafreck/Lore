@@ -12,6 +12,7 @@ import { IndexBuilder } from '../indexer/index.js';
 import type { EmbeddingProvider } from '../embeddings/embedder.js';
 import type { EffectiveLspSettings } from '../lsp/config.js';
 import type { EffectiveScipSettings } from '../scip/config.js';
+import type { IndexExecutionOptions } from '../execution-policy.js';
 import type { WalkerConfig } from './walker.js';
 import { isExcludedPath } from './walker.js';
 import { ScipFlushManager } from './scip-flush.js';
@@ -32,6 +33,8 @@ export interface WatcherOptions {
   lsp?: EffectiveLspSettings;
   /** Effective SCIP settings forwarded to update cycles. */
   scip?: EffectiveScipSettings;
+  /** Host-trusted execution capabilities forwarded to builders. */
+  execution?: IndexExecutionOptions;
   /**
    * Quiet-period in milliseconds before running a background baseline rebuild.
    * After each change, overlay updates run immediately.  A full SCIP baseline
@@ -84,6 +87,7 @@ export class FileWatcher {
   private readonly indexDependencies: boolean;
   private readonly lsp: EffectiveLspSettings | undefined;
   private readonly scip: EffectiveScipSettings | undefined;
+  private readonly execution: IndexExecutionOptions | undefined;
   private readonly scipQuietPeriodMs: number;
   private readonly embedder: EmbeddingProvider | undefined;
   private readonly onUpdateCb: ((changedFiles: string[]) => Promise<void>) | undefined;
@@ -105,6 +109,7 @@ export class FileWatcher {
     this.indexDependencies = options.indexDependencies ?? false;
     this.lsp = options.lsp;
     this.scip = options.scip;
+    this.execution = options.execution;
     this.scipQuietPeriodMs = options.scipQuietPeriodMs ?? 10_000;
     this.embedder = options.embedder;
     this.onUpdateCb = options.onUpdate;
@@ -118,6 +123,7 @@ export class FileWatcher {
         indexDependencies: this.indexDependencies,
         lsp: this.lsp,
         scip: this.scip,
+        execution: this.execution,
         scipQuietPeriodMs: this.scipQuietPeriodMs,
         source: 'FileWatcher',
         onBaselineRebuild: options.onBaselineRebuild,
@@ -198,7 +204,7 @@ export class FileWatcher {
 
       if (paths.length === 0) return;
 
-      // Overlay update: tree-sitter + LSP only, no SCIP.
+      // Overlay update: file discovery + LSP only, no SCIP.
       // SCIP baseline rebuild is deferred to scheduleScipFlush().
       let errorCount = 0;
 
@@ -209,8 +215,9 @@ export class FileWatcher {
           const builder = new IndexBuilder(this.dbPath, this.walkerConfig, this.embedder, {
             history: this.history,
             ...(this.indexDependencies && { indexDependencies: true }),
-            ...(this.lsp && { lsp: this.lsp }),
-            // Note: SCIP is not passed here — overlay updates never invoke SCIP.
+            lsp: this.lsp ?? false,
+            scip: false,
+            execution: this.execution,
           });
           await builder.update(paths);
         }

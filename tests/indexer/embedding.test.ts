@@ -50,7 +50,7 @@ function insertFile(filePath: string): number {
   return Number(info.lastInsertRowid);
 }
 
-function insertSymbol(fileId: number, name: string, opts?: { signature?: string; resolvedType?: string; resolvedReturn?: string }): number {
+function insertSymbol(fileId: number, name: string, opts?: { signature?: string | null; resolvedType?: string; resolvedReturn?: string }): number {
   const info = db.prepare(
     `INSERT INTO symbols (file_id, name, kind, start_line, end_line, signature, resolved_type_signature, resolved_return_type, layer, generation)
      VALUES (?, ?, 'function', 1, 10, ?, ?, ?, 'baseline', 1)`,
@@ -67,6 +67,9 @@ function insertSymbol(fileId: number, name: string, opts?: { signature?: string;
 beforeEach(() => {
   resetLogger();
   db = openDb(':memory:');
+  db.prepare(
+    "INSERT INTO baseline_generations (branch, generation) VALUES ('main', 1)",
+  ).run();
 });
 
 afterEach(() => {
@@ -123,7 +126,7 @@ describe('EmbeddingStage', () => {
     expect(hashAfter.content_hash).toBe(hashBefore.content_hash);
   });
 
-  it('deletes stale symbol embeddings in update mode', async () => {
+  it('preserves stale symbol embeddings when no provider can recreate them', async () => {
     const embedder = createMockEmbedder(4);
     const fileId = insertFile('src/a.ts');
     const symId = insertSymbol(fileId, 'stale', { signature: 'function stale(): void' });
@@ -134,27 +137,54 @@ describe('EmbeddingStage', () => {
 
     const hashBefore = db.prepare('SELECT * FROM symbol_embeddings_hashes WHERE rowid = ?').get(symId);
     expect(hashBefore).toBeDefined();
+    expect(db.prepare('SELECT rowid FROM symbol_embeddings WHERE rowid = ?').get(symId)).toBeDefined();
+    db.prepare(
+      'INSERT INTO symbol_semantic_embeddings(rowid, embedding) VALUES (CAST(? AS INTEGER), json(?))',
+    ).run(symId, JSON.stringify([0.4, 0.3, 0.2, 0.1]));
+    expect(db.prepare('SELECT rowid FROM symbol_semantic_embeddings WHERE rowid = ?').get(symId))
+      .toBeDefined();
 
     // Update with staleSymbolIds including our symbol
     const updateCtx = makeCtx({
-      embedder,
+      embedder: null,
       staleSymbolIds: [symId],
       changedSourcePaths: [],
     });
     await stage.execute(updateCtx, 'update');
 
-    // The embedding row may or may not be removed from hashes table,
-    // but the vec0 embedding should be cleaned up. Verify at minimum
-    // that the update ran to completion without error.
-    const hashAfter = db.prepare('SELECT * FROM symbol_embeddings_hashes WHERE rowid = ?').get(symId);
-    // Hash tracking row may persist (implementation detail)
-    expect(true).toBe(true); // Confirms update stage executed without throwing
+    expect(db.prepare('SELECT * FROM symbol_embeddings_hashes WHERE rowid = ?').get(symId))
+      .toBeDefined();
+    expect(db.prepare('SELECT rowid FROM symbol_embeddings WHERE rowid = ?').get(symId))
+      .toBeDefined();
+    expect(db.prepare('SELECT rowid FROM symbol_semantic_embeddings WHERE rowid = ?').get(symId))
+      .toBeDefined();
+  });
+
+  it('does not publish new embedding metadata when vector generation fails', async () => {
+    const fileId = insertFile('src/a.ts');
+    insertSymbol(fileId, 'foo', { signature: 'function foo(): void' });
+    db.prepare("INSERT INTO lore_meta (key, value) VALUES ('embedding_model', 'prior-model')").run();
+    db.prepare("INSERT INTO lore_meta (key, value) VALUES ('embedding_dims', '4')").run();
+    const failing: EmbeddingProvider = {
+      modelName: 'prior-model',
+      dims: 4,
+      async init() {},
+      async dispose() {},
+      async embed() { throw new Error('embedding failed'); },
+    };
+
+    await expect(new EmbeddingStage().execute(makeCtx({ embedder: failing }), 'build'))
+      .rejects.toThrow('embedding failed');
+    expect(db.prepare("SELECT value FROM lore_meta WHERE key = 'embedding_model'").get())
+      .toEqual({ value: 'prior-model' });
+    expect(db.prepare("SELECT value FROM lore_meta WHERE key = 'embedding_dims'").get())
+      .toEqual({ value: '4' });
   });
 
   it('handles symbols with only resolved_type_signature', async () => {
     const embedder = createMockEmbedder(4);
     const fileId = insertFile('src/a.ts');
-    insertSymbol(fileId, 'typed', { signature: null as any, resolvedType: '(x: number) => string' });
+    insertSymbol(fileId, 'typed', { signature: null, resolvedType: '(x: number) => string' });
 
     const stage = new EmbeddingStage();
     await stage.execute(makeCtx({ embedder }), 'build');
@@ -166,7 +196,7 @@ describe('EmbeddingStage', () => {
   it('handles symbols with resolved_return_type', async () => {
     const embedder = createMockEmbedder(4);
     const fileId = insertFile('src/a.ts');
-    insertSymbol(fileId, 'returny', { signature: null as any, resolvedReturn: 'Promise<string>' });
+    insertSymbol(fileId, 'returny', { signature: null, resolvedReturn: 'Promise<string>' });
 
     const stage = new EmbeddingStage();
     await stage.execute(makeCtx({ embedder }), 'build');

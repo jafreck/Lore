@@ -120,7 +120,7 @@ describe('buildSymbolDefinitionMap', () => {
     expect(map.size).toBe(0);
   });
 
-  it('keeps first definition per symbol', () => {
+  it('selects same-kind definitions by stable path rather than document order', () => {
     const indexes = [{
       documents: [
         {
@@ -138,7 +138,12 @@ describe('buildSymbolDefinitionMap', () => {
       ],
     }];
     const map = buildSymbolDefinitionMap(indexes, '/root');
-    expect(map.get('sym1')!.line).toBe(1); // First one wins
+    expect(map.get('sym1')!.filePath).toContain('a.ts');
+
+    const reversed = buildSymbolDefinitionMap([{
+      documents: [...indexes[0]!.documents].reverse(),
+    }], '/root');
+    expect(reversed.get('sym1')).toEqual(map.get('sym1'));
   });
 
   it('prefers real definition over forward declaration (header first)', () => {
@@ -239,9 +244,8 @@ describe('findContainingSymbol', () => {
     expect(findContainingSymbol(index, 100, 15)).toBe(2);
   });
 
-  it('returns first match in iteration order for overlapping spans', () => {
-    // id:1 (span 0-10) is iterated before id:3 (span 5-8), so line 6 → id:1
-    expect(findContainingSymbol(index, 100, 6)).toBe(1);
+  it('returns the innermost match for overlapping spans', () => {
+    expect(findContainingSymbol(index, 100, 6)).toBe(3);
   });
 
   it('returns null for line outside all spans', () => {
@@ -257,6 +261,25 @@ describe('findContainingSymbol', () => {
     expect(findContainingSymbol(index, 100, 10)).toBe(1);
     expect(findContainingSymbol(index, 100, 12)).toBe(2);
     expect(findContainingSymbol(index, 100, 20)).toBe(2);
+  });
+
+  it('indexes a large synthetic span set into binary-searchable segments', () => {
+    const spanCount = 50_000;
+    const rows = Array.from({ length: spanCount }, (_, index) => ({
+      id: index + 1,
+      file_id: 500,
+      start_line: index * 3,
+      end_line: index * 3 + 1,
+    }));
+    const index = buildContainmentIndex(rows);
+    const fileIndex = index.get(500)!;
+
+    expect(fileIndex.length).toBe(spanCount);
+    expect(fileIndex.segmentCount).toBeLessThanOrEqual(spanCount * 2);
+    for (let row = 0; row < spanCount; row += 997) {
+      expect(findContainingSymbol(index, 500, row * 3)).toBe(row + 1);
+      expect(findContainingSymbol(index, 500, row * 3 + 2)).toBeNull();
+    }
   });
 });
 
