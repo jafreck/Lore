@@ -2,20 +2,21 @@
 
 ## What Lore Is
 
-Lore is a code intelligence tool that enables AI agents and API consumers to understand large codebases more correctly, at a wider scale, and with less context usage. It indexes source code, relationships, documentation, and git history into a structured SQL database exposed via MCP (Model Context Protocol), so agents can query precise, pre-computed knowledge instead of re-reading files from scratch.
+Lore is a code intelligence tool that enables AI agents and API consumers to understand large codebases with structured, pre-computed facts. It stores source snapshots and SCIP/LSP-derived symbols and relationships in SQLite, optionally adds Git history and embeddings, and exposes the result through MCP (Model Context Protocol).
 
 ### Core Value Proposition
 
-- **Correctness**: Pre-resolved symbols, call graphs, type relationships, and import edges give agents accurate structural facts rather than heuristic guesses.
-- **Scale**: Lore indexes entire repositories — across 23 languages — into a compact database that agents query surgically, avoiding full-file reads.
-- **Efficiency**: Across 6 benchmark repos (390 runs), Lore-enabled agents achieve up to +10pp higher correctness, up to 84% fewer tokens, and up to 62% faster wall-clock time compared to grep + file-read baselines.
+- **Correctness**: Compiler-produced SCIP facts and persisted LSP metadata reduce reliance on name-only resolution; remaining heuristic edges retain their resolution method.
+- **Scale**: The walker and LSP registry recognize 23 languages. Baseline structural coverage depends on an available SCIP index/indexer; changed-file overlays depend on an available language server.
+- **Efficiency**: In the historical March 2026 six-repository/390-run snapshot, Lore improved overall correctness by 3.5 percentage points while using 31% fewer tokens; per-repository peaks were +7.5 points correctness, 48% fewer tokens, and 22% faster wall time. The current benchmark harness has since changed.
 
 ### How It Works
 
-1. **Indexing**: A SCIP-first strategy (with tree-sitter fallback) extracts symbols, imports, call refs, type refs, annotations, and documentation from source files. Git history (commits, diffs, refs) is indexed alongside.
-2. **Storage**: Everything is persisted to a normalized SQLite database with optional vector embeddings for semantic search.
-3. **Serving**: An MCP server exposes the database through purpose-built tools (`lore_lookup`, `lore_search`, `lore_graph`, `lore_trace`, `lore_dependents`, etc.) that any MCP-compatible client can call.
-4. **Freshness**: The index dynamically updates based on local changes via watch mode, poll mode, or git hooks — each refresh only re-processes files whose content hash has changed. A baseline index is built for every commit.
+1. **Indexing**: `ScipIndexerStage` builds baseline symbols/imports/relationships/refs. `FileDiscoveryStage` stores recognized source snapshots. `LspExtractionStage` handles changed-file overlays, and LSP enrichment persists hover/definition metadata. There is no tree-sitter or documentation-indexing path.
+2. **Storage**: Data is persisted to SQLite. Baseline and overlay rows coexist, with `dirty_files` and `effective_*` views selecting active rows where those views are used.
+3. **Serving**: The MCP server registers 11 tools (`lore_lookup`, `lore_search`, `lore_graph`, `lore_trace`, `lore_dependents`, and related history/structure tools). `lore_metrics` exists as a module but is not registered.
+4. **Optional data**: Git history ingestion stores commit metadata, touched-file stats, and refs only when requested. Embeddings cover symbol signature/type text and, with history enabled, commit messages.
+5. **Freshness**: One-shot refresh, watch mode, poll mode, and Git hooks produce overlays; watch/poll can schedule a deferred full SCIP baseline reconciliation.
 
 ## Pre-Release Software
 
@@ -28,7 +29,7 @@ Lore is pre-release software. This means:
 
 ## Node.js Version
 
-Always use **Node.js 22** when running commands in the terminal. Before executing any `node`, `npx`, `npm`, or `vitest` command, ensure the active Node version is 22 (e.g. via `nvm use 22`). The project requires `>=22.0.0` as specified in `package.json` `engines` and `.nvmrc`. Do **not** use Node 25 or any other version — native add-ons (tree-sitter) are only built for Node 22.
+Always use **Node.js 22** when running commands in the terminal. Before executing any `node`, `npx`, `npm`, or `vitest` command, ensure the active Node version is 22 (e.g. via `nvm use 22`). The project declares `>=22.0.0` in `package.json`, pins 22 in `.nvmrc`, and uses native dependencies including `better-sqlite3` and `sqlite-vec`. Tree-sitter is no longer a dependency and is not the reason for the pin.
 
 ## Running the CLI
 

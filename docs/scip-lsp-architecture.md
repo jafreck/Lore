@@ -1,6 +1,13 @@
 # Architecture Migration: SCIP + LSP (Drop Tree-Sitter Extractors)
 
-> **Note:** This document was written as a migration proposal. The migration described here has been completed as of v0.4.0. The sections below describe the rationale and design that guided the migration.
+> **Status: historical migration proposal, partially completed in v0.4.0.**
+> Tree-sitter removal, expanded LSP methods, and LSP overlay extraction landed.
+> Other proposed outcomes did not: pipeline stages still create per-pass LSP
+> coordinators (the unused runtime placeholder was removed), `symbol_metrics`
+> and the unregistered `lore_metrics` module
+> remain, `DependencyApiStage` was deleted rather than retained, and Node 22 is
+> still required. The sections below preserve the original target design and are
+> not the current architecture contract; see `docs/architecture.md`.
 
 ## Motivation
 

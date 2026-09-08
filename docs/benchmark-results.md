@@ -1,5 +1,13 @@
 # Copilot Agent Benchmark — Aggregate Results
 
+> **Status: historical benchmark snapshot.** This report and its checked-in JSON
+> artifacts describe the harness as run on 2026-03-23: 13 questions per repo and
+> the former `0 / 0.5 / 1` composite scoring model. The current harness has 11
+> catalog questions, binary success thresholds, no `answerCoverage` field, and
+> writes new reports to `.benchmark-results/`. Preserve the figures below as
+> dated evidence; use `tests/benchmark/` and the benchmark skill for the current
+> execution contract.
+
 **Date:** 2026-03-23
 **Model:** claude-opus-4.6
 **Index mode:** SCIP
@@ -209,7 +217,10 @@ The remaining 4 repos have not reached p < 0.05 individually, but the consistent
 | postgres | C | 66 | 66 | 0 |
 | **Total** | | **396** | **396** | **0** |
 
-All repos completed with 0 test failures across 390 benchmark runs (65 per repo, 5 iterations × 13 tasks).
+All repos completed with 0 failures across 396 Vitest cases: 390 paired
+task/iteration cases (65 per repo, 5 iterations × 13 tasks) plus one aggregate
+case per repo. Each paired case recorded both a control and Lore arm, yielding
+780 agent-arm results.
 
 ---
 

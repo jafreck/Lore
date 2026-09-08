@@ -1,5 +1,12 @@
 # Restore Q6.1 — Top 5 by Cyclomatic Complexity
 
+> **Status: archived proposal; not directly actionable.** The current catalog
+> has 11 questions and omits `6.1`; `TaskFamily` does not include `coverage`;
+> benchmark task types have no `expectedAnswerParts`; success scoring is binary;
+> `lore_metrics` is not registered by the production MCP server; and new indexes
+> do not populate `symbol_metrics`. The historical result remains useful context,
+> but the implementation steps below target an earlier harness/schema contract.
+
 ## Background
 
 Q6.1 was the benchmark's strongest token-efficiency showcase: on the lore-self repo, Lore answered with a single `lore_metrics(limit=5)` call using **173 tokens** vs the control's **5,893 tokens** (bash file scanning) — a **97% reduction** and **8.8x faster** wall time. The question was removed during the question-catalog redesign but the strategy code still exists.

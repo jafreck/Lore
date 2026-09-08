@@ -1,5 +1,12 @@
 # Incremental Index Design
 
+> **Status: superseded design proposal.** This document specifies a tree-sitter
+> overlay architecture that is not the current implementation. v0.4.0 removed
+> tree-sitter; overlays use file discovery plus LSP extraction, baseline LSP
+> enrichment still exists for non-SCIP files, `dirty_files` is keyed by
+> `(path, branch)`, and watcher/poller quiet-period SCIP flushes remain. See
+> `docs/architecture.md` and `src/indexer/index.ts` for the current pipeline.
+
 ## Problem
 
 Lore is hard-dependent on SCIP for code intelligence. SCIP provides the
@@ -307,45 +314,31 @@ replace the baseline with fresh, high-confidence, whole-project truth.
 Set `lore_meta.generation_pending = current_generation + 1`.
 
 **Step 2: Run full SCIP pipeline into a staging generation.**
-Execute the full pipeline (SCIP source → tree-sitter metrics → name-based
-resolution fallback) writing all rows with `layer = 'baseline'`,
-`generation = generation_pending`.
-
-Tree-sitter participates in the baseline build only for complexity metrics
-(SCIP does not provide cyclomatic complexity, nesting depth, etc.) and
-annotation extraction (TODO/FIXME/NOTE from comments).
-
-**LSP is not used during baseline builds.** SCIP provides compiler-backed
-precision for cross-file resolution. Refs that SCIP leaves unresolved (e.g.,
-some member-access patterns) remain unresolved in the baseline — they are
-SCIP's blind spots and LSP running against the same committed snapshot rarely
-resolves them any better. The name-based fallback (`resolveSymbolEdges`)
-handles what it can; the rest stay `unresolved` until a future SCIP indexer
-improvement covers them.
+Execute the full pipeline (SCIP → source discovery → LSP fallback/enrichment →
+import and symbol resolution → derived indexes) writing relational rows with
+`layer = 'baseline'`, `generation = generation_pending`.
 
 This runs in the same database but writes to a new generation, so existing
 baseline rows (old generation) and overlay rows remain readable throughout.
+The writer connection shadows `effective_*` with connection-local views of the
+candidate. Bounded stage transactions commit incrementally; subprocess, LSP,
+and model waits never hold a run-long SQLite write transaction.
 
 **Step 3: Atomic promotion.**
-In a single transaction:
-1. Delete old baseline rows: `DELETE FROM files WHERE layer = 'baseline' AND generation < ?` (and cascading tables).
-2. Clear overlay rows for files that are no longer dirty:
-   ```sql
-   DELETE FROM files WHERE layer = 'overlay'
-     AND path NOT IN (SELECT path FROM dirty_files WHERE dirty_since > ?)
-   ```
-   (where `?` is the timestamp when the SCIP build started — files dirtied
-   *during* the rebuild keep their overlay).
-3. Remove promoted paths from `dirty_files`.
-4. Set `lore_meta.generation = generation_pending`.
-5. Set `lore_meta.baseline_head_sha = current HEAD`.
-6. Rebuild `reverse_deps` from the new baseline.
+In one short transaction, update `baseline_generations`, clear the branch's
+`dirty_files` selectors, publish generation-scoped metadata, finalize run
+provenance, and clear `generation_pending`. No subprocess or bulk cascading
+delete occurs in this transaction.
 
 **Step 4: Clean up.**
-Run `PRAGMA incremental_vacuum` to reclaim space from deleted old-generation rows.
+Delete superseded baseline and overlay files in bounded batches. Foreign-key
+cascades remove their graph rows, while orphan FTS/vector rows are pruned by
+symbol ID. These rows are already invisible, so cleanup failure is retryable
+and does not roll back a successful promotion.
 
 If the SCIP build fails, `generation_pending` is cleared and the old baseline
-plus any overlay rows continue serving. No data is lost.
+plus any overlay rows continue serving. Candidate relational/derived rows are
+removed, while the failed run and provider provenance remain persisted.
 
 ---
 
@@ -610,7 +603,7 @@ Since backward compatibility is not required:
 | Background baseline (small project, ~1k files) | 5-15s | Full SCIP + metrics |
 | Background baseline (large project, ~10k files) | 30-90s | Full SCIP + metrics |
 | Query with overlay merge | < 5ms overhead | View-based, indexed on layer |
-| Baseline promotion (generation swap) | < 500ms | Single transaction, cascading deletes |
+| Baseline promotion (generation swap) | < 500ms | Short pointer/metadata transaction; cleanup is batched afterward |
 
 ---
 

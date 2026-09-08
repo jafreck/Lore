@@ -1,8 +1,17 @@
 # Pipeline Simplification: Post Tree-Sitter Cleanup
 
-## Status
+> **Status: archived, partially implemented proposal.** `ScipRefStage` was
+> merged, `DependencyApiStage` was removed, and the class was renamed to
+> `FileDiscoveryStage` (its file remains `source-index.ts`). The current shared
+> pipeline still includes `resolutionStage`; runs Git history in parallel with
+> LSP enrichment; uses `LspExtractionStage` only for overlays; and has ten
+> flattened stage entries in normal build/update mode. Use
+> `docs/architecture.md` for the current order.
 
-Proposed — follow-up to the SCIP+LSP migration (`feat/scip-lsp-migration`).
+## Original status
+
+Proposed as a follow-up to the SCIP+LSP migration
+(`feat/scip-lsp-migration`).
 
 ## Problem
 
