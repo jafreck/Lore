@@ -1,6 +1,12 @@
+/** LSP settings resolution with host-only execution capability gates. */
+
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { z } from 'zod';
+import {
+  resolveIndexExecutionPolicy,
+  type IndexExecutionOptions,
+} from '../execution-policy.js';
 import {
   type LspServerRegistry,
   type LspServerRegistryOverrides,
@@ -10,27 +16,45 @@ import {
 
 export const DEFAULT_LSP_ENABLED = true;
 export const DEFAULT_LSP_REQUEST_TIMEOUT_MS = 5000;
+export const DEFAULT_LSP_SUPPLEMENTATION_MAX_FILES = 500;
+export const DEFAULT_LSP_SUPPLEMENTATION_FILE_CONCURRENCY = 4;
+
+export interface LspSupplementationSettings {
+  maxFiles: number;
+  fileConcurrency: number;
+  /** Require a complete plan; in particular, fail instead of truncating at maxFiles. */
+  strict: boolean;
+}
 
 export interface EffectiveLspSettings {
   enabled: boolean;
   requestTimeoutMs: number;
+  /** Host-authorized permission to start configured language servers. */
+  allowServerExecution: boolean;
+  /** Additional host-approved roots for custom command working directories. */
+  allowedCwdRoots: readonly string[];
   servers: LspServerRegistry;
+  /** Optional for compatibility with programmatic callers that construct settings directly. */
+  supplementation?: LspSupplementationSettings;
 }
 
 export interface LspSettingsOverrides {
   enabled?: boolean;
   requestTimeoutMs?: number;
   servers?: LspServerRegistryOverrides;
+  supplementation?: Partial<LspSupplementationSettings>;
 }
 
 const ServerOverrideSchema = z
   .object({
     command: z.string().trim().min(1).optional(),
     args: z.array(z.string()).optional(),
+    cwd: z.string().optional(),
   })
   .strict()
-  .refine((value) => value.command !== undefined || value.args !== undefined, {
-    message: 'must provide at least one of "command" or "args"',
+  .refine((value) =>
+    value.command !== undefined || value.args !== undefined || value.cwd !== undefined, {
+    message: 'must provide at least one of "command", "args", or "cwd"',
   });
 
 const LspSchema = z
@@ -38,6 +62,11 @@ const LspSchema = z
     enabled: z.boolean().optional(),
     timeoutMs: z.number().int().positive().optional(),
     servers: z.record(z.string(), ServerOverrideSchema).optional(),
+    supplementation: z.object({
+      maxFiles: z.number().int().positive().optional(),
+      fileConcurrency: z.number().int().min(1).max(64).optional(),
+      strict: z.boolean().optional(),
+    }).strict().optional(),
   })
   .strict();
 
@@ -80,17 +109,26 @@ export function loadLspSettingsFromLoreConfig(rootDir: string): LspSettingsOverr
     ...(lsp.enabled !== undefined && { enabled: lsp.enabled }),
     ...(lsp.timeoutMs !== undefined && { requestTimeoutMs: lsp.timeoutMs }),
     ...(lsp.servers && { servers: lsp.servers }),
+    ...(lsp.supplementation && { supplementation: lsp.supplementation }),
   };
 }
 
 export function resolveEffectiveLspSettings(
   configSettings: LspSettingsOverrides = {},
   explicitOverrides: LspSettingsOverrides = {},
+  trustedExecution: IndexExecutionOptions = {},
 ): EffectiveLspSettings {
+  const execution = resolveIndexExecutionPolicy(trustedExecution);
   // Deep-merge per-language server overrides so that e.g. overriding only
   // `args` doesn't discard the config file's `command`.
-  const configServers = configSettings.servers ?? {};
-  const overrideServers = explicitOverrides.servers ?? {};
+  // Repository command/argument/cwd requests cannot become executable unless
+  // the host explicitly authorizes custom LSP commands.
+  const configServers = execution.allowCustomLspCommands
+    ? (configSettings.servers ?? {})
+    : {};
+  const overrideServers = execution.allowCustomLspCommands
+    ? (explicitOverrides.servers ?? {})
+    : {};
   const mergedServerOverrides: LspServerRegistryOverrides = { ...configServers };
   for (const [lang, override] of Object.entries(overrideServers)) {
     const existing = mergedServerOverrides[lang];
@@ -98,12 +136,31 @@ export function resolveEffectiveLspSettings(
       mergedServerOverrides[lang] = {
         command: override.command ?? existing.command,
         args: override.args ?? existing.args,
+        ...(override.cwd !== undefined
+          ? { cwd: override.cwd }
+          : existing.cwd !== undefined
+            ? { cwd: existing.cwd }
+            : {}),
       };
     } else {
       mergedServerOverrides[lang] = override;
     }
   }
   const mergedServers = mergeLspServerRegistry(mergedServerOverrides);
+  const supplementation: LspSupplementationSettings = {
+    maxFiles:
+      explicitOverrides.supplementation?.maxFiles
+      ?? configSettings.supplementation?.maxFiles
+      ?? DEFAULT_LSP_SUPPLEMENTATION_MAX_FILES,
+    fileConcurrency:
+      explicitOverrides.supplementation?.fileConcurrency
+      ?? configSettings.supplementation?.fileConcurrency
+      ?? DEFAULT_LSP_SUPPLEMENTATION_FILE_CONCURRENCY,
+    strict:
+      explicitOverrides.supplementation?.strict
+      ?? configSettings.supplementation?.strict
+      ?? false,
+  };
 
   return {
     enabled: explicitOverrides.enabled ?? configSettings.enabled ?? DEFAULT_LSP_ENABLED,
@@ -111,7 +168,10 @@ export function resolveEffectiveLspSettings(
       explicitOverrides.requestTimeoutMs
       ?? configSettings.requestTimeoutMs
       ?? DEFAULT_LSP_REQUEST_TIMEOUT_MS,
+    allowServerExecution: execution.allowLspExecution,
+    allowedCwdRoots: execution.allowedCwdRoots,
     servers: mergedServers,
+    supplementation,
   };
 }
 

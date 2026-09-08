@@ -121,7 +121,7 @@ describe('buildLoreStrategy', () => {
     const task = makeTask({
       questionId: '6.1',
       prompt: 'What are the most complex functions?',
-      family: 'coverage',
+      family: 'testing',
     });
     const strategy = buildLoreStrategy(task);
     const toolNames = strategy.steps.map((s) => s.toolName);
@@ -154,7 +154,7 @@ describe('buildLoreStrategy', () => {
     const task = makeTask({
       questionId: '8.1',
       prompt: 'Rank the top-level directories by module cohesion.',
-      family: 'coverage',
+      family: 'testing',
     });
     const strategy = buildLoreStrategy(task);
     const toolNames = strategy.steps.map((s) => s.toolName);
@@ -208,7 +208,7 @@ describe('buildLoreStrategy', () => {
     const task = makeTask({
       questionId: '1.6',
       prompt: 'Which exported functions in `src/logger.ts` are never called?',
-      family: 'coverage',
+      family: 'testing',
     });
     const strategy = buildLoreStrategy(task);
     const toolNames = strategy.steps.map((s) => s.toolName);

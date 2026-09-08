@@ -9,11 +9,17 @@ import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { openDb, type Database } from '../../src/db/schema.js';
+import type {
+  LspEnrichmentRequest,
+  ResolvedTypeMetadata,
+} from '../../src/lsp/enrichment.js';
 
 // ── Mock coordinator ────────────────────────────────────────────────────────────
 
-const mockEnrich = vi.fn<any>().mockResolvedValue([]);
-const mockStart = vi.fn().mockResolvedValue(undefined);
+const mockEnrich = vi.fn<
+  (request: LspEnrichmentRequest) => Promise<Array<ResolvedTypeMetadata | null>>
+>().mockResolvedValue([]);
+const mockStart = vi.fn<(languages: Iterable<string>) => Promise<void>>().mockResolvedValue(undefined);
 const mockDispose = vi.fn().mockResolvedValue(undefined);
 
 vi.mock('../../src/lsp/enrichment.js', () => ({
@@ -109,6 +115,9 @@ describe('LspEnrichmentStage.execute', () => {
   beforeEach(() => {
     tmpDir = mkdtempSync(join(tmpdir(), 'lore-stage-exec-'));
     db = openDb(':memory:');
+    db.prepare(
+      "INSERT INTO baseline_generations (branch, generation) VALUES ('main', 1)",
+    ).run();
     mockEnrich.mockReset().mockResolvedValue([]);
     mockStart.mockReset().mockResolvedValue(undefined);
     mockDispose.mockReset().mockResolvedValue(undefined);
@@ -166,7 +175,12 @@ describe('LspEnrichmentStage.execute', () => {
       writeFileSync(filePath, 'def hello(): pass');
 
       const fileId = insertFile(db, filePath, 'python');
-      insertSymbol(db, fileId, 'hello', 0);
+      const symbolId = insertSymbol(db, fileId, 'hello', 0);
+      db.prepare(
+        `UPDATE symbols
+            SET start_character = 0, selection_line = 0, selection_character = 4
+          WHERE id = ?`,
+      ).run(symbolId);
 
       const stage = new LspEnrichmentStage();
       const sourceCache = new Map<string, string>();
@@ -186,17 +200,37 @@ describe('LspEnrichmentStage.execute', () => {
       // Coordinator should have been created and started with python
       expect(LspEnrichmentCoordinator).toHaveBeenCalledTimes(1);
       expect(mockStart).toHaveBeenCalledTimes(1);
-      const startLangs = mockStart.mock.calls[0][0] as Set<string>;
+      const startLangs = new Set(mockStart.mock.calls[0]?.[0]);
       expect(startLangs.has('python')).toBe(true);
       expect(startLangs.has('typescript')).toBe(false);
 
       // enrich should have been called for the python file
       expect(mockEnrich).toHaveBeenCalled();
-      const enrichArg = mockEnrich.mock.calls[0][0];
-      expect(enrichArg.filePath).toBe(filePath);
-      expect(enrichArg.language).toBe('python');
+      const enrichArg = mockEnrich.mock.calls[0]?.[0];
+      expect(enrichArg?.filePath).toBe(filePath);
+      expect(enrichArg?.language).toBe('python');
+      expect(enrichArg?.targets).toEqual([{ line: 0, character: 4 }]);
 
       expect(sourceCache.size).toBe(0); // cleared after
+    });
+
+    it('skips fallback files already enriched by the extraction coordinator', async () => {
+      const filePath = join(tmpDir, 'already.py');
+      writeFileSync(filePath, 'def ready(): pass');
+      const stage = new LspEnrichmentStage();
+      const sourceCache = new Map([[filePath, 'def ready(): pass']]);
+      const ctx = makeContext({
+        db,
+        layer: 'baseline',
+        files: [{ path: filePath, language: 'python' }],
+        sourceCache,
+        lspEnrichedFiles: new Set([filePath]),
+      });
+
+      await stage.execute(ctx, 'build');
+
+      expect(LspEnrichmentCoordinator).not.toHaveBeenCalled();
+      expect(sourceCache.size).toBe(0);
     });
 
     it('adds typescript to languages when indexDependencies is true', async () => {
@@ -215,7 +249,7 @@ describe('LspEnrichmentStage.execute', () => {
 
       await stage.execute(ctx, 'build');
 
-      const startLangs = mockStart.mock.calls[0][0] as Set<string>;
+      const startLangs = new Set(mockStart.mock.calls[0]?.[0]);
       expect(startLangs.has('typescript')).toBe(true);
       expect(startLangs.has('python')).toBe(true);
     });
@@ -257,7 +291,7 @@ describe('LspEnrichmentStage.execute', () => {
       // Non-SCIP files are enriched by LspExtractionStage
       expect(LspEnrichmentCoordinator).toHaveBeenCalledTimes(1);
       expect(mockStart).toHaveBeenCalledTimes(1);
-      const startLangs = mockStart.mock.calls[0][0] as Set<string>;
+      const startLangs = new Set(mockStart.mock.calls[0]?.[0]);
       expect(startLangs.has('typescript')).toBe(true);
       // Python is NOT started — it's handled by LspExtractionStage
       expect(startLangs.has('python')).toBe(false);
@@ -327,7 +361,7 @@ describe('LspEnrichmentStage.execute', () => {
       await stage.execute(ctx, 'build');
 
       expect(mockStart).toHaveBeenCalledTimes(1);
-      const startLangs = mockStart.mock.calls[0][0] as Set<string>;
+      const startLangs = new Set(mockStart.mock.calls[0]?.[0]);
       expect(startLangs.has('typescript')).toBe(true);
     });
   });
@@ -370,11 +404,11 @@ describe('LspEnrichmentStage.execute', () => {
       await stage.execute(ctx, 'build');
 
       // The coordinator should have been called with exactly 1 target
-      const tsCall = mockEnrich.mock.calls.find((c: any) => c[0].filePath === tsFile);
+      const tsCall = mockEnrich.mock.calls.find(([request]) => request.filePath === tsFile);
       expect(tsCall).toBeDefined();
-      expect(tsCall![0].targets).toHaveLength(1);
-      expect(tsCall![0].targets[0].line).toBe(0);
-      expect(tsCall![0].targets[0].character).toBe(15);
+      expect(tsCall?.[0].targets).toHaveLength(1);
+      expect(tsCall?.[0].targets[0]?.line).toBe(0);
+      expect(tsCall?.[0].targets[0]?.character).toBe(15);
 
       // Check that the unresolved ref was updated
       const row = db.prepare(
@@ -401,6 +435,7 @@ describe('LspEnrichmentStage.execute', () => {
       mockEnrich.mockResolvedValueOnce([
         {
           resolvedTypeSignature: 'interface SomeType',
+          resolvedReturnType: null,
           definitionUri: 'file:///types.ts',
           definitionPath: '/types.ts',
           definitionLine: 5,
@@ -418,11 +453,11 @@ describe('LspEnrichmentStage.execute', () => {
 
       await stage.execute(ctx, 'build');
 
-      const tsCall = mockEnrich.mock.calls.find((c: any) => c[0].filePath === tsFile);
+      const tsCall = mockEnrich.mock.calls.find(([request]) => request.filePath === tsFile);
       expect(tsCall).toBeDefined();
-      expect(tsCall![0].targets).toHaveLength(1);
-      expect(tsCall![0].targets[0].line).toBe(0);
-      expect(tsCall![0].targets[0].character).toBe(9);
+      expect(tsCall?.[0].targets).toHaveLength(1);
+      expect(tsCall?.[0].targets[0]?.line).toBe(0);
+      expect(tsCall?.[0].targets[0]?.character).toBe(9);
 
       const row = db.prepare(
         'SELECT definition_path, definition_line, resolved_type_signature FROM type_refs WHERE id = ?',
@@ -454,7 +489,7 @@ describe('LspEnrichmentStage.execute', () => {
       // enrich should still be called (the enrichUnresolvedScipRefs function
       // calls processFile which checks for targets), but with no targets
       // it returns [] so no DB updates happen
-      const tsCall = mockEnrich.mock.calls.find((c: any) => c[0]?.filePath === tsFile);
+      const tsCall = mockEnrich.mock.calls.find(([request]) => request.filePath === tsFile);
       // processFile returns [] if no tagged targets, so enrich is not called
       expect(tsCall).toBeUndefined();
     });
@@ -534,8 +569,8 @@ describe('LspEnrichmentStage.execute', () => {
 
       // The mock enrich should have received the cached content
       expect(mockEnrich).toHaveBeenCalled();
-      const call = mockEnrich.mock.calls[0][0];
-      expect(call.source).toBe('cached content');
+      const call = mockEnrich.mock.calls[0]?.[0];
+      expect(call?.source).toBe('cached content');
     });
   });
 

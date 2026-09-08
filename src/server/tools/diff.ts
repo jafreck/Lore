@@ -5,6 +5,7 @@
  */
 
 import type { Database } from '../../db/read-only.js';
+import { storageLineToPresentation } from '../../source-coordinates.js';
 
 // ─── Tool definition ──────────────────────────────────────────────────────────
 
@@ -127,8 +128,8 @@ export function handler(db: Database.Database, args: DiffArgs): DiffResult {
     SELECT s.id, s.file_id, s.name, s.kind, s.start_line, s.signature,
            f.path, f.branch,
            ROW_NUMBER() OVER (PARTITION BY s.name, s.kind, s.file_id ORDER BY s.start_line) AS ordinal
-    FROM symbols s
-    JOIN files f ON f.id = s.file_id
+    FROM effective_symbols s
+    JOIN effective_files f ON f.id = s.file_id
     WHERE s.is_exported = 1
   )`;
 
@@ -187,7 +188,7 @@ export function handler(db: Database.Database, args: DiffArgs): DiffResult {
   // Added: exported symbols in new_branch not present in old_branch
   const added = db.prepare(
     `${rankedCte}
-     SELECT r.name, r.kind, r.path AS file_path, r.start_line, r.signature
+    SELECT r.name, r.kind, r.path AS file_path, r.start_line, r.signature
        FROM ranked r
       WHERE r.branch = ?
         ${filters}
@@ -207,7 +208,7 @@ export function handler(db: Database.Database, args: DiffArgs): DiffResult {
   // Removed: exported symbols in old_branch not present in new_branch
   const removed = db.prepare(
     `${rankedCte}
-     SELECT r.name, r.kind, r.path AS file_path, r.start_line, r.signature
+    SELECT r.name, r.kind, r.path AS file_path, r.start_line, r.signature
        FROM ranked r
       WHERE r.branch = ?
         ${filters}
@@ -246,12 +247,16 @@ export function handler(db: Database.Database, args: DiffArgs): DiffResult {
       LIMIT ?`,
   ).all(oldBranch, newBranch, ...changedFilterParams, limit) as ChangedEntry[];
 
+  const presentedAdded = added.map(presentDiffEntry);
+  const presentedRemoved = removed.map(presentDiffEntry);
+  const presentedChanged = changed.map(presentDiffEntry);
+
   return {
     old_branch: oldBranch,
     new_branch: newBranch,
-    added,
-    removed,
-    changed,
+    added: presentedAdded,
+    removed: presentedRemoved,
+    changed: presentedChanged,
     summary: {
       added: { total: totalAdded, shown: added.length, truncated: added.length < totalAdded },
       removed: { total: totalRemoved, shown: removed.length, truncated: removed.length < totalRemoved },
@@ -260,15 +265,19 @@ export function handler(db: Database.Database, args: DiffArgs): DiffResult {
   };
 }
 
+function presentDiffEntry<T extends DiffEntry | ChangedEntry>(entry: T): T {
+  return { ...entry, start_line: storageLineToPresentation(entry.start_line) };
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /**
  * Resolve the default new_branch by picking the most recently indexed branch
- * from the files table that is different from old_branch.
+ * from the effective files view that is different from old_branch.
  */
 function resolveDefaultBranch(db: Database.Database, oldBranch: string): string {
   const row = db.prepare(
-    `SELECT branch FROM files
+    `SELECT branch FROM effective_files
       WHERE branch != ?
       ORDER BY indexed_at DESC
       LIMIT 1`,

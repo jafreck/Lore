@@ -341,7 +341,8 @@ function importGraphLoreSteps(
 function testMapLoreSteps(task: BenchmarkTask): ScriptedStep[] {
   const files = extractFilesFromPrompt(task.prompt);
   return files.map((file) => ({
-    args: { file_path: file },
+    toolName: 'lore_dependents',
+    args: { query: file, kind: 'file', depth: 1 },
   }));
 }
 
@@ -412,7 +413,8 @@ function compositeModifyLoreSteps(task: BenchmarkTask): ScriptedStep[] {
     });
     // Step 2: Find test mapping
     steps.push({
-      args: { file_path: '' }, // Would be filled from step 1
+      toolName: 'lore_dependents',
+      args: { query: '', kind: 'file', depth: 1 }, // Filled from the lookup result by adaptive agents.
     });
     // Step 3: Check ownership
     steps.push({
@@ -468,7 +470,8 @@ function dependencyIsolationLoreSteps(_task: BenchmarkTask): ScriptedStep[] {
 function perTestCoverageLoreSteps(task: BenchmarkTask): ScriptedStep[] {
   const files = extractFilesFromPrompt(task.prompt);
   return files.map((file) => ({
-    args: { source_path: file, line: 1 },
+    toolName: 'lore_search',
+    args: { query: file, mode: 'structural' },
   }));
 }
 
@@ -604,7 +607,7 @@ export function buildDynamicLoreStrategy(task: BenchmarkTask): ProgrammaticAgent
         return { toolName: 'lore_search', args: { query: task.prompt, mode: 'fused' } };
       }
 
-      // Phase 2: Use results from lookup to make graph/test-map/etc calls
+      // Phase 2: Use lookup results to drive graph, dependency, and history calls.
       const lastResult = history[history.length - 1]!;
 
       // After lookup, pick question-specific follow-up
@@ -675,8 +678,6 @@ export function buildDynamicLoreStrategy(task: BenchmarkTask): ProgrammaticAgent
           if (filePath) break;
         }
 
-        if (!testMapDone && filePath) {
-        }
         if (!blameDone && filePath) {
           return { toolName: 'lore_blame', args: { file_path: filePath, mode: 'ownership' } };
         }

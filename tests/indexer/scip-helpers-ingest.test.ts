@@ -7,6 +7,7 @@ import { openDb, type Database } from '../../src/db/schema.js';
 import { initLogger, LogLevel, resetLogger, getLogger } from '../../src/logger.js';
 import { create } from '@bufbuild/protobuf';
 import { SymbolInformationSchema, type SymbolInformation as ScipSymbolInformation } from '../../src/scip/scip_pb.js';
+import { buildCFamilyLanguageEvidence } from '../../src/discovery/walker.js';
 
 // ─── inferLoreLanguage ────────────────────────────────────────────────────────
 
@@ -74,6 +75,33 @@ describe('inferLoreLanguage', () => {
   describe('prefers explicit language over extension', () => {
     it('uses SCIP language when both are available', () => {
       expect(inferLoreLanguage('python', 'main.ts')).toBe('python');
+    });
+
+    it('uses extensions to disambiguate scip-clang C and C++ documents', () => {
+      expect(inferLoreLanguage('CPP', 'src/codec.c')).toBe('c');
+      expect(inferLoreLanguage('CPP', 'src/codec.cpp')).toBe('cpp');
+      expect(inferLoreLanguage('c', 'include/codec.hpp')).toBe('cpp');
+    });
+
+    it('uses SCIP language for ambiguous headers when project evidence is absent', () => {
+      expect(inferLoreLanguage('CPP', 'include/codec.h')).toBe('cpp');
+      expect(inferLoreLanguage('c', 'include/codec.h')).toBe('c');
+    });
+
+    it('keeps zstd-style headers C despite scip-clang reporting CPP', () => {
+      const evidence = buildCFamilyLanguageEvidence([
+        ...Array.from({ length: 10 }, (_, index) => `lib/c${index}.c`),
+        'contrib/tool.cpp',
+      ]);
+      expect(inferLoreLanguage('CPP', 'lib/zstd.h', evidence)).toBe('c');
+    });
+
+    it('classifies plain headers in C++ projects as cpp', () => {
+      const evidence = buildCFamilyLanguageEvidence([
+        'src/widget.cpp',
+        'src/support.cc',
+      ]);
+      expect(inferLoreLanguage('CPP', 'include/widget.h', evidence)).toBe('cpp');
     });
   });
 });

@@ -12,32 +12,54 @@ import {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function insertFile(db: Database.Database, opts: { path: string; language?: string; branch?: string; layer?: string }): number {
+  const branch = opts.branch ?? '';
+  if ((opts.layer ?? 'baseline') === 'baseline') {
+    db.prepare(
+      'INSERT OR IGNORE INTO baseline_generations (branch, generation) VALUES (?, 0)',
+    ).run(branch);
+  }
   return db.prepare(
     `INSERT INTO files (path, language, branch, layer) VALUES (?, ?, ?, ?)`,
-  ).run(opts.path, opts.language ?? 'typescript', opts.branch ?? '', opts.layer ?? 'baseline').lastInsertRowid as number;
+  ).run(opts.path, opts.language ?? 'typescript', branch, opts.layer ?? 'baseline').lastInsertRowid as number;
 }
 
 function insertSymbol(db: Database.Database, opts: {
   fileId: number; name: string; kind?: string; startLine?: number; endLine?: number; layer?: string;
+  startCharacter?: number | null; endCharacter?: number | null;
+  selectionLine?: number | null; selectionCharacter?: number | null;
 }): number {
   return db.prepare(
-    `INSERT INTO symbols (file_id, name, kind, start_line, end_line, layer)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-  ).run(opts.fileId, opts.name, opts.kind ?? 'function', opts.startLine ?? 1, opts.endLine ?? 10, opts.layer ?? 'baseline').lastInsertRowid as number;
+    `INSERT INTO symbols (
+       file_id, name, kind, start_line, start_character, end_line, end_character,
+       selection_line, selection_character, layer
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(
+    opts.fileId,
+    opts.name,
+    opts.kind ?? 'function',
+    opts.startLine ?? 1,
+    opts.startCharacter ?? null,
+    opts.endLine ?? 10,
+    opts.endCharacter ?? null,
+    opts.selectionLine ?? null,
+    opts.selectionCharacter ?? null,
+    opts.layer ?? 'baseline',
+  ).lastInsertRowid as number;
 }
 
 function insertSymbolRef(db: Database.Database, opts: {
   callerId: number; fileId: number; calleeName: string; callLine?: number;
   calleeId?: number | null; resolutionMethod?: string; layer?: string;
   definitionPath?: string | null; definitionLine?: number | null;
+  definitionCharacter?: number | null;
 }): number {
   return db.prepare(
-    `INSERT INTO symbol_refs (caller_id, file_id, callee_name, call_line, callee_id, resolution_method, layer, definition_path, definition_line)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO symbol_refs (caller_id, file_id, callee_name, call_line, callee_id, resolution_method, layer, definition_path, definition_line, definition_character)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     opts.callerId, opts.fileId, opts.calleeName, opts.callLine ?? 5,
     opts.calleeId ?? null, opts.resolutionMethod ?? 'unresolved', opts.layer ?? 'baseline',
-    opts.definitionPath ?? null, opts.definitionLine ?? null,
+    opts.definitionPath ?? null, opts.definitionLine ?? null, opts.definitionCharacter ?? null,
   ).lastInsertRowid as number;
 }
 
@@ -172,6 +194,66 @@ describe('resolveSymbolEdges', () => {
     const ref = db.prepare('SELECT callee_id, resolution_method FROM symbol_refs WHERE caller_id = ?').get(callerSym) as any;
     expect(ref.callee_id).toBe(targetSym);
     expect(ref.resolution_method).toBe('lsp_definition');
+  });
+
+  it('uses an exact selection character to resolve same-line C++ overloads', () => {
+    const targetFile = insertFile(db, { path: 'src/overloads.cpp', language: 'cpp' });
+    const firstOverload = insertSymbol(db, {
+      fileId: targetFile,
+      name: 'convert',
+      startLine: 4,
+      startCharacter: 0,
+      endLine: 4,
+      endCharacter: 24,
+      selectionLine: 4,
+      selectionCharacter: 4,
+    });
+    const secondOverload = insertSymbol(db, {
+      fileId: targetFile,
+      name: 'convert',
+      startLine: 4,
+      startCharacter: 26,
+      endLine: 4,
+      endCharacter: 55,
+      selectionLine: 4,
+      selectionCharacter: 30,
+    });
+    const callerFile = insertFile(db, { path: 'src/main.cpp', language: 'cpp' });
+    const caller = insertSymbol(db, { fileId: callerFile, name: 'main' });
+    insertSymbolRef(db, {
+      callerId: caller,
+      fileId: callerFile,
+      calleeName: 'convert',
+      definitionPath: 'src/overloads.cpp',
+      definitionLine: 4,
+      definitionCharacter: 30,
+    });
+
+    resolveSymbolEdges(db);
+
+    const ref = db.prepare(
+      'SELECT callee_id, resolution_method FROM symbol_refs WHERE caller_id = ?',
+    ).get(caller) as { callee_id: number; resolution_method: string };
+    expect(ref.callee_id).toBe(secondOverload);
+    expect(ref.callee_id).not.toBe(firstOverload);
+    expect(ref.resolution_method).toBe('lsp_definition');
+  });
+
+  it('does not resolve a call to a differently named containing macro', () => {
+    const fid = insertFile(db, { path: 'src/macros.h' });
+    insertSymbol(db, { fileId: fid, name: 'CHECK', kind: 'macro', startLine: 10, endLine: 20 });
+    const callerSym = insertSymbol(db, { fileId: fid, name: 'callerFn', startLine: 25, endLine: 35 });
+
+    insertSymbolRef(db, {
+      callerId: callerSym, fileId: fid, calleeName: 'fprintf',
+      definitionPath: 'src/macros.h', definitionLine: 15,
+    });
+
+    resolveSymbolEdges(db);
+
+    const ref = db.prepare('SELECT callee_id, resolution_method FROM symbol_refs WHERE caller_id = ?').get(callerSym) as any;
+    expect(ref.callee_id).toBeNull();
+    expect(ref.resolution_method).toBe('unresolved');
   });
 
   it('marks external_definition when definition_path not in files', () => {
@@ -309,12 +391,15 @@ describe('resolveSymbolEdges', () => {
     expect(ref.resolution_method).toBe('name_unique');
   });
 
-  it('respects overlayOnly option', () => {
+  it('repairs effective baseline callers as well as overlay rows during an overlay update', () => {
     const fid = insertFile(db, { path: 'src/foo.ts', layer: 'baseline' });
     const fidOverlay = insertFile(db, { path: 'src/bar.ts', layer: 'overlay' });
     const targetSym = insertSymbol(db, { fileId: fidOverlay, name: 'overlayFn' });
     const callerBaseline = insertSymbol(db, { fileId: fid, name: 'baselineCaller' });
     const callerOverlay = insertSymbol(db, { fileId: fidOverlay, name: 'overlayCaller' });
+    db.prepare(
+      "INSERT INTO dirty_files (path, branch, overlay_gen) VALUES ('src/bar.ts', '', 0)",
+    ).run();
 
     // Baseline ref
     insertSymbolRef(db, {
@@ -331,10 +416,76 @@ describe('resolveSymbolEdges', () => {
     const overlayRef = db.prepare('SELECT callee_id FROM symbol_refs WHERE caller_id = ?').get(callerOverlay) as any;
     expect(overlayRef.callee_id).toBe(targetSym);
 
-    // Baseline ref should NOT have been processed (still unresolved)
+    // The unchanged baseline caller is still effective, so its inbound edge
+    // must be repaired against the overlay target too.
     const baselineRef = db.prepare('SELECT callee_id, resolution_method FROM symbol_refs WHERE caller_id = ?').get(callerBaseline) as any;
-    expect(baselineRef.callee_id).toBeNull();
-    expect(baselineRef.resolution_method).toBe('unresolved');
+    expect(baselineRef.callee_id).toBe(targetSym);
+    expect(baselineRef.resolution_method).toBe('name_unique');
+  });
+
+  it('does not mutate unresolved rows in an inactive baseline generation', () => {
+    db.prepare(
+      `INSERT INTO files (id, path, branch, language, source, layer, generation)
+       VALUES (1, 'src/caller.ts', 'main', 'typescript', '', 'baseline', 1),
+              (2, 'src/target.ts', 'main', 'typescript', '', 'baseline', 1),
+              (3, 'src/caller.ts', 'main', 'typescript', '', 'baseline', 2),
+              (4, 'src/target.ts', 'main', 'typescript', '', 'overlay', 0)`,
+    ).run();
+    db.prepare(
+      "INSERT INTO baseline_generations (branch, generation) VALUES ('main', 1)",
+    ).run();
+    db.prepare(
+      `INSERT INTO symbols (id, file_id, name, kind, start_line, end_line, layer, generation)
+       VALUES (1, 1, 'activeCaller', 'function', 0, 0, 'baseline', 1),
+              (2, 2, 'targetFn', 'function', 0, 0, 'baseline', 1),
+              (3, 3, 'inactiveCaller', 'function', 0, 0, 'baseline', 2),
+              (4, 4, 'targetFn', 'function', 0, 0, 'overlay', 0)`,
+    ).run();
+    db.prepare(
+      `INSERT INTO symbol_refs
+         (id, caller_id, file_id, callee_id, callee_name, call_line, resolution_method, layer, generation)
+       VALUES (1, 1, 1, 2, 'targetFn', 0, 'scip_definition', 'baseline', 1),
+              (2, 3, 3, NULL, 'targetFn', 0, 'unresolved', 'baseline', 2)`,
+    ).run();
+    db.prepare(
+      "INSERT INTO dirty_files (path, branch, overlay_gen) VALUES ('src/target.ts', 'main', 0)",
+    ).run();
+
+    resolveSymbolEdges(db, { overlayOnly: true, branch: 'main' });
+
+    expect(db.prepare(
+      'SELECT callee_id, resolution_method FROM symbol_refs WHERE id = 1',
+    ).get()).toEqual({ callee_id: 4, resolution_method: 'name_unique' });
+    expect(db.prepare(
+      'SELECT callee_id, resolution_method FROM symbol_refs WHERE id = 2',
+    ).get()).toEqual({ callee_id: null, resolution_method: 'unresolved' });
+  });
+
+  it('does not name-resolve a deleted dirty target to an unrelated symbol', () => {
+    const callerFile = insertFile(db, { path: 'src/caller.ts', branch: 'main' });
+    const deletedFile = insertFile(db, { path: 'src/deleted.ts', branch: 'main' });
+    const otherFile = insertFile(db, { path: 'src/other.ts', branch: 'main' });
+    const caller = insertSymbol(db, { fileId: callerFile, name: 'caller' });
+    const deletedTarget = insertSymbol(db, { fileId: deletedFile, name: 'sameName' });
+    insertSymbol(db, { fileId: otherFile, name: 'sameName' });
+    insertSymbolRef(db, {
+      callerId: caller,
+      fileId: callerFile,
+      calleeId: deletedTarget,
+      calleeName: 'sameName',
+      resolutionMethod: 'scip_definition',
+      definitionPath: 'src/deleted.ts',
+      definitionLine: 1,
+    });
+    db.prepare(
+      "INSERT INTO dirty_files (path, branch, overlay_gen) VALUES ('src/deleted.ts', 'main', 0)",
+    ).run();
+
+    resolveSymbolEdges(db, { overlayOnly: true, branch: 'main' });
+
+    expect(db.prepare(
+      'SELECT callee_id, resolution_method FROM symbol_refs WHERE caller_id = ?',
+    ).get(caller)).toEqual({ callee_id: null, resolution_method: 'overlay_stale' });
   });
 
   it('resolves bare-name fallback for member-access callee (foo.bar → bar)', () => {

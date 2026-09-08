@@ -10,6 +10,7 @@ export { LspExtractionStage } from './lsp-extraction.js';
 export { ImportResolutionStage } from './import-resolution.js';
 export { LspEnrichmentStage } from './lsp-enrichment.js';
 export { EmbeddingStage } from './embedding.js';
+export { FtsRefreshStage } from './fts-refresh.js';
 export { ReverseDepsStage } from './reverse-deps.js';
 export { OverlayCleanupStage } from './overlay-cleanup.js';
 export type { OverlayCleanupOptions } from './overlay-cleanup.js';

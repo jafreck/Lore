@@ -9,6 +9,7 @@ import { IndexBuilder } from '../indexer/index.js';
 import type { EmbeddingProvider } from '../embeddings/embedder.js';
 import type { EffectiveLspSettings } from '../lsp/config.js';
 import type { EffectiveScipSettings } from '../scip/config.js';
+import type { IndexExecutionOptions } from '../execution-policy.js';
 import type { WalkerConfig } from './walker.js';
 
 export interface ScipFlushConfig {
@@ -19,6 +20,7 @@ export interface ScipFlushConfig {
   indexDependencies: boolean;
   lsp: EffectiveLspSettings | undefined;
   scip: EffectiveScipSettings;
+  execution?: IndexExecutionOptions;
   scipQuietPeriodMs: number;
   /** Label used in log messages (e.g. 'FilePoller' or 'FileWatcher'). */
   source: string;
@@ -89,12 +91,22 @@ export class ScipFlushManager {
       if (this.config.onBaselineRebuild) {
         await this.config.onBaselineRebuild();
       } else {
-        const { dbPath, walkerConfig, embedder, history, indexDependencies, lsp, scip } = this.config;
+        const {
+          dbPath,
+          walkerConfig,
+          embedder,
+          history,
+          indexDependencies,
+          lsp,
+          scip,
+          execution,
+        } = this.config;
         const builder = new IndexBuilder(dbPath, walkerConfig, embedder, {
           history,
           ...(indexDependencies && { indexDependencies: true }),
           ...(lsp && { lsp }),
           scip,
+          execution,
         });
         await builder.baselineRebuild();
       }

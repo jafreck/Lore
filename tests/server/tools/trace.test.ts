@@ -1,12 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { openDb, type Database } from '../../../src/db/schema.js';
+import type { Database } from '../../../src/db/schema.js';
+import { openPromotedTestDb as openDb } from '../../helpers/promotedDb.js';
 import { handler, toolDef, type TraceArgs } from '../../../src/server/tools/trace.js';
 
 function seedTraceData(db: Database.Database) {
   db.prepare(`INSERT INTO files (id, path, branch, language, source) VALUES (1, 'src/main.ts', 'main', 'typescript', 'function entryPoint() { helper(); }\nfunction helper() { deepCall(); }\nfunction deepCall() {}')`).run();
-  db.prepare(`INSERT INTO symbols (id, file_id, name, kind, start_line, end_line) VALUES (1, 1, 'entryPoint', 'function', 1, 1)`).run();
-  db.prepare(`INSERT INTO symbols (id, file_id, name, kind, start_line, end_line) VALUES (2, 1, 'helper', 'function', 2, 2)`).run();
-  db.prepare(`INSERT INTO symbols (id, file_id, name, kind, start_line, end_line) VALUES (3, 1, 'deepCall', 'function', 3, 3)`).run();
+  db.prepare(`INSERT INTO symbols (id, file_id, name, kind, start_line, end_line) VALUES (1, 1, 'entryPoint', 'function', 0, 0)`).run();
+  db.prepare(`INSERT INTO symbols (id, file_id, name, kind, start_line, end_line) VALUES (2, 1, 'helper', 'function', 1, 1)`).run();
+  db.prepare(`INSERT INTO symbols (id, file_id, name, kind, start_line, end_line) VALUES (3, 1, 'deepCall', 'function', 2, 2)`).run();
   db.prepare(`INSERT INTO symbol_refs (caller_id, file_id, callee_id, callee_name, call_line, resolution_method) VALUES (1, 1, 2, 'helper', 0, 'resolved')`).run();
   db.prepare(`INSERT INTO symbol_refs (caller_id, file_id, callee_id, callee_name, call_line, resolution_method) VALUES (2, 1, 3, 'deepCall', 1, 'resolved')`).run();
 }
@@ -38,6 +39,8 @@ describe('lore_trace handler', () => {
     // First step should be the entry symbol
     expect(result.steps[0]!.symbol_id).toBe(1);
     expect(result.steps[0]!.name).toBe('entryPoint');
+    expect(result.steps[0]!.start_line).toBe(1);
+    expect(result.steps[0]!.source).toBe('function entryPoint() { helper(); }');
   });
 
   it('traces to depth 1', () => {
@@ -102,7 +105,7 @@ describe('lore_trace handler', () => {
   it('throws when no path found between disconnected symbols', () => {
     // Add a disconnected symbol with no edges to it
     db.prepare(
-      `INSERT INTO symbols (id, file_id, name, kind, start_line, end_line) VALUES (4, 1, 'isolated', 'function', 4, 4)`,
+      `INSERT INTO symbols (id, file_id, name, kind, start_line, end_line) VALUES (4, 1, 'isolated', 'function', 3, 3)`,
     ).run();
     expect(() => handler(db, { from: 1, to: 4, depth: 5 })).toThrow(/No call path found/);
   });
@@ -135,7 +138,7 @@ describe('lore_trace handler', () => {
     // Create a file with many lines
     const lines = Array.from({ length: 100 }, (_, i) => `line ${i}`).join('\n');
     db.prepare(`UPDATE files SET source = ? WHERE id = 1`).run(lines);
-    db.prepare(`UPDATE symbols SET start_line = 1, end_line = 100 WHERE id = 1`).run();
+    db.prepare(`UPDATE symbols SET start_line = 0, end_line = 99 WHERE id = 1`).run();
     const result = handler(db, { from: 1, depth: 0, max_source_lines: 5 });
     expect(result.steps.length).toBeGreaterThanOrEqual(1);
     const source = result.steps[0]!.source;
@@ -178,7 +181,7 @@ describe('lore_trace handler', () => {
       `INSERT INTO files (id, path, branch, language, source) VALUES (2, 'src/other.ts', 'main', 'typescript', 'function entryPoint() {}')`,
     ).run();
     db.prepare(
-      `INSERT INTO symbols (id, file_id, name, kind, start_line, end_line) VALUES (5, 2, 'entryPoint', 'function', 1, 1)`,
+      `INSERT INTO symbols (id, file_id, name, kind, start_line, end_line) VALUES (5, 2, 'entryPoint', 'function', 0, 0)`,
     ).run();
     expect(() => handler(db, { from_name: 'entryPoint' })).toThrow(/Ambiguous/);
   });

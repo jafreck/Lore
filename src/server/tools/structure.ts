@@ -5,7 +5,7 @@
  *
  * Analyses:
  *   - **cycles**: Directory-level import cycles via Tarjan's SCC.
- *   - **layers**: Topological layering violations via Kahn's algorithm.
+ *   - **layers**: Layering violations via DFS back-edge detection.
  *   - **outliers**: Unusually weak/tenuous cross-directory links by edge-count statistics.
  */
 
@@ -22,7 +22,7 @@ export const toolDef = {
     'Detect structural anomalies in the codebase at the directory level. ' +
     'Aggregates file-level imports into directory-level edges and runs: ' +
     "(A) Tarjan's SCC for import cycle detection, " +
-    "(B) Kahn's topological sort for layering violation detection, " +
+    '(B) DFS back-edge detection for layering violations, ' +
     '(C) outlier detection for unusually weak cross-directory links (low edge counts relative to the mean). ' +
     'Set `analysis` to "cycles", "layers", "outliers", or "all" (default). ' +
     'Use `depth` to control directory aggregation depth (default 2). ' +
@@ -150,9 +150,9 @@ function buildDirGraph(db: Database.Database, depth: number, branch?: string): D
 
   const rows = db.prepare(
     `SELECT f_src.path AS src_path, f_dst.path AS dst_path
-       FROM file_imports fi
-       JOIN files f_src ON f_src.id = fi.file_id
-       JOIN files f_dst ON f_dst.id = fi.resolved_id
+      FROM effective_file_imports fi
+      JOIN effective_files f_src ON f_src.id = fi.file_id
+      JOIN effective_files f_dst ON f_dst.id = fi.resolved_id
       WHERE ${whereClause}
       ORDER BY fi.file_id, fi.resolved_id
       LIMIT ?`,

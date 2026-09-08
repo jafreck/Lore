@@ -4,15 +4,16 @@
  * Handler for the `lore install-scip` subcommand.
  */
 
-import { flags } from '../args.js';
+import { parseCliArgs } from '../args.js';
 import type { LoreLogger } from '../../logger.js';
 
 export async function runInstallScipCommand(args: string[], _log: LoreLogger): Promise<void> {
+  const parsedArgs = parseCliArgs(args, 'install-scip');
   const { installAllMissing, SCIP_INSTALL_SPECS } = await import('../../scip/installer.js');
 
-  const languageFilter = flags(args, '--language');
+  const languageFilter = [...parsedArgs.values('--language')];
 
-  if (args.includes('--list')) {
+  if (parsedArgs.has('--list')) {
     // Just list available indexers and their status
     for (const spec of SCIP_INSTALL_SPECS) {
       console.log(`  ${spec.command.padEnd(20)} ${spec.languages.join(', ').padEnd(25)} ${spec.method}`);

@@ -46,6 +46,9 @@ function insertSymbol(fileId: number, name: string): number {
 beforeEach(() => {
   resetLogger();
   db = openDb(':memory:');
+  db.prepare(
+    "INSERT INTO baseline_generations (branch, generation) VALUES ('main', 1)",
+  ).run();
 });
 
 afterEach(() => {
@@ -102,7 +105,7 @@ describe('ReverseDepsStage', () => {
     expect(deps[0]!.dep_kind).toBe('ref');
   });
 
-  it('clears and rebuilds in build mode', async () => {
+  it('retains prior-generation rows during a hidden build', async () => {
     const fileA = insertFile('src/a.ts');
     const fileB = insertFile('src/b.ts');
 
@@ -113,9 +116,10 @@ describe('ReverseDepsStage', () => {
     const stage = new ReverseDepsStage();
     await stage.execute(makeCtx(), 'build');
 
-    // Stale entry should be gone (no resolved imports exist)
+    // Cleanup is deferred until after the generation pointer is promoted, so
+    // active-generation rows remain available to concurrent readers.
     const deps = db.prepare('SELECT * FROM reverse_deps').all();
-    expect(deps.length).toBe(0);
+    expect(deps.length).toBe(1);
   });
 
   it('update mode refreshes only changed files', async () => {

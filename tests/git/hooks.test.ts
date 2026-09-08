@@ -49,6 +49,7 @@ describe('installGitHooks', () => {
       const content = fs.readFileSync(hookPath, 'utf8');
       expect(content).toContain('lore auto-refresh');
       expect(content).toContain('#!/usr/bin/env sh');
+      expect(content).not.toMatch(/\bnpx\b/u);
 
       // Check executable permission
       const stat = fs.statSync(hookPath);
@@ -66,6 +67,18 @@ describe('installGitHooks', () => {
     expect(content).toContain('--db');
   });
 
+  it('uses the explicitly pinned current executable and CLI artifact', () => {
+    createGitDir();
+    installGitHooks(defaultOptions({
+      loreCommand: ['/opt/node-22/bin/node', '/opt/lore/dist/cli.js'],
+    }));
+
+    const content = fs.readFileSync(path.join(tmpDir, '.git', 'hooks', 'post-commit'), 'utf8');
+    expect(content).toContain("'/opt/node-22/bin/node' '/opt/lore/dist/cli.js' refresh");
+    expect(content).not.toContain('@jafreck/lore');
+    expect(content).not.toMatch(/\bnpx\b/u);
+  });
+
   it('includes --lsp when lspEnabled is true', () => {
     createGitDir();
     installGitHooks(defaultOptions({ lspEnabled: true }));
@@ -74,12 +87,59 @@ describe('installGitHooks', () => {
     expect(content).toContain('--lsp');
   });
 
+  it('includes --no-lsp when lspEnabled is false', () => {
+    createGitDir();
+    installGitHooks(defaultOptions({ lspEnabled: false }));
+
+    const content = fs.readFileSync(path.join(tmpDir, '.git', 'hooks', 'post-commit'), 'utf8');
+    expect(content).toContain('--no-lsp');
+  });
+
   it('includes --no-scip when scipEnabled is false', () => {
     createGitDir();
     installGitHooks(defaultOptions({ scipEnabled: false }));
 
     const content = fs.readFileSync(path.join(tmpDir, '.git', 'hooks', 'post-commit'), 'utf8');
     expect(content).toContain('--no-scip');
+  });
+
+  it('includes --scip when scipEnabled is true', () => {
+    createGitDir();
+    installGitHooks(defaultOptions({ scipEnabled: true }));
+
+    const content = fs.readFileSync(path.join(tmpDir, '.git', 'hooks', 'post-commit'), 'utf8');
+    expect(content).toContain('--scip');
+  });
+
+  it('includes build execution only when explicitly allowed', () => {
+    createGitDir();
+    installGitHooks(defaultOptions({ execution: { allowBuildExecution: true } }));
+    let content = fs.readFileSync(path.join(tmpDir, '.git', 'hooks', 'post-commit'), 'utf8');
+    expect(content).toContain('--allow-build-execution');
+
+    installGitHooks(defaultOptions({ execution: { allowBuildExecution: false } }));
+    content = fs.readFileSync(path.join(tmpDir, '.git', 'hooks', 'post-commit'), 'utf8');
+    expect(content).not.toContain('--allow-build-execution');
+  });
+
+  it('forwards explicit custom-command, auto-install, and cwd trust flags', () => {
+    createGitDir();
+    installGitHooks(defaultOptions({
+      execution: {
+        allowSubprocessExecution: true,
+        allowCustomIndexerCommands: true,
+        allowCustomLspCommands: true,
+        allowAutoInstall: true,
+        allowedCwdRoots: ["/trusted/it's"],
+      },
+    }));
+
+    const content = fs.readFileSync(path.join(tmpDir, '.git', 'hooks', 'post-commit'), 'utf8');
+    expect(content).toContain('--allow-subprocess-execution');
+    expect(content).toContain('--allow-custom-indexer-commands');
+    expect(content).toContain('--allow-custom-lsp-commands');
+    expect(content).toContain('--allow-auto-install');
+    expect(content).toContain("--allow-command-cwd '/trusted/it'\"'\"'s'");
   });
 
   it('preserves existing non-Lore hook content', () => {

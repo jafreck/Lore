@@ -1,6 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { LoreRuntime, type RuntimeConfig } from '../src/runtime.js';
 import { initLogger, LogLevel, resetLogger } from '../src/logger.js';
+import { openDb } from '../src/db/schema.js';
 
 // ── Hoisted mock fns (available inside vi.mock factories) ────────────────────
 const mocks = vi.hoisted(() => ({
@@ -8,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   watcherStop: vi.fn(),
   pollerStart: vi.fn(),
   pollerStop: vi.fn(),
+  indexBuilderRefresh: vi.fn().mockResolvedValue([]),
   indexBuilderUpdate: vi.fn().mockResolvedValue(undefined),
   indexBuilderBaselineRebuild: vi.fn().mockResolvedValue(undefined),
   embedderDispose: vi.fn().mockResolvedValue(undefined),
@@ -30,6 +35,7 @@ vi.mock('../src/discovery/poller.js', () => ({
 
 vi.mock('../src/indexer/index.js', () => ({
   IndexBuilder: vi.fn().mockImplementation(function (this: any) {
+    this.refresh = mocks.indexBuilderRefresh;
     this.update = mocks.indexBuilderUpdate;
     this.baselineRebuild = mocks.indexBuilderBaselineRebuild;
   }),
@@ -107,10 +113,6 @@ describe('LoreRuntime', () => {
       expect(runtime.started).toBe(false);
     });
 
-    it('lspCoordinator is undefined before start', () => {
-      const runtime = new LoreRuntime(makeConfig());
-      expect(runtime.lspCoordinator).toBeUndefined();
-    });
   });
 
   describe('start and shutdown', () => {
@@ -203,6 +205,24 @@ describe('LoreRuntime', () => {
       expect(runtime.started).toBe(true);
       await runtime.shutdown();
     });
+
+    it('loads the persisted embedding model when no model is supplied', async () => {
+      const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'lore-runtime-embedding-'));
+      const dbPath = path.join(directory, 'lore.db');
+      const db = openDb(dbPath);
+      db.prepare("INSERT INTO lore_meta (key, value) VALUES ('embedding_model', 'persisted-model')").run();
+      db.close();
+      try {
+        const { LazyEmbeddingProvider } = await import('../src/embeddings/embedder.js');
+        const runtime = new LoreRuntime(makeConfig({ dbPath }));
+        await runtime.start();
+        expect(LazyEmbeddingProvider).toHaveBeenCalledWith('persisted-model');
+        expect(runtime.embedder).toBeDefined();
+        await runtime.shutdown();
+      } finally {
+        fs.rmSync(directory, { recursive: true, force: true });
+      }
+    });
   });
 
   describe('double shutdown', () => {
@@ -222,7 +242,10 @@ describe('LoreRuntime', () => {
       const runtime = new LoreRuntime(makeConfig({ refreshMode: 'watch' }));
       await runtime.start();
 
+      expect(mocks.indexBuilderRefresh).toHaveBeenCalledOnce();
       expect(mocks.watcherStart).toHaveBeenCalled();
+      expect(mocks.indexBuilderRefresh.mock.invocationCallOrder[0])
+        .toBeLessThan(mocks.watcherStart.mock.invocationCallOrder[0]!);
       expect(runtime.refresher).toBeDefined();
       expect(stderrSpy).toHaveBeenCalledWith(
         expect.stringContaining('watch mode started'),
@@ -246,7 +269,7 @@ describe('LoreRuntime', () => {
 
       const ctorCalls = vi.mocked(FileWatcher).mock.calls;
       const lastCall = ctorCalls[ctorCalls.length - 1];
-      expect(lastCall[2].onBaselineRebuild).toBeTypeOf('function');
+      expect(lastCall?.[2]?.onBaselineRebuild).toBeTypeOf('function');
 
       await runtime.shutdown();
       stderrSpy.mockRestore();
@@ -259,7 +282,10 @@ describe('LoreRuntime', () => {
       const runtime = new LoreRuntime(makeConfig({ refreshMode: 'poll' }));
       await runtime.start();
 
+      expect(mocks.indexBuilderRefresh).toHaveBeenCalledOnce();
       expect(mocks.pollerStart).toHaveBeenCalled();
+      expect(mocks.indexBuilderRefresh.mock.invocationCallOrder[0])
+        .toBeLessThan(mocks.pollerStart.mock.invocationCallOrder[0]!);
       expect(runtime.refresher).toBeDefined();
       expect(stderrSpy).toHaveBeenCalledWith(
         expect.stringContaining('poll mode started'),
@@ -283,10 +309,21 @@ describe('LoreRuntime', () => {
 
       const ctorCalls = vi.mocked(FilePoller).mock.calls;
       const lastCall = ctorCalls[ctorCalls.length - 1];
-      expect(lastCall[2].onBaselineRebuild).toBeTypeOf('function');
+      expect(lastCall?.[2]?.onBaselineRebuild).toBeTypeOf('function');
 
       await runtime.shutdown();
       stderrSpy.mockRestore();
+    });
+
+    it('rejects watch startup clearly when the initial baseline refresh fails', async () => {
+      mocks.indexBuilderRefresh.mockRejectedValueOnce(new Error('index unavailable'));
+      const runtime = new LoreRuntime(makeConfig({ refreshMode: 'watch' }));
+
+      await expect(runtime.start()).rejects.toThrow(
+        'Cannot start watch refresh without a valid baseline: index unavailable',
+      );
+      expect(mocks.watcherStart).not.toHaveBeenCalled();
+      expect(runtime.started).toBe(false);
     });
   });
 
@@ -336,13 +373,13 @@ describe('LoreRuntime', () => {
 
       runtime.installSignalHandlers();
 
-      const sigintHandler = registeredHandlers['SIGINT'];
+      const sigintHandler = registeredHandlers['SIGINT'] as (() => void) | undefined;
       expect(sigintHandler).toBeDefined();
 
       // First signal — starts async shutdown
-      sigintHandler();
+      sigintHandler!();
       // Second signal — force exit
-      sigintHandler();
+      sigintHandler!();
 
       expect(mocks.killAllTracked).toHaveBeenCalled();
       expect(exitSpy).toHaveBeenCalledWith(1);

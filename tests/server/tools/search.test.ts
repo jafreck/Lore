@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { openDb, type Database } from '../../../src/db/schema.js';
+import type { Database } from '../../../src/db/schema.js';
+import { openPromotedTestDb as openDb } from '../../helpers/promotedDb.js';
 import { handler, toolDef, clearQueryEmbeddingCache, type SearchObservation } from '../../../src/server/tools/search.js';
 import type { EmbeddingProvider } from '../../../src/embeddings/embedder.js';
 
@@ -170,6 +171,38 @@ describe('lore_search handler', () => {
     expect(result.results.length).toBeGreaterThanOrEqual(1);
   });
 
+  it('filters FTS rows through the effective overlay view', async () => {
+    db.prepare(
+      `INSERT INTO files (id, path, branch, language, source, layer, generation)
+       VALUES (20, 'src/shadowed.ts', 'main', 'typescript', 'baseline', 'baseline', 0)`,
+    ).run();
+    db.prepare(
+      `INSERT INTO files (id, path, branch, language, source, layer, generation)
+       VALUES (21, 'src/shadowed.ts', 'main', 'typescript', 'overlay', 'overlay', 0)`,
+    ).run();
+    db.prepare(
+      `INSERT INTO symbols (id, file_id, name, kind, start_line, end_line, layer, generation)
+       VALUES (20, 20, 'baselineOnlyName', 'function', 0, 0, 'baseline', 0)`,
+    ).run();
+    db.prepare(
+      `INSERT INTO symbols (id, file_id, name, kind, start_line, end_line, layer, generation)
+       VALUES (21, 21, 'overlayOnlyName', 'function', 0, 0, 'overlay', 0)`,
+    ).run();
+    db.prepare(
+      "INSERT INTO dirty_files (path, branch, overlay_gen) VALUES ('src/shadowed.ts', 'main', 0)",
+    ).run();
+    db.prepare(
+      "INSERT INTO symbols_fts (rowid, name, signature, kind) VALUES (20, 'baselineOnlyName', '', 'function')",
+    ).run();
+    db.prepare(
+      "INSERT INTO symbols_fts (rowid, name, signature, kind) VALUES (21, 'overlayOnlyName', '', 'function')",
+    ).run();
+
+    await expect(handler(db, { query: 'baselineOnlyName' })).resolves.toMatchObject({ results: [] });
+    const visible = await handler(db, { query: 'overlayOnlyName' });
+    expect(visible.results.map((result) => result.name)).toEqual(['overlayOnlyName']);
+  });
+
   it('branch filter with non-matching returns empty', async () => {
     const result = await handler(db, { query: 'helpers', branch: 'nonexistent' });
     expect(result.results).toHaveLength(0);
@@ -247,6 +280,29 @@ describe('lore_search handler', () => {
     expect(r.file_path).toBe('src/utils.ts');
     expect(typeof r.start_line).toBe('number');
     expect(typeof r.end_line).toBe('number');
+  });
+
+  it('returns one-based range and selection characters', async () => {
+    db.prepare(
+      `UPDATE symbols
+          SET start_line = 0,
+              start_character = 3,
+              end_line = 2,
+              end_character = 9,
+              selection_line = 1,
+              selection_character = 5
+        WHERE id = 1`,
+    ).run();
+
+    const result = await handler(db, { query: 'helpers' });
+    expect(result.results[0]).toMatchObject({
+      start_line: 1,
+      start_character: 4,
+      end_line: 3,
+      end_character: 10,
+      selection_line: 2,
+      selection_character: 6,
+    });
   });
 
   it('returns symbol_id in results', async () => {

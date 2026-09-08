@@ -6,6 +6,11 @@
 
 import type Database from 'better-sqlite3';
 import { escapeLikeWildcards, filesTable, symbolsTable } from './helpers.js';
+import {
+  nullableStorageCharacterToPresentation,
+  nullableStorageLineToPresentation,
+  storageLineToPresentation,
+} from '../../source-coordinates.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -14,8 +19,18 @@ export interface SymbolRow {
   file_id: number;
   name: string;
   kind: string;
+  /** 1-based inclusive source line. */
   start_line: number;
+  /** 1-based UTF-16 source character, or null when unavailable. */
+  start_character: number | null;
+  /** 1-based inclusive source line. */
   end_line: number;
+  /** 1-based UTF-16 half-open range endpoint, or null when unavailable. */
+  end_character: number | null;
+  /** 1-based symbol-name selection line, or null when unavailable. */
+  selection_line: number | null;
+  /** 1-based UTF-16 symbol-name selection character, or null when unavailable. */
+  selection_character: number | null;
   signature: string | null;
   doc_comment: string | null;
   resolved_type_signature?: string | null;
@@ -42,7 +57,11 @@ export interface SymbolRangeMatch {
   file_path: string;
   branch: string;
   start_line: number;
+  start_character: number | null;
   end_line: number;
+  end_character: number | null;
+  selection_line: number | null;
+  selection_character: number | null;
 }
 
 export type SymbolRangeResolution =
@@ -142,15 +161,28 @@ const EXTERNAL_SYMBOL_COLUMNS = `id, dependency_ecosystem, source_type, source_r
   package_name, package_version, symbol_name, symbol_kind, signature, doc_comment,
   resolved_type_signature, resolved_return_type, definition_uri, definition_path`;
 
+export function presentSymbolRow<T extends SymbolRow>(row: T): T {
+  return {
+    ...row,
+    start_line: storageLineToPresentation(row.start_line),
+    start_character: nullableStorageCharacterToPresentation(row.start_character),
+    end_line: storageLineToPresentation(row.end_line),
+    end_character: nullableStorageCharacterToPresentation(row.end_character),
+    selection_line: nullableStorageLineToPresentation(row.selection_line),
+    selection_character: nullableStorageCharacterToPresentation(row.selection_character),
+  };
+}
+
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 /** Fetch a single symbol by primary key.  Returns `undefined` if not found. */
 export function getSymbolById(db: Database.Database, id: number): SymbolRow | undefined {
-  return db
+  const row = db
     .prepare(
-      `SELECT s.*, sp.name AS parent_name, f.path AS file_path, f.branch AS file_branch FROM ${symbolsTable(db)} s JOIN ${filesTable(db)} f ON f.id = s.file_id LEFT JOIN symbols sp ON sp.id = s.parent_symbol_id WHERE s.id = ?`
+      `SELECT s.*, sp.name AS parent_name, f.path AS file_path, f.branch AS file_branch FROM ${symbolsTable(db)} s JOIN ${filesTable(db)} f ON f.id = s.file_id LEFT JOIN ${symbolsTable(db)} sp ON sp.id = s.parent_symbol_id WHERE s.id = ?`
     )
     .get(id) as SymbolRow | undefined;
+  return row ? presentSymbolRow(row) : undefined;
 }
 
 /** List symbol range candidates with optional path/branch filters for disambiguation. */
@@ -171,7 +203,7 @@ export function listSymbolRangesByName(
     params.push(options.branch);
   }
 
-  return db
+  const rows = db
     .prepare(
       `SELECT s.id AS symbol_id,
               s.name AS symbol_name,
@@ -180,13 +212,26 @@ export function listSymbolRangesByName(
               f.path AS file_path,
               f.branch,
               s.start_line,
-              s.end_line
+              s.start_character,
+              s.end_line,
+              s.end_character,
+              s.selection_line,
+              s.selection_character
          FROM ${symbolsTable(db)} s
          JOIN ${filesTable(db)} f ON f.id = s.file_id
         WHERE ${where.join(' AND ')}
         ORDER BY f.path ASC, f.branch ASC, s.start_line ASC, s.end_line ASC, s.id ASC`,
     )
     .all(...params) as SymbolRangeMatch[];
+  return rows.map((row) => ({
+    ...row,
+    start_line: storageLineToPresentation(row.start_line),
+    start_character: nullableStorageCharacterToPresentation(row.start_character),
+    end_line: storageLineToPresentation(row.end_line),
+    end_character: nullableStorageCharacterToPresentation(row.end_character),
+    selection_line: nullableStorageLineToPresentation(row.selection_line),
+    selection_character: nullableStorageCharacterToPresentation(row.selection_character),
+  }));
 }
 
 /**
@@ -238,15 +283,16 @@ export function getSymbolsByName(
   const params: Array<string | number> = [value];
   applySymbolFilters(where, params, options);
 
-  return db
+  const rows = db
     .prepare(
       `SELECT s.*, sp.name AS parent_name, f.path AS file_path, f.branch AS file_branch
        FROM ${symbolsTable(db)} s
        JOIN ${filesTable(db)} f ON s.file_id = f.id
-       LEFT JOIN symbols sp ON sp.id = s.parent_symbol_id
+      LEFT JOIN ${symbolsTable(db)} sp ON sp.id = s.parent_symbol_id
        WHERE ${where.join(' AND ')}`,
     )
     .all(...params) as SymbolRow[];
+  return rows.map(presentSymbolRow);
 }
 
 /** Return symbols with optional filters and pagination controls. */
@@ -267,17 +313,18 @@ export function listSymbols(
   const offset = options.offset ?? 0;
   params.push(limit, offset);
 
-  return db
+  const rows = db
     .prepare(
       `SELECT s.*, sp.name AS parent_name, f.path AS file_path, f.branch AS file_branch
        FROM ${symbolsTable(db)} s
        JOIN ${filesTable(db)} f ON s.file_id = f.id
-       LEFT JOIN symbols sp ON sp.id = s.parent_symbol_id
+      LEFT JOIN ${symbolsTable(db)} sp ON sp.id = s.parent_symbol_id
        ${where.length > 0 ? `WHERE ${where.join(' AND ')}` : ''}
        ORDER BY f.path ASC, f.branch ASC, s.name COLLATE NOCASE ASC, s.kind ASC, s.start_line ASC, s.end_line ASC, s.id ASC
        LIMIT ? OFFSET ?`,
     )
     .all(...params) as SymbolRow[];
+  return rows.map(presentSymbolRow);
 }
 
 /** Fetch external symbols whose exported name exactly matches (case-insensitive). */

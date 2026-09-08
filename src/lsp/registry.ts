@@ -14,6 +14,8 @@ export const SUPPORTED_LANGUAGES: readonly string[] = [
 export interface LspServerCommand {
   command: string;
   args: string[];
+  /** Working directory relative to the project root unless absolute. */
+  cwd?: string;
 }
 
 export interface ResolvedLspServerCommand extends LspServerCommand {
@@ -70,6 +72,7 @@ export function mergeLspServerRegistry(overrides: LspServerRegistryOverrides = {
     merged[language] = {
       command: override.command ?? base.command,
       args: override.args ?? base.args,
+      ...(override.cwd !== undefined ? { cwd: override.cwd } : base.cwd ? { cwd: base.cwd } : {}),
     };
   }
 
@@ -114,6 +117,7 @@ export function resolveLspServerRegistry(
       language,
       command: config.command,
       args: [...config.args],
+      ...(config.cwd !== undefined && { cwd: config.cwd }),
       available: resolvedPath !== null,
       resolvedPath,
     };
@@ -142,6 +146,7 @@ function cloneRegistry(registry: LspServerRegistry): LspServerRegistry {
     cloned[language] = {
       command: command.command,
       args: [...command.args],
+      ...(command.cwd !== undefined && { cwd: command.cwd }),
     };
   }
   return cloned;

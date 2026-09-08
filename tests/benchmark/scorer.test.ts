@@ -32,6 +32,7 @@ function makeTrace(overrides?: Partial<AgentTrace>): AgentTrace {
     filesRead: [],
     finalAnswer: '',
     totalTokensEstimate: 0,
+    loreToolsCalled: [],
     ...overrides,
   };
 }

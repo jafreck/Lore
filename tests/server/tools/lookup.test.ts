@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { openDb, type Database } from '../../../src/db/schema.js';
+import type { Database } from '../../../src/db/schema.js';
+import { openPromotedTestDb as openDb } from '../../helpers/promotedDb.js';
 import { handler, toolDef, clearQueryEmbeddingCache, type LookupArgs } from '../../../src/server/tools/lookup.js';
 import type { EmbeddingProvider } from '../../../src/embeddings/embedder.js';
 

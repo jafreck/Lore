@@ -76,11 +76,11 @@ export function handler(db: Database.Database, args: CohesionArgs): CohesionResu
     .prepare(
       `SELECT f_caller.path AS caller_path,
               f_callee.path AS callee_path
-         FROM symbol_refs sr
-         JOIN symbols s_caller ON s_caller.id = sr.caller_id
-         JOIN files f_caller   ON f_caller.id = s_caller.file_id
-         JOIN symbols s_callee ON s_callee.id = sr.callee_id
-         JOIN files f_callee   ON f_callee.id = s_callee.file_id
+         FROM effective_symbol_refs sr
+         JOIN effective_symbols s_caller ON s_caller.id = sr.caller_id
+         JOIN effective_files f_caller   ON f_caller.id = s_caller.file_id
+         JOIN effective_symbols s_callee ON s_callee.id = sr.callee_id
+         JOIN effective_files f_callee   ON f_callee.id = s_callee.file_id
         WHERE sr.callee_id IS NOT NULL
         LIMIT ?`,
     )

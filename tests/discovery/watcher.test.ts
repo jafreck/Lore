@@ -4,6 +4,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { FileWatcher } from '../../src/discovery/watcher.js';
 import type { WalkerConfig } from '../../src/discovery/walker.js';
+import { effectiveScipSettings } from '../helpers/effective-settings.js';
 
 // vi.spyOn(fs, 'watch') fails in ESM — test constructor/options handling
 // and lifecycle via the onUpdate callback seam instead.
@@ -73,7 +74,7 @@ describe('FileWatcher', () => {
     it('accepts onBaselineRebuild callback', () => {
       const onBaselineRebuild = vi.fn().mockResolvedValue(undefined);
       const watcher = new FileWatcher(DB_PATH, walkerConfig, {
-        scip: { enabled: true, timeoutMs: 120_000, indexers: {}, indexDir: null },
+        scip: effectiveScipSettings(),
         scipQuietPeriodMs: 5000,
         onBaselineRebuild,
       });
@@ -83,7 +84,7 @@ describe('FileWatcher', () => {
 
     it('creates ScipFlushManager when scip options provided', () => {
       const watcher = new FileWatcher(DB_PATH, walkerConfig, {
-        scip: { enabled: true, timeoutMs: 120_000, indexers: {}, indexDir: null },
+        scip: effectiveScipSettings(),
         scipQuietPeriodMs: 5000,
       });
       expect(watcher).toBeDefined();
@@ -98,7 +99,7 @@ describe('FileWatcher', () => {
 
     it('no ScipFlushManager when scipQuietPeriodMs is 0', () => {
       const watcher = new FileWatcher(DB_PATH, walkerConfig, {
-        scip: { enabled: true, timeoutMs: 120_000, indexers: {}, indexDir: null },
+        scip: effectiveScipSettings(),
         scipQuietPeriodMs: 0,
       });
       expect(watcher).toBeDefined();
@@ -151,7 +152,7 @@ describe('FileWatcher', () => {
   describe('scipQuietPeriodMs configuration', () => {
     it('accepts custom scipQuietPeriodMs', () => {
       const watcher = new FileWatcher(DB_PATH, walkerConfig, {
-        scip: { enabled: true, timeoutMs: 120_000, indexers: {}, indexDir: null },
+        scip: effectiveScipSettings(),
         scipQuietPeriodMs: 30_000,
       });
       expect(watcher).toBeDefined();
@@ -160,7 +161,7 @@ describe('FileWatcher', () => {
 
     it('default scipQuietPeriodMs does not crash', () => {
       const watcher = new FileWatcher(DB_PATH, walkerConfig, {
-        scip: { enabled: true, timeoutMs: 120_000, indexers: {}, indexDir: null },
+        scip: effectiveScipSettings(),
       });
       expect(watcher).toBeDefined();
       watcher.stop();
@@ -311,7 +312,7 @@ describe('FileWatcher', () => {
     it('accumulates paths to scipFlush after update', async () => {
       const watcher = new FileWatcher(DB_PATH, walkerConfig, {
         onUpdate: async () => {},
-        scip: { enabled: true, timeoutMs: 30_000, indexers: {}, indexDir: null },
+        scip: effectiveScipSettings({ timeoutMs: 30_000 }),
         scipQuietPeriodMs: 5000,
       });
       const scipFlush = (watcher as any).scipFlush;
@@ -327,7 +328,7 @@ describe('FileWatcher', () => {
 
     it('does not create scipFlush when scipQuietPeriodMs is 0', () => {
       const watcher = new FileWatcher(DB_PATH, walkerConfig, {
-        scip: { enabled: true, timeoutMs: 30_000, indexers: {}, indexDir: null },
+        scip: effectiveScipSettings({ timeoutMs: 30_000 }),
         scipQuietPeriodMs: 0,
       });
       expect((watcher as any).scipFlush).toBeNull();

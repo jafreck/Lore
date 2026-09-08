@@ -32,8 +32,8 @@ describe('getDefaultLspServerRegistry', () => {
   it('returns a clone, not the original', () => {
     const clone = getDefaultLspServerRegistry();
     expect(clone).toEqual(DEFAULT_LSP_SERVER_REGISTRY);
-    clone.typescript.command = 'mutated';
-    expect(DEFAULT_LSP_SERVER_REGISTRY.typescript.command).not.toBe('mutated');
+    clone.typescript!.command = 'mutated';
+    expect(DEFAULT_LSP_SERVER_REGISTRY.typescript?.command).not.toBe('mutated');
   });
 });
 
@@ -47,17 +47,26 @@ describe('mergeLspServerRegistry', () => {
     const merged = mergeLspServerRegistry({
       typescript: { command: 'my-custom-ts' },
     });
-    expect(merged.typescript.command).toBe('my-custom-ts');
+    expect(merged.typescript?.command).toBe('my-custom-ts');
     // args should remain from default
-    expect(merged.typescript.args).toEqual(DEFAULT_LSP_SERVER_REGISTRY.typescript.args);
+    expect(merged.typescript?.args).toEqual(DEFAULT_LSP_SERVER_REGISTRY.typescript?.args);
   });
 
   it('overrides args for a language', () => {
     const merged = mergeLspServerRegistry({
       python: { args: ['--custom-flag'] },
     });
-    expect(merged.python.args).toEqual(['--custom-flag']);
-    expect(merged.python.command).toBe(DEFAULT_LSP_SERVER_REGISTRY.python.command);
+    expect(merged.python?.args).toEqual(['--custom-flag']);
+    expect(merged.python?.command).toBe(DEFAULT_LSP_SERVER_REGISTRY.python?.command);
+  });
+
+  it('overrides and clones cwd for a language', () => {
+    const merged = mergeLspServerRegistry({
+      typescript: { cwd: 'tools/lsp' },
+    });
+    expect(merged.typescript?.cwd).toBe('tools/lsp');
+    const clone = getDefaultLspServerRegistry();
+    expect(clone.typescript?.cwd).toBeUndefined();
   });
 
   it('throws for unsupported language', () => {

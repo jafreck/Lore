@@ -5,6 +5,7 @@ import * as os from 'node:os';
 import {
   walkFiles,
   detectLanguageForPath,
+  buildCFamilyLanguageEvidence,
   shouldIndexFile,
   isExcludedPath,
   EXT_TO_LANG,
@@ -41,6 +42,7 @@ describe('EXT_TO_LANG', () => {
     expect(EXT_TO_LANG['.rs']).toBe('rust');
     expect(EXT_TO_LANG['.go']).toBe('go');
     expect(EXT_TO_LANG['.c']).toBe('c');
+    expect(EXT_TO_LANG['.C']).toBe('cpp');
     expect(EXT_TO_LANG['.cpp']).toBe('cpp');
     expect(EXT_TO_LANG['.rb']).toBe('ruby');
     expect(EXT_TO_LANG['.js']).toBe('javascript');
@@ -105,6 +107,101 @@ describe('detectLanguageForPath', () => {
   it('is case-insensitive on extension', () => {
     expect(detectLanguageForPath('FILE.TS')).toBe('typescript');
     expect(detectLanguageForPath('Main.PY')).toBe('python');
+  });
+
+  it('preserves the case-sensitive .C convention for C++', () => {
+    expect(detectLanguageForPath('legacy.C')).toBe('cpp');
+    expect(detectLanguageForPath('legacy.c')).toBe('c');
+  });
+
+  it('uses project evidence for ambiguous .h files', () => {
+    const cppEvidence = buildCFamilyLanguageEvidence(['src/main.cpp']);
+    const cEvidence = buildCFamilyLanguageEvidence(['src/main.c']);
+    expect(detectLanguageForPath('include/api.h', undefined, { cFamilyEvidence: cppEvidence }))
+      .toBe('cpp');
+    expect(detectLanguageForPath('include/api.h', undefined, { cFamilyEvidence: cEvidence }))
+      .toBe('c');
+  });
+
+  it('uses compilation-unit includes and represents mixed or ambiguous headers explicitly', () => {
+    const cSource = path.join(tmpDir, 'components/c/src/main.c');
+    const cHeader = path.join(tmpDir, 'components/c/include/api.h');
+    const cppSource = path.join(tmpDir, 'components/cpp/src/main.cpp');
+    const cppHeader = path.join(tmpDir, 'components/cpp/include/api.h');
+    const sharedHeader = path.join(tmpDir, 'shared/include/shared.h');
+    const ambiguousHeader = path.join(tmpDir, 'components/mixed/include/unused.h');
+    const mixedCSource = path.join(tmpDir, 'components/mixed/src/a.c');
+    const mixedCppSource = path.join(tmpDir, 'components/mixed/src/b.cpp');
+
+    const sources = new Map<string, string>([
+      [cSource, '#include "api.h"\n#include "shared.h"\n'],
+      [cHeader, 'int c_api(void);\n'],
+      [cppSource, '#include "api.h"\n#include "shared.h"\n'],
+      [cppHeader, 'class CppApi {};\n'],
+      [sharedHeader, 'void shared(void);\n'],
+      [ambiguousHeader, 'void unused(void);\n'],
+      [mixedCSource, 'int c_only(void);\n'],
+      [mixedCppSource, 'int cpp_only();\n'],
+    ]);
+    const entries = [
+      {
+        filePath: cSource,
+        workingDirectory: tmpDir,
+        arguments: ['clang', '-c', cSource],
+        includePaths: [path.dirname(cHeader), path.dirname(sharedHeader)],
+        language: 'c' as const,
+        responseFiles: { status: 'complete' as const, filesRead: 0, bytesRead: 0, expandedTokens: 0, expandedBytes: 0, diagnostics: [] },
+      },
+      {
+        filePath: cppSource,
+        workingDirectory: tmpDir,
+        arguments: ['clang++', '-c', cppSource],
+        includePaths: [path.dirname(cppHeader), path.dirname(sharedHeader)],
+        language: 'cpp' as const,
+        responseFiles: { status: 'complete' as const, filesRead: 0, bytesRead: 0, expandedTokens: 0, expandedBytes: 0, diagnostics: [] },
+      },
+      {
+        filePath: mixedCSource,
+        workingDirectory: tmpDir,
+        arguments: ['clang', '-c', mixedCSource],
+        includePaths: [],
+        language: 'c' as const,
+        responseFiles: { status: 'complete' as const, filesRead: 0, bytesRead: 0, expandedTokens: 0, expandedBytes: 0, diagnostics: [] },
+      },
+      {
+        filePath: mixedCppSource,
+        workingDirectory: tmpDir,
+        arguments: ['clang++', '-c', mixedCppSource],
+        includePaths: [],
+        language: 'cpp' as const,
+        responseFiles: { status: 'complete' as const, filesRead: 0, bytesRead: 0, expandedTokens: 0, expandedBytes: 0, diagnostics: [] },
+      },
+    ];
+    const evidence = buildCFamilyLanguageEvidence(sources.keys(), {
+      rootDir: tmpDir,
+      compilationDatabase: { entries },
+      sourceCache: sources,
+    });
+
+    expect(evidence.classifyHeaderLanguage(cHeader)).toBe('c');
+    expect(evidence.classifyHeaderLanguage(cppHeader)).toBe('cpp');
+    expect(evidence.classifyHeaderLanguage(sharedHeader)).toBe('mixed');
+    expect(evidence.classifyHeaderLanguage(ambiguousHeader)).toBe('ambiguous');
+    expect(evidence.inferHeaderLanguage(sharedHeader, 'c')).toBe('c');
+    expect(evidence.inferHeaderLanguage(sharedHeader, 'cpp')).toBe('cpp');
+    expect(evidence.inferHeaderLanguage(sharedHeader)).toBeUndefined();
+  });
+
+  it('does not classify an unreferenced header by a repository-wide 2:1 ratio', () => {
+    const files = [
+      ...Array.from({ length: 10 }, (_, index) => `src/c-${index}.c`),
+      'src/only.cpp',
+      'include/unknown.h',
+    ];
+    const evidence = buildCFamilyLanguageEvidence(files, { rootDir: tmpDir });
+
+    expect(evidence.classifyHeaderLanguage('include/unknown.h')).toBe('ambiguous');
+    expect(evidence.inferHeaderLanguage('include/unknown.h', 'cpp')).toBe('cpp');
   });
 });
 
@@ -186,6 +283,52 @@ describe('walkFiles', () => {
     const files = await walkFiles({ rootDir: tmpDir });
     expect(files.length).toBe(1);
     expect(path.isAbsolute(files[0]!.path)).toBe(true);
+  });
+
+  it('classifies plain headers from nearby C++ and C projects independently', async () => {
+    mkFile('packages/native/src/main.c');
+    mkFile('packages/native/include/api.h');
+    mkFile('packages/ui/src/widget.cpp');
+    mkFile('packages/ui/include/widget.h');
+
+    const files = await walkFiles({ rootDir: tmpDir });
+    expect(files.find(file => file.path.endsWith('/packages/native/include/api.h'))?.language).toBe('c');
+    expect(files.find(file => file.path.endsWith('/packages/ui/include/widget.h'))?.language).toBe('cpp');
+  });
+
+  it('classifies headers from their compilation-database translation units', async () => {
+    mkFile('native/src/main.c', '#include "native.h"');
+    mkFile('native/include/native.h');
+    mkFile('ui/src/main.cpp', '#include "ui.h"');
+    mkFile('ui/include/ui.h');
+    const nativeSource = path.join(tmpDir, 'native/src/main.c');
+    const uiSource = path.join(tmpDir, 'ui/src/main.cpp');
+
+    const files = await walkFiles({ rootDir: tmpDir }, {
+      compilationDatabase: {
+        entries: [
+          {
+            filePath: nativeSource,
+            workingDirectory: tmpDir,
+            arguments: ['clang', '-c', nativeSource],
+            includePaths: [path.join(tmpDir, 'native/include')],
+            language: 'c',
+            responseFiles: { status: 'complete', filesRead: 0, bytesRead: 0, expandedTokens: 0, expandedBytes: 0, diagnostics: [] },
+          },
+          {
+            filePath: uiSource,
+            workingDirectory: tmpDir,
+            arguments: ['clang++', '-c', uiSource],
+            includePaths: [path.join(tmpDir, 'ui/include')],
+            language: 'cpp',
+            responseFiles: { status: 'complete', filesRead: 0, bytesRead: 0, expandedTokens: 0, expandedBytes: 0, diagnostics: [] },
+          },
+        ],
+      },
+    });
+
+    expect(files.find(file => file.path.endsWith('/native/include/native.h'))?.language).toBe('c');
+    expect(files.find(file => file.path.endsWith('/ui/include/ui.h'))?.language).toBe('cpp');
   });
 
   it('skips files in node_modules', async () => {

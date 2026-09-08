@@ -5,8 +5,9 @@
  *
  * Each entry describes how to invoke the SCIP indexer for a given language,
  * including the command, arguments, and the output file name.  Not every
- * language Lore supports has a SCIP indexer — those without one fall back
- * to LSP enrichment (and ultimately to tree-sitter-only resolution).
+ * language Lore recognizes has a SCIP indexer. Files without SCIP coverage
+ * are still discovered, and LSP handles structural extraction during overlay
+ * updates when a language server is available.
  */
 
 import { accessSync, constants, existsSync } from 'node:fs';
@@ -61,13 +62,13 @@ export const DEFAULT_SCIP_INDEXER_REGISTRY: ScipIndexerRegistry = {
   java:       { command: 'scip-java',       args: ['index', '--output', '{output}'] },
   scala:      { command: 'scip-java',       args: ['index', '--output', '{output}'] },
   kotlin:     { command: 'scip-java',       args: ['index', '--output', '{output}'] },
-  rust:       { command: 'rust-analyzer',   args: ['scip', '.'] },
+  rust:       { command: 'rust-analyzer',   args: ['scip', '.', '--output', '{output}'] },
   c:          { command: 'scip-clang',      args: ['--compdb-path={compdb}', '--index-output-path={output}'] },
   cpp:        { command: 'scip-clang',      args: ['--compdb-path={compdb}', '--index-output-path={output}'] },
   csharp:     { command: 'scip-dotnet',     args: ['index', '.', '--output', '{output}'] },
   ruby:       { command: 'scip-ruby',       args: ['--output', '{output}'] },
   php:        { command: 'scip-php',        args: ['index', '--output', '{output}'] },
-  go:         { command: 'scip-go',         args: [] },
+  go:         { command: 'scip-go',         args: ['--output', '{output}'] },
   dart:       { command: 'scip-dart',       args: ['index', '--output', '{output}'] },
 };
 

@@ -6,7 +6,6 @@
 
 import type Database from 'better-sqlite3';
 import { createRequire } from 'node:module';
-import { setLoreMeta } from './meta.js';
 
 const esmRequire = createRequire(import.meta.url);
 
@@ -14,8 +13,6 @@ const esmRequire = createRequire(import.meta.url);
  * Loads the sqlite-vec extension and creates the `symbol_embeddings`,
  * `symbol_semantic_embeddings`, and `commit_embeddings` vec0 virtual tables
  * with the given dimension.
- * Also stores `embedding_dims` in `lore_meta` for validation on reopen.
- *
  * This function is idempotent: it is safe to call multiple times with the
  * same `dims` value.
  *
@@ -43,6 +40,4 @@ export function createVec0Tables(db: Database.Database, dims: number): void {
       embedding FLOAT[${dims}]
     );
   `);
-
-  setLoreMeta(db, 'embedding_dims', String(dims));
 }

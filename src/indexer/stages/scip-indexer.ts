@@ -24,15 +24,16 @@
  * 3. **Virtual dispatch**: Override edges materialised from SCIP
  *    `isImplementation` relationships.
  *
- * SCIP refs are inserted **pre-resolved** with `resolution_method =
- * 'scip_definition'`.  The downstream resolution stage only processes
- * refs from non-SCIP languages.
+ * Resolved SCIP refs are inserted with `resolution_method =
+ * 'scip_definition'`. The downstream enrichment/resolution stages can still
+ * process references that SCIP ingestion leaves unresolved.
  *
  * ## Data written
  *
- * `files`, `symbols`, `symbols_fts`, `symbol_refs`, `type_refs`,
+ * `files`, `symbols`, `symbol_refs`, `type_refs`,
  * `symbol_relationships`, `file_imports`.  Enrichment columns (type
- * signatures, definition locations) are populated inline.
+ * signatures, definition locations) are populated inline. FTS is synchronized
+ * by the later `FtsRefreshStage`.
  *
  * ## Pipeline ordering
  *
@@ -45,20 +46,33 @@
 
 import * as fs from 'node:fs';
 import * as crypto from 'node:crypto';
-import { resolve } from 'node:path';
+import { basename, isAbsolute, relative, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { fromBinary } from '@bufbuild/protobuf';
 import {
   IndexSchema,
+  PositionEncoding,
   SymbolRole,
+  type Index as ScipIndex,
   type Document as ScipDocument,
   type SymbolInformation as ScipSymbolInformation,
 } from '../../scip/scip_pb.js';
-import type { PipelineContext, PipelineStage } from '../pipeline.js';
+import {
+  deletePipelineLoreMeta,
+  setPipelineLoreMeta,
+  throwIfPipelineCancelled,
+  type PipelineContext,
+  type PipelineStage,
+} from '../pipeline.js';
 import { normalizeTypeName } from '../../resolution/call-graph.js';
 import { SCIP_SUPPORTED_LANGUAGES } from '../../scip/registry.js';
 import { extractReturnType } from '../../scip/index-reader.js';
-import { EXT_TO_LANG } from '../../discovery/walker.js';
+import {
+  buildCFamilyLanguageEvidence,
+  detectLanguageForPath,
+  type CFamilyLanguageEvidence,
+  walkFiles,
+} from '../../discovery/walker.js';
 
 // ─── Re-exports from helper modules ──────────────────────────────────────────
 
@@ -76,15 +90,213 @@ import {
 import {
   createLoreScipTsconfig,
   loadScipIndexes,
+  type ScipIndexLoadDiagnostics,
 } from './scip-helpers/process.js';
 
 import {
   inferLoreLanguage,
   materializeVirtualDispatch,
 } from './scip-helpers/ingest.js';
+import { CSourceSpanResolver } from './scip-helpers/source-spans.js';
+import { normalizeScipDocumentPositions } from '../../scip/source-position.js';
+import {
+  mergeScipDocuments,
+  mergeScipDocumentsDetailed,
+  type ScipDocumentMergeStats,
+} from './scip-helpers/documents.js';
+import {
+  LORE_META_SCIP_C_CPP_REPRODUCIBILITY,
+  recordIndexerRun,
+} from '../../db/schema.js';
+
+interface PositionConversionDiagnostics {
+  documents: number;
+  assumedUtf8ForUnspecifiedCFamily: number;
+  conversionRequired: number;
+  converted: number;
+  skippedMissingSource: number;
+  sourceEncodings: Record<string, number>;
+}
+
+function emptyPositionConversionDiagnostics(): PositionConversionDiagnostics {
+  return {
+    documents: 0,
+    assumedUtf8ForUnspecifiedCFamily: 0,
+    conversionRequired: 0,
+    converted: 0,
+    skippedMissingSource: 0,
+    sourceEncodings: {},
+  };
+}
+
+function positionEncodingName(encoding: PositionEncoding): string {
+  switch (encoding) {
+    case PositionEncoding.UTF8CodeUnitOffsetFromLineStart: return 'utf8';
+    case PositionEncoding.UTF16CodeUnitOffsetFromLineStart: return 'utf16';
+    case PositionEncoding.UTF32CodeUnitOffsetFromLineStart: return 'utf32';
+    default: return 'unspecified';
+  }
+}
 
 // Re-export createLoreScipTsconfig for tests
 export { createLoreScipTsconfig };
+export { mergeScipDocuments, mergeScipDocumentsDetailed };
+
+function recordCppReproducibilityMetadata(
+  context: PipelineContext,
+  diagnostics: ScipIndexLoadDiagnostics,
+  parsedIndexes: readonly ScipIndex[],
+  mergedDocuments: readonly ScipDocument[] = [],
+  mergeStats?: ScipDocumentMergeStats,
+  cFamilyEvidence?: CFamilyLanguageEvidence,
+  positionConversion?: PositionConversionDiagnostics,
+): void {
+  const cCpp = diagnostics.cCpp;
+  if (!cCpp) return;
+  const database = cCpp.compilationDatabase.database;
+  if (!database) {
+    deletePipelineLoreMeta(context, LORE_META_SCIP_C_CPP_REPRODUCIBILITY);
+    return;
+  }
+
+  const rootDir = resolve(context.walkerConfig.rootDir);
+  const relativePath = relative(rootDir, database.path);
+  const portableCompdbPath = relativePath && !isAbsolute(relativePath)
+    && relativePath !== '..' && !relativePath.startsWith(`..${sep}`)
+    ? relativePath.split(sep).join('/')
+    : basename(database.path);
+
+  const cCppIndexes = parsedIndexes.filter(index => index.documents.some(document => {
+    const language = inferLoreLanguage(document.language, document.relativePath, cFamilyEvidence);
+    return language === 'c' || language === 'cpp';
+  }));
+  const cCppDocuments = mergedDocuments.filter(document => {
+    const language = inferLoreLanguage(document.language, document.relativePath, cFamilyEvidence);
+    return language === 'c' || language === 'cpp';
+  });
+  const toolInfo = cCppIndexes
+    .map(index => index.metadata?.toolInfo)
+    .find(info => info && (info.name.length > 0 || info.version.length > 0));
+  const portableCommand = cCpp.indexerCommand.split(/[\\/]/u).pop() || cCpp.indexerCommand;
+  const portableToolName = (toolInfo?.name || portableCommand).split(/[\\/]/u).pop()
+    || portableCommand;
+  const validation = database.validation;
+
+  const metadata = {
+    schemaVersion: 1,
+    compilationDatabase: {
+      path: portableCompdbPath,
+      sha256: database.sha256,
+      buildSystem: cCpp.compilationDatabase.buildSystem ?? 'unknown',
+      preExisting: cCpp.compilationDatabase.preExisting ?? null,
+      status: validation.status,
+      warningCount: validation.warnings.length,
+    },
+    indexer: {
+      name: portableToolName,
+      ...(toolInfo?.version ? { version: toolInfo.version } : {}),
+      command: portableCommand,
+    },
+    coverage: {
+      compilationEntries: validation.totalEntries,
+      usableCompilationEntries: validation.wellFormedEntries,
+      viableCompilationEntries: validation.viableEntries,
+      malformedCompilationEntries: validation.malformedEntries,
+      sourceFilesPresent: validation.existingFiles,
+      sourceFilesMissing: validation.missingFiles,
+      workingDirectoriesPresent: validation.existingDirectories,
+      workingDirectoriesMissing: validation.missingDirectories,
+      indexedDocuments: cCppDocuments.length,
+      indexedFiles: new Set(cCppDocuments.map(document => document.relativePath)).size,
+    },
+    documentMerge: {
+      semantics: mergeStats?.semantics ?? 'none',
+      duplicateDocuments: mergeStats?.duplicateDocuments ?? 0,
+      mergedFiles: mergeStats?.mergedFiles ?? 0,
+      provenance: mergeStats?.mergedFiles ? 'index-metadata-and-document-order' : 'not-applicable',
+    },
+    positionConversion: positionConversion ?? emptyPositionConversionDiagnostics(),
+  };
+
+  setPipelineLoreMeta(context, LORE_META_SCIP_C_CPP_REPRODUCIBILITY, JSON.stringify(metadata));
+}
+
+function recordScipRunProvenance(
+  context: PipelineContext,
+  diagnostics: ScipIndexLoadDiagnostics,
+  parsedIndexes: readonly ScipIndex[],
+  positionConversion: PositionConversionDiagnostics = emptyPositionConversionDiagnostics(),
+): void {
+  if (!context.runId) return;
+
+  for (const diagnostic of diagnostics.indexers ?? []) {
+    const index = diagnostic.bufferIndex === undefined
+      ? undefined
+      : parsedIndexes[diagnostic.bufferIndex];
+    const inferredLanguages = index
+      ? [...new Set(index.documents.map((document) =>
+          inferLoreLanguage(document.language, document.relativePath)).filter((language): language is string => Boolean(language)))]
+      : [];
+    const toolInfo = index?.metadata?.toolInfo;
+    recordIndexerRun(context.db, {
+      runId: context.runId,
+      provider: 'scip',
+      indexer: toolInfo?.name || diagnostic.indexer,
+      languages: inferredLanguages.length > 0 ? inferredLanguages : diagnostic.languages,
+      status: diagnostic.status === 'succeeded'
+        && (index?.documents.length === 0 || positionConversion.skippedMissingSource > 0)
+        ? 'degraded'
+        : diagnostic.status,
+      attempted: diagnostic.attempted,
+      files: index?.documents.length,
+      symbols: index?.documents.reduce((total, document) => total + document.symbols.length, 0),
+      startedAt: diagnostic.startedAt,
+      completedAt: diagnostic.completedAt,
+      message: diagnostic.message,
+      details: {
+        source: diagnostic.source,
+        outputPath: diagnostic.outputPath,
+        outputBytes: diagnostic.outputBytes,
+        outputSha256: diagnostic.outputSha256,
+        commandArguments: diagnostic.arguments ?? [],
+        toolVersion: toolInfo?.version || null,
+        toolArguments: toolInfo?.arguments ?? [],
+        positionConversion,
+      },
+    });
+  }
+
+  const cCpp = diagnostics.cCpp;
+  if (cCpp) {
+    const result = cCpp.compilationDatabase;
+    const validation = result.database?.validation;
+    recordIndexerRun(context.db, {
+      runId: context.runId,
+      provider: 'compdb',
+      indexer: result.buildSystem ?? 'compile_commands',
+      languages: ['c', 'cpp'],
+      status: !result.path
+        ? 'failed'
+        : validation?.status === 'valid' ? 'succeeded' : 'degraded',
+      attempted: result.generationAttempted === true || (result.candidateDiagnostics?.length ?? 0) > 0,
+      message: result.path
+        ? undefined
+        : result.failure ?? validation?.reason ?? 'no usable compilation database was available',
+      details: {
+        path: result.path,
+        preExisting: result.preExisting ?? null,
+        generationAttempted: result.generationAttempted ?? false,
+        failure: result.failure ?? null,
+        sha256: result.database?.sha256 ?? null,
+        validation: validation ?? null,
+        candidates: result.candidateDiagnostics?.map((candidate) => ({
+          path: candidate.path,
+          validation: candidate.validation,
+        })) ?? [],
+      },
+    });
+  }
+}
 
 // ─── Stage implementation ────────────────────────────────────────────────────
 
@@ -92,9 +304,32 @@ export class ScipIndexerStage implements PipelineStage {
   readonly name = 'scip-indexer';
 
   async execute(context: PipelineContext, mode: 'build' | 'update'): Promise<void> {
-    if (!context.scip?.enabled) return;
+    if (!context.scip?.enabled) {
+      if (context.runId) {
+        recordIndexerRun(context.db, {
+          runId: context.runId,
+          provider: 'scip',
+          indexer: 'scip',
+          status: 'disabled',
+          attempted: false,
+        });
+      }
+      return;
+    }
     // SCIP only runs during baseline builds — never during overlay updates.
-    if (context.layer === 'overlay') return;
+    if (context.layer === 'overlay') {
+      if (context.runId) {
+        recordIndexerRun(context.db, {
+          runId: context.runId,
+          provider: 'scip',
+          indexer: 'scip',
+          status: 'skipped',
+          attempted: false,
+          message: 'SCIP runs only for baseline indexing',
+        });
+      }
+      return;
+    }
 
     const log = context.log;
     const rootDir = context.walkerConfig.rootDir;
@@ -104,12 +339,14 @@ export class ScipIndexerStage implements PipelineStage {
     let staleLanguages: Set<string> | null = null;
     if (mode === 'update' && context.changedFiles && context.changedFiles.length > 0) {
       staleLanguages = new Set<string>();
+      const configuredLanguages = context.scip.indexers
+        ? new Set(Object.keys(context.scip.indexers))
+        : SCIP_SUPPORTED_LANGUAGES;
       for (const filePath of context.changedFiles) {
         const dotIdx = filePath.lastIndexOf('.');
         if (dotIdx >= 0) {
-          const ext = filePath.slice(dotIdx).toLowerCase();
-          const lang = EXT_TO_LANG[ext];
-          if (lang && SCIP_SUPPORTED_LANGUAGES.has(lang)) {
+          const lang = detectLanguageForPath(filePath);
+          if (lang && configuredLanguages.has(lang)) {
             staleLanguages.add(lang);
           }
         }
@@ -122,8 +359,26 @@ export class ScipIndexerStage implements PipelineStage {
     }
 
     // Load SCIP indexes (one per indexer that succeeds)
-    const indexBuffers = await loadScipIndexes(context.scip, rootDir, staleLanguages);
+    const loadDiagnostics: ScipIndexLoadDiagnostics = {};
+    const indexBuffers = await loadScipIndexes(
+      context.scip,
+      rootDir,
+      staleLanguages,
+      undefined,
+      loadDiagnostics,
+      context.signal,
+      context.responseFileLimits,
+    );
+    const compilationDatabase = loadDiagnostics.cCpp?.compilationDatabase;
+    if (compilationDatabase?.database !== undefined) {
+      context.compilationDatabase = {
+        database: compilationDatabase.database ?? null,
+        candidates: compilationDatabase.candidateDiagnostics ?? [],
+      };
+    }
     if (indexBuffers.length === 0) {
+      recordScipRunProvenance(context, loadDiagnostics, []);
+      recordCppReproducibilityMetadata(context, loadDiagnostics, []);
       log.indexing('scip-indexer: no SCIP index available');
       return;
     }
@@ -133,23 +388,103 @@ export class ScipIndexerStage implements PipelineStage {
 
     const totalDocuments = parsedIndexes.reduce((n, idx) => n + idx.documents.length, 0);
     const totalExternalSymbols = parsedIndexes.reduce((n, idx) => n + idx.externalSymbols.length, 0);
+    const mergeResult = mergeScipDocumentsDetailed(parsedIndexes, rootDir);
+    const cFamilyOptions = {
+      rootDir,
+      compilationDatabase: context.compilationDatabase?.database,
+      sourceCache: context.sourceCache,
+    };
+    const scopedPaths = new Set(
+      (await walkFiles(context.walkerConfig, cFamilyOptions)).map((file) => file.path),
+    );
+    const scopedDocuments = mergeResult.documents.filter((document) => {
+      const absolutePath = resolve(rootDir, document.relativePath);
+      try {
+        return scopedPaths.has(fs.realpathSync(absolutePath));
+      } catch {
+        return false;
+      }
+    });
+    const cFamilyEvidence = buildCFamilyLanguageEvidence(
+      scopedDocuments.map(document => document.relativePath),
+      cFamilyOptions,
+    );
+    const positionConversion = emptyPositionConversionDiagnostics();
+    const allDocuments = scopedDocuments.map((document) => {
+      positionConversion.documents++;
+      const loreLanguage = inferLoreLanguage(
+        document.language,
+        document.relativePath,
+        cFamilyEvidence,
+      );
+      const sourceEncoding = document.positionEncoding === PositionEncoding.UnspecifiedPositionEncoding
+        && (loreLanguage === 'c' || loreLanguage === 'cpp')
+        ? PositionEncoding.UTF8CodeUnitOffsetFromLineStart
+        : document.positionEncoding;
+      if (document.positionEncoding === PositionEncoding.UnspecifiedPositionEncoding
+        && sourceEncoding === PositionEncoding.UTF8CodeUnitOffsetFromLineStart) {
+        positionConversion.assumedUtf8ForUnspecifiedCFamily++;
+      }
+      const encodingName = positionEncodingName(sourceEncoding);
+      positionConversion.sourceEncodings[encodingName] =
+        (positionConversion.sourceEncodings[encodingName] ?? 0) + 1;
+      if (
+        sourceEncoding === PositionEncoding.UnspecifiedPositionEncoding
+        || sourceEncoding === PositionEncoding.UTF16CodeUnitOffsetFromLineStart
+      ) {
+        return document;
+      }
+      positionConversion.conversionRequired++;
+
+      const absolutePath = resolve(rootDir, document.relativePath);
+      let source = context.sourceCache?.get(absolutePath);
+      if (source === undefined) {
+        try {
+          source = fs.readFileSync(absolutePath, 'utf8');
+        } catch {
+          source = document.text || undefined;
+        }
+        if (source !== undefined) context.sourceCache?.set(absolutePath, source);
+      }
+      if (source === undefined) {
+        positionConversion.skippedMissingSource++;
+        return document;
+      }
+      positionConversion.converted++;
+      return normalizeScipDocumentPositions(document, source, sourceEncoding);
+    });
+    recordScipRunProvenance(context, loadDiagnostics, parsedIndexes, positionConversion);
+    recordCppReproducibilityMetadata(
+      context,
+      loadDiagnostics,
+      parsedIndexes,
+      allDocuments,
+      mergeResult.stats,
+      cFamilyEvidence,
+      positionConversion,
+    );
     log.indexing('scip-indexer: loaded index', {
       documents: totalDocuments,
+      uniqueDocuments: allDocuments.length,
       externalSymbols: totalExternalSymbols,
+      documentMerge: mergeResult.stats.semantics,
+      duplicateDocuments: mergeResult.stats.duplicateDocuments,
+      mergedFiles: mergeResult.stats.mergedFiles,
+      mergeFastPath: mergeResult.stats.fastPath,
+      skippedDocuments: mergeResult.stats.skippedDocuments
+        + (mergeResult.documents.length - scopedDocuments.length),
     });
 
-    if (totalDocuments === 0) return;
+    if (allDocuments.length === 0) return;
 
     // Determine which languages are covered
     const coveredLanguages = new Set<string>();
     const coveredFiles = new Set<string>();
-    for (const idx of parsedIndexes) {
-      for (const doc of idx.documents) {
-        // scip-typescript (and some other indexers) leave language blank;
-        // fall back to file-extension inference.
-        const loreLang = inferLoreLanguage(doc.language, doc.relativePath);
-        if (loreLang) coveredLanguages.add(loreLang);
-      }
+    for (const doc of allDocuments) {
+      // scip-typescript (and some other indexers) leave language blank;
+      // fall back to file-extension inference.
+      const loreLang = inferLoreLanguage(doc.language, doc.relativePath, cFamilyEvidence);
+      if (loreLang) coveredLanguages.add(loreLang);
     }
 
     log.indexing('scip-indexer: languages covered', { languages: [...coveredLanguages] });
@@ -162,17 +497,21 @@ export class ScipIndexerStage implements PipelineStage {
     const isExternalSymbolFn = (scipSymbol: string): boolean => isExternalSymbol(scipSymbol, internalPrefixes);
 
     // Build a global SCIP symbol → definition location map
-    const symbolDefinitions = buildSymbolDefinitionMap(parsedIndexes, rootDir);
+    const symbolDefinitions = buildSymbolDefinitionMap([{ documents: allDocuments }], rootDir);
 
     // Build a SymbolInformation map for signatures/docs
     const symbolInfoMap = new Map<string, ScipSymbolInformation>();
-    for (const idx of parsedIndexes) {
-      for (const doc of idx.documents) {
-        for (const sym of doc.symbols) {
-          if (sym.symbol) symbolInfoMap.set(sym.symbol, sym);
-        }
+    for (const doc of allDocuments) {
+      for (const sym of doc.symbols) {
+        if (sym.symbol) symbolInfoMap.set(sym.symbol, sym);
       }
     }
+
+    // The merged documents, definition map, and symbol-information map now
+    // contain everything needed by ingestion. Drop binary/decoded index roots
+    // so duplicate embedded source texts can be reclaimed during large runs.
+    indexBuffers.length = 0;
+    parsedIndexes.length = 0;
 
     // Process each document
     const db = context.db;
@@ -184,31 +523,74 @@ export class ScipIndexerStage implements PipelineStage {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     const insertSymbol = db.prepare(
-      `INSERT INTO symbols (file_id, name, kind, start_line, end_line, signature, doc_comment, resolved_type_signature, resolved_return_type, definition_uri, definition_path, parent_symbol_id, layer, generation)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO symbols (file_id, name, kind, start_line, start_character, end_line, end_character, selection_line, selection_character, signature, doc_comment, resolved_type_signature, resolved_return_type, definition_uri, definition_path, parent_symbol_id, layer, generation)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     const insertImport = db.prepare(
-      'INSERT INTO file_imports (file_id, raw_import, resolved_id, layer, generation) VALUES (?, ?, ?, ?, ?)',
+      `INSERT INTO file_imports
+         (file_id, raw_import, resolved_id, resolution_method, layer, generation)
+       VALUES (?, ?, ?, ?, ?, ?)`,
     );
     const insertRelationship = db.prepare(
       `INSERT INTO symbol_relationships (file_id, source_symbol_id, target_symbol_name, relationship_type, line, character, resolution_method, definition_uri, definition_path, definition_line, definition_character, layer, generation)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
+    const selectExistingFile = db.prepare(
+      'SELECT id FROM files WHERE path = ? AND branch = ? AND layer = ? AND generation = ?',
+    );
+    const deleteRelationshipsForFile = db.prepare(
+      'DELETE FROM symbol_relationships WHERE file_id = ?',
+    );
+    const deleteTypeRefsForFile = db.prepare('DELETE FROM type_refs WHERE file_id = ?');
+    const clearCalleeIdsForFile = db.prepare(
+      'UPDATE symbol_refs SET callee_id = NULL WHERE callee_id IN (SELECT id FROM symbols WHERE file_id = ?)',
+    );
+    const clearTypeIdsForFile = db.prepare(
+      'UPDATE type_refs SET type_id = NULL WHERE type_id IN (SELECT id FROM symbols WHERE file_id = ?)',
+    );
+    const deleteSymbolsForFile = db.prepare('DELETE FROM symbols WHERE file_id = ?');
+    const deleteImportsForFile = db.prepare('DELETE FROM file_imports WHERE file_id = ?');
+    const deleteFile = db.prepare('DELETE FROM files WHERE id = ?');
+    const updateDuplicateImport = db.prepare(
+      `UPDATE file_imports
+       SET resolved_id = ?, resolution_method = 'scip_definition'
+       WHERE file_id = ? AND raw_import = ?`,
+    );
+    const updateRelationshipTarget = db.prepare(
+      `UPDATE symbol_relationships SET target_symbol_id = ?
+       WHERE file_id = ? AND source_symbol_id = ?
+         AND target_symbol_name = ? AND relationship_type = ?`,
+    );
 
     const layer = context.layer;
     const generation = context.generation;
 
-    // Global map: SCIP symbol string → Lore numeric symbol ID (across all files)
+    // Global map: SCIP symbol string → canonical Lore numeric symbol ID.
+    // Declaration rows remain in `symbols`, but references must point to the
+    // real definition selected by `buildSymbolDefinitionMap`.
     const scipToLoreId = new Map<string, number>();
+    const scipToLoreName = new Map<string, string>();
+    const documentSymbolIds = new Map<string, number>();
+    const symbolRows = new Map<string, Array<{
+      id: number;
+      filePath: string;
+      line: number;
+      character: number;
+      name: string;
+    }>>();
+    const documentSymbolKey = (filePath: string, scipSymbol: string): string =>
+      `${filePath}\0${scipSymbol}`;
+    let recoveredSpans = 0;
 
     // Pass 1: Create files and symbols
     const fileIdMap = new Map<string, number>(); // absPath → file_id
 
     const SCIP_BATCH_SIZE = 200;
-    const processDocumentBatch = db.transaction((batch: ScipDocument[]) => {
-      for (const doc of batch) {
+    const processDocumentBatch = db.transaction((documents: readonly ScipDocument[], start: number, end: number) => {
+      for (let documentIndex = start; documentIndex < end; documentIndex++) {
+        const doc = documents[documentIndex]!;
         const absPath = resolve(rootDir, doc.relativePath);
-        const loreLang = inferLoreLanguage(doc.language, doc.relativePath);
+        const loreLang = inferLoreLanguage(doc.language, doc.relativePath, cFamilyEvidence);
         if (!loreLang) continue;
 
         // Read source file (prefer cache from prior pipeline stages)
@@ -220,25 +602,32 @@ export class ScipIndexerStage implements PipelineStage {
           try {
             source = fs.readFileSync(absPath, 'utf8');
           } catch {
-            continue;
+            if (!doc.text) continue;
+            source = doc.text;
           }
           context.sourceCache?.set(absPath, source);
         }
 
         const sizeBytes = Buffer.byteLength(source, 'utf8');
         const hash = crypto.createHash('sha256').update(source).digest('hex');
+        let sourceSpanResolver: CSourceSpanResolver | null = null;
+        const getSourceSpanResolver = (): CSourceSpanResolver | null => {
+          if (loreLang !== 'c' && loreLang !== 'cpp') return null;
+          sourceSpanResolver ??= new CSourceSpanResolver(source, doc.positionEncoding);
+          return sourceSpanResolver;
+        };
 
         // Delete existing data for this file (like FileDiscoveryStage does)
-        const existing = db.prepare('SELECT id FROM files WHERE path = ? AND branch = ? AND layer = ?').get(absPath, branch, layer) as
+        const existing = selectExistingFile.get(absPath, branch, layer, generation) as
           | { id: number } | undefined;
         if (existing) {
-          db.prepare('DELETE FROM symbol_relationships WHERE file_id = ?').run(existing.id);
-          db.prepare('DELETE FROM type_refs WHERE file_id = ?').run(existing.id);
-          db.prepare('UPDATE symbol_refs SET callee_id = NULL WHERE callee_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(existing.id);
-          db.prepare('UPDATE type_refs SET type_id = NULL WHERE type_id IN (SELECT id FROM symbols WHERE file_id = ?)').run(existing.id);
-          db.prepare('DELETE FROM symbols WHERE file_id = ?').run(existing.id);
-          db.prepare('DELETE FROM file_imports WHERE file_id = ?').run(existing.id);
-          db.prepare('DELETE FROM files WHERE id = ?').run(existing.id);
+          deleteRelationshipsForFile.run(existing.id);
+          deleteTypeRefsForFile.run(existing.id);
+          clearCalleeIdsForFile.run(existing.id);
+          clearTypeIdsForFile.run(existing.id);
+          deleteSymbolsForFile.run(existing.id);
+          deleteImportsForFile.run(existing.id);
+          deleteFile.run(existing.id);
         }
 
         // Insert file
@@ -246,10 +635,20 @@ export class ScipIndexerStage implements PipelineStage {
         const fileId = Number(fileInfo.lastInsertRowid);
         fileIdMap.set(absPath, fileId);
         coveredFiles.add(absPath);
+        const localSymbolIds = new Map<string, number>();
 
         // Collect definition occurrences for this document
         // Build symbol spans: SCIP symbol → { startLine, endLine }
-        const docDefs = new Map<string, { line: number; character: number; endCharacter: number; startLine: number; endLine: number; symbolRoles: number }>();
+        const docDefs = new Map<string, {
+          line: number;
+          character: number;
+          endCharacter: number;
+          startLine: number;
+          startCharacter: number;
+          endLine: number;
+          spanEndCharacter: number;
+          symbolRoles: number;
+        }>();
 
         // First collect all definition lines so we can order them for fallback
         const defOccs: Array<{ symbol: string; line: number; character: number; endCharacter: number; enclosingRange: number[]; symbolRoles: number }> = [];
@@ -269,21 +668,59 @@ export class ScipIndexerStage implements PipelineStage {
 
           // Use enclosing_range for span; fall back to definition line.
           let startLine = line;
+          let startCharacter = character;
           let endLine = line;
+          let spanEndCharacter = endCharacter;
           if (enclosingRange.length >= 4) {
             // Full multi-line enclosing range: [startLine, startChar, endLine, endChar]
             startLine = enclosingRange[0] ?? line;
+            startCharacter = enclosingRange[1] ?? character;
             endLine = enclosingRange[2] ?? line;
+            spanEndCharacter = enclosingRange[3] ?? endCharacter;
           } else if (enclosingRange.length === 3) {
             startLine = enclosingRange[0] ?? line;
+            startCharacter = enclosingRange[1] ?? character;
             endLine = startLine;
+            spanEndCharacter = enclosingRange[2] ?? endCharacter;
           } else {
             endLine = line;
           }
 
-          // Keep the first definition per symbol in this file
-          if (!docDefs.has(symbol)) {
-            docDefs.set(symbol, { line, character, endCharacter, startLine, endLine, symbolRoles: occRoles });
+          // Prefer a real definition over an earlier same-file prototype.
+          const existingDef = docDefs.get(symbol);
+          const isForwardDefinition = (occRoles & SymbolRole.ForwardDefinition) !== 0;
+          const existingIsForward = existingDef
+            ? (existingDef.symbolRoles & SymbolRole.ForwardDefinition) !== 0
+            : false;
+          const canonical = symbolDefinitions.get(symbol);
+          const isCanonical = canonical?.filePath === absPath
+            && canonical.line === line
+            && canonical.character === character;
+          const existingIsCanonical = existingDef !== undefined
+            && canonical?.filePath === absPath
+            && canonical.line === existingDef.line
+            && canonical.character === existingDef.character;
+          const sameDefinitionClass = existingDef !== undefined
+            && existingIsForward === isForwardDefinition;
+          const isEarlierStablePosition = existingDef !== undefined
+            && (line < existingDef.line
+              || (line === existingDef.line && character < existingDef.character));
+          if (
+            !existingDef
+            || (isCanonical && !existingIsCanonical)
+            || (!existingIsCanonical && existingIsForward && !isForwardDefinition)
+            || (!existingIsCanonical && sameDefinitionClass && isEarlierStablePosition)
+          ) {
+            docDefs.set(symbol, {
+              line,
+              character,
+              endCharacter,
+              startLine,
+              startCharacter,
+              endLine,
+              spanEndCharacter,
+              symbolRoles: occRoles,
+            });
           }
         }
 
@@ -304,15 +741,34 @@ export class ScipIndexerStage implements PipelineStage {
           const docHint = firstDoc.toLowerCase();
           const kind = inferKindFromScipSymbol(symInfo.symbol, docHint, symInfo.kind);
 
+          let symbolStartLine = defLoc.startLine;
+          let symbolEndLine = defLoc.endLine;
+          if ((loreLang === 'c' || loreLang === 'cpp') && symbolEndLine <= symbolStartLine) {
+            const resolver = getSourceSpanResolver();
+            const inferredSpan = kind === 'macro'
+              ? resolver?.findMacroSpan(defLoc.line) ?? null
+              : (kind === 'function' || kind === 'method' || kind === 'constructor'
+                  || kind === 'class' || kind === 'interface' || kind === 'enum')
+                ? resolver?.findBraceDelimitedSpan(defLoc.line, defLoc.character, kind) ?? null
+                : null;
+            if (inferredSpan && inferredSpan.endLine > symbolEndLine) {
+              symbolStartLine = inferredSpan.startLine;
+              symbolEndLine = inferredSpan.endLine;
+              defLoc.spanEndCharacter = inferredSpan.endCharacter;
+              recoveredSpans++;
+            }
+          }
+
           // For macro/constant symbols with location-based names, extract the
           // real identifier from source using the SCIP occurrence range, which
           // points directly at the macro name token.
-          if (kind === 'constant' && /:\d+$/.test(name)) {
-            const srcLine = source.split('\n')[defLoc.line];
-            if (srcLine) {
-              const token = srcLine.slice(defLoc.character, defLoc.endCharacter);
-              if (token) name = token;
-            }
+          if ((kind === 'constant' || kind === 'macro') && /:\d+$/.test(name)) {
+            const token = getSourceSpanResolver()?.sliceRange([
+              defLoc.line,
+              defLoc.character,
+              defLoc.endCharacter,
+            ]);
+            if (token) name = token;
           }
 
           // Skip parameters, type parameters, and module-level namespace symbols.
@@ -344,7 +800,8 @@ export class ScipIndexerStage implements PipelineStage {
           // fall back to walking the descriptor chain with extractParentScipSymbol.
           let parentLoreId: number | null = null;
           if (symInfo.enclosingSymbol) {
-            const enclosingId = scipToLoreId.get(symInfo.enclosingSymbol);
+            const enclosingId = localSymbolIds.get(symInfo.enclosingSymbol)
+              ?? scipToLoreId.get(symInfo.enclosingSymbol);
             if (enclosingId !== undefined) {
               parentLoreId = enclosingId;
             }
@@ -352,7 +809,7 @@ export class ScipIndexerStage implements PipelineStage {
           if (parentLoreId === null) {
             let candidateScip = extractParentScipSymbol(symInfo.symbol);
             while (candidateScip) {
-              const id = scipToLoreId.get(candidateScip);
+              const id = localSymbolIds.get(candidateScip) ?? scipToLoreId.get(candidateScip);
               if (id !== undefined) {
                 parentLoreId = id;
                 break;
@@ -363,14 +820,38 @@ export class ScipIndexerStage implements PipelineStage {
 
           const info = insertSymbol.run(
             fileId, name, kind,
-            defLoc.startLine, defLoc.endLine,
+            symbolStartLine, defLoc.startCharacter,
+            symbolEndLine, defLoc.spanEndCharacter,
+            defLoc.line, defLoc.character,
             signature || null, docComment,
             resolvedTypeSig, resolvedReturnType, definitionUri, defPath,
             parentLoreId,
             layer, generation,
           ) as { lastInsertRowid: number | bigint };
           const loreId = Number(info.lastInsertRowid);
-          scipToLoreId.set(symInfo.symbol, loreId);
+          localSymbolIds.set(symInfo.symbol, loreId);
+          documentSymbolIds.set(documentSymbolKey(absPath, symInfo.symbol), loreId);
+          let rows = symbolRows.get(symInfo.symbol);
+          if (!rows) {
+            rows = [];
+            symbolRows.set(symInfo.symbol, rows);
+          }
+          rows.push({
+            id: loreId,
+            filePath: absPath,
+            line: defLoc.line,
+            character: defLoc.character,
+            name,
+          });
+
+          const canonical = symbolDefinitions.get(symInfo.symbol);
+          const isCanonical = canonical?.filePath === absPath
+            && canonical.line === defLoc.line
+            && canonical.character === defLoc.character;
+          if (isCanonical || !scipToLoreId.has(symInfo.symbol)) {
+            scipToLoreId.set(symInfo.symbol, loreId);
+            scipToLoreName.set(symInfo.symbol, name);
+          }
         }
 
         // Insert imports (from Import-role occurrences)
@@ -395,35 +876,95 @@ export class ScipIndexerStage implements PipelineStage {
               // upgrade it now that we have one.
               if (resolvedFileId && !seenImports.get(rawImport)) {
                 seenImports.set(rawImport, resolvedFileId);
-                db.prepare('UPDATE file_imports SET resolved_id = ? WHERE file_id = ? AND raw_import = ?')
-                  .run(resolvedFileId, fileId, rawImport);
+                updateDuplicateImport.run(resolvedFileId, fileId, rawImport);
               }
             } else {
               seenImports.set(rawImport, resolvedFileId);
-              insertImport.run(fileId, rawImport, resolvedFileId, layer, generation);
+              insertImport.run(
+                fileId,
+                rawImport,
+                resolvedFileId,
+                resolvedFileId ? 'scip_definition' : 'unresolved',
+                layer,
+                generation,
+              );
             }
           }
         }
 
-        // Insert relationships (extends/implements) from SCIP SymbolInformation
+        // References only need occurrences/symbol metadata in the next pass.
+        // Source remains persisted and in the byte-budgeted cache; do not keep
+        // a second unbounded copy attached to each decoded SCIP document.
+        doc.text = '';
+      }
+    });
+
+    // Duplicate documents are common in scip-clang output when one source file
+    // is compiled into multiple targets. Process their merged union once.
+    const allDocsForBatching = allDocuments;
+    for (let batchStart = 0; batchStart < allDocsForBatching.length; batchStart += SCIP_BATCH_SIZE) {
+      throwIfPipelineCancelled(context);
+      processDocumentBatch(
+        allDocsForBatching,
+        batchStart,
+        Math.min(batchStart + SCIP_BATCH_SIZE, allDocsForBatching.length),
+      );
+    }
+
+    // Rebuild the global map from all inserted declaration rows. This makes
+    // the numeric callee identity follow the same canonical path/position as
+    // `symbolDefinitions`, independent of document order. A deterministic row
+    // fallback covers malformed indexes whose canonical occurrence has no
+    // matching SymbolInformation record.
+    for (const [scipSymbol, rows] of symbolRows) {
+      const canonical = symbolDefinitions.get(scipSymbol);
+      const matchingCanonical = canonical
+        ? rows.filter((row) => row.filePath === canonical.filePath
+            && row.line === canonical.line
+            && row.character === canonical.character)
+        : [];
+      const candidates = matchingCanonical.length > 0 ? matchingCanonical : rows;
+      const selected = [...candidates].sort((left, right) =>
+        compareStableText(left.filePath, right.filePath)
+          || left.line - right.line
+          || left.character - right.character
+          || left.id - right.id,
+      )[0];
+      if (!selected) continue;
+      scipToLoreId.set(scipSymbol, selected.id);
+      scipToLoreName.set(scipSymbol, selected.name);
+    }
+
+    // Relationships are emitted only after canonical target IDs exist. Their
+    // source remains the declaration row belonging to this SCIP document, so
+    // retaining a header declaration does not silently move its relationships
+    // onto an implementation row.
+    const insertRelationships = db.transaction((documents: readonly ScipDocument[]) => {
+      for (const doc of documents) {
+        const absPath = resolve(rootDir, doc.relativePath);
+        const fileId = fileIdMap.get(absPath);
+        if (!fileId) continue;
         for (const symInfo of doc.symbols) {
           if (!symInfo.symbol || symInfo.relationships.length === 0) continue;
-          const sourceId = scipToLoreId.get(symInfo.symbol) ?? null;
+          const localSourceId = documentSymbolIds.get(documentSymbolKey(absPath, symInfo.symbol));
+          const sourceId = localSourceId ?? scipToLoreId.get(symInfo.symbol) ?? null;
+          const sourceRow = localSourceId === undefined
+            ? undefined
+            : symbolRows.get(symInfo.symbol)?.find((row) => row.id === localSourceId);
 
           for (const rel of symInfo.relationships) {
             if (!rel.symbol) continue;
-
-            // Map SCIP relationship flags to Lore relationship types
-            // Disambiguate extends vs implements: if the target is a class/struct
-            // the source extends it; if the target is an interface/trait the
-            // source implements it.
             let relType: string | null = null;
             if (rel.isImplementation) {
               const targetInfo = symbolInfoMap.get(rel.symbol);
               const targetKind = targetInfo
-                ? inferKindFromScipSymbol(rel.symbol, (targetInfo.documentation[0] ?? '').toLowerCase(), targetInfo.kind)
+                ? inferKindFromScipSymbol(
+                    rel.symbol,
+                    (targetInfo.documentation[0] ?? '').toLowerCase(),
+                    targetInfo.kind,
+                  )
                 : null;
-              relType = (targetKind === 'class') ? 'extends' : 'implements';
+              relType = targetKind === 'class' ? 'extends' : 'implements';
             } else if (rel.isTypeDefinition) {
               relType = 'type_definition';
             } else if (rel.isDefinition) {
@@ -431,15 +972,10 @@ export class ScipIndexerStage implements PipelineStage {
             }
             if (!relType) continue;
 
-            const targetName = extractNameFromScipSymbol(rel.symbol);
             const targetId = scipToLoreId.get(rel.symbol) ?? null;
-            // Find a definition location for the line/character.
-            // Some SCIP indexers (e.g. scip-go) emit SymbolInformation with
-            // relationships for symbols whose definition is in another file or
-            // external package, so defLoc may be undefined.
-            const defLoc = symbolDefinitions.get(symInfo.symbol);
-
-            // Resolve the target's definition location for enrichment
+            const targetName = scipToLoreName.get(rel.symbol)
+              ?? extractNameFromScipSymbol(rel.symbol);
+            const sourceDef = symbolDefinitions.get(symInfo.symbol);
             const targetDef = symbolDefinitions.get(rel.symbol);
             const relDefUri = targetDef ? pathToFileURL(targetDef.filePath).toString() : null;
 
@@ -448,39 +984,29 @@ export class ScipIndexerStage implements PipelineStage {
               sourceId,
               targetName,
               relType,
-              defLoc?.line ?? null,
-              defLoc?.character ?? null,
+              sourceRow?.line ?? sourceDef?.line ?? null,
+              sourceRow?.character ?? sourceDef?.character ?? null,
               targetId ? 'scip_definition' : 'unresolved',
               relDefUri,
               targetDef?.filePath ?? null,
               targetDef?.line ?? null,
               targetDef?.character ?? null,
-              layer, generation,
+              layer,
+              generation,
             );
-
-            // If we have both source and target IDs, update the resolved target
             if (targetId) {
-              db.prepare(
-                'UPDATE symbol_relationships SET target_symbol_id = ? WHERE file_id = ? AND source_symbol_id = ? AND target_symbol_name = ? AND relationship_type = ?',
-              ).run(targetId, fileId, sourceId, targetName, relType);
+              updateRelationshipTarget.run(targetId, fileId, sourceId, targetName, relType);
             }
           }
         }
       }
     });
-
-    // Collect all documents across parsed indexes for batched processing
-    const allDocsForBatching: ScipDocument[] = [];
-    for (const idx of parsedIndexes) {
-      allDocsForBatching.push(...idx.documents);
-    }
-    for (let batchStart = 0; batchStart < allDocsForBatching.length; batchStart += SCIP_BATCH_SIZE) {
-      processDocumentBatch(allDocsForBatching.slice(batchStart, batchStart + SCIP_BATCH_SIZE));
-    }
+    insertRelationships(allDocsForBatching);
 
     log.indexing('scip-indexer: symbols inserted', {
       files: fileIdMap.size,
       symbols: scipToLoreId.size,
+      recoveredSpans,
     });
 
     // ── Pass 2+3: Containment index + ref insertion ─────────────────────
@@ -506,9 +1032,13 @@ export class ScipIndexerStage implements PipelineStage {
          WHERE f.branch = ?
            AND s.layer = ?
            AND s.generation = ?
-           AND s.kind IN ('function', 'method', 'class', 'constructor', 'variable')
          ORDER BY s.file_id, (s.end_line - s.start_line) ASC`,
-      ).all(branch, layer, generation) as Array<{ id: number; file_id: number; start_line: number; end_line: number }>,
+      ).iterate(branch, layer, generation) as IterableIterator<{
+        id: number;
+        file_id: number;
+        start_line: number;
+        end_line: number;
+      }>,
     );
 
     // Insert call refs and type refs from SCIP reference occurrences
@@ -520,8 +1050,9 @@ export class ScipIndexerStage implements PipelineStage {
     let typeRefsInserted = 0;
 
     const SCIP_REF_BATCH_SIZE = 200;
-    const processRefBatch = db.transaction((batch: ScipDocument[]) => {
-      for (const doc of batch) {
+    const processRefBatch = db.transaction((documents: readonly ScipDocument[], start: number, end: number) => {
+      for (let documentIndex = start; documentIndex < end; documentIndex++) {
+        const doc = documents[documentIndex]!;
         const absPath = resolve(rootDir, doc.relativePath);
         const fileId = fileIdMap.get(absPath);
         if (!fileId) continue;
@@ -538,7 +1069,6 @@ export class ScipIndexerStage implements PipelineStage {
           const refKind = classifyScipReference(occ.symbol, occ.syntaxKind);
           const line = occ.range[0] ?? 0;
           const character = occ.range[1] ?? 0;
-          const calleeName = extractNameFromScipSymbol(occ.symbol);
           if (refKind === 'skip') {
             refsSkippedNonCall++;
             continue;
@@ -551,6 +1081,7 @@ export class ScipIndexerStage implements PipelineStage {
           }
 
           const calleeId = scipToLoreId.get(occ.symbol) ?? null;
+          const calleeName = scipToLoreName.get(occ.symbol) ?? extractNameFromScipSymbol(occ.symbol);
           const isExternal = !calleeId && isExternalSymbolFn(occ.symbol);
           const method = calleeId ? 'scip_definition' : (isExternal ? 'external_definition' : 'unresolved');
 
@@ -561,18 +1092,14 @@ export class ScipIndexerStage implements PipelineStage {
             const refSig = refInfo ? extractSignatureFromDoc(refInfo.documentation[0] ?? '') || null : null;
             const refDefUri = refDef ? pathToFileURL(refDef.filePath).toString() : null;
 
-            try {
-              insertTypeRef.run(
-                fileId, callerId, calleeId ?? null,
-                calleeName, normalizeTypeName(calleeName), typeRefKind,
-                line, character, method, refSig,
-                refDefUri, refDef?.filePath ?? null, refDef?.line ?? null, refDef?.character ?? null,
-                layer, generation,
-              );
-              typeRefsInserted++;
-            } catch {
-              refsNoCaller++;
-            }
+            insertTypeRef.run(
+              fileId, callerId, calleeId ?? null,
+              calleeName, normalizeTypeName(calleeName), typeRefKind,
+              line, character, method, refSig,
+              refDefUri, refDef?.filePath ?? null, refDef?.line ?? null, refDef?.character ?? null,
+              layer, generation,
+            );
+            typeRefsInserted++;
           } else {
             const resolvedCalleeName = calleeName;
 
@@ -582,24 +1109,25 @@ export class ScipIndexerStage implements PipelineStage {
             const refReturnType = extractReturnType(refSig);
             const refDefUri = refDef ? pathToFileURL(refDef.filePath).toString() : null;
 
-            try {
-              insertCallRef.run(
-                callerId, fileId, calleeId ?? null, resolvedCalleeName,
-                line, character, 'direct', method, refSig, refReturnType,
-                refDefUri, refDef?.filePath ?? null, refDef?.line ?? null, refDef?.character ?? null,
-                layer, generation,
-              );
-              refsInserted++;
-              if (isExternal) refsExternal++;
-            } catch {
-              refsNoCaller++;
-            }
+            insertCallRef.run(
+              callerId, fileId, calleeId ?? null, resolvedCalleeName,
+              line, character, 'direct', method, refSig, refReturnType,
+              refDefUri, refDef?.filePath ?? null, refDef?.line ?? null, refDef?.character ?? null,
+              layer, generation,
+            );
+            refsInserted++;
+            if (isExternal) refsExternal++;
           }
         }
       }
     });
     for (let batchStart = 0; batchStart < allDocsForBatching.length; batchStart += SCIP_REF_BATCH_SIZE) {
-      processRefBatch(allDocsForBatching.slice(batchStart, batchStart + SCIP_REF_BATCH_SIZE));
+      throwIfPipelineCancelled(context);
+      processRefBatch(
+        allDocsForBatching,
+        batchStart,
+        Math.min(batchStart + SCIP_REF_BATCH_SIZE, allDocsForBatching.length),
+      );
     }
 
     log.indexing('scip-indexer: refs inserted', {
@@ -622,13 +1150,11 @@ export class ScipIndexerStage implements PipelineStage {
     context.scipCoveredLanguages = coveredLanguages;
 
     // Add SCIP-sourced files to context.files so later stages process them
-    for (const idx of parsedIndexes) {
-      for (const doc of idx.documents) {
-        const absPath = resolve(rootDir, doc.relativePath);
-        const loreLang = inferLoreLanguage(doc.language, doc.relativePath);
-        if (loreLang && fileIdMap.has(absPath)) {
-          context.files.push({ path: absPath, language: loreLang });
-        }
+    for (const doc of allDocuments) {
+      const absPath = resolve(rootDir, doc.relativePath);
+      const loreLang = inferLoreLanguage(doc.language, doc.relativePath, cFamilyEvidence);
+      if (loreLang && fileIdMap.has(absPath)) {
+        context.files.push({ path: absPath, language: loreLang });
       }
     }
   }
@@ -644,6 +1170,124 @@ export interface SymbolSpan {
   id: number;
   startLine: number;
   endLine: number;
+}
+
+interface SpanBoundary {
+  line: number;
+  operation: 'add' | 'remove';
+  span: SymbolSpan;
+}
+
+/**
+ * Piecewise-constant narrowest-containing-symbol index for one file.
+ * Construction uses a sweep line and priority heap; lookup is a binary search
+ * over at most two boundaries per input span.
+ */
+export class SymbolSpanIndex {
+  private readonly segmentStarts: number[] = [];
+  private readonly segmentSymbolIds: Array<number | null> = [];
+  readonly length: number;
+
+  constructor(spans: readonly SymbolSpan[]) {
+    const validSpans = spans.filter(span =>
+      Number.isFinite(span.startLine)
+      && Number.isFinite(span.endLine)
+      && span.endLine >= span.startLine,
+    );
+    this.length = validSpans.length;
+    if (validSpans.length === 0) return;
+
+    const boundaries: SpanBoundary[] = [];
+    for (const span of validSpans) {
+      boundaries.push({ line: span.startLine, operation: 'add', span });
+      if (span.endLine < Number.MAX_SAFE_INTEGER) {
+        boundaries.push({ line: span.endLine + 1, operation: 'remove', span });
+      }
+    }
+    boundaries.sort((left, right) => left.line - right.line);
+
+    const active = new Set<number>();
+    const heap: SymbolSpan[] = [];
+    for (let index = 0; index < boundaries.length;) {
+      const line = boundaries[index]!.line;
+      let end = index + 1;
+      while (end < boundaries.length && boundaries[end]!.line === line) end++;
+
+      // Removals and additions at the same boundary are applied together so
+      // inclusive end lines and same-line spans retain their exact semantics.
+      for (let cursor = index; cursor < end; cursor++) {
+        const boundary = boundaries[cursor]!;
+        if (boundary.operation === 'remove') active.delete(boundary.span.id);
+      }
+      for (let cursor = index; cursor < end; cursor++) {
+        const boundary = boundaries[cursor]!;
+        if (boundary.operation === 'add') {
+          active.add(boundary.span.id);
+          heapPush(heap, boundary.span);
+        }
+      }
+      while (heap[0] && !active.has(heap[0].id)) heapPop(heap);
+
+      const winner = heap[0]?.id ?? null;
+      if (this.segmentSymbolIds.at(-1) !== winner) {
+        this.segmentStarts.push(line);
+        this.segmentSymbolIds.push(winner);
+      }
+      index = end;
+    }
+  }
+
+  find(line: number): number | null {
+    let low = 0;
+    let high = this.segmentStarts.length;
+    while (low < high) {
+      const middle = (low + high) >>> 1;
+      if (this.segmentStarts[middle]! <= line) low = middle + 1;
+      else high = middle;
+    }
+    return low === 0 ? null : (this.segmentSymbolIds[low - 1] ?? null);
+  }
+
+  /** Exposed for structural scale tests; lookups remain logarithmic in this count. */
+  get segmentCount(): number {
+    return this.segmentStarts.length;
+  }
+}
+
+function spanIsNarrower(left: SymbolSpan, right: SymbolSpan): boolean {
+  const leftWidth = left.endLine - left.startLine;
+  const rightWidth = right.endLine - right.startLine;
+  return leftWidth < rightWidth
+    || (leftWidth === rightWidth && left.startLine > right.startLine)
+    || (leftWidth === rightWidth && left.startLine === right.startLine && left.id < right.id);
+}
+
+function heapPush(heap: SymbolSpan[], span: SymbolSpan): void {
+  let index = heap.push(span) - 1;
+  while (index > 0) {
+    const parent = (index - 1) >>> 1;
+    if (!spanIsNarrower(heap[index]!, heap[parent]!)) break;
+    [heap[index], heap[parent]] = [heap[parent]!, heap[index]!];
+    index = parent;
+  }
+}
+
+function heapPop(heap: SymbolSpan[]): void {
+  const replacement = heap.pop();
+  if (!replacement || heap.length === 0) return;
+  heap[0] = replacement;
+  let index = 0;
+  for (;;) {
+    const left = index * 2 + 1;
+    if (left >= heap.length) return;
+    const right = left + 1;
+    const child = right < heap.length && spanIsNarrower(heap[right]!, heap[left]!)
+      ? right
+      : left;
+    if (!spanIsNarrower(heap[child]!, heap[index]!)) return;
+    [heap[index], heap[child]] = [heap[child]!, heap[index]!];
+    index = child;
+  }
 }
 
 /**
@@ -686,44 +1330,62 @@ export function isExternalSymbol(scipSymbol: string, internalPrefixes: Set<strin
  * When a symbol has both a forward declaration (`ForwardDefinition` role,
  * e.g. a C header prototype) and a real definition (implementation in a
  * `.c` file), the real definition wins regardless of document order.
- * Among definitions of the same kind, the first one encountered wins.
+ * Definitions of the same kind are ordered by canonical path and position,
+ * making the selected location independent of index/document order.
  */
 export function buildSymbolDefinitionMap(
   parsedIndexes: ReadonlyArray<{ documents: ReadonlyArray<{ relativePath: string; occurrences: ReadonlyArray<{ symbolRoles: number; symbol: string; range: number[] }> }> }>,
   rootDir: string,
 ): Map<string, { filePath: string; line: number; character: number }> {
-  const symbolDefinitions = new Map<string, { filePath: string; line: number; character: number }>();
-  // Track which entries came from forward declarations so real definitions can override them.
-  const forwardDefs = new Set<string>();
+  interface DefinitionCandidate {
+    filePath: string;
+    line: number;
+    character: number;
+    forward: boolean;
+  }
+  const candidates = new Map<string, DefinitionCandidate[]>();
   for (const idx of parsedIndexes) {
     for (const doc of idx.documents) {
       const absPath = resolve(rootDir, doc.relativePath);
       for (const occ of doc.occurrences) {
         if ((occ.symbolRoles & SymbolRole.Definition) !== 0 && occ.symbol && !occ.symbol.startsWith('local ')) {
-          const isForward = (occ.symbolRoles & SymbolRole.ForwardDefinition) !== 0;
-          const existing = symbolDefinitions.has(occ.symbol);
-
-          if (!existing) {
-            symbolDefinitions.set(occ.symbol, {
-              filePath: absPath,
-              line: occ.range[0] ?? 0,
-              character: occ.range[1] ?? 0,
-            });
-            if (isForward) forwardDefs.add(occ.symbol);
-          } else if (!isForward && forwardDefs.has(occ.symbol)) {
-            // Real definition overrides a previous forward declaration
-            symbolDefinitions.set(occ.symbol, {
-              filePath: absPath,
-              line: occ.range[0] ?? 0,
-              character: occ.range[1] ?? 0,
-            });
-            forwardDefs.delete(occ.symbol);
+          let symbolCandidates = candidates.get(occ.symbol);
+          if (!symbolCandidates) {
+            symbolCandidates = [];
+            candidates.set(occ.symbol, symbolCandidates);
           }
+          symbolCandidates.push({
+            filePath: absPath,
+            line: occ.range[0] ?? 0,
+            character: occ.range[1] ?? 0,
+            forward: (occ.symbolRoles & SymbolRole.ForwardDefinition) !== 0,
+          });
         }
       }
     }
   }
+
+  const symbolDefinitions = new Map<string, { filePath: string; line: number; character: number }>();
+  for (const [symbol, symbolCandidates] of candidates) {
+    const selected = [...symbolCandidates].sort((left, right) =>
+      Number(left.forward) - Number(right.forward)
+        || compareStableText(left.filePath, right.filePath)
+        || left.line - right.line
+        || left.character - right.character,
+    )[0];
+    if (selected) {
+      symbolDefinitions.set(symbol, {
+        filePath: selected.filePath,
+        line: selected.line,
+        character: selected.character,
+      });
+    }
+  }
   return symbolDefinitions;
+}
+
+function compareStableText(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
 }
 
 /**
@@ -731,37 +1393,52 @@ export function buildSymbolDefinitionMap(
  * Used for finding which symbol lexically contains a given source line.
  */
 export function buildContainmentIndex(
-  rows: Array<{ id: number; file_id: number; start_line: number; end_line: number }>,
-): Map<number, SymbolSpan[]> {
-  const fileSymbolSpans = new Map<number, SymbolSpan[]>();
+  rows: Iterable<{ id: number; file_id: number; start_line: number; end_line: number }>,
+): Map<number, SymbolSpanIndex> {
+  const grouped = new Map<number, SymbolSpan[]>();
   for (const row of rows) {
-    let spans = fileSymbolSpans.get(row.file_id);
+    let spans = grouped.get(row.file_id);
     if (!spans) {
       spans = [];
-      fileSymbolSpans.set(row.file_id, spans);
+      grouped.set(row.file_id, spans);
     }
     spans.push({ id: row.id, startLine: row.start_line, endLine: row.end_line });
   }
-  return fileSymbolSpans;
+  return new Map([...grouped].map(([fileId, spans]) => [fileId, new SymbolSpanIndex(spans)]));
 }
 
 /**
- * Find the first symbol span in the containment index that contains the given line.
+ * Find the innermost symbol span in the containment index containing a line.
  * Returns the symbol ID or null if no span contains the line.
  */
 export function findContainingSymbol(
-  fileSymbolSpans: Map<number, SymbolSpan[]>,
+  fileSymbolSpans: ReadonlyMap<number, SymbolSpanIndex | readonly SymbolSpan[]>,
   fileId: number,
   line: number,
 ): number | null {
   const spans = fileSymbolSpans.get(fileId);
   if (!spans) return null;
+  if (spans instanceof SymbolSpanIndex) return spans.find(line);
+
+  // Compatibility path for callers/tests that construct an index manually.
+  let best: SymbolSpan | null = null;
   for (const span of spans) {
-    if (line >= span.startLine && line <= span.endLine) {
-      return span.id;
+    if (line < span.startLine || line > span.endLine) continue;
+    if (!best) {
+      best = span;
+      continue;
+    }
+    const width = span.endLine - span.startLine;
+    const bestWidth = best.endLine - best.startLine;
+    if (
+      width < bestWidth
+      || (width === bestWidth && span.startLine > best.startLine)
+      || (width === bestWidth && span.startLine === best.startLine && span.id < best.id)
+    ) {
+      best = span;
     }
   }
-  return null;
+  return best?.id ?? null;
 }
 
 // ─── Test-visible helpers ───────────────────────────────────────────────────

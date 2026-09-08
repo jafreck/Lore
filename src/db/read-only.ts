@@ -141,7 +141,7 @@ export function getFreshness(db: Database.Database): FreshnessInfo {
   let baselineAgeS = 0;
   try {
     const row = db.prepare(
-      "SELECT MAX(indexed_at) AS latest FROM files WHERE layer = 'baseline'",
+      "SELECT MAX(indexed_at) AS latest FROM effective_files WHERE layer = 'baseline'",
     ).get() as { latest: number | null } | undefined;
     if (row?.latest) {
       baselineAgeS = Math.max(0, Math.floor(Date.now() / 1000) - row.latest);

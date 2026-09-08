@@ -17,13 +17,15 @@
 
 import { initLogger, LogLevel, LOG_LEVEL_NAMES } from './logger.js';
 import { killAllTracked } from './process-tracker.js';
-import { flag, usage } from './cli/args.js';
+import { CliArgumentError, parseCliArgs, usage } from './cli/args.js';
 import { runIndexCommand } from './cli/commands/index-cmd.js';
 import { runServeCommand } from './cli/commands/serve-cmd.js';
 import { runRefreshCommand } from './cli/commands/refresh-cmd.js';
 import { runHooksCommand } from './cli/commands/hooks-cmd.js';
 import { runAnalyzeCommand } from './cli/commands/analyze-cmd.js';
 import { runInstallScipCommand } from './cli/commands/install-scip-cmd.js';
+import { runDoctorCommand } from './cli/commands/doctor-cmd.js';
+import { runMigrateCommand } from './cli/commands/migrate-cmd.js';
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
@@ -35,12 +37,13 @@ async function main(): Promise<void> {
     return;
   }
 
-  const subcommand = args[0];
+  const parsed = parseCliArgs(args);
+  const subcommand = parsed.command;
 
   // ── Initialise logger (applies to all subcommands) ─────────────────────────
-  const logLevelRaw = flag(args, '--log-level');
-  const logFileRaw = flag(args, '--log-file');
-  const dbPathForLog = flag(args, '--db');
+  const logLevelRaw = parsed.value('--log-level');
+  const logFileRaw = parsed.value('--log-file');
+  const dbPathForLog = parsed.value('--db');
   const resolvedLogLevel = logLevelRaw
     ? (LOG_LEVEL_NAMES[logLevelRaw.toLowerCase()] ?? LogLevel.INFO)
     : LogLevel.INFO;
@@ -50,7 +53,7 @@ async function main(): Promise<void> {
       : undefined);
   const log = initLogger({ level: resolvedLogLevel, logFile: resolvedLogFile });
 
-  // Safety-net: kill tracked child processes (Python embedder, LSP servers)
+  // Safety-net: kill tracked child processes (SCIP indexers, LSP servers)
   // when the process exits for any reason. Sub-commands that create a
   // LoreRuntime install their own signal handlers with graceful shutdown;
   // this covers one-shot flows (index, refresh) where no runtime exists.
@@ -68,14 +71,18 @@ async function main(): Promise<void> {
     await runAnalyzeCommand(args, log);
   } else if (subcommand === 'install-scip') {
     await runInstallScipCommand(args, log);
-  } else {
-    console.error(`Unknown subcommand: ${subcommand}\n`);
-    usage();
-    return;
+  } else if (subcommand === 'doctor' || subcommand === 'validate') {
+    await runDoctorCommand(args, log);
+  } else if (subcommand === 'migrate') {
+    await runMigrateCommand(args, log);
   }
 }
 
 main().catch((err) => {
+  if (err instanceof CliArgumentError) {
+    console.error(`Error: ${err.message}\n`);
+    usage();
+  }
   console.error('lore: fatal error:', err);
   process.exit(1);
 });

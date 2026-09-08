@@ -68,9 +68,10 @@ function loadSymbolEdges(
 
     const rows = db.prepare(
       `SELECT sr.caller_id AS source, sr.callee_id AS target
-         FROM symbol_refs sr
-         JOIN symbols s ON s.id = sr.caller_id
-         JOIN files f ON f.id = s.file_id
+         FROM effective_symbol_refs sr
+         JOIN effective_symbols s ON s.id = sr.caller_id
+         JOIN effective_symbols target ON target.id = sr.callee_id
+         JOIN effective_files f ON f.id = s.file_id
         WHERE ${where.join(' AND ')}`,
     ).all(...params) as SymbolEdge[];
     edges.push(...rows);
@@ -87,8 +88,10 @@ function loadSymbolEdges(
 
     const rows = db.prepare(
       `SELECT tr.symbol_id AS source, tr.type_id AS target
-         FROM type_refs tr
-         JOIN files f ON f.id = tr.file_id
+         FROM effective_type_refs tr
+         JOIN effective_symbols source ON source.id = tr.symbol_id
+         JOIN effective_symbols target ON target.id = tr.type_id
+         JOIN effective_files f ON f.id = tr.file_id
         WHERE tr.symbol_id IS NOT NULL AND ${where.join(' AND ')}`,
     ).all(...params) as SymbolEdge[];
     edges.push(...rows);
@@ -212,21 +215,23 @@ function findFileComponents(
 
   const allFiles = (
     branch !== undefined
-      ? db.prepare('SELECT id FROM files WHERE branch = ?').all(branch)
-      : db.prepare('SELECT id FROM files').all()
+      ? db.prepare('SELECT id FROM effective_files WHERE branch = ?').all(branch)
+      : db.prepare('SELECT id FROM effective_files').all()
   ) as Array<{ id: number }>;
 
   const edges = (
     branch !== undefined
       ? db.prepare(
           `SELECT fi.file_id AS source, fi.resolved_id AS target
-             FROM file_imports fi
-             JOIN files f ON f.id = fi.file_id
+             FROM effective_file_imports fi
+             JOIN effective_files f ON f.id = fi.file_id
+             JOIN effective_files target ON target.id = fi.resolved_id
             WHERE fi.resolved_id IS NOT NULL AND f.branch = ?`,
         ).all(branch)
       : db.prepare(
           `SELECT fi.file_id AS source, fi.resolved_id AS target
-             FROM file_imports fi
+             FROM effective_file_imports fi
+             JOIN effective_files target ON target.id = fi.resolved_id
             WHERE fi.resolved_id IS NOT NULL`,
         ).all()
   ) as SymbolEdge[];
@@ -363,11 +368,11 @@ export function clusterSymbols(
     branch !== undefined
       ? db.prepare(
           `SELECT s.id, s.file_id, (s.end_line - s.start_line + 1) AS lines
-             FROM symbols s JOIN files f ON f.id = s.file_id
+             FROM effective_symbols s JOIN effective_files f ON f.id = s.file_id
             WHERE f.branch = ?`,
         ).all(branch)
       : db.prepare(
-          'SELECT id, file_id, (end_line - start_line + 1) AS lines FROM symbols',
+          'SELECT id, file_id, (end_line - start_line + 1) AS lines FROM effective_symbols',
         ).all()
   ) as SymbolInfo[];
 
@@ -615,25 +620,31 @@ export function buildCodebaseSummary(
   // Counts
   const totalFiles = (
     branch !== undefined
-      ? db.prepare('SELECT COUNT(*) AS cnt FROM files WHERE branch = ?').get(branch)
-      : db.prepare('SELECT COUNT(*) AS cnt FROM files').get()
+      ? db.prepare('SELECT COUNT(*) AS cnt FROM effective_files WHERE branch = ?').get(branch)
+      : db.prepare('SELECT COUNT(*) AS cnt FROM effective_files').get()
   ) as { cnt: number };
 
   const totalSymbols = (
     branch !== undefined
-      ? db.prepare('SELECT COUNT(*) AS cnt FROM symbols s JOIN files f ON f.id = s.file_id WHERE f.branch = ?').get(branch)
-      : db.prepare('SELECT COUNT(*) AS cnt FROM symbols').get()
+      ? db.prepare('SELECT COUNT(*) AS cnt FROM effective_symbols s JOIN effective_files f ON f.id = s.file_id WHERE f.branch = ?').get(branch)
+      : db.prepare('SELECT COUNT(*) AS cnt FROM effective_symbols').get()
   ) as { cnt: number };
 
   const totalEdges = (
     branch !== undefined
       ? db.prepare(
-          `SELECT COUNT(*) AS cnt FROM symbol_refs sr
-           JOIN symbols s ON s.id = sr.caller_id
-           JOIN files f ON f.id = s.file_id
+          `SELECT COUNT(*) AS cnt FROM effective_symbol_refs sr
+           JOIN effective_symbols s ON s.id = sr.caller_id
+           JOIN effective_symbols target ON target.id = sr.callee_id
+           JOIN effective_files f ON f.id = s.file_id
            WHERE sr.callee_id IS NOT NULL AND f.branch = ?`,
         ).get(branch)
-      : db.prepare('SELECT COUNT(*) AS cnt FROM symbol_refs WHERE callee_id IS NOT NULL').get()
+      : db.prepare(
+          `SELECT COUNT(*) AS cnt
+             FROM effective_symbol_refs sr
+             JOIN effective_symbols target ON target.id = sr.callee_id
+            WHERE sr.callee_id IS NOT NULL`,
+        ).get()
   ) as { cnt: number };
 
   // Cluster symbols into modules
@@ -665,8 +676,8 @@ export function buildCodebaseSummary(
   const filePathById = new Map<number, string>(
     (
       branch !== undefined
-        ? db.prepare('SELECT id, path FROM files WHERE branch = ?').all(branch)
-        : db.prepare('SELECT id, path FROM files').all()
+        ? db.prepare('SELECT id, path FROM effective_files WHERE branch = ?').all(branch)
+        : db.prepare('SELECT id, path FROM effective_files').all()
     ).map((r: any) => [r.id, r.path]),
   );
 

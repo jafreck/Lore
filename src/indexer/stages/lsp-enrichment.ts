@@ -48,15 +48,18 @@ export class LspEnrichmentStage implements PipelineStage {
       return;
     }
 
-    // In baseline builds, SCIP is the sole resolution authority.
-    // LSP enrichment is only used in overlay mode for cross-file resolution.
+    // In baseline builds, SCIP is primary. LSP still enriches files in
+    // languages that SCIP did not source or cover.
     if (context.layer === 'baseline') {
       // Still run for non-SCIP languages in baseline builds (legacy behavior)
       const scipSourced = context.scipSourcedLanguages;
       const scipCovered = context.scipCoveredLanguages;
-      const nonScipFiles = context.files.filter(f =>
-        !(scipSourced?.has(f.language) || scipCovered?.has(f.language)),
-      );
+      const sourcedFiles = context.scipSourcedFiles;
+      const nonScipFiles = context.files.filter((file) => {
+        if (context.lspEnrichedFiles?.has(file.path)) return false;
+        if (sourcedFiles) return !sourcedFiles.has(file.path);
+        return !(scipSourced?.has(file.language) || scipCovered?.has(file.language));
+      });
       if (nonScipFiles.length === 0) {
         context.sourceCache.clear();
         return;
@@ -165,31 +168,33 @@ export async function enrichProjectRefs(
 ): Promise<void> {
 
   const selectSymbols = db.prepare(
-    `SELECT s.id, s.name, s.signature, s.start_line
-     FROM symbols s
-     JOIN files f ON f.id = s.file_id
+    `SELECT s.id, s.name, s.signature,
+            COALESCE(s.selection_line, s.start_line) AS query_line,
+            COALESCE(s.selection_character, s.start_character, 0) AS query_character
+    FROM effective_symbols s
+    JOIN effective_files f ON f.id = s.file_id
      WHERE f.path = ? AND f.branch = ?
      ORDER BY s.id`,
   );
   const selectCallRefs = db.prepare(
     `SELECT sr.id, sr.call_line, sr.call_character
-     FROM symbol_refs sr
-     JOIN symbols s ON s.id = sr.caller_id
-     JOIN files f ON f.id = s.file_id
+    FROM effective_symbol_refs sr
+    JOIN effective_symbols s ON s.id = sr.caller_id
+    JOIN effective_files f ON f.id = s.file_id
      WHERE f.path = ? AND f.branch = ?
      ORDER BY sr.id`,
   );
   const selectTypeRefs = db.prepare(
     `SELECT tr.id, tr.ref_line, tr.ref_character
-     FROM type_refs tr
-     JOIN files f ON f.id = tr.file_id
+    FROM effective_type_refs tr
+    JOIN effective_files f ON f.id = tr.file_id
      WHERE f.path = ? AND f.branch = ?
      ORDER BY tr.id`,
   );
   const selectRelationships = db.prepare(
     `SELECT sr.id, sr.line, sr.character
-     FROM symbol_relationships sr
-     JOIN files f ON f.id = sr.file_id
+    FROM effective_symbol_relationships sr
+    JOIN effective_files f ON f.id = sr.file_id
      WHERE f.path = ? AND f.branch = ? AND sr.line IS NOT NULL
      ORDER BY sr.id`,
   );
@@ -247,10 +252,18 @@ export async function enrichProjectRefs(
       id: number;
       name: string;
       signature: string | null;
-      start_line: number;
+      query_line: number;
+      query_character: number;
     }>;
     for (const s of symbols) {
-      tagged.push({ table: 'symbol', rowId: s.id, line: s.start_line, character: 0, name: s.name, signature: s.signature });
+      tagged.push({
+        table: 'symbol',
+        rowId: s.id,
+        line: s.query_line,
+        character: s.query_character,
+        name: s.name,
+        signature: s.signature,
+      });
     }
 
     const callRefs = selectCallRefs.all(file.path, branch) as Array<{
@@ -379,9 +392,9 @@ async function enrichUnresolvedScipRefs(
   // Only select refs that SCIP left unresolved.
   const selectUnresolvedCallRefs = db.prepare(
     `SELECT sr.id, sr.call_line, sr.call_character
-     FROM symbol_refs sr
-     JOIN symbols s ON s.id = sr.caller_id
-     JOIN files f ON f.id = s.file_id
+    FROM effective_symbol_refs sr
+    JOIN effective_symbols s ON s.id = sr.caller_id
+    JOIN effective_files f ON f.id = s.file_id
      WHERE f.path = ? AND f.branch = ?
        AND sr.resolution_method = 'unresolved'
        AND sr.definition_path IS NULL
@@ -389,8 +402,8 @@ async function enrichUnresolvedScipRefs(
   );
   const selectUnresolvedTypeRefs = db.prepare(
     `SELECT tr.id, tr.ref_line, tr.ref_character
-     FROM type_refs tr
-     JOIN files f ON f.id = tr.file_id
+    FROM effective_type_refs tr
+    JOIN effective_files f ON f.id = tr.file_id
      WHERE f.path = ? AND f.branch = ?
        AND tr.resolution_method = 'unresolved'
        AND tr.definition_path IS NULL

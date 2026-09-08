@@ -4,18 +4,19 @@
  * Handler for the `lore analyze` subcommand.
  */
 
-import { flag, usage } from '../args.js';
+import { parseCliArgs, usage } from '../args.js';
 import type { LoreLogger } from '../../logger.js';
 
 export async function runAnalyzeCommand(args: string[], _log: LoreLogger): Promise<void> {
-  const dbPath = flag(args, '--db');
+  const parsedArgs = parseCliArgs(args, 'analyze');
+  const dbPath = parsedArgs.value('--db');
   if (!dbPath) {
     console.error('Error: --db <path> is required for the analyze subcommand.\n');
     usage();
     return;
   }
 
-  const mode = flag(args, '--mode') ?? 'summary';
+  const mode = parsedArgs.value('--mode') ?? 'summary';
   const validModes = ['cycles', 'components', 'clusters', 'summary'];
   if (!validModes.includes(mode)) {
     console.error(`Error: --mode must be one of: ${validModes.join(', ')}\n`);
@@ -23,7 +24,7 @@ export async function runAnalyzeCommand(args: string[], _log: LoreLogger): Promi
     return;
   }
 
-  const edgeKindsRaw = flag(args, '--edge-kinds') ?? 'both';
+  const edgeKindsRaw = parsedArgs.value('--edge-kinds') ?? 'both';
   const validEdgeKinds = ['call', 'type', 'both'];
   if (!validEdgeKinds.includes(edgeKindsRaw)) {
     console.error(`Error: --edge-kinds must be one of: ${validEdgeKinds.join(', ')}\n`);
@@ -32,8 +33,8 @@ export async function runAnalyzeCommand(args: string[], _log: LoreLogger): Promi
   }
   const edgeKinds = edgeKindsRaw as 'call' | 'type' | 'both';
 
-  const branch = flag(args, '--branch');
-  const maxLinesRaw = flag(args, '--max-lines');
+  const branch = parsedArgs.value('--branch');
+  const maxLinesRaw = parsedArgs.value('--max-lines');
   let maxLines: number | undefined;
   if (maxLinesRaw !== undefined) {
     const parsed = Number(maxLinesRaw);

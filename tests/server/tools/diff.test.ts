@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { openDb, type Database } from '../../../src/db/schema.js';
+import type { Database } from '../../../src/db/schema.js';
+import { openPromotedTestDb as openDb } from '../../helpers/promotedDb.js';
 import { handler, toolDef } from '../../../src/server/tools/diff.js';
 
 function seedDiffData(db: Database.Database) {
@@ -42,6 +43,7 @@ describe('lore_diff handler', () => {
     expect(result.new_branch).toBe('v2');
     const addedNames = result.added.map((a) => a.name);
     expect(addedNames).toContain('createUser');
+    expect(result.added.find((entry) => entry.name === 'createUser')!.start_line).toBe(7);
   });
 
   it('detects removed symbols', () => {
@@ -57,6 +59,7 @@ describe('lore_diff handler', () => {
     const getUser = result.changed.find((c) => c.name === 'getUser')!;
     expect(getUser.old_signature).toBe('(id: number): User');
     expect(getUser.new_signature).toBe('(id: string): User');
+    expect(getUser.start_line).toBe(2);
   });
 
   it('returns summary with counts', () => {
@@ -111,5 +114,44 @@ describe('lore_diff handler', () => {
     } finally {
       emptyDb.close();
     }
+  });
+
+  it('compares effective replacement rows for each branch', () => {
+    db.prepare(
+      `INSERT INTO files (id, path, branch, language, source, layer, generation)
+       VALUES (3, 'src/api.ts', 'v2', 'typescript', 'overlay', 'overlay', 0)`,
+    ).run();
+    db.prepare(
+      `INSERT INTO symbols
+         (id, file_id, name, kind, start_line, end_line, signature, is_exported, layer, generation)
+       VALUES (5, 3, 'getUser', 'function', 0, 4, '(id: boolean): User', 1, 'overlay', 0),
+              (6, 3, 'overlayOnly', 'function', 5, 9, '(): void', 1, 'overlay', 0)`,
+    ).run();
+    db.prepare(
+      "INSERT INTO dirty_files (path, branch, overlay_gen) VALUES ('src/api.ts', 'v2', 0)",
+    ).run();
+
+    const result = handler(db, { old_branch: 'v1', new_branch: 'v2' });
+    expect(result.added.map((entry) => entry.name)).toEqual(['overlayOnly']);
+    expect(result.changed).toEqual([
+      expect.objectContaining({
+        name: 'getUser',
+        old_signature: '(id: number): User',
+        new_signature: '(id: boolean): User',
+      }),
+    ]);
+    expect(result.added.map((entry) => entry.name)).not.toContain('createUser');
+  });
+
+  it('treats a dirty path with no overlay row as deleted on that branch', () => {
+    db.prepare(
+      "INSERT INTO dirty_files (path, branch, overlay_gen) VALUES ('src/api.ts', 'v2', 0)",
+    ).run();
+
+    const result = handler(db, { old_branch: 'v1', new_branch: 'v2' });
+    expect(result.added).toEqual([]);
+    expect(result.changed).toEqual([]);
+    expect(result.removed.map((entry) => entry.name).sort())
+      .toEqual(['deleteUser', 'getUser']);
   });
 });

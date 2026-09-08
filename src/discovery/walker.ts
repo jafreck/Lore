@@ -6,8 +6,9 @@
  */
 
 import fg from 'fast-glob';
-import { realpathSync } from 'node:fs';
-import { extname, sep } from 'node:path';
+import { readFileSync, realpathSync } from 'node:fs';
+import { dirname, extname, resolve, sep } from 'node:path';
+import type { LoadedCompilationDatabase } from '../scip/compdb.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -58,14 +59,18 @@ export interface FileEntry {
 
 export const EXT_TO_LANG: Record<string, string> = {
   '.c':    'c',
+  '.C':    'cpp',
   '.h':    'c',
   '.rs':   'rust',
   '.py':   'python',
   '.cpp':  'cpp',
   '.cc':   'cpp',
   '.cxx':  'cpp',
+  '.c++':  'cpp',
   '.hpp':  'cpp',
+  '.hh':   'cpp',
   '.hxx':  'cpp',
+  '.h++':  'cpp',
   '.ts':   'typescript',
   '.tsx':  'typescript',
   '.js':   'javascript',
@@ -103,12 +108,253 @@ export const SUPPORTED_WALKER_LANGUAGES: readonly string[] = Object.freeze(
   [...new Set(Object.values(EXT_TO_LANG))].sort(),
 );
 
+const C_SOURCE_EXTENSIONS = new Set(['.c']);
+const CPP_SOURCE_EXTENSIONS = new Set(['.C', '.cc', '.cpp', '.cxx', '.c++']);
+
+/** Normalize extensions while retaining the POSIX `.C` C++ convention. */
+export function sourceExtension(filePath: string): string {
+  const extension = extname(filePath);
+  return extension === '.C' ? '.C' : extension.toLowerCase();
+}
+
+export interface CFamilyLanguageEvidence {
+  classifyHeaderLanguage(filePath: string): CFamilyHeaderClassification;
+  inferHeaderLanguage(filePath: string, scipLanguage?: 'c' | 'cpp'): 'c' | 'cpp' | undefined;
+}
+
+export type CFamilyHeaderClassification =
+  | 'c'
+  | 'cpp'
+  | 'mixed'
+  | 'ambiguous'
+  | 'unknown';
+
+export interface CFamilyLanguageEvidenceOptions {
+  /** Base directory used to resolve relative SCIP/document paths. */
+  rootDir?: string;
+  compilationDatabase?: Pick<LoadedCompilationDatabase, 'entries'> | null;
+  sourceCache?: ReadonlyMap<string, string>;
+  readSource?: (filePath: string) => string | undefined;
+}
+
+/**
+ * Build component- and compilation-database-aware C/C++ header evidence.
+ *
+ * Direct include reachability from compilation-database translation units is
+ * authoritative. Headers reached only from C TUs are C, headers reached only
+ * from C++ TUs are C++, and headers reached from both are explicitly `mixed`.
+ * For headers without include evidence, the nearest source component is used;
+ * equal-distance C/C++ evidence is `ambiguous` rather than being decided by a
+ * repository-wide majority ratio.
+ */
+export function buildCFamilyLanguageEvidence(
+  filePaths: Iterable<string>,
+  options: CFamilyLanguageEvidenceOptions = {},
+): CFamilyLanguageEvidence {
+  const evidenceRoot = options.rootDir ?? process.cwd();
+  const knownPaths = new Map<string, string>();
+  const sourceLanguages = new Map<string, 'c' | 'cpp'>();
+  for (const filePath of filePaths) {
+    const normalizedPath = normalizeEvidencePath(filePath, evidenceRoot);
+    knownPaths.set(normalizedPath, filePath);
+    const extension = sourceExtension(filePath);
+    const language = C_SOURCE_EXTENSIONS.has(extension)
+      ? 'c'
+      : CPP_SOURCE_EXTENSIONS.has(extension) ? 'cpp' : null;
+    if (language) sourceLanguages.set(normalizedPath, language);
+  }
+
+  const compilationEntries = options.compilationDatabase?.entries ?? [];
+  for (const entry of compilationEntries) {
+    if (entry.language === 'c' || entry.language === 'cpp') {
+      sourceLanguages.set(normalizeEvidencePath(entry.filePath, evidenceRoot), entry.language);
+    }
+  }
+  const componentLanguages = buildComponentLanguageIndex(sourceLanguages);
+
+  const directHeaderLanguages = new Map<string, Set<'c' | 'cpp'>>();
+  for (const entry of compilationEntries) {
+    const language = entry.language === 'c' || entry.language === 'cpp'
+      ? entry.language
+      : sourceLanguages.get(normalizeEvidencePath(entry.filePath, evidenceRoot));
+    if (!language) continue;
+    collectIncludedHeaderLanguages(
+      entry.filePath,
+      language,
+      entry.includePaths,
+      knownPaths,
+      directHeaderLanguages,
+      options,
+      evidenceRoot,
+    );
+  }
+
+  const classificationCache = new Map<string, CFamilyHeaderClassification>();
+  const classifyHeaderLanguage = (filePath: string): CFamilyHeaderClassification => {
+    const normalizedPath = normalizeEvidencePath(filePath, evidenceRoot);
+    const cached = classificationCache.get(normalizedPath);
+    if (cached) return cached;
+
+    const direct = directHeaderLanguages.get(normalizedPath);
+    let classification: CFamilyHeaderClassification;
+    if (direct?.size === 1) {
+      classification = direct.has('cpp') ? 'cpp' : 'c';
+    } else if (direct && direct.size > 1) {
+      classification = 'mixed';
+    } else {
+      const nearest = nearestComponentLanguages(normalizedPath, componentLanguages);
+      classification = nearest.size === 0
+        ? 'unknown'
+        : nearest.size === 1
+          ? nearest.has('cpp') ? 'cpp' : 'c'
+          : 'ambiguous';
+    }
+    classificationCache.set(normalizedPath, classification);
+    return classification;
+  };
+
+  return {
+    classifyHeaderLanguage,
+    inferHeaderLanguage(filePath, scipLanguage) {
+      const classification = classifyHeaderLanguage(filePath);
+      return classification === 'c' || classification === 'cpp'
+        ? classification
+        : scipLanguage;
+    },
+  };
+}
+
+function normalizeEvidencePath(filePath: string, rootDir: string): string {
+  return resolve(rootDir, filePath.replace(/\\/gu, '/')).replace(/\\/gu, '/');
+}
+
+function nearestComponentLanguages(
+  headerPath: string,
+  componentLanguages: ReadonlyMap<string, ReadonlySet<'c' | 'cpp'>>,
+): Set<'c' | 'cpp'> {
+  let directory = dirname(headerPath);
+  while (true) {
+    const languages = componentLanguages.get(directory);
+    if (languages) return new Set(languages);
+    const parent = dirname(directory);
+    if (parent === directory) return new Set();
+    directory = parent;
+  }
+}
+
+function buildComponentLanguageIndex(
+  sourceLanguages: ReadonlyMap<string, 'c' | 'cpp'>,
+): Map<string, Set<'c' | 'cpp'>> {
+  const index = new Map<string, Set<'c' | 'cpp'>>();
+  for (const [sourcePath, language] of sourceLanguages) {
+    let directory = dirname(sourcePath);
+    while (true) {
+      let languages = index.get(directory);
+      if (!languages) {
+        languages = new Set();
+        index.set(directory, languages);
+      }
+      languages.add(language);
+      const parent = dirname(directory);
+      if (parent === directory) break;
+      directory = parent;
+    }
+  }
+  return index;
+}
+
+function collectIncludedHeaderLanguages(
+  translationUnit: string,
+  language: 'c' | 'cpp',
+  includePaths: readonly string[],
+  knownPaths: ReadonlyMap<string, string>,
+  headerLanguages: Map<string, Set<'c' | 'cpp'>>,
+  options: CFamilyLanguageEvidenceOptions,
+  rootDir: string,
+): void {
+  const pending = [normalizeEvidencePath(translationUnit, rootDir)];
+  const visited = new Set<string>();
+  while (pending.length > 0) {
+    const sourcePath = pending.pop()!;
+    if (visited.has(sourcePath)) continue;
+    visited.add(sourcePath);
+    const source = readEvidenceSource(sourcePath, knownPaths, options);
+    if (source === undefined) continue;
+
+    for (const include of parseIncludes(source)) {
+      const includedPath = resolveKnownInclude(
+        sourcePath,
+        include.path,
+        include.quoted,
+        includePaths,
+        knownPaths,
+        rootDir,
+      );
+      if (!includedPath) continue;
+      if (extname(includedPath).toLowerCase() === '.h') {
+        let languages = headerLanguages.get(includedPath);
+        if (!languages) {
+          languages = new Set();
+          headerLanguages.set(includedPath, languages);
+        }
+        languages.add(language);
+      }
+      pending.push(includedPath);
+    }
+  }
+}
+
+function readEvidenceSource(
+  normalizedPath: string,
+  knownPaths: ReadonlyMap<string, string>,
+  options: CFamilyLanguageEvidenceOptions,
+): string | undefined {
+  const originalPath = knownPaths.get(normalizedPath) ?? normalizedPath;
+  const cached = options.sourceCache?.get(normalizedPath)
+    ?? options.sourceCache?.get(originalPath);
+  if (cached !== undefined) return cached;
+  if (options.readSource) return options.readSource(normalizedPath);
+  try {
+    return readFileSync(normalizedPath, 'utf8');
+  } catch {
+    return undefined;
+  }
+}
+
+function parseIncludes(source: string): Array<{ path: string; quoted: boolean }> {
+  const includes: Array<{ path: string; quoted: boolean }> = [];
+  const pattern = /^\s*#\s*include\s*([<"])([^>"\r\n]+)[>"]/gmu;
+  for (const match of source.matchAll(pattern)) {
+    const includePath = match[2]?.trim();
+    if (includePath) includes.push({ path: includePath, quoted: match[1] === '"' });
+  }
+  return includes;
+}
+
+function resolveKnownInclude(
+  fromFile: string,
+  includePath: string,
+  quoted: boolean,
+  includePaths: readonly string[],
+  knownPaths: ReadonlyMap<string, string>,
+  rootDir: string,
+): string | null {
+  const roots = quoted ? [dirname(fromFile), ...includePaths] : includePaths;
+  for (const root of roots) {
+    const candidate = normalizeEvidencePath(resolve(root, includePath), rootDir);
+    if (knownPaths.has(candidate)) return candidate;
+  }
+  return null;
+}
+
 // Paths always excluded unless the caller overrides them.
 export const DEFAULT_EXCLUDES = [
   '**/node_modules/**',
   '**/.git/**',
   '**/dist/**',
   '**/build/**',
+  '**/builddir/**',
+  '**/.lore-compdb/**',
   '**/__pycache__/**',
   '**/target/**',
 ];
@@ -119,7 +365,10 @@ export const DEFAULT_EXCLUDES = [
  * Walks `config.rootDir` and returns every source file that can be mapped
  * to a known programming language.
  */
-export async function walkFiles(config: WalkerConfig): Promise<FileEntry[]> {
+export async function walkFiles(
+  config: WalkerConfig,
+  cFamilyOptions: CFamilyLanguageEvidenceOptions = {},
+): Promise<FileEntry[]> {
   const {
     rootDir,
     includeGlobs = ['**/*'],
@@ -139,7 +388,7 @@ export async function walkFiles(config: WalkerConfig): Promise<FileEntry[]> {
     dot: false,
   });
 
-  const results: FileEntry[] = [];
+  const candidates: string[] = [];
   const seen = new Set<string>();
   const canonicalRoot = realpathSync(rootDir);
 
@@ -163,18 +412,23 @@ export async function walkFiles(config: WalkerConfig): Promise<FileEntry[]> {
     if (seen.has(realPath)) continue;
     seen.add(realPath);
 
-    const ext = extname(realPath).toLowerCase();
+    const ext = sourceExtension(realPath);
 
     // Skip if caller supplied an explicit extension filter.
     if (extensions && !extensions.includes(ext)) continue;
 
-    const language = EXT_TO_LANG[ext];
-    if (!language) continue;
-
-    results.push({ path: realPath, language });
+    if (!EXT_TO_LANG[ext]) continue;
+    candidates.push(realPath);
   }
 
-  return results;
+  const cFamilyEvidence = buildCFamilyLanguageEvidence(candidates, {
+    rootDir,
+    ...cFamilyOptions,
+  });
+  return candidates.flatMap((filePath): FileEntry[] => {
+    const language = detectLanguageForPath(filePath, undefined, { cFamilyEvidence });
+    return language ? [{ path: filePath, language }] : [];
+  });
 }
 
 
@@ -182,9 +436,18 @@ export async function walkFiles(config: WalkerConfig): Promise<FileEntry[]> {
  * Detect the Lore language for a single file path using extension mapping.
  * Returns `undefined` when the extension is unknown or filtered out.
  */
-export function detectLanguageForPath(filePath: string, config?: Pick<WalkerConfig, 'extensions'>): string | undefined {
-  const ext = extname(filePath).toLowerCase();
+export function detectLanguageForPath(
+  filePath: string,
+  config?: Pick<WalkerConfig, 'extensions'>,
+  hints?: { scipLanguage?: 'c' | 'cpp'; cFamilyEvidence?: CFamilyLanguageEvidence },
+): string | undefined {
+  const ext = sourceExtension(filePath);
   if (config?.extensions && !config.extensions.includes(ext)) return undefined;
+  if (ext === '.h') {
+    return hints?.cFamilyEvidence?.inferHeaderLanguage(filePath, hints.scipLanguage)
+      ?? hints?.scipLanguage
+      ?? 'c';
+  }
   return EXT_TO_LANG[ext];
 }
 

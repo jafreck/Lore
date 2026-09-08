@@ -7,6 +7,10 @@
 
 import type { Database } from '../../db/read-only.js';
 import { getFileByPath } from '../../db/read-only.js';
+import {
+  presentationLineToStorage,
+  storageLineToPresentation,
+} from '../../source-coordinates.js';
 
 // ─── Tool definition ──────────────────────────────────────────────────────────
 
@@ -79,7 +83,7 @@ interface SymbolBounds {
 }
 
 function getIndexedSource(db: Database.Database, fileId: number, path: string): string {
-  const row = db.prepare('SELECT source FROM files WHERE id = ?').get(fileId) as SourceRow | undefined;
+  const row = db.prepare('SELECT source FROM effective_files WHERE id = ?').get(fileId) as SourceRow | undefined;
   if (!row) {
     throw new Error(`File not found in index: ${path}`);
   }
@@ -94,7 +98,7 @@ function resolveSymbolBounds(
 ): SymbolBounds {
   const matches = db
     .prepare(
-      'SELECT start_line, end_line FROM symbols WHERE file_id = ? AND name = ? COLLATE NOCASE ORDER BY start_line ASC, end_line ASC',
+      'SELECT start_line, end_line FROM effective_symbols WHERE file_id = ? AND name = ? COLLATE NOCASE ORDER BY start_line ASC, end_line ASC',
     )
     .all(fileId, symbol) as SymbolBounds[];
 
@@ -117,17 +121,28 @@ function findContainingSymbol(
   startLine: number,
   endLine: number,
 ): SnippetContainingSymbol | undefined {
-  return db
+  const symbol = db
     .prepare(
       `SELECT name, kind, start_line, end_line
-         FROM symbols
+        FROM effective_symbols
         WHERE file_id = ?
           AND start_line <= ?
           AND end_line >= ?
         ORDER BY (end_line - start_line) ASC, start_line DESC
         LIMIT 1`,
     )
-    .get(fileId, startLine, endLine) as SnippetContainingSymbol | undefined;
+    .get(
+      fileId,
+      presentationLineToStorage(startLine),
+      presentationLineToStorage(endLine),
+    ) as SnippetContainingSymbol | undefined;
+  return symbol
+    ? {
+        ...symbol,
+        start_line: storageLineToPresentation(symbol.start_line),
+        end_line: storageLineToPresentation(symbol.end_line),
+      }
+    : undefined;
 }
 
 /** Read source lines from indexed source snapshots for the given indexed file path. */
@@ -155,14 +170,20 @@ export function handler(db: Database.Database, args: SnippetArgs): SnippetResult
       throw new Error('`symbol` must be a non-empty string.');
     }
     const bounds = resolveSymbolBounds(db, fileRow.id, args.path, symbolName);
-    startLine = Math.min(lineCount, Math.max(1, Math.floor(bounds.start_line)));
-    endLine = Math.min(lineCount, Math.max(startLine, Math.floor(bounds.end_line)));
+    startLine = Math.min(
+      lineCount,
+      Math.max(1, storageLineToPresentation(Math.floor(bounds.start_line))),
+    );
+    endLine = Math.min(
+      lineCount,
+      Math.max(startLine, storageLineToPresentation(Math.floor(bounds.end_line))),
+    );
   } else {
     startLine = Math.min(lineCount, Math.max(1, Math.floor(args.start_line ?? 1)));
     endLine = Math.min(lineCount, Math.max(startLine, Math.floor(args.end_line ?? lineCount)));
   }
 
-  const text = lines.slice(startLine - 1, endLine).join('\n');
+  const text = lines.slice(presentationLineToStorage(startLine), endLine).join('\n');
   const containingSymbol = findContainingSymbol(db, fileRow.id, startLine, endLine);
 
   if (containingSymbol) {

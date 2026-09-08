@@ -14,6 +14,11 @@
 
 import type { Database } from '../../db/read-only.js';
 import type { EmbeddingProvider } from '../../embeddings/embedder.js';
+import {
+  nullableStorageCharacterToPresentation,
+  nullableStorageLineToPresentation,
+  storageLineToPresentation,
+} from '../../source-coordinates.js';
 
 const queryEmbeddingCache = new Map<string, { vector: number[]; ts: number }>();
 const CACHE_MAX_SIZE = 1000;
@@ -121,7 +126,11 @@ export interface SearchSymbolResult {
   kind: string;
   file_path: string;
   start_line: number;
+  start_character: number | null;
   end_line: number;
+  end_character: number | null;
+  selection_line: number | null;
+  selection_character: number | null;
   score: number;
   branch: string;
 }
@@ -195,34 +204,37 @@ function structuralSearch(
   try {
     const sql = `SELECT 'symbol' AS result_type,
                 s.id AS symbol_id, s.name, s.kind, f.path AS file_path,
-                s.start_line, s.end_line,
+                s.start_line, s.start_character, s.end_line, s.end_character,
+                s.selection_line, s.selection_character,
                 ${enrichmentProjection},
                 bm25(symbols_fts) AS score,
                 f.branch AS branch
            FROM symbols_fts
-           JOIN symbols s ON s.rowid = symbols_fts.rowid
-           JOIN files   f ON f.id   = s.file_id
+           JOIN effective_symbols s ON s.id = symbols_fts.rowid
+           JOIN effective_files   f ON f.id   = s.file_id
           WHERE symbols_fts MATCH ?${extraSql}
           ORDER BY score
            LIMIT ?`;
     const params = [safeQuery, ...extraParams, limit];
     const rows = db.prepare(sql).all(...params) as SearchSymbolResult[];
-    return rows;
+    return rows.map(presentSearchSymbol);
   } catch {
     // FTS5 parse error — fall back to LIKE-based prefix search.
     const likeQuery = `${escapeLikeWildcards(query)}%`;
     const sql = `SELECT 'symbol' AS result_type,
                 s.id AS symbol_id, s.name, s.kind, f.path AS file_path,
-                s.start_line, s.end_line,
+                s.start_line, s.start_character, s.end_line, s.end_character,
+                s.selection_line, s.selection_character,
                 ${enrichmentProjection},
                 0.0 AS score,
                 f.branch AS branch
-           FROM symbols s
-           JOIN files f ON f.id = s.file_id
+           FROM effective_symbols s
+           JOIN effective_files f ON f.id = s.file_id
           WHERE s.name LIKE ?${extraSql}
            LIMIT ?`;
     const params = [likeQuery, ...extraParams, limit];
-    return db.prepare(sql).all(...params) as SearchSymbolResult[];
+    const rows = db.prepare(sql).all(...params) as SearchSymbolResult[];
+    return rows.map(presentSearchSymbol);
   }
 }
 
@@ -257,13 +269,14 @@ function semanticSymbolSearch(
   const enrichment = symbolEnrichmentProjection(db);
   const sql = `SELECT 'symbol' AS result_type,
               s.id AS symbol_id, s.name, s.kind, f.path AS file_path,
-              s.start_line, s.end_line,
+              s.start_line, s.start_character, s.end_line, s.end_character,
+              s.selection_line, s.selection_character,
               ${enrichment},
               distance AS score,
               f.branch AS branch
          FROM symbol_embeddings
-         JOIN symbols s ON s.rowid = symbol_embeddings.rowid
-         JOIN files   f ON f.id   = s.file_id
+         JOIN effective_symbols s ON s.id = symbol_embeddings.rowid
+         JOIN effective_files   f ON f.id   = s.file_id
         WHERE embedding MATCH ?
           AND k = ?${extraSql}
         ORDER BY distance
@@ -271,10 +284,23 @@ function semanticSymbolSearch(
   const params = [JSON.stringify(queryVector), limit, ...extraParams, limit];
 
   try {
-    return db.prepare(sql).all(...params) as SearchSymbolResult[];
+    const rows = db.prepare(sql).all(...params) as SearchSymbolResult[];
+    return rows.map(presentSearchSymbol);
   } catch {
     return [];
   }
+}
+
+function presentSearchSymbol(row: SearchSymbolResult): SearchSymbolResult {
+  return {
+    ...row,
+    start_line: storageLineToPresentation(row.start_line),
+    start_character: nullableStorageCharacterToPresentation(row.start_character),
+    end_line: storageLineToPresentation(row.end_line),
+    end_character: nullableStorageCharacterToPresentation(row.end_character),
+    selection_line: nullableStorageLineToPresentation(row.selection_line),
+    selection_character: nullableStorageCharacterToPresentation(row.selection_character),
+  };
 }
 
 /**

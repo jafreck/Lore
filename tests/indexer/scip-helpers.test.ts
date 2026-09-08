@@ -108,6 +108,20 @@ describe('inferKindFromScipSymbol', () => {
     )).toBe('function');
   });
 
+  it('preserves scip-clang preprocessor macros as macro symbols', () => {
+    expect(inferKindFromScipSymbol(
+      'cxx . . $ `include/config.h:4:9`!',
+      '',
+    )).toBe('macro');
+  });
+
+  it('uses SymbolInformation Macro kind when available', () => {
+    expect(inferKindFromScipSymbol(
+      'cxx . . $ CONFIG.',
+      '', 25,
+    )).toBe('macro');
+  });
+
   it('identifies disambiguated methods', () => {
     expect(inferKindFromScipSymbol(
       'scip-java maven pkg 1.0 com/example/MyClass#overloaded(+1).',

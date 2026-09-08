@@ -3,8 +3,8 @@
  *
  * Knowledge-base MCP server.
  *
- * Exports `createLoreMcpServer()` for use by `LoreServerProcess` (HTTP transport)
- * and retains a standalone CLI entry point for development/debugging.
+ * Exports `createLoreMcpServer()` and retains a standalone stdio CLI entry
+ * point for development/debugging.
  *
  * MCP tools exposed:
  *   lore_lookup    — symbol / file lookup
@@ -12,13 +12,15 @@
  *   lore_search    — structural, semantic, and fused search
  *   lore_snippet   — source-code snippet extraction
  *   lore_blame     — git blame metadata for file lines
- *   lore_metrics   — aggregate code metrics
  *   lore_history   — git commit history queries
  *   lore_diff      — exported symbol diff between branches
+ *   lore_trace     — call-path tracing with source snippets
+ *   lore_cohesion  — directory cohesion ranking
+ *   lore_structure — directory import-graph analysis
+ *   lore_dependents — reverse-dependency / blast-radius queries
  *
  * Standalone usage:
- *   node dist/lore-server/server.js --db <path-to-lore.db>
- *   tsx src/lore-server/server.ts --db <path-to-lore.db>
+ *   node dist/server/server.js --db <path-to-lore.db>
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -30,6 +32,7 @@ import {
   type Database,
 } from '../db/read-only.js';
 import { getLoreMeta } from '../db/schema.js';
+import { assertLoreSchemaCompatible } from '../db/schema-info.js';
 import { LazyEmbeddingProvider, type EmbeddingProvider } from '../embeddings/embedder.js';
 import { getLogger, type LoreLogger } from '../logger.js';
 import type { SearchObserver } from './tools/search.js';
@@ -62,6 +65,11 @@ export async function createLoreMcpServer(
   options?: LoreServerOptions,
 ): Promise<McpServer> {
   const log = options?.logger ?? getLogger();
+
+  // Programmatic callers must not be able to bypass the same compatibility
+  // gate used by the CLI. This runs before tools are registered or readiness
+  // can be signalled.
+  assertLoreSchemaCompatible(db, 'Lore MCP server');
 
   const server = new McpServer(
     { name: 'lore-server', version: '0.1.0' },

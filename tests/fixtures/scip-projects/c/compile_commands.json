@@ -1,0 +1,37 @@
+[
+  {
+    "directory": ".",
+    "file": "src/api.c",
+    "arguments": ["clang", "-std=c11", "-Iinclude", "-c", "src/api.c"]
+  },
+  {
+    "directory": ".",
+    "file": "src/main.c",
+    "arguments": ["clang", "-std=c11", "-Iinclude", "-c", "src/main.c"]
+  },
+  {
+    "directory": ".",
+    "file": "src/alpha_mode.c",
+    "arguments": ["clang", "-std=c11", "-Iinclude", "-Iinclude/alpha", "-c", "src/alpha_mode.c"]
+  },
+  {
+    "directory": ".",
+    "file": "src/beta_mode.c",
+    "arguments": ["clang", "-std=c11", "-Iinclude", "-Iinclude/beta", "-c", "src/beta_mode.c"]
+  },
+  {
+    "directory": ".",
+    "file": "src/configured.c",
+    "arguments": ["clang", "-std=c11", "-Iinclude", "-DLORE_FAST=1", "-c", "src/configured.c", "-o", "configured-fast.o"]
+  },
+  {
+    "directory": ".",
+    "file": "src/configured.c",
+    "arguments": ["clang", "-std=c11", "-Iinclude", "-DLORE_SAFE=1", "-c", "src/configured.c", "-o", "configured-safe.o"]
+  },
+  {
+    "directory": ".",
+    "file": "generated/record_generated.c",
+    "arguments": ["clang", "-std=c11", "-Iinclude", "-c", "generated/record_generated.c"]
+  }
+]
