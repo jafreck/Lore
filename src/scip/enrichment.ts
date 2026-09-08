@@ -13,7 +13,7 @@
  * to the enrichment source.
  */
 
-import { existsSync, readFileSync, unlinkSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -275,6 +275,34 @@ export class ScipEnrichmentCoordinator {
     return null;
   }
 
+  /**
+   * Auto-discover a .sln or .csproj file for scip-dotnet.
+   * Searches root first, then one level deep.
+   */
+  private findDotnetProject(): string | null {
+    // Prefer .sln files over .csproj
+    try {
+      const rootEntries = readdirSync(this.rootDir);
+      const rootSln = rootEntries.find(e => e.endsWith('.sln'));
+      if (rootSln) return join(this.rootDir, rootSln);
+
+      // Search one level deep for .sln
+      for (const entry of rootEntries) {
+        const sub = join(this.rootDir, entry);
+        try {
+          const subEntries = readdirSync(sub);
+          const sln = subEntries.find(e => e.endsWith('.sln'));
+          if (sln) return join(sub, sln);
+        } catch { /* not a directory */ }
+      }
+
+      // Fall back to root .csproj
+      const rootCsproj = rootEntries.find(e => e.endsWith('.csproj'));
+      if (rootCsproj) return join(this.rootDir, rootCsproj);
+    } catch { /* ignore read errors */ }
+    return null;
+  }
+
   private async runIndexer(language: string): Promise<Uint8Array | null> {
     const resolved = this.resolvedIndexers[language];
     if (!resolved?.available) return null;
@@ -295,6 +323,16 @@ export class ScipEnrichmentCoordinator {
         return null;
       }
       args = args.map(a => a.replace(/\{compdb\}/gu, compdb.path!));
+    }
+
+    // For C#: auto-discover .sln or .csproj when {project} placeholder is present
+    if (args.some(a => a.includes('{project}'))) {
+      const project = this.findDotnetProject();
+      if (!project) {
+        log.indexing(`scip: no .sln or .csproj found for ${language}, skipping`);
+        return null;
+      }
+      args = args.map(a => a.replace(/\{project\}/gu, project));
     }
 
     const cwd = resolved.cwd ? join(this.rootDir, resolved.cwd) : this.rootDir;

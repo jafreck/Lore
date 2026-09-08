@@ -60,6 +60,7 @@ export async function indexRepo(
         {
           enabled: true,
           ...(options?.scipIndexDir ? { indexDir: options.scipIndexDir } : {}),
+          ...(options?.scipTimeoutMs ? { timeoutMs: options.scipTimeoutMs } : {}),
         },
       )
     : undefined;

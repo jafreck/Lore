@@ -64,9 +64,9 @@ export const DEFAULT_SCIP_INDEXER_REGISTRY: ScipIndexerRegistry = {
   rust:       { command: 'rust-analyzer',   args: ['scip', '.'] },
   c:          { command: 'scip-clang',      args: ['--compdb-path={compdb}', '--index-output-path={output}'] },
   cpp:        { command: 'scip-clang',      args: ['--compdb-path={compdb}', '--index-output-path={output}'] },
-  csharp:     { command: 'scip-dotnet',     args: ['index', '.', '--output', '{output}'] },
-  ruby:       { command: 'scip-ruby',       args: ['--output', '{output}'] },
-  php:        { command: 'scip-php',        args: ['index', '--output', '{output}'] },
+  csharp:     { command: 'scip-dotnet',     args: ['index', '{project}', '--output', '{output}'] },
+  ruby:       { command: 'scip-ruby',       args: ['.'] },
+  php:        { command: 'scip-php',        args: [] },
   go:         { command: 'scip-go',         args: [] },
   dart:       { command: 'scip-dart',       args: ['index', '--output', '{output}'] },
 };

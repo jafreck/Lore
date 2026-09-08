@@ -303,8 +303,13 @@ async function installViaDotnetTool(spec: ScipInstallSpec, io: InstallerIO): Pro
 async function installViaCoursier(spec: ScipInstallSpec, io: InstallerIO): Promise<ScipInstallResult> {
   const csCmd = io.isCommandAvailable('cs') ? 'cs' : io.isCommandAvailable('coursier') ? 'coursier' : null;
   if (!csCmd) return { command: spec.command, installed: false, path: null, error: 'Coursier not found' };
+  const binDir = io.getLoreBinDir();
+  const wrapperPath = join(binDir, spec.command);
   try {
-    await io.execFileAsync(csCmd, ['install', spec.command], { timeout: 120_000 });
-    return { command: spec.command, installed: true, path: spec.command };
+    io.mkdirSync(binDir, { recursive: true });
+    const wrapperContent = `#!/bin/bash\nexec ${csCmd} launch "com.sourcegraph:scip-java_2.13:0.12.1" -- "$@"\n`;
+    const { writeFileSync } = await import('node:fs');
+    writeFileSync(wrapperPath, wrapperContent, { mode: 0o755 });
+    return { command: spec.command, installed: io.existsSync(wrapperPath), path: wrapperPath };
   } catch (error) { return { command: spec.command, installed: false, path: null, error: error instanceof Error ? error.message : String(error) }; }
 }
