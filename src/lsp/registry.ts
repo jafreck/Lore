@@ -2,8 +2,7 @@ import { accessSync, constants } from 'node:fs';
 import { delimiter, isAbsolute, join } from 'node:path';
 
 /**
- * The set of languages Lore supports, derived from the LSP server registry.
- * Replaces the former SUPPORTED_PARSER_LANGUAGES from tree-sitter.
+ * The source languages recognized by Lore's walker and default LSP registry.
  */
 export const SUPPORTED_LANGUAGES: readonly string[] = [
   'bash', 'c', 'cpp', 'csharp', 'elixir', 'elm', 'go', 'haskell',

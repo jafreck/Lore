@@ -72,7 +72,7 @@ const COPILOT_TASKS = (() => {
   return filtered;
 })();
 
-const INDEX_MODE = (process.env['BENCHMARK_INDEX_MODE'] ?? 'scip') as 'tree-sitter' | 'scip' | 'full';
+const INDEX_MODE = (process.env['BENCHMARK_INDEX_MODE'] ?? 'scip') as 'snapshots' | 'scip' | 'full';
 const EMBEDDING_MODEL = process.env['BENCHMARK_EMBEDDING_MODEL'] ?? '';
 const ENABLE_LSP = process.env['BENCHMARK_LSP'] === '1';
 

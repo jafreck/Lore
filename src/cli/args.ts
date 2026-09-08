@@ -17,7 +17,7 @@ import { EXT_TO_LANG, type WalkerConfig } from '../discovery/walker.js';
 export function usage(): never {
   console.error(
     `Usage:
-  lore index --root <dir> --db <path> [--include <glob>] [--exclude <glob>] [--language <lang>] [--embeddings] [--embedding-model <id>] [--index-deps] [--history] [provider flags] [execution flags]
+  lore index --root <dir> --db <path> [--include <glob>] [--exclude <glob>] [--language <lang>] [--embeddings|--no-embeddings] [--embedding-model <id>] [--index-deps] [--history] [provider flags] [execution flags]
                          Index a codebase into a knowledge-base SQLite file
   lore doctor --db <path> [--root <dir>] [--validation-profile <profile>] [--json]
                          Validate index completeness, integrity, provenance, and freshness
@@ -25,11 +25,11 @@ export function usage(): never {
                          Explicitly upgrade an existing Lore database schema in place
   lore mcp --root <dir> [--watch|--poll] [walker flags] [execution flags]  Start the Lore MCP server, auto-indexing if no DB exists yet
   lore mcp --db <path> [--root <dir> --watch|--poll] [execution flags]  Start the Lore MCP server with a pre-indexed DB
-  lore refresh --db <path> --root <dir> [walker flags] [--index-deps] [--history] [provider flags] [execution flags]  Run an incremental index update and exit
-  lore refresh --db <path> --root <dir> --watch [--embedding-model <id>] Watch for file changes and refresh automatically
-  lore refresh --db <path> --root <dir> --poll [--embedding-model <id>]  Poll for file changes and refresh automatically
+  lore refresh --db <path> --root <dir> [walker flags] [--embeddings|--no-embeddings] [--embedding-model <id>] [--index-deps] [--history] [provider flags] [execution flags]  Run an incremental index update and exit
+  lore refresh --db <path> --root <dir> --watch [--embeddings|--no-embeddings] [--embedding-model <id>] Watch for file changes and refresh automatically
+  lore refresh --db <path> --root <dir> --poll [--embeddings|--no-embeddings] [--embedding-model <id>]  Poll for file changes and refresh automatically
   lore hooks --db <path> --root <dir> [--history] [--history-depth <n>] [--history-all] [--lsp|--no-lsp] [--scip|--no-scip] [execution flags]
-                         Install git hooks for automatic refresh on commit/merge/checkout
+                         Install git hooks for automatic refresh on commit/merge/checkout/rewrite
   lore analyze --db <path> [--mode <mode>] [--edge-kinds <kind>] [--branch <name>] [--max-lines <n>]
                          Run graph analysis on the knowledge-base (cycles, components, clusters, summary)
   lore install-scip [--language <lang>] [--list]
@@ -39,9 +39,9 @@ Options:
   --root <dir>             Root directory to index (required for index, refresh)
   --db <path>              Path to a Lore knowledge-base SQLite file (required for index, refresh; optional for mcp)
   --embedding-model <id>   Embedding model identifier (default: onnx-community/Qwen3-Embedding-0.6B-ONNX)
-  --embeddings             Enable embedding generation during indexing (disabled by default)
-  --no-embeddings          Disable embedding generation during indexing (default)
-  --index-deps             Accepted legacy option; no dependency crawler is active
+  --embeddings             Enable embedding generation for index/refresh work
+  --no-embeddings          Disable embedding generation, including persisted model reuse
+  --index-deps             Legacy TypeScript LSP-startup hint; no dependency crawler is active
   --max-workers <n>        Accepted legacy parse-worker limit; currently unused
   --history                Enable git history ingestion
   --history-depth <n>      Limit commit ingestion to the most recent N commits
@@ -232,10 +232,17 @@ const COMMAND_SCHEMAS: Readonly<Record<CliSubcommand, CliCommandSchema>> = {
       '--db': valueOption,
       '--watch': booleanOption,
       '--poll': booleanOption,
+      '--embeddings': booleanOption,
+      '--no-embeddings': booleanOption,
       '--embedding-model': valueOption,
       '--index-deps': booleanOption,
     },
-    conflicts: [...PROVIDER_CONFLICTS, ['--watch', '--poll']],
+    conflicts: [
+      ...PROVIDER_CONFLICTS,
+      ['--watch', '--poll'],
+      ['--embeddings', '--no-embeddings'],
+      ['--embedding-model', '--no-embeddings'],
+    ],
   },
   mcp: {
     options: {

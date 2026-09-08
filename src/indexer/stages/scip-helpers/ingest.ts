@@ -3,8 +3,8 @@
  *
  * SCIP language detection and virtual dispatch materialization.
  *
- * Tree-sitter AST helpers have been removed. Ref classification is now
- * handled by SCIP `syntaxKind` + descriptor suffix in `symbol-kinds.ts`.
+ * Ref classification uses SCIP `syntaxKind` plus descriptor suffixes from
+ * `symbol-kinds.ts`.
  */
 
 import { pathToFileURL } from 'node:url';

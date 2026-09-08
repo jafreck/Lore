@@ -21,7 +21,7 @@ export interface IndexExecutionOptions {
   allowCustomLspCommands?: boolean;
   /** Allow automatic SCIP indexer downloads or package installation. */
   allowAutoInstall?: boolean;
-  /** Additional roots under which a custom command cwd may reside. */
+  /** Additional roots approved for command cwd, compdb inputs, and precomputed SCIP data. */
   allowedCwdRoots?: readonly string[];
 }
 

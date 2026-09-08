@@ -37,13 +37,14 @@ export interface EffectiveScipSettings {
   allowBuildExecution: boolean;
   /** Host-authorized permission to download or install missing indexers. */
   allowAutoInstall: boolean;
-  /** Additional host-approved roots for custom command working directories. */
+  /** Host-approved roots for custom cwd, compdb paths, and precomputed SCIP data. */
   allowedCwdRoots: readonly string[];
   /** Merged indexer registry (defaults + overrides). */
   indexers: ScipIndexerRegistry;
   /**
    * Optional path to a directory containing pre-computed SCIP index files.
-   * If set, Lore reads `<dir>/<language>.scip` instead of running indexers.
+    * It must remain under the project or a host-approved root. If set, Lore
+    * reads `<dir>/<language>.scip` instead of running indexers.
    */
   indexDir: string | null;
 }

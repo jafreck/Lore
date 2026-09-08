@@ -117,6 +117,16 @@ describe('FilePoller', () => {
       expect(poller).toBeDefined();
       poller.stop();
     });
+
+    it('no ScipFlushManager when SCIP is disabled', () => {
+      const poller = new FilePoller(DB_PATH, walkerConfig, {
+        scip: effectiveScipSettings({ enabled: false }),
+        scipQuietPeriodMs: 5000,
+      });
+      expect((poller as any).scip).toBeUndefined();
+      expect((poller as any).scipFlush).toBeNull();
+      poller.stop();
+    });
   });
 
   describe('onUpdate callback', () => {
@@ -432,6 +442,31 @@ describe('FilePoller poll() coverage', () => {
     expect(stderrSpy).toHaveBeenCalledWith(
       expect.stringContaining('poll cycle complete'),
     );
+
+    poller.stop();
+    stderrSpy.mockRestore();
+  });
+
+  it('retries a failed path when its mtime is unchanged on the next poll', async () => {
+    const { walkFiles } = await import('../../src/discovery/walker.js');
+    const fs = await import('node:fs');
+    const changedPath = '/tmp/test/retry.ts';
+
+    vi.mocked(walkFiles).mockResolvedValue([{ path: changedPath }] as any);
+    vi.spyOn(fs.promises, 'stat').mockResolvedValue({ mtimeMs: 3000 } as any);
+    const onUpdate = vi.fn()
+      .mockRejectedValueOnce(new Error('transient update failure'))
+      .mockResolvedValueOnce(undefined);
+    const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    const poller = new FilePoller(DB_PATH, walkerConfig, { onUpdate });
+
+    await (poller as any).poll();
+    expect((poller as any).retryPaths.has(changedPath)).toBe(true);
+    await (poller as any).poll();
+
+    expect(onUpdate).toHaveBeenNthCalledWith(1, [changedPath]);
+    expect(onUpdate).toHaveBeenNthCalledWith(2, [changedPath]);
+    expect((poller as any).retryPaths.size).toBe(0);
 
     poller.stop();
     stderrSpy.mockRestore();

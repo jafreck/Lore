@@ -68,22 +68,20 @@ export interface RepoInstance {
 // ─── Indexing configuration ───────────────────────────────────────────────────
 
 /**
- * Indexing mode controls SCIP/LSP settings during `indexRepo`. The string
- * literals predate tree-sitter's removal and remain for benchmark compatibility.
+ * Indexing mode controls SCIP/LSP settings during `indexRepo`.
  *
- * - `tree-sitter`:  No SCIP and no default LSP. Since tree-sitter was removed,
- *                   this currently stores discovered file snapshots only.
- * - `scip`:         SCIP baseline indexing with no default LSP.
- * - `full`:         SCIP baseline indexing plus LSP enrichment.
+ * - `snapshots`: No SCIP and no default LSP; stores discovered files only.
+ * - `scip`:      SCIP baseline indexing with no default LSP.
+ * - `full`:      SCIP baseline indexing plus LSP enrichment.
  *
  * Embeddings are controlled separately via `embeddingModel`.
  * Pass a model name to enable, or omit/set to `undefined` to disable.
  */
-export type IndexMode = 'tree-sitter' | 'scip' | 'full';
+export type IndexMode = 'snapshots' | 'scip' | 'full';
 
 /** Options for `indexRepo`. */
 export interface IndexOptions {
-  /** Indexing mode (default: 'tree-sitter'). */
+  /** Indexing mode (default: 'snapshots'). */
   mode?: IndexMode;
   /** Git history depth for blame/ownership (default: 100). */
   historyDepth?: number;

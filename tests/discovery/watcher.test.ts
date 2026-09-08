@@ -97,6 +97,16 @@ describe('FileWatcher', () => {
       watcher.stop();
     });
 
+    it('no ScipFlushManager when SCIP is disabled', () => {
+      const watcher = new FileWatcher(DB_PATH, walkerConfig, {
+        scip: effectiveScipSettings({ enabled: false }),
+        scipQuietPeriodMs: 5000,
+      });
+      expect((watcher as any).scip).toBeUndefined();
+      expect((watcher as any).scipFlush).toBeNull();
+      watcher.stop();
+    });
+
     it('no ScipFlushManager when scipQuietPeriodMs is 0', () => {
       const watcher = new FileWatcher(DB_PATH, walkerConfig, {
         scip: effectiveScipSettings(),
@@ -218,6 +228,56 @@ describe('FileWatcher', () => {
       expect(errorCalls.length).toBeGreaterThan(0);
       stderrSpy.mockRestore();
       watcher.stop();
+    });
+
+    it('retains a failed batch and retries it without another filesystem event', async () => {
+      const onUpdate = vi.fn()
+        .mockRejectedValueOnce(new Error('transient update failure'))
+        .mockResolvedValueOnce(undefined);
+      const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+      const watcher = new FileWatcher(DB_PATH, walkerConfig, {
+        onUpdate,
+        debounceMs: 60_000,
+      });
+      const changedPath = '/tmp/src/retry.ts';
+      (watcher as any).pendingPaths.add(changedPath);
+
+      await (watcher as any).flush();
+      expect((watcher as any).pendingPaths.has(changedPath)).toBe(true);
+
+      // Cancel the automatic retry timer and invoke the retained batch now.
+      watcher.stop();
+      await (watcher as any).flush();
+      expect(onUpdate).toHaveBeenNthCalledWith(1, [changedPath]);
+      expect(onUpdate).toHaveBeenNthCalledWith(2, [changedPath]);
+      expect((watcher as any).pendingPaths.size).toBe(0);
+
+      stderrSpy.mockRestore();
+      watcher.stop();
+    });
+
+    it('does not schedule a retry when an in-flight update fails after stop', async () => {
+      let rejectUpdate: ((reason?: unknown) => void) | undefined;
+      const onUpdate = vi.fn(() => new Promise<void>((_resolve, reject) => {
+        rejectUpdate = reject;
+      }));
+      const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+      const watcher = new FileWatcher(DB_PATH, walkerConfig, {
+        onUpdate,
+        debounceMs: 60_000,
+      });
+      const changedPath = '/tmp/src/stopped-retry.ts';
+      (watcher as any).pendingPaths.add(changedPath);
+
+      const flush = (watcher as any).flush() as Promise<void>;
+      expect(onUpdate).toHaveBeenCalledWith([changedPath]);
+      watcher.stop();
+      rejectUpdate!(new Error('update failed after stop'));
+      await flush;
+
+      expect((watcher as any).pendingPaths.has(changedPath)).toBe(true);
+      expect((watcher as any).debounceTimer).toBeNull();
+      stderrSpy.mockRestore();
     });
 
     it('writes info log after successful flush', async () => {

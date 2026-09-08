@@ -35,6 +35,8 @@ export interface WatcherOptions {
   scip?: EffectiveScipSettings;
   /** Host-trusted execution capabilities forwarded to builders. */
   execution?: IndexExecutionOptions;
+  /** Explicit embedding policy forwarded to internally-created builders. */
+  embeddings?: boolean;
   /**
    * Quiet-period in milliseconds before running a background baseline rebuild.
    * After each change, overlay updates run immediately.  A full SCIP baseline
@@ -88,6 +90,7 @@ export class FileWatcher {
   private readonly lsp: EffectiveLspSettings | undefined;
   private readonly scip: EffectiveScipSettings | undefined;
   private readonly execution: IndexExecutionOptions | undefined;
+  private readonly embeddings: boolean | undefined;
   private readonly scipQuietPeriodMs: number;
   private readonly embedder: EmbeddingProvider | undefined;
   private readonly onUpdateCb: ((changedFiles: string[]) => Promise<void>) | undefined;
@@ -96,6 +99,7 @@ export class FileWatcher {
   private pendingPaths: Set<string> = new Set();
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
   private flushRunning = false;
+  private stopped = false;
 
   /** Deferred SCIP baseline rebuild manager. */
   private scipFlush: ScipFlushManager | null = null;
@@ -108,8 +112,9 @@ export class FileWatcher {
     this.history = options.history ?? false;
     this.indexDependencies = options.indexDependencies ?? false;
     this.lsp = options.lsp;
-    this.scip = options.scip;
+    this.scip = options.scip?.enabled ? options.scip : undefined;
     this.execution = options.execution;
+    this.embeddings = options.embeddings;
     this.scipQuietPeriodMs = options.scipQuietPeriodMs ?? 10_000;
     this.embedder = options.embedder;
     this.onUpdateCb = options.onUpdate;
@@ -124,6 +129,7 @@ export class FileWatcher {
         lsp: this.lsp,
         scip: this.scip,
         execution: this.execution,
+        embeddings: this.embeddings,
         scipQuietPeriodMs: this.scipQuietPeriodMs,
         source: 'FileWatcher',
         onBaselineRebuild: options.onBaselineRebuild,
@@ -134,6 +140,7 @@ export class FileWatcher {
   /** Begin watching `walkerConfig.rootDir` recursively for file changes. */
   start(): void {
     if (!this.enabled || this.watcher) return;
+    this.stopped = false;
 
     // `recursive: true` is supported on macOS, Windows, and Linux (Node >= 19.1).
     // On older Linux kernels/Node versions, subdirectory changes won't trigger events.
@@ -174,6 +181,7 @@ export class FileWatcher {
 
   /** Stop watching and cancel any pending debounce flush. */
   stop(): void {
+    this.stopped = true;
     if (this.debounceTimer !== null) {
       clearTimeout(this.debounceTimer);
       this.debounceTimer = null;
@@ -188,6 +196,7 @@ export class FileWatcher {
   // ─── Private helpers ──────────────────────────────────────────────────────
 
   private scheduleFlush(): void {
+    if (this.stopped) return;
     if (this.debounceTimer !== null) {
       clearTimeout(this.debounceTimer);
     }
@@ -215,6 +224,7 @@ export class FileWatcher {
           const builder = new IndexBuilder(this.dbPath, this.walkerConfig, this.embedder, {
             history: this.history,
             ...(this.indexDependencies && { indexDependencies: true }),
+            ...(this.embeddings !== undefined && { embeddings: this.embeddings }),
             lsp: this.lsp ?? false,
             scip: false,
             execution: this.execution,
@@ -223,6 +233,10 @@ export class FileWatcher {
         }
       } catch (err) {
         errorCount++;
+        // Clearing the batch before awaiting allows new events to accumulate,
+        // but a failed transaction must remain pending as well. Set semantics
+        // safely merge the failed batch with paths received during the run.
+        for (const failedPath of paths) this.pendingPaths.add(failedPath);
         process.stderr.write(
           JSON.stringify({ level: 'error', source: 'FileWatcher', message: String(err) }) + '\n',
         );

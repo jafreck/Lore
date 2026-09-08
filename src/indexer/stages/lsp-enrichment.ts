@@ -51,7 +51,7 @@ export class LspEnrichmentStage implements PipelineStage {
     // In baseline builds, SCIP is primary. LSP still enriches files in
     // languages that SCIP did not source or cover.
     if (context.layer === 'baseline') {
-      // Still run for non-SCIP languages in baseline builds (legacy behavior)
+      // Enrich non-SCIP languages in baseline builds.
       const scipSourced = context.scipSourcedLanguages;
       const scipCovered = context.scipCoveredLanguages;
       const sourcedFiles = context.scipSourcedFiles;

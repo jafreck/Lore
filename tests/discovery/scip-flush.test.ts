@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ScipFlushManager, type ScipFlushConfig } from '../../src/discovery/scip-flush.js';
+import { IndexBuilder } from '../../src/indexer/index.js';
 import { effectiveScipSettings } from '../helpers/effective-settings.js';
 
 function makeConfig(overrides?: Partial<ScipFlushConfig>): ScipFlushConfig {
@@ -129,6 +130,29 @@ describe('ScipFlushManager', () => {
 
     manager.stop();
     stderrSpy.mockRestore();
+  });
+
+  it('fallback baseline rebuild preserves embeddings=false', async () => {
+    let builderOptions: Record<string, unknown> | undefined;
+    const baselineRebuild = vi
+      .spyOn(IndexBuilder.prototype, 'baselineRebuild')
+      .mockImplementation(async function (this: IndexBuilder) {
+        builderOptions = (this as any).options;
+      });
+    const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    const manager = new ScipFlushManager(makeConfig({
+      embeddings: false,
+      scipQuietPeriodMs: 100,
+    }));
+
+    manager.accumulate(['/tmp/test/no-embeddings.ts']);
+    await vi.advanceTimersByTimeAsync(150);
+
+    expect(baselineRebuild).toHaveBeenCalledOnce();
+    expect(builderOptions).toMatchObject({ embeddings: false });
+    manager.stop();
+    stderrSpy.mockRestore();
+    baselineRebuild.mockRestore();
   });
 
   it('flush re-queues paths and logs error on callback failure', async () => {

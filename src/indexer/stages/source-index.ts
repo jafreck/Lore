@@ -3,15 +3,14 @@
  *
  * Pipeline stage: walk files and populate `context.files` and `context.sourceCache`.
  *
- * After the SCIP+LSP migration, this stage no longer performs tree-sitter
- * extraction. Its remaining responsibilities are:
+ * Its responsibilities are:
  *
  * 1. Walk the project tree to discover source files.
  * 2. Read source file contents into `context.sourceCache` for downstream stages.
  * 3. Insert `files` rows for non-SCIP-sourced files.
  * 4. Handle file deletion in overlay (incremental update) mode.
  *
- * Full extraction is handled by:
+ * Structural extraction is handled by:
  * - `ScipIndexerStage` (baseline builds)
  * - `LspExtractionStage` (overlay/incremental updates)
  */

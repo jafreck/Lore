@@ -71,6 +71,65 @@ describe('openDb', () => {
     );
   });
 
+  it.each([
+    {
+      name: 'lore_meta marker',
+      remove(raw: RawDatabase.Database) {
+        raw.prepare("DELETE FROM lore_meta WHERE key = 'schema_version'").run();
+      },
+      missing: 'schema-version-marker:lore_meta',
+    },
+    {
+      name: 'SQLite user_version marker',
+      remove(raw: RawDatabase.Database) {
+        raw.pragma('user_version = 0');
+      },
+      missing: 'schema-version-marker:user_version',
+    },
+  ])('rejects a current database missing its $name before changing journal mode', ({ remove, missing }) => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'lore-missing-marker-'));
+    tempDirs.push(directory);
+    const dbPath = path.join(directory, 'current.db');
+    openDb(dbPath).close();
+
+    const raw = new RawDatabase(dbPath);
+    raw.pragma('journal_mode = DELETE');
+    remove(raw);
+    const inspection = inspectLoreSchema(raw);
+    expect(inspection.status).toBe('outdated');
+    expect(inspection.missing).toContain(missing);
+    raw.close();
+
+    expect(() => openDb(dbPath)).toThrow(/outdated or incomplete/u);
+
+    const unchanged = new RawDatabase(dbPath, { readonly: true });
+    try {
+      expect((unchanged.pragma('journal_mode') as Array<{ journal_mode: string }>)[0]?.journal_mode)
+        .toBe('delete');
+    } finally {
+      unchanged.close();
+    }
+  });
+
+  it('reports and rejects disagreeing current schema markers', () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'lore-mismatched-markers-'));
+    tempDirs.push(directory);
+    const dbPath = path.join(directory, 'current.db');
+    openDb(dbPath).close();
+
+    const raw = new RawDatabase(dbPath);
+    raw.prepare("UPDATE lore_meta SET value = ? WHERE key = 'schema_version'")
+      .run(String(CURRENT_LORE_SCHEMA_VERSION - 1));
+    const inspection = inspectLoreSchema(raw);
+    expect(inspection.status).toBe('outdated');
+    expect(inspection.missing).toContain(
+      `schema-version-marker-mismatch:lore_meta=${CURRENT_LORE_SCHEMA_VERSION - 1},user_version=${CURRENT_LORE_SCHEMA_VERSION}`,
+    );
+    raw.close();
+
+    expect(() => openDb(dbPath)).toThrow(/outdated or incomplete/u);
+  });
+
   it('rejects a newer database before changing its journal mode', () => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'lore-newer-schema-'));
     tempDirs.push(directory);

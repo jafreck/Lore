@@ -67,6 +67,25 @@ describe('installGitHooks', () => {
     expect(content).toContain('--db');
   });
 
+  it('preserves history depth and all-ref semantics in generated refresh commands', () => {
+    createGitDir();
+    installGitHooks(defaultOptions({
+      historyDepth: 75,
+      historyAll: true,
+    }));
+
+    const content = fs.readFileSync(path.join(tmpDir, '.git', 'hooks', 'post-commit'), 'utf8');
+    expect(content).toContain('--history-depth 75');
+    expect(content).toContain('--history-all');
+    expect(content).not.toMatch(/\s--history\s/u);
+  });
+
+  it('rejects an invalid programmatic history depth', () => {
+    createGitDir();
+    expect(() => installGitHooks(defaultOptions({ historyDepth: 0 })))
+      .toThrow(/positive integer/u);
+  });
+
   it('uses the explicitly pinned current executable and CLI artifact', () => {
     createGitDir();
     installGitHooks(defaultOptions({

@@ -29,7 +29,7 @@ export async function runHooksCommand(args: string[], _log: LoreLogger): Promise
   const historyEnabled = parsedArgs.has('--history');
   const historyAll = parsedArgs.has('--history-all');
   const historyDepthRaw = parsedArgs.value('--history-depth');
-  const includeHistory = historyEnabled || historyAll || historyDepthRaw !== undefined;
+  const historyDepth = historyDepthRaw === undefined ? undefined : Number(historyDepthRaw);
 
   let lspEnabled: boolean | undefined;
   let scipEnabled: boolean | undefined;
@@ -51,7 +51,9 @@ export async function runHooksCommand(args: string[], _log: LoreLogger): Promise
     repoRoot: rootDir,
     rootDir,
     dbPath,
-    includeHistory,
+    includeHistory: historyEnabled,
+    historyDepth,
+    historyAll,
     lspEnabled,
     scipEnabled,
     execution: executionOptionsFromArgs(parsedArgs),

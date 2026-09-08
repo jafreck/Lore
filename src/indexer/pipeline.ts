@@ -7,24 +7,22 @@
  * ## Stage ordering (data-dependency chain)
  *
  * ```
- * ScipIndexerStage → FileDiscoveryStage
- *   → OverlayCleanupStage (baseline promotion only)
- *   → LspExtractionStage → ImportResolutionStage
- *   → [LspEnrichmentStage + HistoryStage]
- *   → ResolutionStage → ReverseDepsStage
+ * ScipIndexerStage → FileDiscoveryStage → LspExtractionStage
+ *   → ImportResolutionStage
+ *   → [LspEnrichmentStage + git-history]
+ *   → symbol-resolution → ReverseDepsStage
  *   → EmbeddingStage → FtsRefreshStage
  * ```
  *
- * `ScipIndexerStage` runs first for SCIP-covered languages, populating
- * symbols AND refs directly with pre-resolved edges and enrichment
- * metadata (type signatures, definition locations) in a single pass.
- * `FileDiscoveryStage` then walks remaining files and populates the
- * source cache.
+ * `ScipIndexerStage` runs only for baseline layers and writes compiler-derived
+ * symbols, references, relationships, imports, and metadata. File discovery
+ * then stores every remaining recognized source snapshot. LSP extraction
+ * supplements eligible baseline files and provides changed-file overlay
+ * structure.
  *
- * LSP enrichment is optional (enriches non-SCIP refs with definition data).
- *
- * The resolution stage only processes refs that are still `unresolved`
- * (i.e. non-SCIP languages without LSP enrichment).
+ * LSP enrichment is optional and precedes resolution of every still-unresolved
+ * effective edge. Baseline validation and atomic generation promotion are
+ * performed by `IndexBuilder` only after all pipeline stages succeed.
  */
 
 import type { Database } from '../db/schema.js';
@@ -106,7 +104,7 @@ export interface PipelineContext {
    */
   files: Array<{ path: string; language: string }>;
 
-  /** Legacy dependency-indexing option; no active dependency crawler consumes it. */
+  /** Legacy hint that also adds TypeScript to active LSP-enrichment server selection. */
   indexDependencies: boolean;
   /** History ingestion policy. */
   history: boolean | { depth?: number; all?: boolean };
@@ -160,7 +158,7 @@ export interface PipelineContext {
 
   /**
    * In-memory cache of source file contents (path → source text).
-   * Populated by FileDiscoveryStage / ScipIndexerStage during parsing.
+    * Populated while FileDiscoveryStage / ScipIndexerStage load snapshots.
    * Later stages (LSP enrichment) read from here to
    * avoid redundant `readFileSync` calls.
    */

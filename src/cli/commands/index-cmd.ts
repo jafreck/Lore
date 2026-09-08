@@ -96,6 +96,7 @@ export async function runIndexCommand(args: string[], _log: LoreLogger): Promise
   const shouldEnableHistory = historyEnabled || historyAll || historyDepth !== undefined;
   const options = {
     indexDependencies,
+    embeddings: embeddingsEnabled,
     execution: executionOptionsFromArgs(parsedArgs),
     ...(lspEnabled !== undefined && { lsp: lspEnabled }),
     ...(scipEnabled !== undefined && { scip: scipEnabled }),

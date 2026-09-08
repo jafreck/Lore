@@ -164,5 +164,21 @@ describe('read-only', () => {
       roDb.close();
       rmSync(tmpDir, { recursive: true, force: true });
     });
+
+    it('rejects a current schema when either version marker is missing', () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), 'lore-readonly-marker-'));
+      const dbPath = join(tmpDir, 'test.db');
+      openDb(dbPath).close();
+      const writeDb = new Database(dbPath);
+      writeDb.prepare("DELETE FROM lore_meta WHERE key = 'schema_version'").run();
+      writeDb.close();
+
+      expect(() => openReadOnly(dbPath)).toThrow(/outdated or incomplete/u);
+      expect(() => {
+        const inspectionDb = openReadOnly(dbPath, { allowIncompatibleSchema: true });
+        inspectionDb.close();
+      }).not.toThrow();
+      rmSync(tmpDir, { recursive: true, force: true });
+    });
   });
 });

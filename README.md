@@ -11,280 +11,310 @@
 
 </div>
 
-**Structured code intelligence for MCP agents**
+**Structured code intelligence for MCP agents.**
 
-Lore stores source snapshots and compiler/language-server-derived code facts in
-SQLite, then exposes them through MCP. The current implementation uses SCIP for
-full baseline indexes and LSP for incremental symbol/call extraction and
-definition/type enrichment. It does **not** contain a tree-sitter fallback or a
-documentation-indexing pipeline.
+Lore stores recognized source snapshots and compiler/language-server facts in a
+SQLite knowledge base. It resolves calls, type references, relationships, and
+imports; can add Git history and vector embeddings; and exposes effective index
+state through 11 MCP tools over stdio.
 
-In the dated March 2026 benchmark snapshot, Lore-enabled agents improved overall
-success by **5.6 percentage points** and correctness by **3.5 points**, while
-using **31% fewer tokens** and **40% fewer tool calls**. Per-repository peaks
-were **+7.5 points correctness**, **48% fewer tokens**, and **22% faster**.
-Those results describe the historical harness and artifacts documented in the
-[benchmark report](docs/benchmark-results.md); the current benchmark catalog and
-scoring contract have since changed.
+Lore is an index, not a compiler or source-search replacement. Structural facts
+come from SCIP and LSP. There is no tree-sitter fallback, documentation corpus,
+dependency-declaration crawler, or active complexity-metrics extractor. A file
+can be snapshotted without receiving symbols when no usable structural provider
+is available.
 
-## Current capabilities
+See [docs/architecture.md](docs/architecture.md) for internals and
+[docs/execution-trust.md](docs/execution-trust.md) before enabling processes for
+an untrusted checkout.
 
-- Builds baseline symbols, imports, call references, type references, and
-  relationships from available SCIP indexes/indexers.
-- Stores source files, hashes, branches, and source snapshots even when no
-  structural indexer is available for a file.
-- Uses LSP `documentSymbol` and call hierarchy for changed-file overlay indexes,
-  and hover/definition requests for persisted enrichment metadata.
-- Resolves remaining references using definition containment and deterministic
-  name-based fallbacks, recording the resolution method on each edge.
-- Optionally ingests Git commits, touched-file statistics, and refs.
-- Optionally embeds symbol signatures and commit messages for semantic search.
-- Keeps an index fresh with one-shot refresh, watch mode, poll mode, or Git
-  hooks; watch/poll can reconcile overlays with a deferred SCIP baseline rebuild.
-- Serves 11 registered MCP tools over stdio.
+## Prerequisites and installation
 
-Current limitations are intentional to state explicitly:
-
-- The schema retains `annotations`, `symbol_metrics`, and `external_symbols`, but
-  the active indexing pipeline does not populate annotations, complexity
-  metrics, or dependency declaration APIs.
-- The `lore_metrics` module still exists for direct/test use, but it is not
-  registered by the MCP server and new indexes do not populate its metrics table.
-- Structural coverage depends on an available SCIP index/indexer for baseline
-  builds or a usable language server during incremental updates.
-
-## How Lore integrates with agents
-
-```mermaid
-flowchart LR
-    subgraph INPUTS[Inputs]
-        SRC[Source files]
-        GIT[Git repository]
-    end
-
-    subgraph INDEXING[Indexing]
-        SCIP[SCIP baseline indexing]
-        DISCOVERY[File discovery and snapshots]
-        LSP[LSP overlay extraction and enrichment]
-        HISTORY[Optional git history ingestion]
-        EMBEDDINGS[Optional symbol and commit embeddings]
-    end
-
-    DB[(SQLite knowledge base)]
-    MCP[MCP server with 11 registered tools]
-    CLIENTS[MCP clients and agents]
-
-    SRC --> SCIP --> DB
-    SRC --> DISCOVERY --> DB
-    SRC --> LSP --> DB
-    GIT --> HISTORY --> DB
-    DB --> EMBEDDINGS --> DB
-    DB --> MCP --> CLIENTS
-```
-
-See [docs/architecture.md](docs/architecture.md) for the exact pipeline, schema,
-and read-path caveats.
-
-## Recognized languages
-
-The file walker and default LSP registry recognize 23 languages:
-
-- C, C++, C#
-- Rust, Go, Java, Kotlin, Scala, Swift, Objective-C, Zig
-- Python, JavaScript, TypeScript, PHP, Ruby, Lua, Bash, Elixir
-- OCaml, Haskell, Julia, Elm
-
-This is discovery/LSP coverage, not a promise that every baseline build produces
-the same facts for every language. The default SCIP registry covers TypeScript,
-Python, Java, Scala, Kotlin, Rust, C, C++, C#, Ruby, PHP, and Go among the
-recognized languages. It also contains a Dart entry, but `.dart` is not currently
-recognized by the walker or LSP registry. Use `lore install-scip --list` to see
-installable indexers; unavailable indexers are skipped.
-
-## Install
+- Node.js 22 or newer; the repository pins Node 22 in `.nvmrc`.
+- A native C/C++ toolchain when prebuilt `better-sqlite3` or `sqlite-vec`
+  binaries are unavailable.
+- SCIP indexers and language servers for the languages that need structural
+  coverage. Lore skips unavailable providers and records the result.
 
 ```bash
 npm install @jafreck/lore
 ```
 
-Note: Lore uses native add-ons (`better-sqlite3` and `sqlite-vec`). A working
-C/C++ toolchain may be required when prebuilt binaries are unavailable.
+## Quick start
 
-## Quick start (CLI)
+Provider requests default to enabled, but process execution defaults to denied.
+The explicit subprocess grant below permits built-in SCIP indexers and language
+servers; omit it when consuming only trusted precomputed SCIP data.
 
 ```bash
-# 1) Build an index
-npx @jafreck/lore index --root ./my-project --db ./lore.db \
+npx @jafreck/lore index \
+  --root ./my-project \
+  --db ./lore.db \
   --allow-subprocess-execution
 
-# 2) Start MCP server over stdio
+npx @jafreck/lore doctor --db ./lore.db
 npx @jafreck/lore mcp --db ./lore.db
 ```
 
-## Quick start (programmatic)
+For C/C++ projects, add `--allow-build-execution` only when Lore may run project
+build configuration to create a missing compilation database.
+
+## CLI
+
+| Command | Required input | Purpose and key options |
+|---|---|---|
+| `lore index` | `--root <dir> --db <path>` | Build and promote a baseline. Supports walker, provider, history, embedding, validation, and execution options. |
+| `lore refresh` | `--root <dir> --db <path>` | Hash effective snapshots and apply created/changed/deleted paths once, or run with `--watch` or `--poll`. |
+| `lore mcp` | `--root <dir>` or `--db <path>` | Serve MCP over stdio. A root without a DB auto-indexes to `<root>/.lore/lore.db`; `--watch`/`--poll` require a root. |
+| `lore doctor` | `--db <path>` | Read-only health, coverage, provenance, schema, and freshness report; `--json` is machine-readable. |
+| `lore validate` | `--db <path>` | Alias for `lore doctor`. |
+| `lore migrate` | `--db <path>` | Apply ordered schema migrations in place; `--json` reports the resulting schema. |
+| `lore hooks` | `--root <dir> --db <path>` | Install refresh hooks for commit, merge, checkout, and rewrite events. |
+| `lore analyze` | `--db <path>` | Emit graph analysis JSON; `--mode` selects `summary`, `cycles`, `components`, or `clusters`, and `--edge-kinds` selects `both`, `call`, or `type`. |
+| `lore install-scip` | none | List with `--list` or install indexers, optionally filtered by repeatable `--language`. |
+
+Important option groups:
+
+- Walker: repeatable `--include`, `--exclude`, and `--language` on commands that
+  expose source scope.
+- Providers: `--lsp`/`--no-lsp` and `--scip`/`--no-scip` on `index`, `refresh`,
+  and `hooks`. MCP auto-indexing resolves repository/default provider settings.
+- Optional data: `--embeddings`, `--no-embeddings`, and `--embedding-model` on
+  `index` and `refresh`; `--history`, `--history-depth`, and `--history-all`
+  where accepted.
+- Validation: `--validation-profile`, repeatable `--required`, count/rate
+  thresholds, `--max-baseline-age-seconds`, and `--max-dirty-files` on
+  `index`, `doctor`, and `validate` as defined by command scope.
+- Execution: `--allow-subprocess-execution`, `--allow-build-execution`,
+  `--allow-custom-indexer-commands`, `--allow-custom-lsp-commands`,
+  `--allow-auto-install`, repeatable `--allow-command-cwd`, and repeatable
+  `--allow-external-build-root`.
+- Logging: every command accepts `--log-level` and `--log-file`.
+
+The parser is strict and command-scoped. It rejects unknown options, positional
+arguments, duplicate non-repeatable options, missing values, invalid choices or
+numeric ranges, and conflicting pairs. `--watch` conflicts with `--poll`;
+provider enable/disable pairs conflict; and embeddings cannot be disabled while
+an embedding model is selected. Repeatability is allowed only where declared.
+
+`--index-deps` and `--max-workers` are accepted on `index` (and
+`--index-deps` on `refresh`), but neither activates a dependency crawler or
+parse-worker pool. The only residual `--index-deps` behavior is to include
+TypeScript when an active LSP-enrichment stage chooses which servers to start.
+
+## Execution trust
+
+`.lore.config` is repository-owned input. It may request provider settings,
+timeouts, precomputed index locations, LSP supplementation, and validation, but
+it cannot grant execution. Host authority comes only from CLI flags or the
+programmatic `IndexBuilderOptions.execution` object.
+
+- `--allow-subprocess-execution` permits built-in SCIP/LSP commands only.
+- Custom SCIP and LSP registries need their matching custom-command grants.
+- Build and automatic-install behavior need separate grants.
+- `--allow-command-cwd` and `--allow-external-build-root` both add to the
+  underlying host-approved root list; canonical paths and symlinks are checked.
+- Executed SCIP indexers must write to a verified private temporary output.
+- Precomputed SCIP files must remain in the checkout or one of those explicit
+  host-approved roots after canonical path resolution.
+- Existing compilation databases can be read without build permission, but
+  every source and cwd must remain in the checkout or an approved external root.
+
+Repository `false` values can narrow a host grant; repository `true` values
+cannot widen it. Full capability implications and secure build/output rules are
+in [docs/execution-trust.md](docs/execution-trust.md).
+
+## Indexing model
+
+The active order for build, reconciliation, and overlay runs is:
+
+```
+ScipIndexerStage → FileDiscoveryStage → LspExtractionStage
+  → ImportResolutionStage → [LspEnrichmentStage + git-history]
+  → symbol-resolution → ReverseDepsStage
+  → EmbeddingStage → FtsRefreshStage
+  → optional validation → baseline promotion
+```
+
+SCIP runs only for baseline layers. File discovery stores all remaining source
+snapshots. LSP extracts changed-file overlays and also performs bounded baseline
+supplementation for:
+
+- every file not sourced by SCIP;
+- SCIP-sourced C/C++ files with zero symbols; and
+- SCIP-sourced C/C++ files with repairable spans.
+
+Baseline supplementation defaults to 500 files and four concurrent file
+requests. Reaching the cap records degradation; `supplementation.strict: true`
+fails instead of truncating. LSP writes document symbols, outgoing calls, and
+hover/definition metadata. SCIP remains authoritative for facts it supplied.
+
+Baseline rows are built under a hidden, branch-scoped generation. Validation
+runs against that candidate before one short fenced transaction advances the
+promotion pointer, clears dirty overlays, publishes metadata, and finalizes the
+run. Overlay updates use a single immediate transaction and generation `0`.
+Persistent `effective_*` views select overlay rows for dirty paths and the
+promoted baseline everywhere else. Target reconciliation remaps file imports and
+re-resolves symbol IDs when an overlay replaces a file.
+
+## Language coverage
+
+Discovery and the default LSP registry recognize 23 languages:
+
+> Bash, C, C++, C#, Elixir, Elm, Go, Haskell, Java, JavaScript, Julia,
+> Kotlin, Lua, Objective-C, OCaml, PHP, Python, Ruby, Rust, Scala, Swift,
+> TypeScript, and Zig.
+
+The default SCIP registry contains TypeScript, Python, Java, Scala, Kotlin,
+Rust, C, C++, C#, Ruby, PHP, Go, and Dart entries. Dart is not recognized by
+the walker or default LSP registry. These lists describe discovery and registry
+configuration, not guaranteed structural coverage: executable availability,
+host grants, project configuration, and provider output determine actual facts.
+
+Use `lore install-scip --list` to inspect installable indexers. Install required
+language servers separately on `PATH`.
+
+## Schema, migration, and validation
+
+Lore writes SQLite schema v3. `lore_meta.schema_version` and SQLite
+`user_version` must both be present and agree. Writable database opens apply the
+ordered migration sequence `[1, 2, 3]`; a database claiming v3 with a missing or
+disagreeing marker is rejected rather than silently repaired, and a database
+marked newer than this build is rejected before mutation. Use the dedicated
+command when migration should be the only action:
+
+```bash
+npx @jafreck/lore migrate --db ./lore.db
+```
+
+`lore doctor` and `lore validate` are read-only. They do not walk the checkout
+or migrate the database. They report schema compatibility, file/symbol/edge and
+import coverage, spans, duplicate effective rows, unresolved internal-looking
+references, provider/compdb provenance, promoted generations, and overlay
+freshness. An incompatible DB returns a structured `SCHEMA_MISSING`,
+`SCHEMA_OUTDATED`, or `SCHEMA_NEWER` issue. MCP startup also requires an exactly
+compatible schema.
+
+```bash
+npx @jafreck/lore doctor --db ./lore.db
+npx @jafreck/lore doctor --db ./lore.db --json
+npx @jafreck/lore doctor --db ./lore.db --root ./my-project \
+  --validation-profile migration-grade \
+  --include 'src/**' --exclude '**/*.generated.*' \
+  --required 'src/core/**' --min-symbol-coverage 0.98
+```
+
+Validation profiles are cumulative:
+
+- `standard` reports degradation and enforces explicit thresholds, required
+  globs, and effective-path integrity.
+- `strict` also requires structural symbols and valid spans, and rejects
+  relevant failed, unavailable, or degraded provider/compdb attempts for the
+  selected files.
+- `migration-grade` additionally requires a completed successful baseline run
+  aligned with the selected root, branch, promoted generation, and a successful
+  SCIP or LSP provider for every selected language.
+
+A `.lore.config` `validation` policy is enforced after the pipeline and before
+baseline promotion. Failure preserves the prior promoted generation and leaves
+the failed run/provider records available for diagnosis. The same report is
+available through `validateIndex()` and `formatIndexHealthReport()`.
+
+## Programmatic API
 
 ```ts
 import { IndexBuilder } from '@jafreck/lore';
 
 const builder = new IndexBuilder(
   './lore.db',
-  { rootDir: './my-project' },
+  {
+    rootDir: './my-project',
+    includeGlobs: ['src/**'],
+    excludeGlobs: ['**/*.generated.ts'],
+  },
   undefined,
   {
     scip: true,
-    lsp: false,
+    lsp: { supplementation: { maxFiles: 500, strict: true } },
     execution: { allowSubprocessExecution: true },
+    validation: 'strict',
   },
 );
 
 await builder.build();
 ```
 
-The CLI and `IndexBuilder` resolve default SCIP/LSP registries and read
-`.lore.config`, but repository configuration is an untrusted request: it can
-enable a stage or point to precomputed data, but it cannot authorize a process,
-build, custom command, or download. Programmatic callers can use simple
-`scip: false` / `lsp: false` values or partial settings objects. Execution
-permissions must be supplied separately through the host-owned `execution`
-option. Constructing `IndexBuilder` performs no config parsing; malformed config
-is reported by `resolveConfiguration()`, `build()`, `refresh()`, or
-`baselineRebuild()`.
+`IndexBuilder` construction stores arguments only. Repository configuration is
+parsed by `resolveConfiguration()` or on first `build()`, `refresh()`, or
+`baselineRebuild()` call.
 
-## Index health and migration-grade validation
+| Member | Behavior |
+|---|---|
+| `resolveConfiguration()` | Merge defaults, repository requests, explicit provider settings, host grants, and validation without opening the DB |
+| `build()` | Create and promote a complete hidden baseline generation |
+| `update(changedFiles)` | Apply the supplied absolute paths as one overlay transaction |
+| `refresh()` | Hash the configured scope, build if no baseline exists, otherwise update actual creations/changes/deletions; returns changed paths |
+| `baselineRebuild()` | Reconcile overlays with a new full baseline generation |
+| `validate(policy)` | Run the public read-only health report for this builder's DB |
+| `lastValidationReport` | Return the report from the most recent policy-enforced run |
+| `ingestSummary(symbolId, summary, model)` | Store a caller-generated symbol summary and optional summary vector |
 
-`lore doctor` validates an existing knowledge base without walking the source
-tree again. It reports file/symbol/call/type/import coverage by language and
-extension, symbol-less files, invalid persisted spans, duplicate active paths
-and symbols, resolution methods and rates, unresolved references that appear
-internal, indexer/SCIP/compilation-database provenance, and overlay freshness.
-Import coverage separates exact internal resolutions, external dependencies,
-heuristic internal matches, and unresolved imports.
-
-```bash
-# Concise terminal report
-npx @jafreck/lore doctor --db ./lore.db
-
-# Stable machine-readable report; exits non-zero when policy errors are found
-npx @jafreck/lore doctor --db ./lore.db --json
-
-# Enforce migration-grade completeness over selected/core files
-npx @jafreck/lore doctor --db ./lore.db --root ./my-project \
-  --validation-profile migration-grade \
-  --include 'src/**' --exclude '**/*.generated.*' --required 'src/core/**' \
-  --min-symbol-coverage 0.98
-```
-
-`lore validate` is an alias for `lore doctor`. The public API returns the same
-JSON-ready report:
-
-```ts
-import { formatIndexHealthReport, validateIndex } from '@jafreck/lore';
-
-const report = validateIndex('./lore.db', {
-  rootDir: './my-project',
-  policy: {
-    profile: 'migration-grade',
-    includeGlobs: ['src/**'],
-    excludeGlobs: ['**/*.generated.*'],
-    requiredGlobs: ['src/core/**'],
-    thresholds: { minSymbolCoverage: 0.98, maxInvalidSpans: 0 },
-    languages: {
-      c: { minSymbolCoverage: 1, minCallResolutionRate: 0.9 },
-    },
-  },
-});
-console.log(formatIndexHealthReport(report));
-```
-
-Profiles are cumulative in intent:
-
-- `standard` reports degradation and only fails explicit thresholds, required
-  globs, or hard active-path corruption.
-- `strict` also requires structural symbols for selected languages, symbols in
-  selected files, valid spans, and no relevant failed/degraded indexer or
-  compilation-database attempt.
-- `migration-grade` adds persisted successful structural provenance so the
-  result can be reproduced and audited. The latest baseline attempt must be
-  completed successfully, match the selected root/branch and promoted
-  generation, and contain a successful SCIP or LSP provider for every selected
-  language.
-
-Put a policy under `validation` in `.lore.config` to make `IndexBuilder`,
-`lore index`, first-time `lore refresh`, and MCP auto-indexing enforce it after
-the pipeline completes. A failed policy leaves the database available for
-diagnosis but rejects the build:
-
-```json
-{
-  "validation": {
-    "profile": "migration-grade",
-    "includeGlobs": ["src/**", "include/**"],
-    "excludeGlobs": ["**/*.generated.*"],
-    "requiredGlobs": ["src/core/**"],
-    "thresholds": {
-      "minSymbolCoverage": 0.98,
-      "maxInvalidSpans": 0,
-      "maxUnresolvedInternalRefs": 0
-    },
-    "languages": {
-      "c": { "minSymbolCoverage": 1 },
-      "typescript": { "minCallResolutionRate": 0.9 }
-    }
-  }
-}
-```
-
-Run provenance is stored in `index_runs` and `indexer_runs`. It records run
-mode/generation, attempted/succeeded/failed providers, SCIP artifact identity,
-compilation-database validation and hashes, and whether an LSP/source fallback
-degraded. Existing C/C++ reproducibility metadata remains reported as legacy
-provenance when it is present in an otherwise compatible database.
-
-Doctor and validate always open the database read-only. An older incompatible
-schema returns a structured `SCHEMA_OUTDATED` error with missing capabilities;
-it is never upgraded as a side effect of inspection. Upgrade in place only with
-the explicit command `lore migrate --db ./lore.db`, or rebuild into a new
-database with the current Lore version.
+`IndexBuilderOptions` includes `history`, `embeddings`, `embeddingModel`, `lsp`, `scip`,
+host-owned `execution`, `signal`, `pipelineTimeoutMs`, `validation`, and
+`responseFileLimits`. `indexDependencies` does not activate a dependency
+crawler (apart from the TypeScript LSP-startup hint described above), and
+`maxWorkers` has no active stage consumer. An explicit `EmbeddingProvider` can
+be passed as the third constructor argument; `embeddings: false` suppresses
+both that provider and persisted model reuse.
 
 ## MCP tools
 
+The production registry contains exactly these tools:
+
 | Tool | Purpose |
-|------|----------|
-| `lore_lookup` | Find symbols by name or files by path; symbol mode supports exact, semantic, and fused retrieval and returns persisted enrichment metadata when present |
-| `lore_search` | Structural BM25, semantic vector, or fused RRF search over indexed symbols |
-| `lore_dependents` | Find everything affected by changing a symbol or file — callers, importers, subclasses, and type references with automatic transitive traversal (up to 5 hops) in one call |
-| `lore_trace` | Trace an execution path from an entry point and return an ordered call sequence with source code for each step |
-| `lore_diff` | Compare exported symbols between two indexed branches; returns added, removed, and changed symbols |
-| `lore_cohesion` | Rank directories globally by module cohesion and instability at a configurable grouping depth |
-| `lore_structure` | Detect directory-level import cycles (Tarjan SCC), DFS-derived layering violations, and weak cross-directory outliers |
-| `lore_graph` | Query stored call/import/inheritance/type-dependency edges with automatic transitive traversal (up to 5 hops); supports outbound `source_id` and inbound `target_id` queries |
-| `lore_snippet` | Return snippets from indexed source snapshots by file path + line range or by symbol name; path/symbol resolution is branch-aware and responses include containing-symbol context metadata (name, kind, start/end lines) when available |
-| `lore_blame` | Query blame, line-range history, or ownership aggregates with optional symbol targeting, commit-context enrichment, and risk signals |
-| `lore_history` | Query commit history by file, commit, author, ref, recency, or semantic commit-message similarity |
+|---|---|
+| `lore_lookup` | File lookup or exact, semantic, and fused symbol lookup with branch/name/kind/path/language filters |
+| `lore_search` | Symbol-only FTS5 BM25, vector, or reciprocal-rank-fused retrieval |
+| `lore_graph` | Stored call, import, inheritance, or type-dependency edges; anchored traversal follows at most five hops |
+| `lore_snippet` | Persisted source lines for a required indexed path, using an optional range or unambiguous symbol in that file |
+| `lore_blame` | Live Git blame, line history, or ownership, optionally targeted by an indexed symbol |
+| `lore_history` | Indexed commits by file, SHA, author, ref, semantic message, or recency |
+| `lore_trace` | Forward or point-to-point resolved call paths with stored-source snippets |
+| `lore_diff` | Added, removed, and signature-changed exported symbols between indexed branches |
+| `lore_cohesion` | Global directory cohesion and instability ranking |
+| `lore_structure` | Directory import cycles, DFS back edges, and weak-link outliers |
+| `lore_dependents` | Callers, importers, and subclasses up to five hops, plus direct type references, for a symbol or file |
 
-The server serializes tool results as JSON text and adds `freshness` to object
-results when possible. `freshness.source` is `baseline` when no dirty overlays
-exist and `mixed` otherwise.
+Every result is serialized as JSON in one MCP text item. Object results receive
+freshness metadata when possible: `source`, `baseline_age_s`, and
+`dirty_file_count`.
 
-### lore_lookup query options
+Current limits:
 
-For symbol lookups (`kind: "symbol"`), `lore_lookup` supports:
+- Tools query persisted effective rows; no query starts an LSP server.
+- `lore_search` returns symbols only, not source-text or documentation hits.
+- Semantic/fused lookup and search fall back to structural results when the
+  model or compatible vectors are unavailable. Semantic history falls back to
+  recent commits.
+- `lore_history` needs history ingestion. `lore_blame` instead invokes Git
+  against the live checkout and can differ from the stored snapshot.
+- Exact lookup may read existing `external_symbols`, but indexing does not
+  create them. `--index-deps` does not populate dependency APIs.
+- `lore_metrics` is not registered, and indexing does not populate
+  `symbol_metrics` or annotations.
+- Graph traversal is capped at five hops and 1,000 total edges. Dependent
+  traversal uses five hops and a 1,000-row query cap for each dependent
+  category. Cohesion and structure inspect at most 10,000 relevant edges.
+- Branch comparison requires both branches to have effective indexed data.
+  `lore_diff` only compares symbols marked `is_exported = 1`; active SCIP and
+  LSP ingestion do not currently populate that flag, so ordinary indexes can
+  legitimately produce no diff rows unless export metadata was supplied by
+  another producer.
+- `lore_dependents` traverses callers, importers, and inheritance relationships
+  up to five hops. Its `type_references` list contains only direct references to
+  the target symbol (or symbols in the target file).
 
-- `match_mode`: optional symbol-name matching mode (`exact`, `prefix`, `contains`); defaults to `exact` (case-insensitive).
-- `symbol_kind`: optional symbol kind filter (for example, `function` or `class`).
-- `path_prefix`: optional indexed file-path prefix filter.
-- `language`: optional indexed file language filter.
-- `limit`: optional maximum rows for empty/browse symbol queries (default `20`).
-- `offset`: optional rows to skip for empty/browse symbol queries (default `0`).
-
-Example symbol lookup requests:
-
-```json
-{ "kind": "symbol", "query": "IndexBuilder", "match_mode": "prefix", "symbol_kind": "class" }
-{ "kind": "symbol", "query": "", "path_prefix": "src/indexer/", "language": "typescript", "limit": 20, "offset": 20 }
-```
-
-### MCP config example
+Example client configuration:
 
 ```json
 {
@@ -297,483 +327,72 @@ Example symbol lookup requests:
 }
 ```
 
+## Optional history and embeddings
 
-### lore_search filter parameters
+Git history is disabled unless history options are supplied. Ingestion stores
+commit metadata and parents, touched-file change statistics, and branch/tag
+refs. It traverses all refs by default; `--history-depth <n>` caps the newest
+commits and `--history-all` explicitly requests the default traversal.
 
-`lore_search` supports additional optional filters to narrow symbol hits:
+For `lore index`, embeddings are disabled unless `--embeddings` or
+`--embedding-model` is supplied; the default and explicit `--no-embeddings`
+bypass any model persisted in an existing DB. `lore refresh` normally reuses a
+persisted model so vectors stay current, while `--no-embeddings` suppresses
+that reuse in one-shot, watch, and poll modes. Programmatic callers can use
+`embeddings: false` for the same guarantee. The default model is
+`onnx-community/Qwen3-Embedding-0.6B-ONNX`; Transformers.js runs it through ONNX
+without Python, using CPU and `q8` by default. `LORE_EMBED_DEVICE` and
+`LORE_EMBED_DTYPE` override those choices.
 
-| Parameter | Applies to | Description |
-|-----------|------------|-------------|
-| `path_prefix` | Symbol results | Restrict symbol hits to files whose source path starts with the prefix |
-| `language` | Symbol results | Restrict symbol hits to indexed file language (for example `typescript`, `python`) |
-| `kind` | Symbol results | Restrict symbol hits to a symbol kind (for example `function`, `class`) |
+Lore embeds symbol signature/resolved-type text and, when history is enabled,
+commit messages. Dimensions are detected and stored. Overlay updates hash
+symbol embedding input and skip unchanged text. A different model or dimension
+requires rebuilding into a new database. Query-time semantic modes degrade to
+structural symbol search or recent commit history when vectors are unavailable.
 
-Mode behavior:
+## Keeping an index fresh
 
-- `structural`: returns symbol hits only; applies `path_prefix`, `language`, and `kind`.
-- `semantic`: returns nearest embedded symbols and falls back to structural mode when an embedding provider is unavailable.
-- `fused`: combines structural and semantic symbol candidates with reciprocal-rank fusion; the same symbol filters apply to both candidate sets.
-
-### lore_history modes
-
-| Mode | Query |
-|------|-------|
-| `recent` | Newest commits |
-| `semantic` | Conceptual commit-message search (falls back to `recent` when vectors are unavailable) |
-| `file` | Commits that touched a path |
-| `commit` | Full/prefix SHA lookup (+files +refs) |
-| `author` | Commits by author/email substring |
-| `ref` | Commits matching branch/tag ref name |
-
-### lore_blame examples
-
-```json
-{ "path": "/repo/src/index.ts", "line": 120 }
-{ "path": "/repo/src/index.ts", "start_line": 120, "end_line": 140 }
-{ "path": "/repo/src/index.ts", "line": 120, "ref": "main" }
-{ "symbol": "handleAuth", "path": "/repo/src/auth.ts", "branch": "main" }
-{ "mode": "history", "symbol": "handleAuth", "path": "/repo/src/auth.ts", "ref": "main" }
-{ "mode": "ownership", "path": "/repo/src", "scope": "directory", "ref": "main" }
-```
-
-Legacy line and line-range requests remain fully supported; `mode` defaults to `"blame"` when omitted.  
-History and ownership responses include commit context (`commits`, `history[*].commit_context` with message/files/refs) and `risk` indicators (`recency`, `author_dispersion`, `churn`, `overall`), and symbol-targeted requests return `resolved_symbol`.
-
-## Data ingestion
-
-Lore indexes multiple data sources into a normalized SQLite schema. Each source
-has its own ingestion pipeline and can be enabled independently.
-
-### Source code
-
-The baseline path runs available, host-authorized SCIP indexers (or reads
-precomputed `.scip` files without execution permission), stores their
-symbols/imports/relationships/references, discovers the
-remaining recognized source files, resolves imports, optionally enriches
-non-SCIP data through LSP, refreshes FTS, resolves remaining edges, updates
-reverse dependencies, and optionally embeds symbols.
-
-Incremental updates use a separate overlay: file discovery stores changed
-snapshots, `LspExtractionStage` uses document symbols and outgoing call
-hierarchy, and LSP hover/definition enrichment runs before name-based
-resolution. `ScipIndexerStage` intentionally skips overlay updates. Watch and
-poll modes schedule a full SCIP baseline reconciliation after a quiet period
-when SCIP settings are present.
-
-There is no tree-sitter parser or per-language extractor path in v0.4.0.
-
-Programmatic example:
-
-```ts
-import { IndexBuilder } from '@jafreck/lore';
-
-await new IndexBuilder('./lore.db', {
-  rootDir: './my-project',
-  includeGlobs: ['src/**'],
-  excludeGlobs: ['**/*.gen.ts'],
-  extensions: ['.ts', '.tsx'],
-}).build();
-```
-
-This example only configures discovery and therefore starts no subprocesses.
-Use `scip` / `lsp` booleans or partial overrides in the fourth argument, plus a
-separate `execution` grant when structural tools may run.
-
-### SCIP settings
-
-The CLI resolves SCIP as enabled by default with a 120-second timeout per
-indexer. `--no-scip` force-disables it. Enabled does **not** mean executable:
-all subprocess, build, custom-command, and automatic-install capabilities are
-denied unless the host supplies explicit CLI flags or programmatic execution
-options. A `.lore.config` file may request settings and provide precomputed
-indexes, but it is never a trust source:
-
-```json
-{
-  "scip": {
-    "enabled": true,
-    "timeoutMs": 120000,
-    "allowBuildExecution": true,
-    "autoInstall": true,
-    "indexDir": "./scip-indexes",
-    "indexers": {
-      "typescript": {
-        "command": "scip-typescript",
-        "args": ["index", "--output", "{output}"]
-      }
-    }
-  }
-}
-```
-
-In this example, `allowBuildExecution`, `autoInstall`, and the custom `indexers`
-entry remain inert unless the process owner separately grants the corresponding
-capabilities. A repository may set either request to `false` to suppress an
-otherwise host-authorized operation, but setting it to `true` cannot grant one.
-
-`indexDir` is resolved from the indexed root. Lore first looks for
-`index.scip` and per-language files there. Valid precomputed SCIP data is read
-without any execution permission. Otherwise Lore detects project languages from
-the effective registry and, when authorized, resolves indexers from
-`~/.lore/bin`, Lore's bundled npm binaries, and `PATH`. Automatic installation
-is attempted only with `--allow-auto-install` (or `allowAutoInstall: true` in
-host options). Failed, unavailable, or policy-blocked indexers are skipped.
-
-For C/C++, Lore validates and reuses an existing `compile_commands.json`
-without build permission. Only the host CLI `--allow-build-execution` flag or
-programmatic `execution.allowBuildExecution: true` permits CMake, Meson,
-configure, or Make to run when a database must be generated. The similarly
-named `.lore.config` field is only a request and cannot authorize the build.
-Compdb identity, indexer identity, and coverage counts are recorded in
-`lore_meta` under `scip_c_cpp_reproducibility`.
-
-Compiler response files are expanded with resource budgets applied separately
-to each compilation entry. `IndexBuilderOptions.responseFileLimits` can
-override `maxBytesPerFile`, `maxTotalBytesPerEntry`, `maxFilesPerEntry`, and
-`maxDepth`. If a budget, cycle, read error, or nesting limit prevents expansion,
-Lore retains the original `@file` argument and marks both the entry and compdb
-validation as degraded; it never silently drops opaque compiler flags.
-
-Custom SCIP command, argument, and working-directory overrides require
-`--allow-custom-indexer-commands` or
-`execution.allowCustomIndexerCommands: true`. A command cwd must resolve inside
-the indexed root. Extra roots require repeatable `--allow-command-cwd <dir>`
-flags or programmatic `execution.allowedCwdRoots`; real paths are checked so a
-symlink cannot escape the allowlist.
-
-#### Execution trust reference
-
-| Capability | CLI host opt-in | Programmatic host opt-in |
-|------------|-----------------|--------------------------|
-| Built-in SCIP indexers and LSP servers | `--allow-subprocess-execution` | `execution.allowSubprocessExecution` |
-| Repository/custom SCIP command, args, or cwd | `--allow-custom-indexer-commands` | `execution.allowCustomIndexerCommands` |
-| Repository/custom LSP command, args, or cwd | `--allow-custom-lsp-commands` | `execution.allowCustomLspCommands` |
-| C/C++ configure/build generation | `--allow-build-execution` | `execution.allowBuildExecution` |
-| Automatic SCIP download/install | `--allow-auto-install` | `execution.allowAutoInstall` |
-| Command cwd outside the indexed root | `--allow-command-cwd <dir>` | `execution.allowedCwdRoots` |
-
-Specific command/build/install grants permit the subprocesses needed for that
-capability; they do not grant unrelated categories. These values must come from
-the process invocation or host API object. Automation should treat checked-out
-`.lore.config` files exactly like source code: useful input, never authority.
-See [docs/execution-trust.md](docs/execution-trust.md) for the complete trust
-boundary and programmatic examples.
-
-
-### Git history
-
-Lore ingests commits, touched files (with change type and diff stats), and
-refs (branches/tags). Enable with `--history`. History ingestion currently
-traverses all refs by default, so `--history-all` is an explicit but redundant
-request for the same behavior; use `--history-depth <n>` to cap commits.
-
-Indexed tables:
-
-- `commits` — sha, author, author_email, timestamp, message, parents
-- `commit_files` — per-commit touched paths with change type and diff stats
-- `commit_refs` — refs currently pointing at commits (`branch`/`tag`/`other`)
-- `commit_embeddings` — commit-message vectors keyed to `commits` for semantic history retrieval
-
-Programmatic example:
-
-```ts
-await new IndexBuilder('./lore.db', {
-  rootDir: './my-project',
-}, undefined, {
-  history: { all: true, depth: 2000 },
-}).build();
-```
-
-This example focuses on history options. SCIP/LSP booleans or partial overrides
-may be added directly; any process capability still belongs under the separate
-host-owned `execution` option.
-
-
-### Embeddings
-
-Lore optionally generates dense vector embeddings for semantic search using
-`@huggingface/transformers` (Transformers.js), which runs ONNX models natively
-in Node.js — no Python process is required. Embeddings are disabled unless
-`--embeddings` or `--embedding-model` is supplied. The default model is
-`onnx-community/Qwen3-Embedding-0.6B-ONNX`; its dimensionality is detected at
-initialization. Override it with `--embedding-model`:
+One-shot refresh hashes the configured walk against persisted effective
+SHA-256 values and updates only creations, content changes, and deletions. If no
+promoted baseline exists, it performs a full hidden-generation build first.
 
 ```bash
-npx @jafreck/lore index --root ./my-project --db ./lore.db \
-  --embedding-model 'nomic-ai/nomic-embed-text-v1.5'
+npx @jafreck/lore refresh --root ./my-project --db ./lore.db
+npx @jafreck/lore refresh --root ./my-project --db ./lore.db --watch
+npx @jafreck/lore refresh --root ./my-project --db ./lore.db --poll
+npx @jafreck/lore hooks --root ./my-project --db ./lore.db
 ```
 
-The default execution device is CPU. `LORE_EMBED_DEVICE` can request another
-Transformers.js execution provider; unsupported non-CPU providers fall back to
-CPU when reported as unsupported. Quantized ONNX dtype defaults to `q8` and is
-configurable as `fp32`, `fp16`, `q8`, or `q4` with `LORE_EMBED_DTYPE`. During
-updates, unchanged **symbol** embedding inputs are skipped by SHA-256 hash.
+Watch mode batches filesystem events with a 300 ms debounce. Poll mode compares
+mtimes every five seconds and prevents overlapping polls. Both run an initial
+hash refresh, apply overlays with LSP when enabled and available, and—when SCIP
+is enabled—schedule a full baseline reconciliation after ten quiet seconds.
+Failed overlay batches and failed baseline reconciliations retain their
+changed-path sets for a later retry.
+Configured symbol embeddings are updated with each overlay.
 
-At query time, `lore_search` in `semantic` or `fused` mode embeds the query
-and performs cosine similarity against stored vectors. If the model cannot
-initialize, search gracefully degrades to structural BM25.
-When history indexing is enabled, Lore also stores commit-message vectors in
-`commit_embeddings` so `lore_history` can serve semantic commit retrieval.
+The same repeatable include, exclude, and language scope is preserved across
+one-shot refresh, watch, poll, and MCP live refresh. Git hooks preserve existing
+non-Lore hook content, retain the selected `--history`, `--history-depth`, and
+`--history-all` semantics, and invoke refresh after commit, merge, checkout,
+and rewrite.
 
-### LSP enrichment
+## Build, test, and contribute
 
-Lore can persist type and definition metadata by querying language servers at
-index time. It also uses `documentSymbol` and call hierarchy for overlay
-extraction. Enriched columns include:
-
-- `resolved_type_signature`, `resolved_return_type`
-- `definition_uri`, `definition_path`
-
-These are persisted on `symbols`, `symbol_refs`, `type_refs`, and
-`symbol_relationships` as applicable. MCP query handlers read the stored values;
-they do not invoke language servers.
-
-LSP precedence:
-
-1. CLI flag (`--lsp`)
-2. `.lore.config` `lsp.enabled`
-3. Built-in default (`true`)
-
-This precedence controls whether the stage is requested, not whether a process
-may start. Built-in server mappings require `--allow-subprocess-execution` (or
-programmatic `execution.allowSubprocessExecution: true`). Custom command,
-argument, or cwd entries additionally require `--allow-custom-lsp-commands` (or
-`execution.allowCustomLspCommands: true`); the broad subprocess flag does not
-trust repository overrides. Use `--no-lsp` to override repository settings and
-disable LSP. Likewise, `--scip` and `--no-scip` provide symmetric SCIP
-overrides. Supplying both sides of either pair is an error.
-
-`.lore.config` example:
-
-```json
-{
-  "lsp": {
-    "enabled": true,
-    "timeoutMs": 5000,
-    "supplementation": {
-      "maxFiles": 500,
-      "fileConcurrency": 4,
-      "strict": false
-    },
-    "servers": {
-      "typescript": { "command": "typescript-language-server", "args": ["--stdio"], "cwd": "." },
-      "python": { "command": "pyright-langserver", "args": ["--stdio"] }
-    }
-  }
-}
-```
-
-Baseline LSP supplementation is planned only for files not sourced by SCIP and
-for SCIP-sourced C/C++ files with no symbols or repairable spans. `maxFiles`
-bounds best-effort work and emits an incomplete-plan warning when reached;
-set `strict` to `true` for migrations or other completeness-sensitive builds so
-reaching the cap fails the build instead. `fileConcurrency` bounds concurrent
-document requests.
-
-Default server mappings cover all 23 recognized languages:
-
-| Language(s) | Default command |
-|-------------|------------------|
-| `c`, `cpp`, `objc` | `clangd` |
-| `rust` | `rust-analyzer` |
-| `python` | `pyright-langserver --stdio` |
-| `typescript`, `javascript` | `typescript-language-server --stdio` |
-| `go` | `gopls` |
-| `java` | `jdtls` |
-| `csharp` | `csharp-ls` |
-| `ruby` | `solargraph stdio` |
-| `php` | `intelephense --stdio` |
-| `swift` | `sourcekit-lsp` |
-| `kotlin` | `kotlin-language-server` |
-| `scala` | `metals` |
-| `lua` | `lua-language-server` |
-| `bash` | `bash-language-server start` |
-| `elixir` | `elixir-ls` |
-| `zig` | `zls` |
-| `ocaml` | `ocamllsp` |
-| `haskell` | `haskell-language-server-wrapper --lsp` |
-| `julia` | `julia --startup-file=no --history-file=no --quiet --eval "using LanguageServer, SymbolServer; runserver()"` |
-| `elm` | `elm-language-server` |
-
-Install whichever language servers you need on `PATH`; unavailable servers are
-auto-detected and skipped without failing indexing.
-
-### Dependency API status
-
-`--index-deps` and the programmatic `indexDependencies` option are still
-accepted, but the current pipeline has no dependency-declaration crawler and
-does not populate `external_symbols`. Existing databases can still contain
-external symbols, and exact `lore_lookup` symbol queries can read them. Do not
-rely on `--index-deps` to add dependency APIs in v0.4.0.
-
-## Keeping the index fresh
-
-The index stays current automatically through three mechanisms:
-
-**Git hooks** — install once with `lore hooks`, and Lore refreshes on every
-`post-commit`, `post-merge`, `post-checkout`, and `post-rewrite`:
+Use Node 22 for every Node/npm/Vitest command:
 
 ```bash
-npx @jafreck/lore hooks --root ./my-project --db ./lore.db --history
-```
-
-**Watch mode** — reacts to filesystem events in real time:
-
-```bash
-npx @jafreck/lore refresh --db ./lore.db --root ./my-project --watch
-```
-
-**Poll mode** — periodic mtime diffing, most reliable across filesystems:
-
-```bash
-npx @jafreck/lore refresh --db ./lore.db --root ./my-project --poll
-```
-
-Both watch and poll modes support live symbol embeddings when an embedding model
-is configured. Watch mode debounces filesystem events by 300 ms; poll mode uses
-a 5-second interval by default. Both create the 10-second quiet-period baseline
-rebuild scheduler whenever a SCIP settings object is supplied; the refresh CLI
-supplies that object even when SCIP is disabled, in which case the scheduled
-SCIP stage is a no-op. One-shot `refresh` hashes the configured walker scope and
-updates only creations, content changes, and indexed paths that were deleted.
-The repeatable `--include`, `--exclude`, and `--language` options construct one
-walker scope shared unchanged by one-shot refresh, watch, poll, and MCP live
-refresh.
-
-## CLI reference
-
-### lore index
-
-Build a baseline knowledge base. SCIP and LSP stages default to enabled, while
-process execution defaults to denied. Unavailable or policy-blocked executables
-are skipped; precomputed SCIP and compilation databases remain readable.
-
-```bash
-npx @jafreck/lore index --root <dir> --db <path> \
-  [--embeddings] [--embedding-model <id>] \
-  [--history] [--history-depth <n>] [--history-all] \
-  [--include <glob>] [--exclude <glob>] [--language <lang>] \
-  [--lsp|--no-lsp] [--scip|--no-scip] [--max-workers <n>] \
-  [--allow-subprocess-execution] [--allow-build-execution] \
-  [--allow-custom-indexer-commands] [--allow-custom-lsp-commands] \
-  [--allow-auto-install] [--allow-command-cwd <dir>] \
-  [--validation-profile <standard|strict|migration-grade>] [--required <glob>]
-```
-
-`--include`, `--exclude`, and `--language` are repeatable. `--max-workers` is
-accepted and placed in pipeline context, but the current pipeline has no parse
-worker stage that consumes it. `--index-deps` is also accepted but has the
-dependency-API limitation described above.
-
-CLI parsing is strict and command-scoped: unknown options, positional
-arguments, duplicate non-repeatable options, and missing option values are
-rejected. `--watch` and `--poll`, provider enable/disable pairs, and embedding
-enable/disable pairs are mutually exclusive where applicable.
-
-### lore doctor / lore validate
-
-Inspect an existing index and optionally enforce a configured or command-line
-policy. `--include`, `--exclude`, and `--required` are repeatable. Rate values
-are decimal numbers from `0` through `1`.
-
-```bash
-npx @jafreck/lore doctor --db <path> [--root <dir>] [--branch <name>] [--json] \
-  [--validation-profile <standard|strict|migration-grade>] \
-  [--include <glob>] [--exclude <glob>] [--required <glob>] \
-  [--min-symbol-coverage <rate>] \
-  [--min-call-resolution-rate <rate>] \
-  [--min-type-resolution-rate <rate>] \
-  [--min-import-resolution-rate <rate>]
-```
-
-### lore refresh
-
-Incremental refresh (one-shot, watch, or poll).
-
-```bash
-npx @jafreck/lore refresh --db <path> --root <dir> [--include <glob>] [--exclude <glob>] [--language <lang>] [--index-deps] [--history] [--history-depth <n>] [--history-all] [--lsp|--no-lsp] [--scip|--no-scip] [execution flags]
-npx @jafreck/lore refresh --db <path> --root <dir> --watch [--include <glob>] [--exclude <glob>] [--language <lang>] [--embedding-model <id>] [--history] [--lsp|--no-lsp] [--scip|--no-scip] [execution flags]
-npx @jafreck/lore refresh --db <path> --root <dir> --poll [--include <glob>] [--exclude <glob>] [--language <lang>] [--embedding-model <id>] [--history] [--lsp|--no-lsp] [--scip|--no-scip] [execution flags]
-```
-
-### lore hooks
-
-Install repo-local git hooks for automatic refresh.
-
-```bash
-npx @jafreck/lore hooks --root <repo> --db <path> [--history] [--history-depth <n>] [--history-all] [--lsp|--no-lsp] [--scip|--no-scip] [execution flags]
-```
-
-The hook generator preserves existing non-Lore hook content and installs
-`post-commit`, `post-merge`, `post-checkout`, and `post-rewrite`. Any of
-`--history`, `--history-depth`, or `--history-all` causes generated hooks to pass
-plain `--history`; depth/all details are not preserved in the hook script.
-
-
-### lore mcp
-
-Start the MCP server over stdio. When `--root` is given and no database exists
-yet, Lore creates `<root>/.lore/lore.db` and runs `IndexBuilder` before starting.
-That auto-index path resolves `.lore.config` as untrusted input. No repository
-setting can grant process, custom-command, build, or installation permission;
-the same explicit CLI trust flags are required.
-
-```bash
-npx @jafreck/lore mcp --root <dir> [--watch|--poll] [--include <glob>] [--exclude <glob>] [--language <lang>] [execution flags]
-npx @jafreck/lore mcp --db <path> [--root <dir> --watch|--poll] [--include <glob>] [--exclude <glob>] [--language <lang>] [execution flags]
-```
-
-`--watch` and `--poll` are mutually exclusive and require `--root`.
-
-### lore analyze
-
-Run graph analysis and print JSON. `--mode` is `summary` (default), `cycles`,
-`components`, or `clusters`; `--edge-kinds` is `both` (default), `call`, or
-`type`.
-
-```bash
-npx @jafreck/lore analyze --db <path> [--mode <mode>] [--edge-kinds <kind>] [--branch <name>] [--max-lines <n>]
-```
-
-### lore install-scip
-
-List or install supported SCIP indexers.
-
-```bash
-npx @jafreck/lore install-scip --list
-npx @jafreck/lore install-scip [--language <lang>]
-```
-
-All subcommands accept `--log-level <debug|info|warn|error|silent>` and
-`--log-file <path>`. With a `--db` path and no explicit log path, the CLI
-derives the log path by replacing the DB path's final extension with `.log`.
-
-## Build from source
-
-```bash
-git clone https://github.com/jafreck/Lore.git
-cd Lore
-npm install
-npm run typecheck
-npm run build
-```
-
-## Contributing
-
-Environment expectations:
-
-- Node.js `>=22.0.0`
-- Native build toolchain for `better-sqlite3`
-
-Common local workflow:
-
-```bash
+nvm use 22
+npm ci
 npm run build
 npm run typecheck
 npm test
 npm run coverage
 ```
 
-Vitest currently enforces minimum coverage thresholds of 73% statements, 60%
-branches, 78% functions, and 75% lines. Codecov's project and patch targets are
-70% with a 2% threshold.
+Run the compiled CLI with `node dist/cli.js <command>`; do not use `tsx` as the
+project CLI path. Keep changes focused, add behavior-level tests, and update the
+README and [docs/architecture.md](docs/architecture.md) when public commands,
+pipeline order, schema behavior, or MCP registration changes.
+
+Contributions are licensed under [MIT](LICENSE).

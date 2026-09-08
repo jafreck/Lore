@@ -21,6 +21,7 @@ export interface ScipFlushConfig {
   lsp: EffectiveLspSettings | undefined;
   scip: EffectiveScipSettings;
   execution?: IndexExecutionOptions;
+  embeddings?: boolean;
   scipQuietPeriodMs: number;
   /** Label used in log messages (e.g. 'FilePoller' or 'FileWatcher'). */
   source: string;
@@ -100,10 +101,12 @@ export class ScipFlushManager {
           lsp,
           scip,
           execution,
+          embeddings,
         } = this.config;
         const builder = new IndexBuilder(dbPath, walkerConfig, embedder, {
           history,
           ...(indexDependencies && { indexDependencies: true }),
+          ...(embeddings !== undefined && { embeddings }),
           ...(lsp && { lsp }),
           scip,
           execution,

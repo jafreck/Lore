@@ -106,6 +106,12 @@ export function inspectLoreSchema(db: Database.Database): LoreSchemaInspection {
   }
 
   const missing: string[] = [];
+  if (markers.loreMeta === null) {
+    missing.push('schema-version-marker:lore_meta');
+  }
+  if (markers.userVersion === null) {
+    missing.push('schema-version-marker:user_version');
+  }
   if (markers.loreMeta !== null && markers.userVersion !== null
     && markers.loreMeta !== markers.userVersion) {
     missing.push(
@@ -217,8 +223,10 @@ function tableColumns(db: Database.Database, table: string): Set<string> {
 
 function parseVersion(value: string | undefined): number | null {
   if (value === undefined) return null;
-  const parsed = Number.parseInt(value, 10);
-  return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
+  const normalized = value.trim();
+  if (!/^\d+$/u.test(normalized)) return null;
+  const parsed = Number(normalized);
+  return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : null;
 }
 
 function quoteIdentifier(identifier: string): string {

@@ -13,7 +13,8 @@ export const toolDef = {
   name: 'lore_diff',
   description:
     'Compare exported symbols between two indexed branches. ' +
-    'Returns added, removed, and changed (signature-different) symbols.',
+    'Returns added, removed, and changed (signature-different) symbols marked `is_exported = 1`. ' +
+    'Current SCIP/LSP ingestion does not populate export metadata, so indexes without another metadata producer may return no rows.',
   inputSchema: {
     type: 'object',
     properties: {

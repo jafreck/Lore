@@ -42,6 +42,8 @@ describe('CLI args', () => {
       ['index', '--scip', '--no-scip'],
       ['index', '--embeddings', '--no-embeddings'],
       ['index', '--embedding-model', 'model', '--no-embeddings'],
+      ['refresh', '--embeddings', '--no-embeddings'],
+      ['refresh', '--embedding-model', 'model', '--no-embeddings'],
     ])('rejects conflicting options for %s', (command, ...options) => {
       expect(() => parseCliArgs([command, ...options])).toThrow('cannot be used together');
     });
@@ -53,6 +55,12 @@ describe('CLI args', () => {
         .toThrow('--min-symbol-coverage must be a number from 0 to 1');
       expect(() => parseCliArgs(['analyze', '--mode', 'unknown']))
         .toThrow('--mode must be one of');
+    });
+
+    it('accepts explicit embedding disablement for one-shot and live refresh', () => {
+      expect(() => parseCliArgs(['refresh', '--no-embeddings'])).not.toThrow();
+      expect(() => parseCliArgs(['refresh', '--watch', '--no-embeddings'])).not.toThrow();
+      expect(() => parseCliArgs(['refresh', '--poll', '--no-embeddings'])).not.toThrow();
     });
 
     it('uses a dedicated argument error type', () => {

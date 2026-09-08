@@ -98,6 +98,7 @@ describe('SCIP pipeline smoke', () => {
         // indexDir is relative to rootDir; ../scip-indexes from the project dir
         const builder = new IndexBuilder(dbPath, { rootDir: projectDir } as any, undefined, {
           scip: makeScipSettings(isolatedIndexDir(lang, projectDir, tmpDir)),
+          execution: { allowedCwdRoots: [tmpDir] },
           maxWorkers: 0,
         });
 
@@ -126,6 +127,7 @@ describe('SCIP pipeline smoke', () => {
 
         const builder = new IndexBuilder(dbPath, { rootDir: projectDir } as any, undefined, {
           scip: makeScipSettings(isolatedIndexDir(lang, projectDir, tmpDir)),
+          execution: { allowedCwdRoots: [tmpDir] },
           maxWorkers: 0,
         });
 
@@ -150,6 +152,7 @@ describe('SCIP pipeline smoke', () => {
 
         const builder = new IndexBuilder(dbPath, { rootDir: projectDir } as any, undefined, {
           scip: makeScipSettings(isolatedIndexDir(lang, projectDir, tmpDir)),
+          execution: { allowedCwdRoots: [tmpDir] },
           maxWorkers: 0,
         });
 
@@ -170,6 +173,7 @@ describe('SCIP pipeline smoke', () => {
 
         const builder = new IndexBuilder(dbPath, { rootDir: projectDir } as any, undefined, {
           scip: makeScipSettings(isolatedIndexDir(lang, projectDir, tmpDir)),
+          execution: { allowedCwdRoots: [tmpDir] },
           maxWorkers: 0,
         });
 
