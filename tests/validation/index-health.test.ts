@@ -21,6 +21,7 @@ import { runDoctorCommand } from '../../src/cli/commands/doctor-cmd.js';
 import { runMigrateCommand } from '../../src/cli/commands/migrate-cmd.js';
 import { runIndexCommand } from '../../src/cli/commands/index-cmd.js';
 import { getLogger } from '../../src/logger.js';
+import { parseCompilerDiagnostics, type CompilerDiagnosticEvidence } from '../../src/scip/diagnostics.js';
 import {
   dropStagingEffectiveViews,
   installStagingEffectiveViews,
@@ -134,6 +135,90 @@ function createGoodDatabase(dbPath = ':memory:'): ReturnType<typeof openDb> {
 }
 
 describe('validateIndex', () => {
+  it('reports malformed persisted semantic requirements instead of treating them as absent', () => {
+    const db = createGoodDatabase();
+    try {
+      db.prepare('UPDATE index_runs SET config_json = ?').run(JSON.stringify({ validation: { requiredCalls: [{ caller: 1 }] } }));
+      expect(validateIndex(db).errors).toContainEqual(expect.objectContaining({ code: 'REQUIRED_FACTS_INVALID' }));
+    } finally { db.close(); }
+  });
+
+  it('enforces named symbols and resolved calls instead of requiring exact counts', () => {
+    const db = createGoodDatabase();
+    try {
+      const requiredSymbols = [{ name: 'caller', path: 'src/main.ts', kind: 'function' }];
+      const requiredCalls = [{ caller: requiredSymbols[0]!, callee: { name: 'target', path: 'src/main.ts' }, resolutionMethod: 'scip_definition' as const }];
+      expect(validateIndex(db, { rootDir: '/repo', requiredSymbols, requiredCalls }).ok).toBe(true);
+      expect(validateIndex(db, { rootDir: '/repo', requiredSymbols: [{ name: 'missing' }] }).errors)
+        .toContainEqual(expect.objectContaining({ code: 'REQUIRED_SYMBOL_MISSING' }));
+      expect(validateIndex(db, { rootDir: '/repo', requiredSymbols: [{ name: 'target', path: 'other.ts' }] }).errors)
+        .toContainEqual(expect.objectContaining({ code: 'REQUIRED_SYMBOL_MISSING' }));
+      expect(validateIndex(db, { rootDir: '/repo', includeGlobs: ['other/**'], requiredSymbols, requiredCalls }).errors)
+        .toContainEqual(expect.objectContaining({ code: 'REQUIRED_CALL_MISSING' }));
+      db.exec("UPDATE symbol_refs SET resolution_method = 'name_unique'");
+      expect(validateIndex(db, { rootDir: '/repo', requiredCalls }).errors)
+        .toContainEqual(expect.objectContaining({ code: 'REQUIRED_CALL_MISSING' }));
+      db.exec("UPDATE symbol_refs SET callee_id = NULL, resolution_method = 'unresolved'");
+      expect(validateIndex(db, { rootDir: '/repo', requiredCalls: [{ caller: { name: 'caller' }, callee: { name: 'target' } }] }).errors)
+        .toContainEqual(expect.objectContaining({ code: 'REQUIRED_CALL_MISSING' }));
+    } finally { db.close(); }
+  });
+
+  it.each([
+    'main.c:1:1: fatal error: missing header\n',
+    'Finished indexing 1 translation units (num errored TUs: 1).\n',
+    'Skipped: 1 compilation database entries (not found on disk: 1).\n',
+  ])('rejects persisted compiler failures despite successful run status: %s', (output) => {
+    const db = createGoodDatabase();
+    try {
+      db.exec("UPDATE files SET language = 'c'");
+      const evidence: CompilerDiagnosticEvidence = {
+        requested: true, complete: true,
+        summary: parseCompilerDiagnostics({ stdout: output, stderr: '' }),
+      };
+      db.prepare('UPDATE indexer_runs SET indexer = ?, languages_json = ?, details_json = ?').run(
+        'scip-clang', '["c"]', JSON.stringify({ source: 'command', compilerDiagnostics: evidence }),
+      );
+      const report = validateIndex(db, { profile: 'migration-grade', requireIndexerSuccess: false });
+      expect(report.ok).toBe(false);
+      expect(report.errors).toContainEqual(expect.objectContaining({ code: 'SCIP_COMPILER_ERRORS' }));
+      expect(report.provenance.diagnostics.compiler).toHaveLength(1);
+    } finally { db.close(); }
+  });
+
+  it.each(['missing', 'incomplete', 'not-requested', 'malformed'])('rejects %s native compiler diagnostic evidence', (state) => {
+    const db = createGoodDatabase();
+    try {
+      db.exec("UPDATE files SET language = 'c'");
+      const evidence = state === 'missing' ? undefined : {
+        requested: state !== 'not-requested', complete: state !== 'incomplete',
+        summary: state === 'malformed' ? {} : parseCompilerDiagnostics({ stdout: '', stderr: '' }),
+      };
+      db.prepare('UPDATE indexer_runs SET indexer = ?, languages_json = ?, details_json = ?').run(
+        'scip-clang', '["c"]', JSON.stringify({ source: 'command', compilerDiagnostics: evidence }),
+      );
+      expect(validateIndex(db, { profile: 'migration-grade' }).errors)
+        .toContainEqual(expect.objectContaining({ code: 'SCIP_COMPILER_DIAGNOSTICS_UNVERIFIED' }));
+    } finally { db.close(); }
+  });
+
+  it('accepts captured warning-only diagnostics unless warnings are prohibited', () => {
+    const db = createGoodDatabase();
+    try {
+      db.exec("UPDATE files SET language = 'c'");
+      db.prepare('UPDATE indexer_runs SET indexer = ?, languages_json = ?, details_json = ?').run(
+        'scip-clang', '["c"]', JSON.stringify({ source: 'command', compilerDiagnostics: {
+          requested: true, complete: true,
+          summary: parseCompilerDiagnostics({ stdout: '', stderr: 'main.c:1:1: warning: unused variable\n' }),
+        } }),
+      );
+      const report = validateIndex(db, { profile: 'migration-grade' });
+      expect(report.ok).toBe(true);
+      expect(report.warnings).toContainEqual(expect.objectContaining({ code: 'SCIP_COMPILER_WARNINGS', actual: 1 }));
+      expect(validateIndex(db, { profile: 'migration-grade', failOnWarnings: true }).ok).toBe(false);
+    } finally { db.close(); }
+  });
+
   it('reports complete coverage and resolution by language and extension', () => {
     const db = createGoodDatabase();
     try {

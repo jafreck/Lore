@@ -22,6 +22,19 @@ function tempRoot(config: unknown): string {
 }
 
 describe('index validation configuration', () => {
+  it('preserves explicit semantic requirements over repository requests and normalizes paths', () => {
+    const policy = resolveIndexValidationPolicy({ requiredSymbols: [{ name: 'other' }], requiredCalls: [] }, {
+      requiredSymbols: [{ name: 'entry', path: './src/main.c' }],
+      requiredCalls: [{ caller: { name: 'entry' }, callee: { name: 'target' }, resolutionMethod: 'scip_definition' }],
+    });
+    expect(policy.requiredSymbols).toEqual([{ name: 'entry', path: 'src/main.c' }]);
+    expect(policy.requiredCalls).toHaveLength(1);
+    expect(() => resolveIndexValidationPolicy({}, { requiredSymbols: [{ name: 'entry', path: '../outside.c' }] }))
+      .toThrow('root-relative');
+    expect(() => resolveIndexValidationPolicy({}, { requiredCalls: [{ caller: { name: 'entry' }, callee: { name: 'target' }, resolutionMethod: 'unresolved' }] }))
+      .toThrow('resolved internal call');
+  });
+
   it('loads globs and per-language thresholds from .lore.config', () => {
     const root = tempRoot({
       validation: {

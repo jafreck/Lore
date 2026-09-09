@@ -221,6 +221,44 @@ Validation profiles are cumulative:
   aligned with the selected root, branch, promoted generation, and a successful
   SCIP or LSP provider for every selected language.
 
+Native scip-clang runs always enable compiler diagnostics. Lore rejects their
+output on compiler errors, failed/skipped translation units, or incomplete
+output capture, even if the process exits successfully. Strict and
+migration-grade validation reject executed native baselines without complete
+persisted diagnostic evidence; older baselines need to be rebuilt. Precomputed
+C/C++ SCIP inputs emit an unverified-compilation warning, since their original
+compiler output is unavailable. Coverage checks on precomputed data do not
+establish a clean compilation. `failOnWarnings: true` rejects that warning too.
+
+An accepted index is not proof that every possible reference exists. In
+particular, scip-clang 0.4.0 can omit references for repeated conditional header
+inclusions. Lore does not require identical counts between runs. Instead,
+programmatic validation can require the concrete symbols and resolved calls
+needed by a migration:
+
+```ts
+const validation = {
+  profile: 'migration-grade' as const,
+  requiredSymbols: [
+    { name: 'ZSTD_createCCtx', path: 'lib/compress/zstd_compress.c', kind: 'function' },
+  ],
+  requiredCalls: [{
+    caller: { name: 'ZSTD_createCCtx', path: 'lib/compress/zstd_compress.c' },
+    callee: { name: 'ZSTD_createCCtx_advanced', path: 'lib/compress/zstd_compress.c' },
+    resolutionMethod: 'scip_definition' as const,
+  }],
+};
+```
+
+Pass this policy to `IndexBuilderOptions.validation` or `validateIndex()`.
+`RequiredIndexSymbol` matches an exact name and optional root-relative file path
+and kind; paths are literal, not globs. `RequiredIndexCall` needs an actual
+resolved edge between matching symbols in the selected effective files. Its
+optional `resolutionMethod` can exclude heuristic resolutions. Missing required
+facts fail every profile before baseline promotion, even when aggregate
+thresholds pass. The requirements are persisted in run configuration and reused
+by `doctor`/`validateIndex()` unless the caller explicitly supplies replacements.
+
 A `.lore.config` `validation` policy is enforced after the pipeline and before
 baseline promotion. Failure preserves the prior promoted generation and leaves
 the failed run/provider records available for diagnosis. The same report is
@@ -363,7 +401,10 @@ validation report alongside the DB. Native CMake omits the Windows resource
 header, so the verifier adds a real `lorem.c` compilation variant with
 `-include programs/windres/verrsrc.h`; no zstd sources are changed and the scope
 and validation thresholds are not relaxed. It does not grant Lore build or
-install permissions.
+install permissions. On macOS it resolves the active SDK with `xcrun` and passes
+`CMAKE_OSX_SYSROOT` explicitly. The required symbols and call are checked before
+promotion; the saved report must also show complete diagnostic capture with no
+compiler errors or failed/skipped translation units.
 
 ## MCP tools
 

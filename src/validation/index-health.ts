@@ -11,6 +11,8 @@ import { realpathSync } from 'node:fs';
 import type { WalkerConfig } from '../discovery/walker.js';
 import type { ScipScope, ResolvedScipScope } from '../scip/scope.js';
 import { validateScipScope } from './scip-scope.js';
+import { hasCompilerErrors, isScipClangCommand, readCompilerDiagnosticEvidence } from '../scip/diagnostics.js';
+import { evaluateRequiredFacts } from './required-facts.js';
 import type Database from 'better-sqlite3';
 import { openReadOnly } from '../db/read-only.js';
 import { getLoreMeta } from '../db/meta.js';
@@ -223,6 +225,7 @@ export interface IndexHealthReport {
     promotedGeneration: number | null;
     scipScope?: ResolvedScipScope | null;
     diagnostics: {
+      compiler: IndexerDiagnosticInfo[];
       positionConversions: IndexerDiagnosticInfo[];
       supplementation: IndexerDiagnosticInfo[];
     };
@@ -504,6 +507,15 @@ function validateOpenDatabase(
     issues,
   });
   evaluateRequiredGlobs(policy, selected, issues);
+  try {
+    const recordedPolicy = detailObject(provenance.latestBaselineRun?.config, 'validation') ?? {};
+    evaluateRequiredFacts(db, relations, selected, resolveIndexValidationPolicy(recordedPolicy, policy), issues);
+  } catch (error) {
+    issues.push({
+      severity: 'error', code: 'REQUIRED_FACTS_INVALID',
+      message: `Cannot validate recorded semantic requirements: ${error instanceof Error ? error.message : String(error)}`,
+    });
+  }
   evaluateThresholds('overall', overall, policy.thresholds, {
     invalidSpans: invalidSpanRows.length,
     duplicateSymbols: excessCount(symbolDuplicates),
@@ -693,6 +705,50 @@ function evaluateGeneralHealth(input: GeneralHealthInput): void {
   const relevantLanguages = new Set(selected.map((row) => row.language));
   const structuralRows = provenance.indexers.filter((row) =>
     row.provider === 'scip' || row.provider === 'lsp' || row.provider === 'compdb');
+  for (const row of structuralRows.filter(row => row.provider === 'scip'
+    && row.languages.some(language => (language === 'c' || language === 'cpp') && relevantLanguages.has(language)))) {
+    const evidence = readCompilerDiagnosticEvidence(row.details);
+    const details = row.details && typeof row.details === 'object'
+      ? row.details as Record<string, unknown> : {};
+    const command = typeof details.command === 'string' ? details.command : row.indexer;
+    const required = policy.profile === 'migration-grade' || policy.requireIndexerSuccess;
+    if (evidence && hasCompilerErrors(evidence.summary)) {
+      issues.push({
+        severity: severity(required),
+        code: 'SCIP_COMPILER_ERRORS',
+        message: `${row.indexer} reported ${evidence.summary.errors} compiler error(s), ${evidence.summary.failedTranslationUnits} failed and ${evidence.summary.skippedTranslationUnits} skipped translation unit(s).`,
+        scope: row.runId,
+        actual: evidence.summary.errors,
+        paths: [...new Set(evidence.summary.samples.filter(sample => sample.severity === 'error' || sample.severity === 'fatal error')
+          .flatMap(sample => sample.file ? [sample.file] : []))],
+      });
+    }
+    if (row.attempted && isScipClangCommand(command)
+      && (!evidence || !evidence.requested || !evidence.complete)) {
+      issues.push({
+        severity: severity(required),
+        code: 'SCIP_COMPILER_DIAGNOSTICS_UNVERIFIED',
+        message: `${row.indexer} has no complete compiler-diagnostic evidence. Rebuild with compiler diagnostics enabled before certification.`,
+        scope: row.runId,
+      });
+    } else if (!row.attempted && details.source === 'precomputed') {
+      issues.push({
+        severity: 'warning',
+        code: 'SCIP_COMPILER_DIAGNOSTICS_UNVERIFIED',
+        message: 'Precomputed SCIP data has no verified compiler-output history; coverage checks do not certify a clean compilation.',
+        scope: row.runId,
+      });
+    }
+    if (evidence && evidence.summary.warnings > 0) {
+      issues.push({
+        severity: 'warning',
+        code: 'SCIP_COMPILER_WARNINGS',
+        message: `${row.indexer} reported ${evidence.summary.warnings} compiler warning(s).`,
+        scope: row.runId,
+        actual: evidence.summary.warnings,
+      });
+    }
+  }
   const failed = structuralRows.filter((row) =>
     ['failed', 'unavailable', 'degraded'].includes(row.status)
       && (row.languages.length === 0 || row.languages.some((language) => relevantLanguages.has(language))));
@@ -1381,6 +1437,7 @@ function readProvenance(
     legacyScipMetadata: parseJson(getLoreMeta(db, 'scip_c_cpp_reproducibility')),
     promotedGeneration,
     diagnostics: {
+      compiler: [],
       positionConversions: [],
       supplementation: [],
     },
@@ -1418,6 +1475,9 @@ function readProvenance(
     legacyScipMetadata: empty.legacyScipMetadata,
     promotedGeneration,
     diagnostics: {
+      compiler: indexers
+        .filter((row) => detailObject(row.details, 'compilerDiagnostics') !== null)
+        .map(toDiagnostic),
       positionConversions: indexers
         .filter((row) => detailObject(row.details, 'positionConversion') !== null)
         .map(toDiagnostic),
@@ -1908,7 +1968,7 @@ function incompatibleSchemaReport(
     provenance: {
       latestRun: null, latestBaselineRun: null, indexers: [], compilationDatabases: [],
       legacyScipMetadata: null, promotedGeneration: null,
-      diagnostics: { positionConversions: [], supplementation: [] },
+      diagnostics: { compiler: [], positionConversions: [], supplementation: [] },
     },
     freshness: {
       source: 'empty', baselineAgeSeconds: null, latestIndexedAt: null, dirtyFiles: 0,
@@ -1926,6 +1986,8 @@ function policyFieldsFromOptions(options: ValidateIndexOptions): IndexValidation
     ...(options.includeGlobs !== undefined && { includeGlobs: options.includeGlobs }),
     ...(options.excludeGlobs !== undefined && { excludeGlobs: options.excludeGlobs }),
     ...(options.requiredGlobs !== undefined && { requiredGlobs: options.requiredGlobs }),
+    ...(options.requiredSymbols !== undefined && { requiredSymbols: options.requiredSymbols }),
+    ...(options.requiredCalls !== undefined && { requiredCalls: options.requiredCalls }),
     ...(options.thresholds !== undefined && { thresholds: options.thresholds }),
     ...(options.languages !== undefined && { languages: options.languages }),
     ...(options.requireStructuralIndex !== undefined && { requireStructuralIndex: options.requireStructuralIndex }),

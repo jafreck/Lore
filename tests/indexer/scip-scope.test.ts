@@ -46,6 +46,62 @@ function builder(overrides: IndexBuilderOptions = {}): IndexBuilder {
 }
 
 describe('scoped baseline validation', () => {
+  it('rechecks recorded semantic requirements when validating a persisted baseline', async () => {
+    const index = builder({ validation: {
+      profile: 'migration-grade',
+      requiredCalls: [{ caller: { name: 'main' }, callee: { name: 'helper' }, resolutionMethod: 'scip_definition' }],
+    } });
+    await index.build();
+    expect(index.validate('migration-grade').ok).toBe(true);
+    const db = openDb(dbPath);
+    db.prepare('DELETE FROM symbol_refs').run();
+    db.close();
+    expect(index.validate('migration-grade').errors)
+      .toContainEqual(expect.objectContaining({ code: 'REQUIRED_CALL_MISSING' }));
+  });
+
+  it('blocks promotion when a required call is missing even when aggregate call coverage passes', async () => {
+    await builder().build();
+    writeFileSync(join(rootDir, '.lore.config'), JSON.stringify({ validation: { requiredCalls: [] } }));
+    const index = builder({ validation: {
+      profile: 'migration-grade', thresholds: { minCallRefs: 1 },
+      requiredSymbols: [{ name: 'main', path: 'lib/main.c', kind: 'function' }],
+      requiredCalls: [{ caller: { name: 'helper' }, callee: { name: 'main' } }],
+    } });
+    await expect(index.baselineRebuild()).rejects.toBeInstanceOf(IndexValidationError);
+    expect(index.lastValidationReport!.coverage.overall.calls.total).toBe(1);
+    expect(index.lastValidationReport!.errors).toContainEqual(expect.objectContaining({ code: 'REQUIRED_CALL_MISSING' }));
+    const db = openDb(dbPath);
+    expect(db.prepare('SELECT generation FROM baseline_generations WHERE branch = ?').get('main')).toEqual({ generation: 1 });
+    db.close();
+  });
+
+  it('never promotes an exit-zero compiler failure over a healthy baseline and persists the diagnostics', async () => {
+    await builder().build();
+    writeFileSync(join(rootDir, 'compile_commands.json'), JSON.stringify([{
+      directory: rootDir, file: 'lib/main.c', arguments: ['cc', '-c', 'lib/main.c'],
+    }]));
+    const index = builder({
+      scip: { indexers: { c: {
+        command: process.execPath,
+        args: ['--eval', 'require("node:fs").copyFileSync(process.argv[1], process.argv[3]); process.stderr.write("lib/main.c:1:1: fatal error: missing header\\n");', '.scip/index.scip', '{compdb}', '{output}'],
+      } } },
+      execution: { allowCustomIndexerCommands: true },
+    });
+    await expect(index.baselineRebuild()).rejects.toBeInstanceOf(IndexValidationError);
+    expect(index.lastValidationReport!.errors).toContainEqual(expect.objectContaining({ code: 'SCIP_COMPILER_ERRORS' }));
+    expect(index.lastValidationReport!.provenance.indexers).toContainEqual(expect.objectContaining({
+      provider: 'scip', status: 'failed',
+      details: expect.objectContaining({ compilerDiagnostics: expect.objectContaining({
+        complete: true, summary: expect.objectContaining({ errors: 1, fatalErrors: 1 }),
+      }) }),
+    }));
+    const db = openDb(dbPath);
+    expect(db.prepare('SELECT COUNT(*) AS count FROM effective_symbols').get()).toEqual({ count: 2 });
+    expect(db.prepare('SELECT generation FROM baseline_generations WHERE branch = ?').get('main')).toEqual({ generation: 1 });
+    db.close();
+  });
+
   it('ignores ancillary files during refresh and rejects scoped overlays as baseline coverage', async () => {
     const index = builder();
     await index.build();

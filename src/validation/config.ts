@@ -1,11 +1,24 @@
 /** Configuration and profile resolution for index-health validation. */
 
 import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 import { z } from 'zod';
+import { RESOLUTION_METHODS, RESOLVED_METHODS, type ResolutionMethod } from '../resolution/resolution-method.js';
 
 export const VALIDATION_PROFILES = ['standard', 'strict', 'migration-grade'] as const;
 export type ValidationProfile = (typeof VALIDATION_PROFILES)[number];
+
+export interface RequiredIndexSymbol {
+  name: string;
+  path?: string;
+  kind?: string;
+}
+
+export interface RequiredIndexCall {
+  caller: RequiredIndexSymbol;
+  callee: RequiredIndexSymbol;
+  resolutionMethod?: ResolutionMethod;
+}
 
 /** Thresholds apply to the selected index as a whole or to one language. */
 export interface IndexCoverageThresholds {
@@ -32,6 +45,8 @@ export interface IndexValidationPolicy {
   excludeGlobs?: string[];
   /** Each glob must match, and every matching file must contain a symbol. */
   requiredGlobs?: string[];
+  requiredSymbols?: RequiredIndexSymbol[];
+  requiredCalls?: RequiredIndexCall[];
   thresholds?: IndexCoverageThresholds;
   /** Threshold overrides keyed by Lore language name. */
   languages?: Record<string, IndexCoverageThresholds>;
@@ -60,6 +75,19 @@ export interface ResolvedIndexValidationPolicy extends IndexValidationPolicy {
 
 const RateSchema = z.number().min(0).max(1);
 const CountSchema = z.number().int().min(0);
+const RequiredSymbolSchema = z.object({
+  name: z.string().min(1),
+  path: z.string().min(1).refine(value => !isAbsolute(value) && !value.includes('\\')
+    && !/^[A-Za-z]:/u.test(value) && !value.split('/').includes('..'), 'must be a root-relative file path')
+    .transform(value => value.replace(/^(\.\/)+/u, '')).optional(),
+  kind: z.string().min(1).optional(),
+}).strict();
+const RequiredCallSchema = z.object({
+  caller: RequiredSymbolSchema,
+  callee: RequiredSymbolSchema,
+  resolutionMethod: z.enum(RESOLUTION_METHODS).refine(value => RESOLVED_METHODS.has(value),
+    'must identify a resolved internal call').optional(),
+}).strict();
 const ThresholdSchema = z.object({
   minFiles: CountSchema.optional(),
   minSymbols: CountSchema.optional(),
@@ -81,6 +109,8 @@ const ValidationSchema = z.object({
   includeGlobs: z.array(z.string().min(1)).optional(),
   excludeGlobs: z.array(z.string().min(1)).optional(),
   requiredGlobs: z.array(z.string().min(1)).optional(),
+  requiredSymbols: z.array(RequiredSymbolSchema).optional(),
+  requiredCalls: z.array(RequiredCallSchema).optional(),
   thresholds: ThresholdSchema.optional(),
   languages: z.record(z.string(), ThresholdSchema).optional(),
   requireStructuralIndex: z.boolean().optional(),
@@ -133,6 +163,8 @@ export function resolveIndexValidationPolicy(
   const profile = explicit.profile ?? configured.profile ?? 'standard';
   const strict = profile === 'strict' || profile === 'migration-grade';
   const migrationGrade = profile === 'migration-grade';
+  const requiredSymbols = explicit.requiredSymbols ?? configured.requiredSymbols;
+  const requiredCalls = explicit.requiredCalls ?? configured.requiredCalls;
   const mergedLanguages: Record<string, IndexCoverageThresholds> = {};
   for (const language of new Set([
     ...Object.keys(configured.languages ?? {}),
@@ -149,6 +181,8 @@ export function resolveIndexValidationPolicy(
     includeGlobs: explicit.includeGlobs ?? configured.includeGlobs ?? ['**/*'],
     excludeGlobs: explicit.excludeGlobs ?? configured.excludeGlobs ?? [],
     requiredGlobs: explicit.requiredGlobs ?? configured.requiredGlobs ?? [],
+    ...(requiredSymbols !== undefined && { requiredSymbols: z.array(RequiredSymbolSchema).parse(requiredSymbols) }),
+    ...(requiredCalls !== undefined && { requiredCalls: z.array(RequiredCallSchema).parse(requiredCalls) }),
     thresholds: {
       ...(strict ? { maxSymbolLessFiles: 0 } : {}),
       ...(configured.thresholds ?? {}),

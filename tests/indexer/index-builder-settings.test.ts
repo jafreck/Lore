@@ -75,7 +75,7 @@ describe('IndexBuilder default settings', () => {
       realpathSync: (value) => value,
       readFileSync: () => new Uint8Array(),
       unlinkSync: () => {},
-      execFile: async () => { calls.indexer++; },
+      execFile: async () => { calls.indexer++; return { stdout: '', stderr: '' }; },
       installScipIndexer: async () => {
         calls.install++;
         return { installed: true };
