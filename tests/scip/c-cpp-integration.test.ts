@@ -16,7 +16,7 @@ import { initLogger, LogLevel, resetLogger } from '../../src/logger.js';
 import { resolveEffectiveLspSettings } from '../../src/lsp/config.js';
 import { discoverCompilationDatabase } from '../../src/scip/compdb.js';
 import type { ScipIndexerCommand } from '../../src/scip/registry.js';
-import { validateIndex } from '../../src/validation/index-health.js';
+import { IndexValidationError, validateIndex } from '../../src/validation/index-health.js';
 
 interface ExternalRepoSpec {
   name: string;
@@ -45,6 +45,39 @@ const ENABLED = process.env['LORE_C_CPP_INTEGRATION'] === '1';
 const WORKSPACE_ROOT = path.resolve(__dirname, '../..');
 const SOURCE_GLOBS = ['**/*.c', '**/*.h', '**/*.cc', '**/*.cpp', '**/*.cxx', '**/*.hpp', '**/*.hh', '**/*.hxx'];
 const TEST_TIMEOUT_MS = positiveInteger(process.env['LORE_C_CPP_INTEGRATION_TIMEOUT_MS'], 20 * 60_000);
+
+describe.runIf(ENABLED && findScipClang() !== null)('native compiler diagnostics', () => {
+  it('rejects an exit-zero scip-clang result with a fatal include error', async () => {
+    const rootDir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'lore-native-diagnostics-')));
+    try {
+      fs.writeFileSync(path.join(rootDir, 'main.c'), '#include "lore_missing_header_for_validation.h"\nint main(void) { return 0; }\n');
+      fs.writeFileSync(path.join(rootDir, 'compile_commands.json'), JSON.stringify([{
+        directory: rootDir, file: path.join(rootDir, 'main.c'),
+        arguments: ['clang', '-c', path.join(rootDir, 'main.c')],
+      }]));
+      const builder = new IndexBuilder(path.join(rootDir, 'lore.db'), { rootDir, branch: 'main' }, undefined, {
+        scip: true, scipScope: { languages: ['c'] }, lsp: false, embeddings: false,
+        execution: { allowSubprocessExecution: true }, validation: 'migration-grade',
+      });
+      await expect(builder.build()).rejects.toBeInstanceOf(IndexValidationError);
+      const report = builder.lastValidationReport!;
+      expect(report.errors).toContainEqual(expect.objectContaining({ code: 'SCIP_COMPILER_ERRORS' }));
+      expect(report.provenance.indexers).toContainEqual(expect.objectContaining({
+        provider: 'scip', indexer: 'scip-clang', status: 'failed',
+        details: expect.objectContaining({ compilerDiagnostics: expect.objectContaining({
+          requested: true, complete: true,
+          summary: expect.objectContaining({ errors: 1, fatalErrors: 1 }),
+        }) }),
+      }));
+      expect(report.provenance.indexers.filter(row => row.provider === 'lsp').every(row => !row.attempted)).toBe(true);
+      const db = openDb(path.join(rootDir, 'lore.db'));
+      expect(db.prepare('SELECT COUNT(*) AS count FROM baseline_generations').get()).toEqual({ count: 0 });
+      db.close();
+    } finally {
+      fs.rmSync(rootDir, { recursive: true, force: true });
+    }
+  }, 60_000);
+});
 
 const REPOSITORIES: ExternalRepoSpec[] = [
   {

@@ -258,6 +258,8 @@ function recordScipRunProvenance(
       message: diagnostic.message,
       details: {
         source: diagnostic.source,
+        command: diagnostic.indexer,
+        compilerDiagnostics: diagnostic.compilerDiagnostics ?? null,
         coveredFiles: [...new Set(index?.documents.map((document) => document.relativePath) ?? [])].sort(),
         outputPath: diagnostic.outputPath,
         outputBytes: diagnostic.outputBytes,

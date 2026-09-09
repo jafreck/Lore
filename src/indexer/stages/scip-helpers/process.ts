@@ -36,6 +36,15 @@ import {
   type FilteredCompilationDatabaseIdentity,
   type ResolvedScipScope,
 } from '../../../scip/scope.js';
+import {
+  hasCompilerErrors,
+  isScipClangCommand,
+  parseCompilerDiagnostics,
+  type CompilerDiagnosticEvidence,
+  type ScipProcessOutput,
+} from '../../../scip/diagnostics.js';
+
+export const MAX_SCIP_PROCESS_OUTPUT_BYTES = 8 * 1024 * 1024;
 
 // ─── IO interface ───────────────────────────────────────────────────────────
 
@@ -75,6 +84,7 @@ export interface ScipIndexerLoadDiagnostic {
   /** Position of this indexer's bytes in the returned buffer array. */
   bufferIndex?: number;
   message?: string;
+  compilerDiagnostics?: CompilerDiagnosticEvidence;
 }
 
 export interface ScipProcessIO {
@@ -82,7 +92,7 @@ export interface ScipProcessIO {
   realpathSync(path: string): string;
   readFileSync(path: string): Uint8Array;
   unlinkSync(path: string): void;
-  execFile(cmd: string, args: string[], opts: { cwd: string; timeout: number; signal?: AbortSignal }): Promise<void>;
+  execFile(cmd: string, args: string[], opts: { cwd: string; timeout: number; signal?: AbortSignal }): Promise<ScipProcessOutput>;
   installScipIndexer(spec: ScipInstallSpec): Promise<{ installed: boolean; path?: string | null; error?: string }>;
   ensureCompilationDatabase(
     rootDir: string,
@@ -102,7 +112,9 @@ export function createDefaultScipProcessIO(): ScipProcessIO {
     realpathSync: (p) => fs.realpathSync.native(p),
     readFileSync: (p) => readFileSync(p),
     unlinkSync: (p) => { try { fs.unlinkSync(p); } catch { /* best effort */ } },
-    execFile: async (cmd, args, opts) => { await execFileAsync(cmd, args, opts); },
+    execFile: (cmd, args, opts) => execFileAsync(cmd, args, {
+      ...opts, encoding: 'utf8', maxBuffer: MAX_SCIP_PROCESS_OUTPUT_BYTES,
+    }),
     installScipIndexer: (spec) => installScipIndexer(spec),
     ensureCompilationDatabase: (
       rootDir,
@@ -480,6 +492,13 @@ export async function loadScipIndexes(
     const startedAt = Math.floor(Date.now() / 1000);
     let outputDirectory: string | null = null;
     let indexerAttempted = false;
+    let compilerDiagnostics: CompilerDiagnosticEvidence | undefined;
+    const cFamilyInvocation = commandLanguages.some(language => language === 'c' || language === 'cpp');
+    const nativeClang = cFamilyInvocation && isScipClangCommand(indexer.command);
+    const commandArguments = nativeClang
+      ? [...indexer.args.filter(argument => !/^--show-compiler-diagnostics(?:=|$)/u.test(argument)), '--show-compiler-diagnostics']
+      : [...indexer.args];
+    const diagnosticsRequested = commandArguments.includes('--show-compiler-diagnostics');
     try {
       if (!indexer.args.some(argument => argument.includes('{output}'))) {
         throw new Error(
@@ -488,14 +507,11 @@ export async function loadScipIndexes(
       }
       outputDirectory = createPrivateScipOutputDirectory();
       const outputPath = join(outputDirectory, `${crypto.randomUUID()}.scip`);
-      let args = indexer.args.map(a => a.replace(/\{output\}/g, outputPath));
+      let args = commandArguments.map(a => a.replace(/\{output\}/g, outputPath));
       const cwd = resolveApprovedCommandCwd(
         rootDir,
         indexer.cwd,
         settings.allowedCwdRoots,
-      );
-      const cFamilyInvocation = commandLanguages.some(
-        language => language === 'c' || language === 'cpp',
       );
       const indexerTimeout = cFamilyInvocation && settings.timeoutMsExplicit === false
         ? DEFAULT_SCIP_C_FAMILY_TIMEOUT_MS
@@ -577,11 +593,22 @@ export async function loadScipIndexes(
       const executablePath = indexer.resolvedPath ?? indexer.command;
       try {
         indexerAttempted = true;
-        await io.execFile(executablePath, args, {
+        const output = await io.execFile(executablePath, args, {
           cwd,
           timeout: indexerTimeout,
           signal,
         });
+        if (cFamilyInvocation) {
+          compilerDiagnostics = {
+            requested: diagnosticsRequested,
+            complete: true,
+            summary: parseCompilerDiagnostics(output),
+          };
+          if (hasCompilerErrors(compilerDiagnostics.summary)) {
+            const summary = compilerDiagnostics.summary;
+            throw new Error(`Compiler diagnostics rejected SCIP output: ${summary.errors} error(s), ${summary.failedTranslationUnits} failed and ${summary.skippedTranslationUnits} skipped translation unit(s)`);
+          }
+        }
       } finally {
         if (tempTsconfigPath) {
           io.unlinkSync(tempTsconfigPath);
@@ -602,7 +629,8 @@ export async function loadScipIndexes(
           outputPath,
           outputBytes: data.byteLength,
           outputSha256: crypto.createHash('sha256').update(data).digest('hex'),
-          arguments: [...indexer.args],
+          arguments: commandArguments,
+          compilerDiagnostics,
           bufferIndex,
         });
       } else {
@@ -615,11 +643,19 @@ export async function loadScipIndexes(
           startedAt,
           completedAt: Math.floor(Date.now() / 1000),
           message: 'indexer exited without producing a SCIP index',
-          arguments: [...indexer.args],
+          arguments: commandArguments,
+          compilerDiagnostics,
         });
       }
     } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
+      if (cFamilyInvocation && indexerAttempted && !compilerDiagnostics) {
+        compilerDiagnostics = {
+          requested: diagnosticsRequested,
+          complete: false,
+          summary: parseCompilerDiagnostics(processOutputFromError(error)),
+        };
+      }
+      const msg = (error instanceof Error ? error.message : String(error)).slice(0, 4_000);
       log.indexing(`scip-indexer: indexer failed for ${lang}: ${msg}`);
       indexerDiagnostics?.push({
         source: 'command',
@@ -630,7 +666,8 @@ export async function loadScipIndexes(
         startedAt,
         completedAt: Math.floor(Date.now() / 1000),
         message: msg,
-        arguments: [...indexer.args],
+        arguments: commandArguments,
+        compilerDiagnostics,
       });
       continue;
     } finally {
@@ -641,6 +678,14 @@ export async function loadScipIndexes(
   }
 
   return indexBuffers;
+}
+
+function processOutputFromError(error: unknown): ScipProcessOutput {
+  const output = error && typeof error === 'object' ? error as Partial<ScipProcessOutput> : {};
+  return {
+    stdout: typeof output.stdout === 'string' ? output.stdout : '',
+    stderr: typeof output.stderr === 'string' ? output.stderr : '',
+  };
 }
 
 function createPrivateScipOutputDirectory(): string {

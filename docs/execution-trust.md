@@ -117,6 +117,15 @@ inside a private mode-`0700` temporary directory, rejects symlinks and multiply
 linked output files, opens with no-follow semantics when available, verifies
 the inode after opening, reads the bytes, and removes the directory.
 
+Compiler diagnostic collection adds no execution capability. Once a native
+scip-clang invocation is authorized, Lore forces its diagnostic-output flag and
+captures bounded stdout/stderr. Reported compiler errors or incomplete capture
+reject the generated index, including after process exit zero. This runs no
+second compiler or language server, does not grant build/install permission,
+and does not override `lsp: false`. Custom-command hosts are responsible for
+enabling their compiler's diagnostics; an arbitrary wrapper that suppresses
+errors is not made trustworthy by output capture.
+
 These controls are capability checks, not a universal Git, network, or
 filesystem-read sandbox. Lore still reads in-scope source, configuration, Git,
 database, compilation-database, and contained SCIP data needed for the selected
@@ -128,7 +137,10 @@ code-execution grants and use an external OS/container sandbox when the
 checkout, executable, or ambient credentials are not trusted.
 
 Precomputed `.scip` files are data inputs and require no process grant. Their
-contents are parsed, but they are not executed.
+contents are parsed, but they are not executed. Original compiler diagnostics
+cannot be reconstructed from them, so C/C++ validation reports an unverified
+compilation warning. Neither accepting a precomputed file nor passing file and
+symbol coverage thresholds proves complete references or a clean compilation.
 
 Compilation-database generation is different: build-system configuration can
 execute arbitrary repository-controlled build logic. Lore invokes programs

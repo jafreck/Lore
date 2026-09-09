@@ -83,6 +83,11 @@ export type {
   ResolvedScipScope,
   FilteredCompilationDatabaseIdentity,
 } from './scip/scope.js';
+export type {
+  CompilerDiagnostic,
+  CompilerDiagnosticSummary,
+  CompilerDiagnosticEvidence,
+} from './scip/diagnostics.js';
 export {
   loadCompilationDatabase,
   discoverCompilationDatabase,
@@ -156,6 +161,8 @@ export type {
   IndexValidationPolicy,
   ResolvedIndexValidationPolicy,
   IndexCoverageThresholds,
+  RequiredIndexSymbol,
+  RequiredIndexCall,
 } from './validation/config.js';
 
 // ── Pipeline (composable indexing stages) ─────────────────────────────────────

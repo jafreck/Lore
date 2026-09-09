@@ -6,6 +6,8 @@ import {
   detectProjectLanguages,
   createLoreScipTsconfig,
   loadScipIndexes,
+  createDefaultScipProcessIO,
+  MAX_SCIP_PROCESS_OUTPUT_BYTES,
   type ScipIndexLoadDiagnostics,
   type ScipProcessIO,
 } from '../../src/indexer/stages/scip-helpers/process.js';
@@ -362,16 +364,18 @@ describe('createLoreScipTsconfig', () => {
 
 // ─── loadScipIndexes ────────────────────────────────────────────────────────
 
-function mockIO(overrides: Partial<ScipProcessIO> = {}): ScipProcessIO {
+function mockIO(overrides: Partial<Omit<ScipProcessIO, 'execFile'>> & {
+  execFile?: (...args: Parameters<ScipProcessIO['execFile']>) => Promise<Awaited<ReturnType<ScipProcessIO['execFile']>> | void>;
+} = {}): ScipProcessIO {
   return {
     existsSync: () => false,
     realpathSync: (value) => value,
     readFileSync: () => new Uint8Array(),
     unlinkSync: () => {},
-    execFile: async () => {},
     installScipIndexer: async () => ({ installed: false }),
     ensureCompilationDatabase: async () => ({ path: null }),
     ...overrides,
+    execFile: async (...args) => await overrides.execFile?.(...args) ?? { stdout: '', stderr: '' },
   };
 }
 
@@ -390,6 +394,80 @@ function baseSettings(overrides: Partial<EffectiveScipSettings> = {}): Effective
 }
 
 describe('loadScipIndexes', () => {
+  it('fails closed when compiler output exceeds the capture limit', async () => {
+    const diagnostics: ScipIndexLoadDiagnostics = {};
+    const settings = baseSettings({ indexers: { c: {
+      command: process.execPath,
+      args: ['--eval', `process.stdout.write("x".repeat(${MAX_SCIP_PROCESS_OUTPUT_BYTES + 1}));`, '--', '{output}'],
+    } } });
+    const buffers = await loadScipIndexes(settings, os.tmpdir(), new Set(['c']), undefined, diagnostics);
+    expect(buffers).toEqual([]);
+    expect(diagnostics.indexers).toMatchObject([{
+      status: 'failed', attempted: true,
+      compilerDiagnostics: { complete: false },
+    }]);
+    expect(diagnostics.indexers![0]!.message).toContain('maxBuffer');
+  });
+
+  it.each(['stdout', 'stderr'] as const)('rejects generated SCIP output when an exit-zero command reports compiler errors on %s', async (stream) => {
+    const rootDir = fs.realpathSync(makeTempDir());
+    dirs.push(rootDir);
+    const diagnostics: ScipIndexLoadDiagnostics = {};
+    const settings = baseSettings({ indexers: { c: { command: process.execPath, args: ['{output}'] } } });
+    const buffers = await loadScipIndexes(settings, rootDir, new Set(['c']), mockIO({
+      execFile: async (_command, args) => {
+        fs.writeFileSync(args[0]!, new Uint8Array([1, 2, 3]));
+        return { stdout: '', stderr: '', [stream]: "main.c:1:1: fatal error: 'string.h' file not found\n" };
+      },
+    }), diagnostics);
+    expect(buffers).toEqual([]);
+    expect(diagnostics.indexers).toMatchObject([{
+      status: 'failed', attempted: true,
+      compilerDiagnostics: { complete: true, summary: { errors: 1, fatalErrors: 1 } },
+    }]);
+  });
+
+  it('forces native scip-clang diagnostics on and accepts warning-only output', async () => {
+    const rootDir = fs.realpathSync(makeTempDir());
+    dirs.push(rootDir);
+    const command = path.join(rootDir, 'scip-clang');
+    fs.symlinkSync(process.execPath, command);
+    const diagnostics: ScipIndexLoadDiagnostics = {};
+    const settings = baseSettings({ indexers: { c: { command, args: ['{output}', '--show-compiler-diagnostics=false'] } } });
+    const buffers = await loadScipIndexes(settings, rootDir, new Set(['c']), mockIO({
+      execFile: async (_command, args) => {
+        expect(args.slice(1)).toEqual(['--show-compiler-diagnostics']);
+        fs.writeFileSync(args[0]!, new Uint8Array([1, 2, 3]));
+        return { stdout: '', stderr: 'main.c:1:1: warning: unused variable\n' };
+      },
+    }), diagnostics);
+    expect(buffers).toHaveLength(1);
+    expect(diagnostics.indexers).toMatchObject([{
+      status: 'succeeded',
+      compilerDiagnostics: { requested: true, complete: true, summary: { errors: 0, warnings: 1 } },
+    }]);
+  });
+
+  it('preserves compiler diagnostics from a rejected process execution', async () => {
+    const diagnostics: ScipIndexLoadDiagnostics = {};
+    const settings = baseSettings({ indexers: { c: { command: process.execPath, args: ['{output}'] } } });
+    await loadScipIndexes(settings, os.tmpdir(), new Set(['c']), mockIO({
+      execFile: async () => {
+        throw Object.assign(new Error('process failed'), { stdout: '', stderr: 'clang: error: invalid argument\n' });
+      },
+    }), diagnostics);
+    expect(diagnostics.indexers).toMatchObject([{
+      status: 'failed', compilerDiagnostics: { complete: false, summary: { errors: 1 } },
+    }]);
+  });
+
+  it('captures real subprocess stdout and stderr', async () => {
+    const output = await createDefaultScipProcessIO().execFile(process.execPath, [
+      '--eval', 'process.stdout.write("indexer output"); process.stderr.write("compiler output");',
+    ], { cwd: os.tmpdir(), timeout: 5_000 });
+    expect(output).toEqual({ stdout: 'indexer output', stderr: 'compiler output' });
+  });
+
   it('passes only scoped C translation units to the C indexer and never attempts Python', async () => {
     const rootDir = fs.realpathSync(makeTempDir());
     dirs.push(rootDir);

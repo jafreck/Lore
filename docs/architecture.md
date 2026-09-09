@@ -287,6 +287,44 @@ Scoped checks require filesystem access; unscoped health aggregation remains
 database-only. Failed candidate manifests remain with their failed runs and
 never replace promoted generation metadata.
 
+### Compiler diagnostics and required facts
+
+Executed C/C++ SCIP providers retain a bounded summary of stdout and stderr in
+`indexer_runs.details_json.compilerDiagnostics`: `requested`, `complete`, and a
+schema-version-1 `summary` containing error/fatal/warning/note counts,
+failed/skipped translation-unit counts, diagnostic samples, and each stream's
+byte count and SHA-256. Samples use 1-based compiler coordinates and retain at
+most 20 entries with 2,000 message characters each. Truncated samples do not
+truncate the counts. Capture has an 8 MiB limit per stream; exceeding it fails
+the provider instead of certifying a partial capture. The report exposes these
+records in `provenance.diagnostics.compiler`.
+
+Native scip-clang invocations force `--show-compiler-diagnostics`. Error and
+fatal diagnostics, generated error summaries, failed TU summaries, and skipped
+compilation entries reject the generated index before import, including when
+scip-clang exits zero. Errors in a selected TU's dependencies also invalidate
+that compilation even when the dependency is outside the imported file scope.
+Warnings are persisted and reported; `failOnWarnings` determines whether they
+are fatal. `SCIP_COMPILER_ERRORS` reports the failures, and
+`SCIP_COMPILER_DIAGNOSTICS_UNVERIFIED` rejects missing/incomplete evidence for
+executed native providers in strict/migration-grade validation. Precomputed
+indexes have no process output and receive an unverified-compilation warning,
+not a claim that their compiler execution succeeded. Custom command hosts must
+enable their compiler's diagnostic output themselves; captured Clang-style
+errors still reject the result.
+
+Validation policies may declare `requiredSymbols` and `requiredCalls`. Every
+symbol selector must match a selected effective symbol; every call requirement
+must join live effective caller/target IDs with a successful resolution method.
+An optional method constraint can require `scip_definition` or another specific
+resolved method. Matching text in `callee_name` is insufficient. Requirements
+are persisted in the run's validation policy, reused on later validation unless
+explicitly replaced, and enforced before promotion. Malformed persisted
+requirements produce `REQUIRED_FACTS_INVALID`. No exact symbol/reference count
+equality is required across runs. These checks establish the declared facts and
+coverage, not exhaustive absence-of-reference guarantees or a repair of upstream
+reference loss.
+
 ### LSP extraction and enrichment
 
 LSP is enabled as a request by default, but a server starts only with a host
