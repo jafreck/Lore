@@ -194,8 +194,19 @@ SCIP is baseline-only and compiler/indexer output is authoritative when
 present. Lore converts each document's SCIP position encoding to zero-based
 UTF-16 storage coordinates, constructs parent relationships, classifies refs,
 maps definitions to concrete IDs, preserves unresolved/external refs, and
-materializes implementation dispatch edges. Multiple available detected
+materializes implementation dispatch edges. Indexer languages come from the
+walker-selected file set, not repository-wide indicator-file detection. A
+language with no selected files launches no indexer. Multiple available
 indexers may contribute to one baseline.
+
+Some scip-clang versions emit C header function declarations as references,
+without header-local symbol information. For explicit scopes, Lore preserves
+those declarations
+only when a known SCIP function identity and metadata match a bounded,
+source-verified prototype outside a function body. They are marked as forward
+declarations and still point to the canonical implementation. Per-indexer
+`details_json.declarationRecovery` records the recovered declaration/file counts;
+this does not invent symbols for files absent from SCIP.
 
 Precomputed `index.scip` or per-language files under `scip.indexDir` are read
 without process permission, but the configured directory and each canonical
@@ -221,10 +232,60 @@ With an explicit build grant, Lore can run CMake, Meson, or Bear/Make (and
 pair. Compdb hashes, validation counts, indexer identity, and degradation detail
 are persisted in run provenance and C/C++ reproducibility metadata.
 
+With a host `scipScope`, Lore intersects its canonical file/language selection
+with the walker before launching SCIP. Source discovery, refresh hashing, and
+imported SCIP documents share this selection. Scoped C/C++ invocations require `{compdb}`;
+Lore sorts and deduplicates selected compilation commands, writes them to a
+mode-`0600` file inside the private SCIP output directory, and removes that
+directory after execution. The source compdb is not modified. The host-selected
+file set filters raw entries before parsing commands or response files and
+validating their roots. Out-of-scope malformed, stale, or relocated entries do
+not degrade scoped execution; the original source bytes are still hashed in
+full. Malformed selected entries and selected entries with degraded response
+files or other partial-validation diagnostics are rejected rather than repaired
+by dropping flags. Without explicit scope, all compdb entries are validated as
+before. The typed compdb load/ensure options expose this selection as
+`selectedFiles`; repository configuration never supplies it.
+
 The compilation database also supplies include paths for import resolution and
 C/C++ header-language evidence. Literal includes then fall back to suffix or
 basename matching only when the result is uniquely determined by indexed path
 and nearest-directory evidence.
+
+### Scope provenance
+
+No schema migration is needed: scope records use the existing schema v3 JSON
+provenance columns. `index_runs.config_json.scipScope` contains schema version 1,
+the canonical root, normalized requested languages/include/exclude globs,
+normalized walker selection, sorted canonical root-relative `effectiveFiles`
+with language, `languageCounts` (including requested zero-count languages), and
+`scopeHash`. The hash is SHA-256 of the canonical JSON manifest without its hash
+field; it binds the root and file selection, not source content. Source snapshots
+retain their existing per-file content hashes. Scope ordering and duplicate
+requests do not affect its identity.
+
+Each SCIP `indexer_runs.details_json.coveredFiles` records canonical imported
+document paths. Compdb `details_json.filtered` records `sourcePath`,
+`sourceSha256`, `scopeHash`, filtered `sha256`, entry count, and sorted
+`translationUnits`. The filtered hash covers the exact serialized compdb bytes;
+source identity separately covers the original input bytes. Temporary output
+paths and timestamps are not part of these identities. Filtered identity is
+also included in the staged C/C++ reproducibility metadata. Precomputed SCIP
+inputs have document coverage but no executed/filtered-compdb identity.
+
+`validateIndex(dbPath, { scipScope, walkerConfig })` recomputes the selection, compares
+the complete manifest, verifies source and filtered compdb identities for
+executed C/C++ providers, and requires successful SCIP document coverage for
+every effective file in the relevant baseline generation. A file missing from
+SQLite still fails through the manifest. Scope checks cannot be bypassed by
+validation include/exclude globs or relaxed thresholds. Migration-grade checks
+still enforce provider success, spans, symbols, root/branch, and promotion.
+Repository `validation` settings are ignored at an explicitly scoped boundary.
+An explicit expected scope is required to certify a scoped migration-grade
+baseline; without `walkerConfig`, validation reuses the recorded host walker.
+Scoped checks require filesystem access; unscoped health aggregation remains
+database-only. Failed candidate manifests remain with their failed runs and
+never replace promoted generation metadata.
 
 ### LSP extraction and enrichment
 

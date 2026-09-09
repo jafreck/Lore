@@ -98,6 +98,7 @@ import {
   materializeVirtualDispatch,
 } from './scip-helpers/ingest.js';
 import { CSourceSpanResolver } from './scip-helpers/source-spans.js';
+import { recoverCHeaderDeclarations, type DeclarationRecoveryDiagnostics } from './scip-helpers/declarations.js';
 import { normalizeScipDocumentPositions } from '../../scip/source-position.js';
 import {
   mergeScipDocuments,
@@ -187,6 +188,7 @@ function recordCppReproducibilityMetadata(
     compilationDatabase: {
       path: portableCompdbPath,
       sha256: database.sha256,
+      filtered: cCpp.compilationDatabase.filtered ?? null,
       buildSystem: cCpp.compilationDatabase.buildSystem ?? 'unknown',
       preExisting: cCpp.compilationDatabase.preExisting ?? null,
       status: validation.status,
@@ -226,6 +228,7 @@ function recordScipRunProvenance(
   diagnostics: ScipIndexLoadDiagnostics,
   parsedIndexes: readonly ScipIndex[],
   positionConversion: PositionConversionDiagnostics = emptyPositionConversionDiagnostics(),
+  declarationRecovery: DeclarationRecoveryDiagnostics = { files: 0, declarations: 0 },
 ): void {
   if (!context.runId) return;
 
@@ -255,6 +258,7 @@ function recordScipRunProvenance(
       message: diagnostic.message,
       details: {
         source: diagnostic.source,
+        coveredFiles: [...new Set(index?.documents.map((document) => document.relativePath) ?? [])].sort(),
         outputPath: diagnostic.outputPath,
         outputBytes: diagnostic.outputBytes,
         outputSha256: diagnostic.outputSha256,
@@ -262,6 +266,7 @@ function recordScipRunProvenance(
         toolVersion: toolInfo?.version || null,
         toolArguments: toolInfo?.arguments ?? [],
         positionConversion,
+        declarationRecovery,
       },
     });
   }
@@ -283,7 +288,8 @@ function recordScipRunProvenance(
         ? undefined
         : result.failure ?? validation?.reason ?? 'no usable compilation database was available',
       details: {
-        path: result.path,
+        path: result.filtered ? `sha256:${result.filtered.sha256}` : result.path,
+        filtered: result.filtered ?? null,
         preExisting: result.preExisting ?? null,
         generationAttempted: result.generationAttempted ?? false,
         failure: result.failure ?? null,
@@ -333,6 +339,7 @@ export class ScipIndexerStage implements PipelineStage {
 
     const log = context.log;
     const rootDir = context.walkerConfig.rootDir;
+    const selectedFiles = context.walkedFiles ?? await walkFiles(context.walkerConfig);
 
     // In update mode, determine which SCIP-supported languages have changed
     // files so we only re-run the indexers that are actually stale.
@@ -368,6 +375,7 @@ export class ScipIndexerStage implements PipelineStage {
       loadDiagnostics,
       context.signal,
       context.responseFileLimits,
+      { files: selectedFiles, scope: context.scipScope },
     );
     const compilationDatabase = loadDiagnostics.cCpp?.compilationDatabase;
     if (compilationDatabase?.database !== undefined) {
@@ -385,6 +393,21 @@ export class ScipIndexerStage implements PipelineStage {
 
     // Decode all SCIP index buffers once and keep the decoded objects alive.
     const parsedIndexes = indexBuffers.map(buf => fromBinary(IndexSchema, buf));
+    const selectedPaths = new Map(selectedFiles.map((file) => [file.path, file.language]));
+    for (const index of parsedIndexes) {
+      index.documents = index.documents.filter((document) => {
+        try {
+          const canonicalPath = fs.realpathSync(resolve(rootDir, document.relativePath));
+          const language = selectedPaths.get(canonicalPath);
+          if (!language) return false;
+          document.relativePath = relative(fs.realpathSync(rootDir), canonicalPath).split(sep).join('/');
+          if (context.scipScope) document.language = language;
+          return true;
+        } catch {
+          return false;
+        }
+      });
+    }
 
     const totalDocuments = parsedIndexes.reduce((n, idx) => n + idx.documents.length, 0);
     const totalExternalSymbols = parsedIndexes.reduce((n, idx) => n + idx.externalSymbols.length, 0);
@@ -395,7 +418,7 @@ export class ScipIndexerStage implements PipelineStage {
       sourceCache: context.sourceCache,
     };
     const scopedPaths = new Set(
-      (await walkFiles(context.walkerConfig, cFamilyOptions)).map((file) => file.path),
+      (context.walkedFiles ?? await walkFiles(context.walkerConfig, cFamilyOptions)).map((file) => file.path),
     );
     const scopedDocuments = mergeResult.documents.filter((document) => {
       const absolutePath = resolve(rootDir, document.relativePath);
@@ -453,7 +476,14 @@ export class ScipIndexerStage implements PipelineStage {
       positionConversion.converted++;
       return normalizeScipDocumentPositions(document, source, sourceEncoding);
     });
-    recordScipRunProvenance(context, loadDiagnostics, parsedIndexes, positionConversion);
+    const declarationRecovery = context.scipScope ? recoverCHeaderDeclarations(allDocuments, (document) => {
+      const absolutePath = resolve(rootDir, document.relativePath);
+      const cached = context.sourceCache.get(absolutePath);
+      if (cached !== undefined) return cached;
+      try { return fs.readFileSync(absolutePath, 'utf8'); } catch { return undefined; }
+    }, (document) => inferLoreLanguage(document.language, document.relativePath, cFamilyEvidence))
+      : { files: 0, declarations: 0 };
+    recordScipRunProvenance(context, loadDiagnostics, parsedIndexes, positionConversion, declarationRecovery);
     recordCppReproducibilityMetadata(
       context,
       loadDiagnostics,

@@ -20,6 +20,7 @@ import { getLogger } from '../../src/logger.js';
 import { buildScipIndexBuffer, SymbolRole } from '../helpers/scipFixture.js';
 import { PositionEncoding } from '../../src/scip/scip_pb.js';
 import { installStagingEffectiveViews } from '../../src/indexer/staging-views.js';
+import { resolveScipScope } from '../../src/scip/scope.js';
 
 // ── Mock loadScipIndexes ────────────────────────────────────────────────────
 
@@ -97,6 +98,50 @@ afterEach(() => {
 // ── ScipIndexerStage ────────────────────────────────────────────────────────
 
 describe('ScipIndexerStage', () => {
+  it('preserves scip-clang reference-only header declarations without turning calls into definitions', async () => {
+    const sourceCache = new Map<string, string>();
+    const inlineSource = 'static int inline_call(void) { return helper(); }';
+    const callCharacter = inlineSource.indexOf('helper');
+    writeSource('main.h', `int helper(void);\n${inlineSource}\n`, sourceCache);
+    writeSource('main.c', 'int helper(void) { return 1; }\n', sourceCache);
+    const helper = 'cxx . . $ helper(123).';
+    const inlineCall = 'cxx . . $ inline_call(123).';
+    loadScipIndexesMock.mockResolvedValue([buildScipIndexBuffer([
+      {
+        relativePath: 'main.h', language: 'c',
+        occurrences: [
+          { symbol: helper, symbolRoles: 0, range: [0, 4, 10] },
+          { symbol: inlineCall, symbolRoles: SymbolRole.Definition, range: [1, 11, 22], enclosingRange: [1, 0, 1, inlineSource.length] },
+          { symbol: helper, symbolRoles: 0, range: [1, callCharacter, callCharacter + 6] },
+        ],
+        symbols: [{ symbol: inlineCall, displayName: 'inline_call' }],
+      },
+      {
+        relativePath: 'main.c', language: 'c',
+        occurrences: [{ symbol: helper, symbolRoles: SymbolRole.Definition, range: [0, 4, 10] }],
+        symbols: [{ symbol: helper, displayName: 'helper' }],
+      },
+    ])]);
+    const context = makeMinimalContext({
+      scip: { enabled: true } as any,
+      sourceCache,
+      scipScope: resolveScipScope({ rootDir: tmpDir }, { languages: ['c'] },
+        [...sourceCache.keys()].map(filePath => ({ path: fs.realpathSync(filePath), language: 'c' }))),
+    });
+    await new ScipIndexerStage().execute(context, 'build');
+    const declarations = context.db.prepare(`
+      SELECT symbols.name, symbols.start_line, symbols.end_line, symbols.definition_path
+      FROM symbols JOIN files ON files.id = symbols.file_id WHERE files.path = ?
+    `).all(path.join(tmpDir, 'main.h'));
+    expect(declarations).toHaveLength(2);
+    expect(declarations).toContainEqual(expect.objectContaining({
+      name: 'helper', start_line: 0, end_line: 0, definition_path: path.join(tmpDir, 'main.c'),
+    }));
+    const calls = context.db.prepare('SELECT COUNT(*) AS count FROM symbol_refs').get() as { count: number };
+    expect(calls.count).toBe(1);
+    context.db.close();
+  });
+
   it('returns early when scip is null', async () => {
     const stage = new ScipIndexerStage();
     const ctx = makeMinimalContext({ scip: null });

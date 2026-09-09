@@ -105,6 +105,51 @@ export class CSourceSpanResolver {
     return this.positions.sliceRange(range, this.positionEncoding);
   }
 
+  findFunctionDeclarationSpan(line: number, character: number): SourceSpan | null {
+    const startOffset = this.positions.toSourceOffset(line, character, this.positionEncoding);
+    const lineStart = this.positions.lineStart(line);
+    if (startOffset === null || lineStart === null || startOffset - lineStart > this.limits.maxCharacters) return null;
+    let prefix = '';
+    for (let cursor = lineStart; cursor < startOffset;) {
+      const skipped = skipNonStructural(this.source, cursor, startOffset);
+      if (skipped !== cursor) {
+        prefix += ' ';
+        cursor = skipped;
+      } else {
+        prefix += this.source[cursor]!;
+        cursor++;
+      }
+    }
+    prefix = prefix.trim();
+    if (!/^[A-Za-z_]\w*(?:\s+[A-Za-z_]\w*|\s*\*)*\s*$/u.test(prefix)
+      || /\b(?:return|throw|co_return|co_await|goto|case|else|do|typedef|new|delete|sizeof|alignof|_Alignof|__alignof__)\b/u.test(prefix)) return null;
+    const identifier = /^[A-Za-z_]\w*/u.exec(this.source.slice(startOffset));
+    if (!identifier) return null;
+    const scanEnd = Math.min(this.source.length, startOffset + this.limits.maxCharacters,
+      this.positions.lineStart(line + this.limits.maxLines) ?? this.source.length);
+    let parenDepth = 0;
+    let sawParameters = false;
+    for (let cursor = startOffset + identifier[0].length; cursor < scanEnd;) {
+      const skipped = skipNonStructural(this.source, cursor, scanEnd);
+      if (skipped !== cursor) {
+        cursor = skipped;
+        continue;
+      }
+      const token = this.source[cursor]!;
+      if (isWhitespace(token)) { cursor++; continue; }
+      if (token === '(' && !sawParameters) parenDepth++;
+      else if (token === ')' && parenDepth > 0) {
+        parenDepth--;
+        if (parenDepth === 0) sawParameters = true;
+      } else if (token === ';' && sawParameters) {
+        const endLine = offsetToLine(this.positions, line, cursor);
+        return { startLine: line, endLine, endCharacter: cursor - this.positions.lineStart(endLine)! + 1 };
+      } else if (parenDepth === 0 || token === '{' || token === '}') return null;
+      cursor++;
+    }
+    return null;
+  }
+
   private findBodyStart(startOffset: number, scanEnd: number, constructor: boolean): number | null {
     let parenDepth = 0;
     let bracketDepth = 0;

@@ -55,6 +55,24 @@ Repository booleans can narrow a host grant. For example,
 authority. Custom registry entries are ignored unless their corresponding
 custom-command grant is present.
 
+`IndexBuilderOptions.scipScope` is a separate host-owned coverage boundary.
+Only programmatic options or explicit `--scip-scope-language`,
+`--scip-scope-include`, and `--scip-scope-exclude` flags supply it. Repository
+fields cannot broaden, narrow, or supply this scope, and repository validation
+policies are ignored for explicitly scoped certification. Scope intersects
+`WalkerConfig` after canonical root/symlink checks. It grants none of the
+capabilities in the table: `lsp: false` still disables LSP, and missing execution
+permission still produces skipped providers and failed migration-grade coverage.
+Repository provider settings can still prevent execution, but cannot turn
+missing required scoped coverage into a successful certification.
+
+Scoped C/C++ indexers receive a private filtered compdb containing only selected
+translation units. Authorized compilers may still read headers or other inputs
+outside the selected set under their normal OS permissions. Scope controls
+launch selection, imported documents, and coverage certification, not process
+filesystem access. Out-of-root source symlinks cannot enter the effective scope
+even when the host has separately approved an external command/build cwd.
+
 Both cwd-related CLI options currently feed the same programmatic
 `allowedCwdRoots` list. Consequently, either option approves that directory for
 custom command cwd containment and for compilation-database source/working-
@@ -78,8 +96,11 @@ this precomputed-input boundary; keep those grants narrow.
 
 Compilation-database entries are accepted only when both their translation unit
 and working directory are inside the project root or a host-approved external
-root. A database with any well-formed entry outside those roots is classified
-as relocated and is not passed to `scip-clang`. Missing files/directories and
+root. Without explicit scope, a database with any well-formed entry outside
+those roots is classified as relocated and is not passed to `scip-clang`.
+With host scope, membership filters raw entries first and these checks apply
+to every selected entry; only the validated filtered database is passed to the
+indexer. Missing files/directories and
 unexpanded response files produce partial or stale diagnostics; response-file
 budgets retain the original `@file` argument instead of silently discarding
 compiler flags.

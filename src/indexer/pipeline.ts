@@ -32,6 +32,7 @@ import type { EffectiveLspSettings } from '../lsp/config.js';
 import type { EffectiveScipSettings } from '../scip/config.js';
 import type { CompdbDiscoveryResult } from '../scip/compdb.js';
 import type { ResponseFileLimits } from '../scip/compdb.js';
+import type { ResolvedScipScope } from '../scip/scope.js';
 import type { LoreLogger } from '../logger.js';
 import { getLogger } from '../logger.js';
 import { deleteLoreMeta, setLoreMeta } from '../db/meta.js';
@@ -57,6 +58,8 @@ export interface PipelineContext {
   lsp: EffectiveLspSettings | null;
   /** Effective SCIP settings (null = disabled). */
   scip: EffectiveScipSettings | null;
+  scipScope?: ResolvedScipScope;
+  walkedFiles?: Array<{ path: string; language: string }>;
   /** Host-approved out-of-tree compilation/build roots. */
   approvedExternalBuildRoots?: readonly string[];
   /** Per-compilation-entry response-file budgets. */

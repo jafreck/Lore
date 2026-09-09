@@ -10,6 +10,9 @@ import {
   type ScipProcessIO,
 } from '../../src/indexer/stages/scip-helpers/process.js';
 import type { EffectiveScipSettings } from '../../src/scip/config.js';
+import { walkFiles } from '../../src/discovery/walker.js';
+import { resolveScipScope } from '../../src/scip/scope.js';
+import { loadCompilationDatabase } from '../../src/scip/compdb.js';
 
 function makeTempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'lore-test-process-'));
@@ -387,6 +390,77 @@ function baseSettings(overrides: Partial<EffectiveScipSettings> = {}): Effective
 }
 
 describe('loadScipIndexes', () => {
+  it('passes only scoped C translation units to the C indexer and never attempts Python', async () => {
+    const rootDir = fs.realpathSync(makeTempDir());
+    dirs.push(rootDir);
+    fs.mkdirSync(path.join(rootDir, 'lib'));
+    fs.mkdirSync(path.join(rootDir, 'programs'));
+    fs.writeFileSync(path.join(rootDir, 'lib/main.c'), 'int main(void) { return 0; }');
+    fs.writeFileSync(path.join(rootDir, 'programs/other.c'), 'int other(void) { return 0; }');
+    fs.writeFileSync(path.join(rootDir, 'helper.py'), 'print("hello")');
+    const compdbPath = path.join(rootDir, 'compile_commands.json');
+    fs.writeFileSync(compdbPath, JSON.stringify(['lib/main.c', 'programs/other.c'].map(file => ({
+      directory: rootDir, file, arguments: ['cc', '-c', file],
+    }))));
+    const database = loadCompilationDatabase(compdbPath).database!;
+    const files = await walkFiles({ rootDir });
+    const scope = resolveScipScope({ rootDir }, { languages: ['c'], includeGlobs: ['lib/**'] }, files);
+    const launches: string[][] = [];
+    let filteredPath: string | undefined;
+    const io = mockIO({
+      ensureCompilationDatabase: async () => ({ path: compdbPath, database }),
+      execFile: async (_command, args) => {
+        launches.push(args);
+        filteredPath = args[1]!;
+        const commands = JSON.parse(fs.readFileSync(filteredPath, 'utf8'));
+        expect(commands.map((entry: { file: string }) => entry.file)).toEqual([path.join(rootDir, 'lib/main.c')]);
+        fs.writeFileSync(args[2]!, new Uint8Array([1, 2, 3]));
+      },
+    });
+    const settings = baseSettings({
+      indexers: {
+        c: { command: process.execPath, args: ['scip-clang', '{compdb}', '{output}'] },
+        python: { command: process.execPath, args: ['scip-python', '{output}'] },
+      },
+    });
+    const diagnostics: ScipIndexLoadDiagnostics = {};
+    await loadScipIndexes(settings, rootDir, null, io, diagnostics, undefined, undefined, {
+      files: scope.effectiveFiles.map(file => ({ ...file, path: path.join(rootDir, file.path) })), scope,
+    });
+    expect(launches).toHaveLength(1);
+    expect(launches[0]![0]).toBe('scip-clang');
+    expect(diagnostics.indexers).toMatchObject([{ languages: ['c'], status: 'succeeded' }]);
+    expect(diagnostics.cCpp?.compilationDatabase.filtered).toMatchObject({
+      scopeHash: scope.scopeHash, entries: 1, translationUnits: ['lib/main.c'],
+    });
+    expect(fs.existsSync(filteredPath!)).toBe(false);
+  });
+
+  it('walker-excluded files cannot trigger an indexer without an explicit SCIP scope', async () => {
+    const rootDir = fs.realpathSync(makeTempDir());
+    dirs.push(rootDir);
+    fs.writeFileSync(path.join(rootDir, 'main.c'), 'int main(void) { return 0; }');
+    fs.writeFileSync(path.join(rootDir, 'helper.py'), 'print("hello")');
+    const launches: string[][] = [];
+    const settings = baseSettings({
+      indexers: {
+        c: { command: process.execPath, args: ['c-indexer', '{output}'] },
+        python: { command: process.execPath, args: ['python-indexer', '{output}'] },
+      },
+    });
+    const io = mockIO({ execFile: async (_command, args) => { launches.push(args); } });
+    const diagnostics: ScipIndexLoadDiagnostics = {};
+    await loadScipIndexes(settings, rootDir, null, io, diagnostics, undefined, undefined, {
+      files: await walkFiles({ rootDir, excludeGlobs: ['helper.py'] }),
+    });
+    expect(launches).toHaveLength(1);
+    expect(launches[0]![0]).toBe('c-indexer');
+    expect(diagnostics.detectedLanguages).toEqual(['c']);
+    launches.length = 0;
+    await loadScipIndexes(settings, rootDir, null, io, {}, undefined, undefined, { files: [] });
+    expect(launches).toEqual([]);
+  });
+
   it('loads pre-computed index.scip from indexDir', async () => {
     const indexData = new Uint8Array([1, 2, 3, 4]);
     const io = mockIO({
