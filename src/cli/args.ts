@@ -11,6 +11,7 @@ import {
 } from '../validation/config.js';
 import type { IndexExecutionOptions } from '../execution-policy.js';
 import { EXT_TO_LANG, type WalkerConfig } from '../discovery/walker.js';
+import { canonicalScopeRequest, type ScipScope } from '../scip/scope.js';
 
 // ─── Usage ────────────────────────────────────────────────────────────────────
 
@@ -53,6 +54,9 @@ Options:
   --poll                   Enable polling mode (reliable but higher CPU/IO cost)
   --lsp / --no-lsp         Force-enable/disable index-time LSP support (enabled by default)
   --scip / --no-scip       Force-enable/disable index-time SCIP indexing (enabled by default)
+  --scip-scope-language <lang>  Host SCIP scope language (repeatable; index/doctor/validate)
+  --scip-scope-include <glob>  Host SCIP scope include (repeatable; intersects walker selection)
+  --scip-scope-exclude <glob>  Host SCIP scope exclusion (repeatable; no execution grant)
   --allow-subprocess-execution  Allow built-in SCIP indexers and LSP servers (default: off)
   --allow-build-execution  Allow SCIP to run configure/build tools; also permits SCIP indexer execution
   --allow-custom-indexer-commands  Honor custom SCIP command/args/cwd from .lore.config
@@ -160,6 +164,12 @@ const PROVIDER_OPTIONS = {
   '--no-scip': booleanOption,
 } satisfies Record<string, CliOptionSchema>;
 
+const SCIP_SCOPE_OPTIONS = {
+  '--scip-scope-language': repeatableValueOption,
+  '--scip-scope-include': repeatableValueOption,
+  '--scip-scope-exclude': repeatableValueOption,
+} satisfies Record<string, CliOptionSchema>;
+
 const HISTORY_OPTIONS = {
   '--history': booleanOption,
   '--history-depth': { kind: 'value', validate: positiveInteger },
@@ -204,6 +214,7 @@ const COMMAND_SCHEMAS: Readonly<Record<CliSubcommand, CliCommandSchema>> = {
       ...COMMON_OPTIONS,
       ...EXECUTION_OPTIONS,
       ...WALKER_OPTIONS,
+      ...SCIP_SCOPE_OPTIONS,
       ...PROVIDER_OPTIONS,
       ...HISTORY_OPTIONS,
       ...VALIDATION_OPTIONS,
@@ -288,6 +299,7 @@ const COMMAND_SCHEMAS: Readonly<Record<CliSubcommand, CliCommandSchema>> = {
     options: {
       ...COMMON_OPTIONS,
       ...WALKER_OPTIONS,
+      ...SCIP_SCOPE_OPTIONS,
       ...VALIDATION_OPTIONS,
       '--db': valueOption,
       '--root': valueOption,
@@ -300,6 +312,7 @@ const COMMAND_SCHEMAS: Readonly<Record<CliSubcommand, CliCommandSchema>> = {
     options: {
       ...COMMON_OPTIONS,
       ...WALKER_OPTIONS,
+      ...SCIP_SCOPE_OPTIONS,
       ...VALIDATION_OPTIONS,
       '--db': valueOption,
       '--root': valueOption,
@@ -420,6 +433,23 @@ export function explicitScipEnabled(args: CliArgSource): boolean | undefined {
 export function explicitBuildExecutionAllowed(args: CliArgSource): boolean | undefined {
   if (hasOption(args, '--allow-build-execution')) return true;
   return undefined;
+}
+
+export function scipScopeFromArgs(args: CliArgSource): ScipScope | undefined {
+  const languages = optionValues(args, '--scip-scope-language');
+  const includeGlobs = optionValues(args, '--scip-scope-include');
+  const excludeGlobs = optionValues(args, '--scip-scope-exclude');
+  if (languages.length === 0 && includeGlobs.length === 0 && excludeGlobs.length === 0) return undefined;
+  if (hasOption(args, '--no-scip')) throw new CliArgumentError('--no-scip cannot be used together with SCIP scope flags');
+  try {
+    return canonicalScopeRequest({
+      languages,
+      ...(includeGlobs.length > 0 && { includeGlobs }),
+      ...(excludeGlobs.length > 0 && { excludeGlobs }),
+    });
+  } catch (error) {
+    throw new CliArgumentError(error instanceof Error ? error.message : String(error));
+  }
 }
 
 /** Parse host-trusted execution flags. Repository config never contributes here. */

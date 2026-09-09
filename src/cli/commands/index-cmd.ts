@@ -12,6 +12,7 @@ import {
   executionOptionsFromArgs,
   validationPolicyFromArgs,
   walkerConfigFromArgs,
+  scipScopeFromArgs,
 } from '../args.js';
 import type { LoreLogger } from '../../logger.js';
 
@@ -96,6 +97,7 @@ export async function runIndexCommand(args: string[], _log: LoreLogger): Promise
   const shouldEnableHistory = historyEnabled || historyAll || historyDepth !== undefined;
   const options = {
     indexDependencies,
+    scipScope: scipScopeFromArgs(parsedArgs),
     embeddings: embeddingsEnabled,
     execution: executionOptionsFromArgs(parsedArgs),
     ...(lspEnabled !== undefined && { lsp: lspEnabled }),

@@ -9,9 +9,34 @@ import {
   usage,
   LANG_TO_EXTS,
   walkerConfigFromArgs,
+  scipScopeFromArgs,
 } from '../src/cli/args.js';
 
 describe('CLI args', () => {
+  describe('scipScopeFromArgs()', () => {
+    it.each(['index', 'doctor', 'validate'])('parses explicit host scope for %s independently of permissions', (command) => {
+      const parsed = parseCliArgs([
+        command, '--scip-scope-language', 'cpp', '--scip-scope-language', 'c',
+        '--scip-scope-include', 'lib/**/*.{c,h}', '--scip-scope-include', 'programs/**/*.{c,h}',
+        '--scip-scope-exclude', '**/generated/**',
+      ]);
+      expect(scipScopeFromArgs(parsed)).toEqual({
+        languages: ['c', 'cpp'], includeGlobs: ['lib/**/*.{c,h}', 'programs/**/*.{c,h}'],
+        excludeGlobs: ['**/generated/**'],
+      });
+      expect(executionOptionsFromArgs(parsed)).toEqual({});
+    });
+
+    it('requires explicit languages and rejects traversal, unknown languages, and disabled SCIP', () => {
+      expect(scipScopeFromArgs(['index'])).toBeUndefined();
+      expect(() => scipScopeFromArgs(['--scip-scope-include', 'lib/**'])).toThrow('at least one language');
+      expect(() => scipScopeFromArgs(['--scip-scope-language', 'c', '--scip-scope-include', '../**']))
+        .toThrow('root-relative');
+      expect(() => scipScopeFromArgs(['--scip-scope-language', 'unknown'])).toThrow('Unknown');
+      expect(() => scipScopeFromArgs(['--scip-scope-language', 'c', '--no-scip'])).toThrow('cannot be used together');
+    });
+  });
+
   describe('parseCliArgs()', () => {
     it('parses values, booleans, and repeatable options from a command schema', () => {
       const parsed = parseCliArgs([

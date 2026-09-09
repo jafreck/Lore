@@ -158,6 +158,7 @@ export interface EnsureCompilationDatabaseOptions {
   approvedExternalRoots?: readonly string[];
   /** Resource limits applied independently to every compilation entry. */
   responseFileLimits?: Partial<ResponseFileLimits>;
+  selectedFiles?: readonly string[];
 }
 
 export interface CompdbPathPolicy {
@@ -165,6 +166,7 @@ export interface CompdbPathPolicy {
   approvedExternalRoots?: readonly string[];
   /** Resource limits applied independently to every compilation entry. */
   responseFileLimits?: Partial<ResponseFileLimits>;
+  selectedFiles?: readonly string[];
 }
 
 /** Injectable I/O seam for testing. */
@@ -884,16 +886,22 @@ export function loadCompilationDatabase(
       validation: invalidValidation('malformed', 'compilation database root must be an array'),
     };
   }
-  if (rawEntries.length === 0) {
+  const selectedPaths = policy.selectedFiles
+    ? new Set(policy.selectedFiles.map(canonicalForPolicy))
+    : null;
+  const selectedEntries = selectedPaths
+    ? rawEntries.filter((entry: unknown) => compilationEntrySelected(entry, absolutePath, selectedPaths))
+    : rawEntries;
+  if (selectedEntries.length === 0) {
     return { database: null, validation: invalidValidation('empty', 'database has no entries') };
   }
 
   const warnings: string[] = [];
   const responseFileLimits = resolveResponseFileLimits(policy.responseFileLimits);
   const entries: CompilationCommandEntry[] = [];
-  for (let index = 0; index < rawEntries.length; index++) {
+  for (let index = 0; index < selectedEntries.length; index++) {
     const entry = parseCompilationEntry(
-      rawEntries[index],
+      selectedEntries[index],
       index,
       absolutePath,
       io,
@@ -903,14 +911,14 @@ export function loadCompilationDatabase(
     if (entry) entries.push(entry);
   }
 
-  const malformedEntries = rawEntries.length - entries.length;
+  const malformedEntries = selectedEntries.length - entries.length;
   if (entries.length === 0) {
     return {
       database: null,
       validation: invalidValidation(
         'malformed',
         'database has no well-formed compilation entries',
-        rawEntries.length,
+        selectedEntries.length,
         malformedEntries,
         warnings,
       ),
@@ -944,7 +952,7 @@ export function loadCompilationDatabase(
     const validation: CompdbValidation = {
       valid: false,
       status: 'relocated',
-      totalEntries: rawEntries.length,
+      totalEntries: selectedEntries.length,
       wellFormedEntries: entries.length,
       malformedEntries,
       existingFiles,
@@ -964,7 +972,7 @@ export function loadCompilationDatabase(
   }
 
   if (malformedEntries > 0) {
-    pushWarning(warnings, `${malformedEntries}/${rawEntries.length} malformed entries were ignored`);
+    pushWarning(warnings, `${malformedEntries}/${selectedEntries.length} malformed entries were ignored`);
   }
   if (missingFiles > 0) {
     pushWarning(warnings, `${missingFiles}/${entries.length} source files are missing and may be generated during a build`);
@@ -986,7 +994,7 @@ export function loadCompilationDatabase(
   const validation: CompdbValidation = {
     valid: !completelyStale,
     status,
-    totalEntries: rawEntries.length,
+    totalEntries: selectedEntries.length,
     wellFormedEntries: entries.length,
     malformedEntries,
     existingFiles,
@@ -1012,6 +1020,16 @@ export function loadCompilationDatabase(
     },
     validation,
   };
+}
+
+function compilationEntrySelected(value: unknown, compdbPath: string, selectedPaths: ReadonlySet<string>): boolean {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const entry = value as Record<string, unknown>;
+  if (typeof entry.file !== 'string' || !entry.file.trim()) return false;
+  const directory = typeof entry.directory === 'string' && entry.directory.trim()
+    ? resolve(dirname(compdbPath), entry.directory)
+    : dirname(compdbPath);
+  return selectedPaths.has(canonicalForPolicy(resolve(directory, entry.file)));
 }
 
 /** Discover and load the first usable compilation database in candidate order. */
@@ -1096,6 +1114,7 @@ export async function ensureCompilationDatabase(
   const pathPolicy: CompdbPathPolicy = {
     approvedExternalRoots: options.approvedExternalRoots,
     responseFileLimits: options.responseFileLimits,
+    selectedFiles: options.selectedFiles,
   };
   const discovery = discoverCompilationDatabase(absRoot, io, pathPolicy);
   for (const candidate of discovery.candidates) {

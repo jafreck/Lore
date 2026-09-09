@@ -1,6 +1,6 @@
 /** Handler for `lore doctor` and its `lore validate` alias. */
 
-import { parseCliArgs, usage, validationPolicyFromArgs } from '../args.js';
+import { parseCliArgs, usage, validationPolicyFromArgs, scipScopeFromArgs, walkerConfigFromArgs } from '../args.js';
 import {
   loadValidationPolicyFromLoreConfig,
   resolveIndexValidationPolicy,
@@ -27,7 +27,8 @@ export async function runDoctorCommand(
   const explicitRoot = parsedArgs.value('--root');
   const requestedBranch = parsedArgs.value('--branch');
   const rootDir = explicitRoot ?? readRecordedIndexRoot(dbPath!, requestedBranch);
-  const configured = rootDir
+  const scipScope = scipScopeFromArgs(parsedArgs);
+  const configured = rootDir && !scipScope
     ? loadValidationPolicyFromLoreConfig(rootDir) ?? {}
     : {};
   const explicit = validationPolicyFromArgs(parsedArgs, { always: true, includeScope: true }) ?? {};
@@ -43,6 +44,10 @@ export async function runDoctorCommand(
 
   const report = validateIndex(dbPath!, {
     ...(rootDir && { rootDir }),
+    scipScope,
+    ...(scipScope && rootDir && ['--include', '--exclude', '--language'].some(flag => parsedArgs.has(flag)) && {
+      walkerConfig: walkerConfigFromArgs(parsedArgs, rootDir),
+    }),
     ...(requestedBranch && { branch: requestedBranch }),
     policy,
     ...(maxSamples !== undefined && { maxSamples }),

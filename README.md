@@ -77,6 +77,10 @@ Important option groups:
 
 - Walker: repeatable `--include`, `--exclude`, and `--language` on commands that
   expose source scope.
+- Host SCIP scope: repeatable `--scip-scope-language`, `--scip-scope-include`,
+  and `--scip-scope-exclude` on `index`, `doctor`, and `validate`. At least one
+  scope language is required; these flags intersect walker selection and grant
+  no execution permissions.
 - Providers: `--lsp`/`--no-lsp` and `--scip`/`--no-scip` on `index`, `refresh`,
   and `hooks`. MCP auto-indexing resolves repository/default provider settings.
 - Optional data: `--embeddings`, `--no-embeddings`, and `--embedding-model` on
@@ -187,8 +191,10 @@ command when migration should be the only action:
 npx @jafreck/lore migrate --db ./lore.db
 ```
 
-`lore doctor` and `lore validate` are read-only. They do not walk the checkout
-or migrate the database. They report schema compatibility, file/symbol/edge and
+`lore doctor` and `lore validate` are read-only and never migrate the database.
+Unscoped validation uses stored snapshots; scoped SCIP validation additionally
+walks the checkout and reads the source compdb to verify its manifest and identity.
+They report schema compatibility, file/symbol/edge and
 import coverage, spans, duplicate effective rows, unresolved internal-looking
 references, provider/compdb provenance, promoted generations, and overlay
 freshness. An incompatible DB returns a structured `SCHEMA_MISSING`,
@@ -260,12 +266,104 @@ parsed by `resolveConfiguration()` or on first `build()`, `refresh()`, or
 | `ingestSummary(symbolId, summary, model)` | Store a caller-generated symbol summary and optional summary vector |
 
 `IndexBuilderOptions` includes `history`, `embeddings`, `embeddingModel`, `lsp`, `scip`,
-host-owned `execution`, `signal`, `pipelineTimeoutMs`, `validation`, and
+host-owned `scipScope` and `execution`, `signal`, `pipelineTimeoutMs`, `validation`, and
 `responseFileLimits`. `indexDependencies` does not activate a dependency
 crawler (apart from the TypeScript LSP-startup hint described above), and
 `maxWorkers` has no active stage consumer. An explicit `EmbeddingProvider` can
 be passed as the third constructor argument; `embeddings: false` suppresses
 both that provider and persisted model reuse.
+
+### Host-owned SCIP scope
+
+`ScipScope` is a typed, host-owned selection, never loaded from `.lore.config`.
+Languages use the walker's lower-case names. Include globs default to `['**/*']`;
+exclude globs default to `[]`. Globs must be root-relative, without parent
+traversal. Files are canonicalized, symlink escapes are rejected, and the result
+is intersected with `WalkerConfig`, including its default exclusions and extension
+filter. Scope never expands the walker. Registry command overrides do not select
+languages and are not a replacement for scope.
+
+```ts
+import { IndexBuilder, validateIndex, type ScipScope } from '@jafreck/lore';
+
+const walkerConfig = { rootDir: checkout };
+const scipScope: ScipScope = {
+  languages: ['c', 'cpp'],
+  includeGlobs: ['lib/**/*.{c,h}', 'programs/**/*.{c,h}'],
+  excludeGlobs: ['**/generated/**'],
+};
+const builder = new IndexBuilder(dbPath, walkerConfig, undefined, {
+  scip: true,
+  scipScope,
+  lsp: false,
+  embeddings: false,
+  execution: { allowSubprocessExecution: true },
+  validation: { profile: 'migration-grade', thresholds: { minCallRefs: 1 } },
+});
+await builder.build();
+const report = validateIndex(dbPath, {
+  walkerConfig, scipScope, profile: 'migration-grade',
+  thresholds: { minCallRefs: 1 },
+});
+```
+
+SCIP launches are derived from walker-selected files, including without an
+explicit scope. A language with zero selected files launches nothing. Scoped
+builds discover/import only the effective files, so ancillary languages cannot
+trigger fallback degradation. C/C++ commands must accept `{compdb}` and receive
+a private, deterministic database containing only selected translation units.
+Headers must be covered by selected translation units; a header-only selection
+with no compilation entry cannot run scip-clang. Other indexers can analyze a
+whole project internally, but Lore imports only scoped documents. This is not
+an OS process sandbox.
+
+Scoped validation ignores repository `validation` settings and checks every
+required file against successful SCIP document provenance and the current
+baseline generation. Missing documents or missing/failed in-scope providers
+fail certification even if other files in that language succeeded. Thresholds
+and span checks remain unchanged. Scoped migration-grade certification requires
+the host to repeat `scipScope`; omitting it does not certify a scoped index as a
+repository-wide index. `builder.validate()` supplies the builder's scope.
+Standalone validation uses the recorded walker unless `walkerConfig` is supplied.
+The checkout and source compdb must remain available and unchanged in scope.
+Overlays do not substitute for scoped baseline SCIP coverage; rebuild the
+baseline to recertify changed scoped files.
+
+```bash
+npx @jafreck/lore index --root ./zstd --db ./zstd.db \
+  --scip --no-lsp --no-embeddings --allow-subprocess-execution \
+  --scip-scope-language c --scip-scope-language cpp \
+  --scip-scope-include 'lib/**/*.{c,h}' \
+  --scip-scope-include 'programs/**/*.{c,h}' \
+  --scip-scope-exclude '**/generated/**' \
+  --validation-profile migration-grade --min-call-refs 1
+npx @jafreck/lore validate --root ./zstd --db ./zstd.db \
+  --scip-scope-language c --scip-scope-language cpp \
+  --scip-scope-include 'lib/**/*.{c,h}' \
+  --scip-scope-include 'programs/**/*.{c,h}' \
+  --scip-scope-exclude '**/generated/**' \
+  --validation-profile migration-grade --min-call-refs 1 --json
+```
+
+These commands assume a valid in-root compdb already exists. Build generation,
+custom commands, and automatic installation still need their independent grants.
+Scope provenance is described in [docs/architecture.md](docs/architecture.md#scope-provenance).
+For a real zstd 1.5.7 verification, use an isolated source copy, installed CMake,
+Ninja and scip-clang, then run:
+
+```bash
+nvm use 22
+npm run build
+node tests/scip/verify-zstd-scope.mjs /path/to/zstd-copy /tmp/zstd-scoped.db
+```
+
+The script regenerates the in-root compdb, checks provider attempts and resolved
+calls including `ZSTD_createCCtx` to `ZSTD_createCCtx_advanced`, and writes the
+validation report alongside the DB. Native CMake omits the Windows resource
+header, so the verifier adds a real `lorem.c` compilation variant with
+`-include programs/windres/verrsrc.h`; no zstd sources are changed and the scope
+and validation thresholds are not relaxed. It does not grant Lore build or
+install permissions.
 
 ## MCP tools
 

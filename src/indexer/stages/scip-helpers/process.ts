@@ -25,11 +25,17 @@ import { getLogger } from '../../../logger.js';
 import { getSpecsForLanguage, installScipIndexer, type ScipInstallSpec } from '../../../scip/installer.js';
 import {
   ensureCompilationDatabase,
+  loadCompilationDatabase,
   type CompdbCandidateDiagnostic,
   type LoadedCompilationDatabase,
   type ResponseFileLimits,
 } from '../../../scip/compdb.js';
-import { detectLanguageForPath } from '../../../discovery/walker.js';
+import { detectLanguageForPath, type FileEntry } from '../../../discovery/walker.js';
+import {
+  filterCompilationDatabase,
+  type FilteredCompilationDatabaseIdentity,
+  type ResolvedScipScope,
+} from '../../../scip/scope.js';
 
 // ─── IO interface ───────────────────────────────────────────────────────────
 
@@ -42,6 +48,7 @@ export interface ScipCompilationDatabaseResult {
   candidateDiagnostics?: CompdbCandidateDiagnostic[];
   generationAttempted?: boolean;
   failure?: string;
+  filtered?: FilteredCompilationDatabaseIdentity;
 }
 
 export interface ScipIndexLoadDiagnostics {
@@ -84,6 +91,7 @@ export interface ScipProcessIO {
     signal?: AbortSignal,
     approvedExternalRoots?: readonly string[],
     responseFileLimits?: Partial<ResponseFileLimits>,
+    selectedFiles?: readonly string[],
   ): Promise<ScipCompilationDatabaseResult>;
 }
 
@@ -103,11 +111,13 @@ export function createDefaultScipProcessIO(): ScipProcessIO {
       signal,
       approvedExternalRoots,
       responseFileLimits,
+      selectedFiles,
     ) => ensureCompilationDatabase(rootDir, timeoutMs, undefined, {
       allowBuildExecution,
       ...(signal && { signal }),
       ...(approvedExternalRoots && { approvedExternalRoots }),
       ...(responseFileLimits && { responseFileLimits }),
+      ...(selectedFiles && { selectedFiles }),
     }),
   };
 }
@@ -284,11 +294,20 @@ export async function loadScipIndexes(
   diagnostics?: ScipIndexLoadDiagnostics,
   signal?: AbortSignal,
   responseFileLimits?: Partial<ResponseFileLimits>,
+  selection?: { files: readonly FileEntry[]; scope?: ResolvedScipScope },
 ): Promise<Uint8Array[]> {
   signal?.throwIfAborted();
   const indexerDiagnostics = diagnostics
     ? (diagnostics.indexers ??= [])
     : undefined;
+  const selectedLanguages = selection
+    ? new Set(selection.files.map((file) => file.language).filter((language) =>
+        staleLanguages === null || staleLanguages.has(language)))
+    : undefined;
+  if (selectedLanguages?.size === 0) {
+    if (diagnostics) diagnostics.detectedLanguages = [];
+    return [];
+  }
   // Try pre-computed index directory first
   if (settings.indexDir) {
     const precomputed: Uint8Array[] = [];
@@ -302,8 +321,8 @@ export async function loadScipIndexes(
     );
     // When staleLanguages is set, prefer per-language index files so
     // we only load the languages that actually need re-processing.
-    if (staleLanguages) {
-      for (const lang of staleLanguages) {
+    if (selectedLanguages ?? staleLanguages) {
+      for (const lang of (selectedLanguages ?? staleLanguages)!) {
         const candidate = findPrecomputed(`${lang}.scip`);
         if (candidate) {
           const data = io.readFileSync(candidate);
@@ -323,7 +342,7 @@ export async function loadScipIndexes(
       }
     }
     if (precomputed.length === 0) {
-      const precomputedLanguages = new Set([
+      const precomputedLanguages = selectedLanguages ?? new Set([
         ...SCIP_SUPPORTED_LANGUAGES,
         ...Object.keys(settings.indexers),
       ]);
@@ -365,7 +384,7 @@ export async function loadScipIndexes(
 
   // Determine which SCIP-supported languages actually exist in the project
   // so we don't waste time running irrelevant indexers (e.g., scip-go on a C project).
-  const projectLanguages = staleLanguages
+  const projectLanguages = selectedLanguages ?? staleLanguages
     ?? detectProjectLanguages(resolve(rootDir), configuredLanguages);
   if (diagnostics) diagnostics.detectedLanguages = [...projectLanguages].sort();
 
@@ -481,6 +500,9 @@ export async function loadScipIndexes(
       const indexerTimeout = cFamilyInvocation && settings.timeoutMsExplicit === false
         ? DEFAULT_SCIP_C_FAMILY_TIMEOUT_MS
         : settings.timeoutMs;
+      if (cFamilyInvocation && selection?.scope && !args.some(argument => argument.includes('{compdb}'))) {
+        throw new Error('Scoped C/C++ indexers must declare a {compdb} argument');
+      }
 
       // For C/C++: ensure a compile_commands.json exists and pass it to scip-clang
       if (cFamilyInvocation && args.some(a => a.includes('{compdb}'))) {
@@ -491,6 +513,7 @@ export async function loadScipIndexes(
           signal,
           settings.allowedCwdRoots,
           responseFileLimits,
+          selection?.scope && selection.files.map(file => file.path),
         );
         if (diagnostics) {
           diagnostics.cCpp = {
@@ -515,6 +538,27 @@ export async function loadScipIndexes(
             arguments: [...indexer.args],
           });
           continue;
+        }
+        if (selection?.scope) {
+          const database = compdb.database ?? loadCompilationDatabase(compdb.path, undefined, rootDir, {
+            approvedExternalRoots: settings.allowedCwdRoots,
+            responseFileLimits,
+            selectedFiles: selection.files.map(file => file.path),
+          }).database;
+          if (!database) throw new Error('Cannot filter an invalid compilation database');
+          const filtered = filterCompilationDatabase(database, selection.scope);
+          const filteredPath = join(outputDirectory, 'compile_commands.json');
+          fs.writeFileSync(filteredPath, filtered.content, { mode: 0o600, flag: 'wx' });
+          const loaded = loadCompilationDatabase(filteredPath, undefined, rootDir, {
+            approvedExternalRoots: settings.allowedCwdRoots,
+            responseFileLimits,
+          });
+          if (!loaded.database || !loaded.validation.valid) {
+            throw new Error(`Invalid scoped compilation database: ${loaded.validation.reason ?? loaded.validation.status}`);
+          }
+          compdb.path = filteredPath;
+          compdb.database = loaded.database;
+          compdb.filtered = filtered.identity;
         }
         args = args.map(a => a.replace(/\{compdb\}/g, compdb.path!));
       }

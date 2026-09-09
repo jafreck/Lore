@@ -78,6 +78,11 @@ export {
   resolveEffectiveScipSettings,
 } from './scip/config.js';
 export type { EffectiveScipSettings, ScipSettingsOverrides } from './scip/config.js';
+export type {
+  ScipScope,
+  ResolvedScipScope,
+  FilteredCompilationDatabaseIdentity,
+} from './scip/scope.js';
 export {
   loadCompilationDatabase,
   discoverCompilationDatabase,
