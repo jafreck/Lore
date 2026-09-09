@@ -40,6 +40,27 @@ an untrusted checkout.
 npm install @jafreck/lore
 ```
 
+## Upgrading to 0.4.2
+
+Programmatic consumers can pin the scoped-indexing and validation release:
+
+```bash
+npm install --save-exact @jafreck/lore@0.4.2
+```
+
+Version 0.4.2 adds host-owned `scipScope`, filtered C/C++ compilation databases,
+compiler-diagnostic evidence, and `validation.requiredSymbols` / `requiredCalls`.
+Scope and execution grants remain separate; `lsp: false` still disables LSP.
+See [Host-owned SCIP scope](#host-owned-scip-scope) for the API and CLI examples.
+
+The database remains schema v3; no migration from 0.4.1 is required. Rebuild
+older executed native SCIP baselines before strict or migration-grade
+certification because they lack captured compiler-diagnostic evidence. Missing
+required facts or compiler errors now block certification even after process
+exit zero. Precomputed C/C++ inputs carry an unverified-compilation warning.
+These checks do not repair scip-clang's upstream reference loss or establish
+exhaustive reference completeness; exact cross-run counts are not required.
+
 ## Quick start
 
 Provider requests default to enabled, but process execution defaults to denied.
