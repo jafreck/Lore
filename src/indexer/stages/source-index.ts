@@ -110,7 +110,7 @@ export class FileDiscoveryStage implements PipelineStage {
       // A full walk is used as the authoritative include/exclude/language
       // filter; deleted paths are retained only when they were indexed before.
       const scopedFiles = new Map(
-        (await walkFiles(context.walkerConfig, cFamilyOptions))
+        (context.walkedFiles ?? await walkFiles(context.walkerConfig, cFamilyOptions))
           .map((file) => [file.path, file.language]),
       );
       context.affectedFilePaths ??= [];
@@ -208,7 +208,7 @@ export class FileDiscoveryStage implements PipelineStage {
     } else {
       // ── Build mode ─────────────────────────────────────────────────────────
       // Walk entire project tree.
-      const allFiles = await walkFiles(context.walkerConfig, cFamilyOptions);
+      const allFiles = context.walkedFiles ?? await walkFiles(context.walkerConfig, cFamilyOptions);
       let filesProcessed = 0;
       let filesSkippedScip = 0;
 

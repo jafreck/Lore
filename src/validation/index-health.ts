@@ -2,12 +2,15 @@
  * SQL-backed index health reporting and policy enforcement.
  *
  * Validation reads persisted source snapshots and effective-layer views.  It
- * never walks the repository tree, so large repositories pay for database
- * aggregation rather than a second source discovery pass.
+ * uses database aggregation for unscoped indexes. Explicit SCIP scopes are
+ * additionally checked against canonical filesystem selection and compdb data.
  */
 
 import { extname, relative, resolve, sep } from 'node:path';
 import { realpathSync } from 'node:fs';
+import type { WalkerConfig } from '../discovery/walker.js';
+import type { ScipScope, ResolvedScipScope } from '../scip/scope.js';
+import { validateScipScope } from './scip-scope.js';
 import type Database from 'better-sqlite3';
 import { openReadOnly } from '../db/read-only.js';
 import { getLoreMeta } from '../db/meta.js';
@@ -218,6 +221,7 @@ export interface IndexHealthReport {
     compilationDatabases: IndexerRunInfo[];
     legacyScipMetadata: unknown | null;
     promotedGeneration: number | null;
+    scipScope?: ResolvedScipScope | null;
     diagnostics: {
       positionConversions: IndexerDiagnosticInfo[];
       supplementation: IndexerDiagnosticInfo[];
@@ -241,6 +245,8 @@ export interface IndexHealthReport {
 
 export interface ValidateIndexOptions extends IndexValidationPolicy {
   rootDir?: string;
+  scipScope?: ScipScope;
+  walkerConfig?: WalkerConfig;
   branch?: string;
   profile?: ValidationProfile;
   policy?: IndexValidationPolicy;
@@ -391,7 +397,21 @@ function validateOpenDatabase(
     extension: extname(row.path).toLowerCase() || '(none)',
     relativePath: relativeIndexPath(rootDir, row.path),
   }));
-  const selected = rows.filter((row) => pathSelected(row.relativePath, policy));
+  const issues: IndexHealthIssue[] = [];
+  const scipScope = validateScipScope({
+    requested: options.scipScope,
+    walkerConfig: options.walkerConfig,
+    rootDir,
+    migrationGrade: policy.profile === 'migration-grade',
+    provenance,
+    files: rows,
+    issues,
+  });
+  provenance.scipScope = scipScope;
+  const scopePaths = scipScope
+    ? new Set(scipScope.effectiveFiles.map((file) => resolve(scipScope.rootDir, file.path)))
+    : null;
+  const selected = rows.filter((row) => (!scopePaths || scopePaths.has(row.path)) && pathSelected(row.relativePath, policy));
   const selectedIds = new Set(selected.map((row) => row.id));
   const selectedPaths = new Set(selected.map((row) => row.path));
   const byId = new Map(selected.map((row) => [row.id, row]));
@@ -464,7 +484,6 @@ function validateOpenDatabase(
     && freshness.pendingGeneration === options.candidateGeneration) {
     freshness.pendingGeneration = null;
   }
-  const issues: IndexHealthIssue[] = [];
   const invalidByLanguage = countRowsByFileLanguage(invalidSpanRows, byId);
   const duplicatesByLanguage = countRowsByFileLanguage(symbolDuplicates, byId, 'count');
   const unresolvedByLanguage = countRowsByFileLanguage(internalUnresolved, byId);

@@ -37,7 +37,7 @@ import {
   recordIndexerRun,
 } from '../db/schema.js';
 import type { Database } from '../db/schema.js';
-import type { WalkerConfig } from '../discovery/walker.js';
+import { walkFiles, type WalkerConfig } from '../discovery/walker.js';
 import type { EmbeddingProvider } from '../embeddings/embedder.js';
 import { DEFAULT_EMBEDDING_MODEL, LazyEmbeddingProvider } from '../embeddings/embedder.js';
 import {
@@ -96,7 +96,9 @@ import {
   dropStagingEffectiveViews,
   installStagingEffectiveViews,
 } from './staging-views.js';
-import type { ResponseFileLimits } from '../scip/compdb.js';
+import { discoverCompilationDatabase, type ResponseFileLimits } from '../scip/compdb.js';
+import { canonicalScopeRequest, resolveScipScope, type ResolvedScipScope, type ScipScope } from '../scip/scope.js';
+import { resolve } from 'node:path';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -110,6 +112,8 @@ export interface IndexBuilderOptions {
   lsp?: boolean | LspSettingsOverrides | EffectiveLspSettings;
   /** `false` disables SCIP; an object is merged over repository/default settings. */
   scip?: boolean | ScipSettingsOverrides | EffectiveScipSettings;
+  /** Host-owned file/language scope, intersected with WalkerConfig; grants no execution. */
+  scipScope?: ScipScope;
   /** Host-trusted execution capabilities. Never loaded from `.lore.config`. */
   execution?: IndexExecutionOptions;
   maxWorkers?: number;
@@ -127,6 +131,7 @@ export interface IndexBuilderOptions {
 export interface ResolvedIndexBuilderConfiguration {
   lsp: EffectiveLspSettings | null;
   scip: EffectiveScipSettings | null;
+  scipScope: ScipScope | null;
   execution: ResolvedIndexExecutionPolicy;
   validation: ResolvedIndexValidationPolicy | null;
 }
@@ -228,7 +233,8 @@ export class IndexBuilder {
           toScipOverrides(this.options.scip),
           this.options.execution,
         );
-    const configuredValidation = this.options.validation === false
+    const scipScope = this.options.scipScope ? canonicalScopeRequest(this.options.scipScope) : null;
+    const configuredValidation = this.options.validation === false || scipScope !== null
       ? undefined
       : loadValidationPolicyFromLoreConfig(this.walkerConfig.rootDir);
     const explicitValidation = typeof this.options.validation === 'string'
@@ -242,7 +248,7 @@ export class IndexBuilder {
         ? resolveIndexValidationPolicy(configuredValidation, explicitValidation)
         : null;
 
-    this._resolvedConfiguration = { lsp, scip, execution, validation };
+    this._resolvedConfiguration = { lsp, scip, scipScope, execution, validation };
     return this._resolvedConfiguration;
   }
 
@@ -281,13 +287,17 @@ export class IndexBuilder {
    */
   async refresh(): Promise<string[]> {
     return this._enqueue(async (lease) => {
-      await this.resolveConfiguration();
+      const configuration = await this.resolveConfiguration();
+      const scipScope = await this.resolveRunScipScope(configuration);
       const db = openDb(this.dbPath);
       const branch = this.resolveBranch();
       let changedFiles: string[];
       let hasBaseline: boolean;
       try {
         changedFiles = await collectRefreshChanges(db, this.walkerConfig, branch, {
+          selectedFiles: scipScope?.effectiveFiles.map(file => ({
+            ...file, path: resolve(scipScope.rootDir, file.path),
+          })),
           ...(this.signal && { signal: this.signal }),
           ...(this.pipelineTimeoutMs !== undefined && {
             deadlineAt: Date.now() + this.pipelineTimeoutMs,
@@ -321,11 +331,25 @@ export class IndexBuilder {
   validate(policy: IndexValidationPolicy | ValidationProfile = {}): IndexHealthReport {
     return validateIndex(this.dbPath, {
       rootDir: this.walkerConfig.rootDir,
+      scipScope: this.options.scipScope,
+      walkerConfig: this.walkerConfig,
       policy: typeof policy === 'string' ? { profile: policy } : policy,
     });
   }
 
   // ─── Unified run implementation ─────────────────────────────────────────
+
+  private async resolveRunScipScope(
+    configuration: ResolvedIndexBuilderConfiguration,
+  ): Promise<ResolvedScipScope | undefined> {
+    if (!configuration.scipScope) return undefined;
+    return resolveScipScope(this.walkerConfig, configuration.scipScope, await walkFiles(this.walkerConfig, {
+      compilationDatabase: discoverCompilationDatabase(this.walkerConfig.rootDir, undefined, {
+        approvedExternalRoots: configuration.execution.allowedCwdRoots,
+        responseFileLimits: this.options.responseFileLimits,
+      }).database,
+    }));
+  }
 
   private async _run(
     mode: { kind: 'build' } | { kind: 'update'; changedFiles: string[] } | { kind: 'rebuild' },
@@ -335,6 +359,7 @@ export class IndexBuilder {
     const { lsp: lspSettings, scip: scipSettings, validation: validationPolicy } = configuration;
     const log = getLogger();
     const startTime = performance.now();
+    const scipScope = await this.resolveRunScipScope(configuration);
     const db = openDb(this.dbPath);
     writerLease?.assertCurrent(db);
     const runEmbedder = this.resolveRunEmbedder(db);
@@ -384,6 +409,7 @@ export class IndexBuilder {
         includeGlobs: this.walkerConfig.includeGlobs ?? ['**/*'],
         excludeGlobs: this.walkerConfig.excludeGlobs ?? [],
         extensions: this.walkerConfig.extensions ?? null,
+        scipScope: scipScope ?? null,
         scip: scipSettings ? {
           enabled: scipSettings.enabled,
           timeoutMs: scipSettings.timeoutMs,
@@ -399,6 +425,7 @@ export class IndexBuilder {
           supplementation: lspSettings.supplementation ?? null,
         } : null,
         validation: validationPolicy,
+        execution: configuration.execution,
         responseFileLimits: this.options.responseFileLimits ?? null,
         pipelineTimeoutMs: this.pipelineTimeoutMs ?? null,
       },
@@ -433,6 +460,10 @@ export class IndexBuilder {
       branch,
       lsp: lspSettings,
       scip: scipSettings,
+      scipScope,
+      walkedFiles: scipScope?.effectiveFiles.map((file) => ({
+        path: resolve(scipScope.rootDir, file.path), language: file.language,
+      })),
       approvedExternalBuildRoots: configuration.execution.allowedCwdRoots,
       responseFileLimits: this.options.responseFileLimits,
       embedder: runEmbedder.provider,
@@ -477,6 +508,8 @@ export class IndexBuilder {
       if (validationPolicy) {
         const report = validateIndex(db, {
           rootDir: this.walkerConfig.rootDir,
+          scipScope: configuration.scipScope ?? undefined,
+          walkerConfig: this.walkerConfig,
           branch,
           policy: validationPolicy,
           ...(baselineRun && {

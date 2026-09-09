@@ -3,6 +3,21 @@ import { CSourceSpanResolver } from '../../src/indexer/stages/scip-helpers/sourc
 import { PositionEncoding } from '../../src/scip/scip_pb.js';
 
 describe('CSourceSpanResolver', () => {
+  it('recovers bounded declaration spans from compiler-identified C function names', () => {
+    const resolver = new CSourceSpanResolver('const char *helper(\n  int value, void (*callback)(int)\n);\n');
+    expect(resolver.findFunctionDeclarationSpan(0, 12)).toEqual({ startLine: 0, endLine: 2, endCharacter: 2 });
+    const limited = new CSourceSpanResolver('int helper(int value);', undefined, { maxCharacters: 10 });
+    expect(limited.findFunctionDeclarationSpan(0, 4)).toBeNull();
+  });
+
+  it.each([
+    'helper();', 'return helper();', 'int value = helper();', 'object.helper();',
+    'sizeof helper();', 'do helper();',
+    'int helper(void) { return 1; }', 'MACRO(helper());', '#define RUN helper();',
+  ])('does not treat a call or body as a declaration: %s', (source) => {
+    expect(new CSourceSpanResolver(source).findFunctionDeclarationSpan(0, source.indexOf('helper'))).toBeNull();
+  });
+
   it('recovers a multiline C function body when SCIP omits enclosingRange', () => {
     const source = [
       'int helper(void);',

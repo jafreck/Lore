@@ -369,25 +369,42 @@ export async function walkFiles(
   config: WalkerConfig,
   cFamilyOptions: CFamilyLanguageEvidenceOptions = {},
 ): Promise<FileEntry[]> {
-  const {
-    rootDir,
-    includeGlobs = ['**/*'],
-    excludeGlobs = [],
-    extensions,
-  } = config;
+  const paths = await fg(walkerPatterns(config), walkerGlobOptions(config));
+  return classifyWalkedPaths(paths, config, cFamilyOptions);
+}
 
-  const patterns = includeGlobs.length > 0 ? includeGlobs : ['**/*'];
-  const ignore = [...DEFAULT_EXCLUDES, ...excludeGlobs];
+export function walkFilesSync(
+  config: WalkerConfig,
+  cFamilyOptions: CFamilyLanguageEvidenceOptions = {},
+): FileEntry[] {
+  return classifyWalkedPaths(walkFilePathsSync(config), config, cFamilyOptions);
+}
 
-  const paths = await fg(patterns, {
-    cwd: rootDir,
+export function walkFilePathsSync(config: WalkerConfig): string[] {
+  return fg.sync(walkerPatterns(config), walkerGlobOptions(config));
+}
+
+function walkerPatterns(config: WalkerConfig): string[] {
+  return config.includeGlobs?.length ? config.includeGlobs : ['**/*'];
+}
+
+function walkerGlobOptions(config: WalkerConfig): fg.Options {
+  return {
+    cwd: config.rootDir,
     absolute: true,
     onlyFiles: true,
     followSymbolicLinks: true,
-    ignore,
+    ignore: [...DEFAULT_EXCLUDES, ...(config.excludeGlobs ?? [])],
     dot: false,
-  });
+  };
+}
 
+function classifyWalkedPaths(
+  paths: string[],
+  config: WalkerConfig,
+  cFamilyOptions: CFamilyLanguageEvidenceOptions,
+): FileEntry[] {
+  const { rootDir, extensions } = config;
   const candidates: string[] = [];
   const seen = new Set<string>();
   const canonicalRoot = realpathSync(rootDir);

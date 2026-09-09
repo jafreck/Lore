@@ -47,6 +47,22 @@ function validCandidate(candidate: string): CompdbIO {
 }
 
 describe('compilation database discovery', () => {
+  it('validates only explicitly selected entries while preserving the full source identity', () => {
+    const compdbPath = '/project/compile_commands.json';
+    const entries = [
+      { directory: '/project', file: 'src/main.c', arguments: ['clang', '-c', 'src/main.c'] },
+      { directory: '/outside', file: 'ancillary.c', arguments: ['clang', '@unreadable', '-c', 'ancillary.c'] },
+      { directory: '/project', file: 'unused.c', arguments: [] },
+    ];
+    const io = mockIO(new Map([[compdbPath, JSON.stringify(entries)]]), new Set(['/project', '/project/src/main.c']));
+    expect(loadCompilationDatabase(compdbPath, io, '/project').validation.status).toBe('relocated');
+    const loaded = loadCompilationDatabase(compdbPath, io, '/project', { selectedFiles: ['/project/src/main.c'] });
+    expect(loaded.validation).toMatchObject({ status: 'valid', totalEntries: 1, malformedEntries: 0, warnings: [] });
+    expect(loaded.database?.entries.map(entry => entry.filePath)).toEqual(['/project/src/main.c']);
+    expect(loadCompilationDatabase(compdbPath, io, '/project', { selectedFiles: ['/project/unused.c'] }).validation.status)
+      .toBe('malformed');
+  });
+
   it.each([
     ['/project/compile_commands.json'],
     ['/project/build/compile_commands.json'],
