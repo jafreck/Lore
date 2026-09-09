@@ -30,6 +30,12 @@ disagreeing is incompatible rather than a repair candidate. A marker newer
 than this build is rejected before WAL mode or another mutating pragma is
 applied.
 
+The 0.4.2 release keeps this schema and migration sequence unchanged. Scoped
+file manifests, filtered-compdb identities, compiler diagnostics, and required
+semantic facts use existing run-provenance JSON columns. Schema compatibility
+does not certify those facts: native baselines written before diagnostic
+capture need rebuilding to pass strict or migration-grade validation in 0.4.2.
+
 Writable `openDb()` calls apply the ordered migration sequence `[1, 2, 3]` and
 then run capability inspection. The sequence is contiguous:
 
